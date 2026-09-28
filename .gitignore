@@ -1,0 +1,47 @@
+# OS / 에디터
+.DS_Store
+.idea/
+.vscode/*
+!.vscode/extensions.json
+
+# 비밀값 — 절대 커밋 금지
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+*credentials*.json
+*service-account*.json
+
+# Node (web, server)
+node_modules/
+dist/
+build/
+coverage/
+*.log
+
+# Terraform (infra)
+.terraform/
+*.tfstate
+*.tfstate.*
+*.tfvars
+!*.tfvars.example
+crash.log
+*.tfplan
+override.tf
+override.tf.json
+*_override.tf
+*_override.tf.json
+
+# iOS (ios)
+xcuserdata/
+DerivedData/
+*.xcuserstate
+
+# Python (server 언어가 FastAPI로 정해지면)
+__pycache__/
+.venv/
+
+# Java (server 언어가 Spring Boot로 정해지면)
+.gradle/
+target/
