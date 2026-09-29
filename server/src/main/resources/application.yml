@@ -1,0 +1,13 @@
+spring:
+  application:
+    name: daisy-server
+  datasource:
+    url: ${DAISY_DB_URL:jdbc:postgresql://localhost:5432/daisy}
+    username: ${DAISY_DB_USER:daisy}
+    password: ${DAISY_DB_PASSWORD}
+  jpa:
+    open-in-view: false
+    hibernate:
+      ddl-auto: validate
+  jackson:
+    property-naming-strategy: SNAKE_CASE
