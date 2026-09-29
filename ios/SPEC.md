@@ -1,9 +1,9 @@
 # SPEC.md — Daisy Apple 앱 (iOS · macOS) 명세와 백엔드 요구사항
 
 > 작성: 박승준 · 상태: **초안 (9/29)** · 참조: 루트 `AGENTS.md`, 노션 ADR-007, Backend API Endpoint 초안 v0.1(김도영), User Flow Chart
-> 이 문서의 **API 경로·필드·이벤트 이름은 모두 (가칭)**이에요. API 계약(OpenAPI)이 확정되면 이름을 확정 이름으로 바꾸고 `(가칭)` 표시를 지워요.
+> **§6의 API 경로·이벤트 이름은 9/29에 서버(하은현)가 확정했어요** ([#1 리뷰](https://github.com/Softbank-Hackathon-2026-Team-Daisy/daisy/pull/1)). 아직 정해지지 않은 것만 `(가칭)`이나 ❓로 남겨 뒀어요: §6-7 모델 필드 일부, R-04 HTTPS 공개 주소, 배포 상태·단계 값, §7 CI 요구사항.
 >
-> **백엔드 파트(하은현, 김승환)는 [§6 백엔드 요구사항](#6-백엔드-요구사항-가칭)부터 읽으면 돼요.** 필수(M)만 D2(10/1)까지 있으면 앱 데모가 돼요.
+> **백엔드 파트(하은현, 김승환)는 [§6 백엔드 요구사항](#6-백엔드-요구사항)부터 읽으면 돼요.** 확정 상태와 제공 일정은 §6-0에 정리했어요.
 > CI 파트(김도영)는 [§7](#7-ci-요구사항-가칭--김도영)만 보면 돼요.
 
 ---
@@ -153,31 +153,49 @@ View ──▶ Store(@Observable) ──▶ APIClient ────────�
 
 | 날짜 | 앱 | 백엔드에 필요한 시점 |
 |---|---|---|
-| D1 (9/29~30) | Xcode 프로젝트 생성, App Store Connect 앱 등록, 현황 · 배포 상세 화면 레이아웃, API 클라이언트 · 모델, 이 명세 공유 | 이 문서 리뷰 → 이름 확정. **개발 서버 주소(R-08)** |
-| D2 (10/1) | 승인 · 커밋 이력 화면, 실서버 연결, SSE 수신. **TestFlight 외부 테스트 첫 빌드 심사 제출** | **M 조회 API(A-01~A-05)와 데모 계정(R-03)이 개발 서버에 떠 있어야 해요** |
-| D3 (10/2) | 커밋 이력 · 승인 실연동, 푸시 (S), 전체 흐름 리허설, 공개 링크 QR 준비 | 승인 API, A-06, SSE, (S) 푸시 발송 |
+| D1 (9/29~30) | Xcode 프로젝트 생성, App Store Connect 앱 등록, 현황 · 배포 상세 화면 레이아웃, API 클라이언트 · 모델 | 이 문서 리뷰 → 이름 확정 ✅ (9/29) |
+| D2 (10/1) | 로그인, 현황 · 배포 상세를 실서버에 연결 (5초 폴링), 승인 · 커밋 이력 화면 레이아웃. **TestFlight 외부 테스트 첫 빌드 심사 제출** (로그인 · 현황 · 배포 상세 기준) | 인증 R-01·R-02, 데모 계정 R-03, **A-01·A-02·A-04**, 개발 서버 R-08 (은현 님 약속) |
+| D3 (10/2) | 배포 목록 · 승인 · 커밋 이력 연결, 폴링 → SSE 전환, 로컬 알림, 전체 흐름 리허설, 공개 링크 QR 준비. D3 기능을 넣은 빌드를 오전에 업로드 | A-03·A-05·A-06·A-07, SSE, 승인 W-01, (여유 있으면) 푸시 |
 | 10/3 | 공개 링크 배포 | — |
 
 - **TestFlight 외부 테스트는 첫 빌드에 Beta App Review가 필요해요.** 보통 하루 안팎이지만 보장되지 않아서 **10/1에 제출**하는 게 목표예요. 이후 빌드는 심사가 짧거나 생략되는 경우가 많지만 이것도 보장되지 않아요
-- 앱은 로그인이 필요해서 심사 때 **Apple 심사자용 계정**을 적어 내야 해요. 그래서 데모 계정(§6-1 `R-03`)과 HTTPS 서버(`R-04`)가 **D2까지 꼭 필요해요**
+- 앱은 로그인이 필요해서 심사 때 **Apple 심사자용 계정**을 적어 내야 해요. 그래서 데모 계정(§6-1 `R-03`)과 HTTPS 서버(`R-04`)가 **D2까지 꼭 필요해요.** 데모 계정은 D2 약속을 받았고, HTTPS 공개 방식은 9/29 회의에서 정해요
+- 승인 · 커밋 이력은 서버 API가 D3에 나와서, 첫 심사 빌드에는 레이아웃만 들어가요. 심사를 통과한 뒤 올리는 빌드는 다시 심사받지 않는 경우가 많지만 보장되지 않아서, D3 빌드를 오전에 올려요
 - 앱에 목업이 없어서 **앱 진행 속도가 백엔드 API 일정에 직접 묶여요.** API가 늦어지면 그 화면은 레이아웃만 먼저 만들고 기다려요
 
 ---
 
-## 6. 백엔드 요구사항 (가칭)
+## 6. 백엔드 요구사항
 
 - 우선순위: **M** = 앱 데모 필수 · **S** = 있으면 좋음
 - "v0.1과 같음"은 노션 Backend API Endpoint 초안 v0.1에 이미 있는 것이에요. 앱 때문에 **새로 필요한 건 🆕**로 표시했어요
-- 경로·필드 이름은 백엔드 편한 대로 바꿔도 돼요. **바꾸면 알려주세요.** 앱은 이름만 맞추면 돼요
+- 경로 · 이벤트 이름은 9/29에 서버가 확정했어요. 바뀐 건 P-01 해제 방식 하나예요. 서버의 단일 원천은 OpenAPI 문서이고, 노션 「Backend API Endpoint」는 은현 님이 확정본으로 이어서 고쳐요
+
+### 6-0. 서버 답변 요약 (9/29, 하은현)
+
+| ID | 상태 | 제공 |
+|---|---|---|
+| R-01 인증 | ✅ Bearer 하나로 통일 (REST · SSE). 쿠키는 받지 않아요 | D2 |
+| R-02 토큰 발급 · R-03 데모 계정 · R-08 개발 서버 | ✅ 확정. viewer는 승인 시 403 | D2 |
+| R-04 HTTPS 공개 주소 | ❓ 팀 결정. 9/29 회의 안건 (은현 님: Cloudflare Tunnel 제안). 웹훅 · 앱 · 온프레미스 데모가 같이 기다려요 | 회의 후 |
+| R-05~R-07 공통 규칙 | ✅ v0.1 그대로 | — |
+| A-01 · A-02 · A-04 | ✅ 확정. A-02는 `GET /projects/{id}`에 합치지 않고 별도 엔드포인트 | **D2** |
+| A-03 · A-05 · A-06 · A-07 | ✅ 확정 | D3 |
+| A-08 | 대신 A-03의 `awaiting_approval` 필터를 써요 | — |
+| E-01 · E-02 SSE | ✅ 채널 · 이벤트 이름 확정. **D2는 A-04 · A-02 5초 폴링**, D3에 SSE로 바꿔요 | D3 |
+| W-01 승인 | ✅ 확정 | D3 |
+| P-01 · P-02 푸시 | ✅ 경로 확정, 해제는 `DELETE /devices` + 본문. 배포 흐름이 다 돈 뒤 여유 있으면 해요. 그전까지 앱은 로컬 알림 | 여유 시 |
+| §7 CI 요구사항 | 은현 님이 웹훅 수신 쪽 요구로 정리해서 도영 님께 이슈로 전달 | — |
+| SSE 녹화 | 첫 실제 배포가 성공하면 은현 님이 텍스트로 전달 | D3 |
 
 ### 6-1. 공통
 
 | ID | 요구사항 | 우선 | 비고 |
 |---|---|---|---|
-| R-01 🆕 | **Bearer 토큰 인증 병행.** `Authorization: Bearer <token>` 헤더를 REST와 SSE 모두에서 받기 | M | v0.1은 httpOnly 세션 쿠키 안. 네이티브 앱은 쿠키보다 토큰이 다루기 쉬워요. 웹은 쿠키 그대로 써도 돼요 |
-| R-02 🆕 | 토큰 발급 (가칭) `POST /auth/token` `{ username, password }` → `{ access_token, expires_at, role }` | M | 팀 내부 도구라 단순해도 돼요. 가입 기능은 필요 없어요 |
+| R-01 🆕 | **Bearer 토큰 인증.** `Authorization: Bearer <token>` 헤더를 REST와 SSE 모두에서 받기 | M | 서버는 Bearer 하나로 통일 (쿠키 안 받음). 웹 `EventSource`가 헤더를 못 붙이는 문제는 서버 · 웹이 따로 풀어요 |
+| R-02 🆕 | 토큰 발급 `POST /auth/token` `{ username, password }` → `{ access_token, expires_at, role }` | M | 팀 내부 도구라 단순해도 돼요. 가입 기능은 필요 없어요 |
 | R-03 🆕 | **읽기 전용 데모 계정** (`role: "viewer"`). 조회 · SSE는 되고 승인은 403 | M | 심사위원 설치용 + TestFlight 심사용. 승인 API가 viewer를 막아야 해요 |
-| R-04 🆕 | **HTTPS 공개 주소** | M | iOS는 기본적으로 HTTP 연결을 막아요(ATS). Cloudflare Tunnel 등으로 HTTPS면 충분해요. 발표장에서 심사위원 휴대폰(LTE)이 접속할 수 있어야 해요 |
+| R-04 🆕 | **HTTPS 공개 주소** ❓ | M | 방식은 팀 결정 대기 (§6-0). iOS는 기본적으로 HTTP 연결을 막아요(ATS). Cloudflare Tunnel 등으로 HTTPS면 충분해요. 발표장에서 심사위원 휴대폰(LTE)이 접속할 수 있어야 해요 |
 | R-05 | 공통 규칙은 v0.1과 같음: 시간 ISO 8601 UTC, 에러 `{ error: { code, message, details, retryable } }`, 목록 `{ items, next_cursor }`, ID 접두사, 승인 POST에 `Idempotency-Key` | M | |
 | R-06 | JSON 키는 `snake_case` 그대로 좋아요 | — | 앱에서 변환해요 |
 | R-07 | 상태 같은 enum 값은 **문자열**. 새 값을 추가해도 앱은 "알 수 없음"으로 표시하고 죽지 않아요 | — | 안심하고 추가해도 돼요 |
@@ -185,25 +203,25 @@ View ──▶ Store(@Observable) ──▶ APIClient ────────�
 
 ### 6-2. 조회 API
 
-| ID | 메서드 · 경로 (가칭) | 쓰는 화면 | 응답 요약 | 우선 | 비고 |
+| ID | 메서드 · 경로 | 쓰는 화면 | 응답 요약 | 우선 | 비고 |
 |---|---|---|---|---|---|
 | A-01 | `GET /projects` | 현황 (프로젝트 선택) | `Project[]` | M | v0.1 제안과 같음 |
-| A-02 🆕 | `GET /projects/{id}/targets/status` | **현황** | 환경별 현재 상태 `TargetStatus[]` (§6-7) | M | v0.1의 `GET /projects/{id}` "환경별 최신 배포 요약"에 포함해도 돼요. **앱의 핵심 화면** |
+| A-02 🆕 | `GET /projects/{id}/targets/status` | **현황** | 환경별 현재 상태 `TargetStatus[]` (§6-7) | M | 앱이 자주 부르는 화면이라 별도 엔드포인트로 둬요. **앱의 핵심 화면** |
 | A-03 | `GET /projects/{id}/deployments?state=&cursor=` | 배포 목록 | `Deployment` 요약 목록 | M | v0.1 제안과 같음 |
-| A-04 | `GET /deployments/{id}` | 배포 상세 | `Deployment` 스냅샷 | M | v0.1과 같음. **환경별 `attempt`(AI 수정 시도 횟수)와 현재 단계**가 꼭 있어야 해요 |
-| A-05 | `GET /deployments/{id}/plan` | 승인 | `Plan` (환경별 개수 · 삭제 여부 · 위험 설정 · AI 비용) | M | v0.1 제안과 같음. 앱은 **요약 필드만** 써요 (리소스 전체 목록은 웹) |
+| A-04 | `GET /deployments/{id}` | 배포 상세 | `Deployment` 스냅샷 | M | v0.1과 같음. 환경별 `attempt`와 현재 단계 포함. **`attempt`는 첫 생성을 포함한 총 시도 횟수**예요: `1/3`부터 시작하고 AI 수정은 최대 2번. 화면 문구는 "시도 n/3" |
+| A-05 | `GET /deployments/{id}/plan` | 승인 | `Plan` (환경별 개수 · 삭제 여부 · 위험 설정) + `ai_usage` | M | 서버의 `PlanSummary`(김승환) 그대로. AI 토큰 · 비용은 plan 안이 아니라 응답의 `ai_usage` 합계로 같이 와요. 앱은 **요약 필드만** 써요 (리소스 전체 목록은 웹) |
 | A-06 🆕 | `GET /projects/{id}/builds?cursor=` | **커밋 · 파이프라인** | `Build[]` (§6-7) | M | Actions webhook으로 받은 내용을 저장해 두고 돌려주면 돼요. 커밋별 **배포된 환경 목록**까지 |
 | A-07 🆕 | `GET /deployments/{id}/logs?target_id=&tail=100` | 배포 상세 | 최근 로그 N줄 | S | SSE가 끊겼다 들어왔을 때 최근 로그 채우기용 |
-| A-08 | `GET /approvals?state=pending` | 승인 탭 배지 | 대기 중 승인 목록 | S | 없으면 배포 목록에서 `awaiting_approval`만 걸러서 대신해요 |
+| A-08 | `GET /approvals?state=pending` | 승인 탭 배지 | 대기 중 승인 목록 | S | 만들지 않아요. A-03의 `awaiting_approval` 필터로 대신해요 (9/29 합의) |
 
 ### 6-3. 실시간 (SSE)
 
 v0.1의 SSE 채널·봉투·재연결 규칙을 **그대로** 써요. 앱에 필요한 건 아래 이벤트만이에요.
 
-| ID | 채널 (가칭) | 이벤트 | 앱 반응 | 우선 |
+| ID | 채널 | 이벤트 | 앱 반응 | 우선 |
 |---|---|---|---|---|
 | E-01 | `GET /deployments/{id}/events` | `deployment.state_changed` | 상단 상태 | M |
-| | | `step.started` · `step.completed` · `step.failed` (`target_id`, `step`, **`attempt`**, `error?`) | 환경별 단계 · AI 수정 `n/3` | M |
+| | | `step.started` · `step.completed` · `step.failed` (`target_id`, `step`, **`attempt`**, `error?`) | 환경별 단계 · "시도 n/3" | M |
 | | | `plan.ready` · `approval.required` · `approval.resolved` | 승인 카드 표시 · 닫기 | M |
 | | | `deployment.completed` (환경별 URL) | 완료 · URL | M |
 | | | `heartbeat` · `resync` | 연결 상태 · 스냅샷 재조회 | M |
@@ -212,14 +230,14 @@ v0.1의 SSE 채널·봉투·재연결 규칙을 **그대로** 써요. 앱에 필
 | | | 🆕 `deployment.created` | 새 배포를 목록 맨 위에 추가 | S |
 | | | 🆕 `build.received` (새 이미지 도착) | 커밋 이력 갱신 | S |
 
-- **SSE에서도 Bearer 헤더(R-01)를 받아 주세요.** 앱은 헤더를 붙일 수 있어요
-- `Last-Event-ID` 재연결을 지원하면 좋아요 (v0.1 4-5와 같음)
-- **SSE가 D2까지 어려우면:** 앱은 `A-04` · `A-02`를 5초마다 폴링해요. 백엔드는 조회 API만 있으면 돼요
-- **녹화 요청 (S):** 실제 배포 1회의 SSE를 텍스트로 저장해 주면 SSE 파서 테스트에 써요
+- SSE도 Bearer 헤더(R-01)로 인증해요
+- `Last-Event-ID` 재연결은 v0.1 4-5 그대로예요. 서버가 DB의 `seq`로 재생해서 이벤트 보관 기간은 신경 쓰지 않아도 돼요
+- **D2는 SSE 대신** 앱이 `A-04` · `A-02`를 5초마다 폴링해요. D3에 SSE로 바꿔요
+- **녹화:** 첫 실제 배포가 성공하면 은현 님이 이벤트를 텍스트로 전달해요. SSE 파서 테스트에 써요
 
 ### 6-4. 쓰기 API
 
-| ID | 메서드 · 경로 (가칭) | 요청 | 우선 | 비고 |
+| ID | 메서드 · 경로 | 요청 | 우선 | 비고 |
 |---|---|---|---|---|
 | W-01 | `POST /deployments/{id}/approvals` | `{ kind: "plan", decision: "approve" \| "reject", comment?, confirm_text? }` + `Idempotency-Key` | M | v0.1 3-3과 같음. 앱은 `kind: "plan"`만 써요 |
 
@@ -232,12 +250,12 @@ v0.1의 SSE 채널·봉투·재연결 규칙을 **그대로** 써요. 앱에 필
 
 | ID | 요구사항 | 비고 |
 |---|---|---|
-| P-01 🆕 | 기기 토큰 등록 (가칭) `POST /devices` `{ apns_token, platform: "ios" \| "macos", apns_env: "production" \| "sandbox" }` · 해제 `DELETE /devices/{apns_token}` | 로그인한 사용자와 묶어서 저장 |
+| P-01 🆕 | 기기 토큰 등록 `POST /devices` `{ apns_token, platform: "ios" \| "macos", apns_env: "production" \| "sandbox" }` · 해제 **`DELETE /devices` + 본문 `{ apns_token }`** | 로그인한 사용자와 묶어서 저장. 토큰을 URL 경로에 넣으면 서버 · 프록시 로그에 남아서 본문으로 보내요 (9/29 합의) |
 | P-02 🆕 | 백엔드가 APNs로 발송: **승인 필요** · **배포 완료** · **배포 실패**(AI 수정 3회 초과 포함) | payload: `aps.alert` + `{ kind, project_id, deployment_id }`. 앱은 이 값으로 화면을 열어요 |
 | P-03 | APNs 인증 키(`.p8`), Key ID, Team ID는 **박승준이 발급해서 비밀값으로 전달** | 커밋 금지. 전달 방식은 팀 비밀값 저장소 `[미정]` |
 
 - **TestFlight 빌드는 `production` APNs 서버**로 보내야 해요. Xcode에서 바로 설치한 개발 빌드만 `sandbox`예요. 그래서 등록할 때 `apns_env`를 같이 보내요
-- 백엔드 여유가 없으면: 앱이 켜져 있는 동안 SSE 이벤트로 **로컬 알림**만 띄우는 걸로 줄여요 (백엔드 작업 0)
+- **D3까지는 로컬 알림**이에요: 앱이 켜져 있는 동안 받은 이벤트로 알림을 띄워요 (백엔드 작업 0). APNs는 배포 흐름이 다 돈 뒤 여유 있으면 해요 (9/29 합의)
 - 언어별 APNs 라이브러리 예: Node `apns2`, Spring `pushy`, Python `aioapns` — 백엔드 언어가 정해지면 골라 주세요
 
 ### 6-6. 백엔드가 가진 정보 중 앱이 꼭 받아야 하는 것
@@ -246,12 +264,12 @@ API 모양보다 **이 정보가 어딘가에 저장되어 있는지**가 더 �
 
 - 환경별 **지금 떠 있는 커밋 해시 · 이미지 · 배포 시각 · 공개 URL · 헬스**
 - 배포별 **환경마다의 현재 단계, AI 수정 시도 횟수(n/3), 실패 이유 한 줄**
-- plan별 **환경마다의 생성 · 변경 · 삭제 개수, 삭제 포함 여부, 위험 설정 목록, AI 토큰 · 비용**
+- plan별 **환경마다의 생성 · 변경 · 삭제 개수, 삭제 포함 여부, 위험 설정 목록** + AI 토큰 · 비용(`ai_usage` 합계)
 - 빌드(커밋)별 **메시지 · 작성자 · 시각 · Actions 결과 · 실행 링크 · 이미지 태그 · 배포된 환경**
 
-### 6-7. 데이터 모델 (가칭)
+### 6-7. 데이터 모델
 
-앱의 `Core/Models`와 1:1로 맞출 모양이에요. 필드 이름은 확정 때 바꿔요.
+앱의 `Core/Models`와 1:1로 맞출 모양이에요. `Plan`은 서버의 `PlanSummary` 기준이에요. 나머지 필드 이름은 서버 OpenAPI가 나오면 맞추고, 그때까지는 `(가칭)`이에요.
 
 ```jsonc
 // Project
@@ -286,7 +304,7 @@ API 모양보다 **이 정보가 어딘가에 저장되어 있는지**가 더 �
       "target_id": "tgt_gcp",
       "step": "generate" | "validate" | "plan" | "risk_check" | "apply" | "health_check",
       "step_state": "running" | "done" | "failed" | "waiting",
-      "attempt": 1,                          // AI 수정 시도 횟수 (최대 3)
+      "attempt": 1,                          // 첫 생성을 포함한 총 시도 횟수 (1~3). 화면에는 "시도 n/3"
       "reused_script": false,                // 검증된 스크립트 재사용 (AI 호출 0회)이면 true
       "url": null,
       "error_summary": null
@@ -306,11 +324,11 @@ API 모양보다 **이 정보가 어딘가에 저장되어 있는지**가 더 �
     {
       "target_id": "tgt_aws",
       "counts": { "create": 12, "update": 0, "delete": 0 },
-      "has_delete": false,
-      "risks": [ { "severity": "high" | "medium" | "low", "rule": "sg-open-world", "message": "보안 그룹이 0.0.0.0/0에 열려 있어요" } ]
+      "has_delete": false,                  // 리소스 교체(replace)로 삭제가 생겨도 true
+      "risks": [ { "level": "high", "rule": "sg-open-world", "resource": "aws_security_group.web", "message": "보안 그룹이 0.0.0.0/0에 열려 있어요" } ]
     }
   ],
-  "ai": { "tokens": 18234, "cost_krw": 312 }
+  "ai_usage": { "tokens": 18234, "cost_krw": 312 }   // (가칭) 누적 합계. 필드 모양은 서버 OpenAPI 기준으로 맞춰요
 }
 
 // Build — A-06, 커밋·파이프라인 화면
@@ -329,7 +347,7 @@ API 모양보다 **이 정보가 어딘가에 저장되어 있는지**가 더 �
 
 ## 7. CI 요구사항 (가칭) — 김도영
 
-커밋 · 파이프라인 화면(A-06)을 채우려면 Actions가 보내는 이벤트에 정보가 조금 더 필요해요. 현재 `sample-monolith/.github/workflows/ci.yml`의 `notify` 잡 기준이에요.
+커밋 · 파이프라인 화면(A-06)을 채우려면 Actions가 보내는 이벤트에 정보가 조금 더 필요해요. 이 payload는 서버 웹훅으로 들어가서, **은현 님이 정리해 도영 님께 이슈로 전달**하기로 했어요 (9/29). 현재 `sample-monolith/.github/workflows/ci.yml`의 `notify` 잡 기준이에요.
 
 | ID | 요구사항 | 우선 | 비고 |
 |---|---|---|---|
@@ -341,13 +359,14 @@ API 모양보다 **이 정보가 어딘가에 저장되어 있는지**가 더 �
 
 ## 8. 결정이 필요한 것 ❓
 
-- [ ] **ADR-007 범위 수정** (§1-2): 현황 · 커밋 이력 · macOS 추가
-- [ ] **Bearer 토큰 병행** (R-01): 웹은 쿠키, 앱은 토큰
-- [ ] **개발 서버**(R-08), **데모 읽기 전용 계정**(R-03), **HTTPS 공개 주소**(R-04)를 누가 언제 준비하나요
+- [ ] **ADR-007 범위 수정** (§1-2): 현황 · 커밋 이력 · macOS 추가 — 9/29 회의
+- [x] ~~Bearer 토큰 병행~~ → Bearer 하나로 통일 (9/29, 은현 님)
+- [x] ~~개발 서버 · 데모 계정 준비~~ → D2 은현 님 (9/29)
+- [ ] **HTTPS 공개 주소** (R-04) — 9/29 회의 (은현 님 안건)
 - [ ] **승인 단위**: 배포 전체 한 번 / 환경별 (§6-4)
 - [ ] **배포 상태 · 단계 값** 확정 (§6-7 `state`, `step`) — 웹 · 앱 · 백엔드가 같은 목록을 써요
-- [ ] **푸시를 예선 범위에 넣을지** (§6-5) — 빼면 로컬 알림으로 대체
-- [ ] 이 문서의 `(가칭)` 이름을 OpenAPI 확정 이름으로 바꾸기
+- [x] ~~푸시를 예선 범위에 넣을지~~ → D3까지 로컬 알림, APNs는 여유 있으면 (9/29)
+- [x] ~~경로 · 이벤트 이름 확정~~ → 9/29 확정. 모델 필드는 서버 OpenAPI가 나오면 맞춰요
 
 ---
 
@@ -358,3 +377,4 @@ API 모양보다 **이 정보가 어딘가에 저장되어 있는지**가 더 �
 | 9/29 | 초안 작성 | 박승준 |
 | 9/29 | 앱 목업 모드 제거 (항상 실서버 연결), 개발 서버 요구(R-08) 추가 | 박승준 |
 | 9/29 | 에이전트 규칙 파일을 `CLAUDE.md` → `AGENTS.md`로 변경 | 박승준 |
+| 9/29 | 서버 답변 반영: 경로 · 이벤트 이름 확정, Bearer만, `DELETE /devices` + 본문, `attempt` 의미, Plan 모양(`level`·`resource`, `ai_usage`), 제공 일정 D2/D3, 폴링 · 로컬 알림 폴백 | 박승준 |

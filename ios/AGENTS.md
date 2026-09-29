@@ -18,13 +18,15 @@ A native SwiftUI app that shows Daisy deployments on iPhone and Mac: **view, app
 
 | Contract | Where we track our needs | Status |
 |---|---|---|
-| REST API paths and payloads | `SPEC.md` §6-2, §6-4, §6-7 | `(가칭)` until server publishes the API contract |
-| SSE channels and events | `SPEC.md` §6-3 | `(가칭)` |
-| Auth (Bearer token), demo viewer account, HTTPS, dev server | `SPEC.md` §6-1 | `(가칭)` |
-| Push device registration and APNs sending | `SPEC.md` §6-5 | `(가칭)`, optional (S) |
-| CI event payload fields (via 김도영) | `SPEC.md` §7 | `(가칭)` |
+| REST API paths | `SPEC.md` §6-2, §6-4 | Decided by server on 9/29 (PR #1 review). D2: A-01, A-02, A-04. D3: the rest |
+| Response fields | `SPEC.md` §6-7 | `Plan` decided (server `PlanSummary`). Other fields `(가칭)` until server publishes OpenAPI |
+| SSE channels and events | `SPEC.md` §6-3 | Names decided. Server ships SSE on D3; poll every 5 s until then |
+| Auth, demo viewer account, dev server | `SPEC.md` §6-1 | Decided: Bearer only (no cookies). Ships D2 |
+| HTTPS public address | `SPEC.md` R-04 | `[미정]`: team meeting 9/29 |
+| Push device registration and APNs sending | `SPEC.md` §6-5 | Paths decided; unregister is `DELETE /devices` with the token in the body. Server does APNs only if time allows; use local notifications until then |
+| CI event payload fields | `SPEC.md` §7 | `(가칭)`: server (하은현) forwards it to CI (김도영) as an issue |
 
-Because these belong to server, needs here are tier 3 in root §6: the server owner decides names and shapes.
+These belong to server, so they are tier 3 in root §6: the server owner decides names and shapes. `SPEC.md` §6-0 is the current status table.
 
 ## 3. How to work here
 
@@ -71,6 +73,7 @@ ios/
 - Map the server error envelope to `APIError`. `401 UNAUTHENTICATED` → login screen. `409 STATE_CONFLICT` → reload the latest state. A viewer account gets `403` on approval; show it as "읽기 전용 계정".
 - `#if os(iOS)` / `#if os(macOS)` only in `App/` and `DesignSystem/`, never in feature logic.
 - User-facing strings are Korean, 해요체.
+- Show `attempt` as "시도 n/3". It counts the first generation, so it starts at 1 and the AI fixes at most twice. Never label it as a retry count.
 
 ## 7. Commands
 
@@ -101,4 +104,6 @@ Tier per root §6. Tier 1 entries are final for this area.
 | 9/29 | Tokens stored in the Keychain | Tokens must not sit in UserDefaults | 1 |
 | 9/29 | The app does not start deployments or change infrastructure | Keeps the app inside ADR-007 and keeps the server work small | 1 |
 | 9/29 | Widen ADR-007: add overview, commit history, macOS | Proposed in `SPEC.md` §1-2; needs the team meeting | 4 (`(가칭)`) |
-| 9/29 | Requests to server and CI | `SPEC.md` §6–§7; the server and CI owners decide names and shapes | 3 (`(가칭)`) |
+| 9/29 | Requests to server and CI | `SPEC.md` §6–§7; the server and CI owners decide names and shapes | 3 |
+| 9/29 | Server accepted the §6 names; unregister device with `DELETE /devices` + body | Token in a URL path leaks into access logs (server's request). Recorded in `SPEC.md` §6-0 | 3 (decided by server) |
+| 9/29 | Until server ships SSE and APNs (D3 or later): poll every 5 s and show local notifications | Agreed with server; keeps the app working on D2 | 1 |
