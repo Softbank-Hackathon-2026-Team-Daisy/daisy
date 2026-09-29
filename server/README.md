@@ -1,5 +1,7 @@
 # Daisy 서버 개발 환경
 
+개발 범위와 검증 결과는 [SPEC.md](SPEC.md), 담당 경계와 컨벤션은 [AGENTS.md](AGENTS.md)를 참고해요.
+
 Java 21, Spring Boot 3.5.16, Gradle 8.14, PostgreSQL, JPA/Flyway, Spring MVC, springdoc-openapi를 사용해요.
 
 PostgreSQL이 이미 설치되어 있다면 `server/`에서 아래처럼 실행해요. `createdb`는 처음 한 번만 필요해요. 로컬 계정에 암호가 없다면 빈 문자열을 지정할 수 있어요.
