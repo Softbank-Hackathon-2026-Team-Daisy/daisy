@@ -1,0 +1,4 @@
+# 이 폴더를 바꾸는 PR은 해당 팀의 승인이 있어야 main에 머지돼요.
+# web/, ios/는 담당자가 1명이라 본인 PR을 승인할 사람이 없어서 넣지 않아요.
+/server/  @Softbank-Hackathon-2026-Team-Daisy/server
+/infra/   @Softbank-Hackathon-2026-Team-Daisy/infra
