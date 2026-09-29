@@ -147,7 +147,7 @@ ai_usage(id, deployment_id, target, step, attempt, provider, model,
 ## 8. 실행 방법
 
 ```bash
-docker compose up -d db          # Postgres 17
+docker compose up -d postgres    # Postgres 17
 ./gradlew bootRun                # http://localhost:8080
 ./gradlew spotlessApply          # 커밋 전 포맷
 ./gradlew check                  # spotlessCheck + test
