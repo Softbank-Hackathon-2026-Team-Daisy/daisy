@@ -24,4 +24,4 @@ docker compose up -d
 
 서버 상태는 `http://localhost:8080/actuator/health`에서 확인해요. OpenAPI는 `/v3/api-docs`, Swagger UI는 `/swagger-ui.html`이에요. 컨트롤러가 추가되기 전에는 API 경로 목록이 비어 있어요.
 
-`./gradlew build`로 컴파일·테스트를 실행해요. Flyway 마이그레이션은 향후 `src/main/resources/db/migration`에 추가해요. Hibernate는 스키마를 검증하며 테이블을 자동으로 만들지 않아요.
+`./gradlew spotlessApply`로 Java 코드를 포맷하고, `./gradlew check`로 포맷·테스트를 확인해요. `./gradlew build`는 컴파일까지 포함해 전체 빌드를 확인합니다. Flyway 마이그레이션은 향후 `src/main/resources/db/migration`에 추가해요. Hibernate는 스키마를 검증하며 테이블을 자동으로 만들지 않아요.
