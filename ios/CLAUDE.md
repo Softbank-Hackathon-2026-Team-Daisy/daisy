@@ -25,8 +25,7 @@ ios/
 │  ├─ App/            진입점, 루트 화면 (iOS TabView / macOS NavigationSplitView), 의존성 조립
 │  ├─ Features/       화면 단위: Overview, Deployments, Approvals, History, Settings (각각 View + Store)
 │  ├─ Core/           API, Models, Realtime, Auth, Push
-│  ├─ DesignSystem/   공용 뷰: 상태 배지, 환경 아이콘, 커밋 해시 라벨, MOCK 배지
-│  ├─ Mock/           MockAPIClient, Fixtures/*.json, Events/*.jsonl
+│  ├─ DesignSystem/   공용 뷰: 상태 배지, 환경 아이콘, 커밋 해시 라벨
 │  └─ Resources/
 ├─ DaisyTests/
 └─ DaisyWidgets/      (선택) 위젯 · Live Activity
@@ -40,11 +39,12 @@ ios/
 - 에러 처리: 서버 에러 봉투 `{ error: { code, message, retryable } }`를 `APIError`로 변환. `STATE_CONFLICT`(409)는 최신 상태 재조회, `UNAUTHENTICATED`(401)는 로그인 화면
 - 플랫폼 분기: `#if os(iOS)` / `#if os(macOS)`는 `App/`과 `DesignSystem/`에서만. 화면 로직에는 넣지 않아요
 - 문자열: 화면 문구는 한국어, 해요체
-- 테스트: 모델 디코딩(픽스처 JSON), SSE 파서, 스토어 상태 전이
+- 테스트: 모델 디코딩(`DaisyTests` 안의 샘플 JSON), SSE 파서, 스토어 상태 전이
 
 ## 다른 파트와의 약속
 - 웹과 **같은 API 계약** 사용. 앱 때문에 필요한 API · 필드는 SPEC §6 · §7에 `(가칭)`으로 적어 두고 회의에서 확정
 - 실시간: 웹과 같은 SSE 엔드포인트 · 이벤트. SSE가 늦어지면 조회 API 폴링으로 대체 (SPEC §6-3)
+- 개발 서버 · 데모 계정은 백엔드가 제공 (SPEC R-08, R-03). 앱 진행이 이 일정에 묶여요
 - 인증: Bearer 토큰 병행 요청 중 (SPEC R-01)
 - APNs 키(`.p8`)는 박승준이 발급해 비밀값으로 전달 (SPEC P-03)
 
@@ -52,7 +52,7 @@ ios/
 ```bash
 open ios/Daisy.xcodeproj
 ```
-- 백엔드 없이 개발할 때는 설정 → **목업 모드**를 켜요 (화면에 MOCK 배지가 떠요)
+- 앱은 항상 실서버에 붙어요. 설정에서 서버 주소(개발 서버 · 데모 서버)를 넣고 로그인해요
 - 테스트: Xcode에서 `⌘U`, 또는
 ```bash
 xcodebuild test -project ios/Daisy.xcodeproj -scheme Daisy -destination 'platform=macOS'
@@ -72,12 +72,13 @@ xcodebuild test -project ios/Daisy.xcodeproj -scheme Daisy -destination 'platfor
 3. SPEC §6-7 모델과 `Core/Models`가 어긋나면 안 돼요. 하나를 바꾸면 다른 하나도 같이 바꿔요
 4. 확정된 이름(`(가칭)` 표시 없음)은 사람 확인 없이 바꾸지 않아요
 
-### 목업
-- 실서버 API가 없는 동안에는 `MockAPIClient`와 `Mock/Fixtures`로 만들어요
-- 목업 코드에는 `// MOCK:` 주석, 목업 모드 화면에는 MOCK 배지. **목업을 숨기지 않아요** (발표 규칙)
-- 픽스처 JSON은 SPEC §6-7 모양 그대로
+### 목업 없음
+- **앱에 목업 모드 · 가짜 API 클라이언트 · 하드코딩 데이터를 만들지 않아요.** 앱은 항상 실서버 API에 붙어요
+- 서버 API가 아직 없으면 그 화면은 레이아웃만 만들고, 어떤 API를 기다리는지 사람에게 보고해요
+- 샘플 값은 `#Preview`와 `DaisyTests` 안에서만 써요. 앱 실행 경로(`App/`, `Features/`, `Core/`)에서는 참조하지 않아요
+- 샘플 JSON은 SPEC §6-7 모양 그대로
 
 ### 하지 말 것
-- 토큰 · APNs 키 · 비밀번호를 코드나 픽스처에 넣지 않아요. 데모 계정 정보도 커밋하지 않아요
+- 토큰 · APNs 키 · 비밀번호를 코드나 샘플 데이터에 넣지 않아요. 데모 계정 정보도 커밋하지 않아요
 - GitHub · 클라우드 API를 앱에서 직접 부르지 않아요 (모든 데이터는 Daisy 백엔드 경유)
 - `xcodebuild archive`, App Store Connect 업로드, TestFlight 배포는 사람이 해요
