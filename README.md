@@ -28,7 +28,7 @@ main merge → GitHub Actions 이미지 빌드(커밋 해시 태그)
 ## 시작하기
 
 - 작업 규칙: [`CONTRIBUTING.md`](./CONTRIBUTING.md)
-- AI 에이전트용 공통 맥락: [`CLAUDE.md`](./CLAUDE.md)
+- AI 에이전트 공통 규칙: [`AGENTS.md`](./AGENTS.md) (영어 원문, 한국어 번역은 도입 PR 코멘트)
 - 설계 문서 · 회의록 · ADR: 팀 Notion
 
 ## 팀
