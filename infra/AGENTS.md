@@ -10,10 +10,15 @@
 
 | 누가 | 무엇 | PoC |
 |---|---|---|
-| 황지환 | 사전 생성 Service VM의 Docker 컨테이너를 관리하는 Terraform 기준 모듈, 서비스 외부 공개. Proxmox VM 자동 생성은 후속 목표 | N-04 |
+| 황지환 | 사전 생성 Service VM의 Docker 컨테이너를 관리하는 Terraform 기준 모듈 구현 및 배포·재배포 검증 | N-04 |
+| 황지환 | Proxmox 기반 Service VM 및 CI/CD VM의 기반 환경 준비, 서비스·CI/CD 네트워크 분리, pfSense 접근 제어, 개발자 WireGuard 접속 구성 | N-04 지원 |
+| 황지환 | pfSense와 Let's Encrypt를 이용한 서비스 HTTPS 공개 및 외부 접근 검증. 도메인·Route 53 연결과 관리 권한은 클라우드 담당자와 협의 | N-04 |
 | 임채준 | GCP 기준 모듈 (Cloud Run) | N-03 |
 | 임채준 | AWS 기준 모듈 (ECS Fargate · ALB · RDS) | N-06 |
 | 임채준 | state 백엔드 (환경별 분리 · 잠금), Jenkins 러너 프로토타입 | N-07 |
+| 황지환 · 임채준 | Jenkins의 온프레미스 배포 연결: SSH 접근, Terraform 실행 환경, 배포 결과·헬스체크 연동. 서버와 승인된 plan·로그·중단 요청 계약 협의 | N-04 · N-07 |
+
+Proxmox VM 자동 생성은 후속 목표예요. 데모에서는 사전 준비한 VM에 Terraform으로 컨테이너를 배포해요. Jenkins 설치·운영의 세부 분담은 두 인프라 담당자가 협의해요. 위 표는 담당 범위이며, 구성·검증 완료를 뜻하지 않아요. 실제 설정과 검증 결과는 `SPEC.md`에 기록해요.
 
 **기준 모듈** = 사람이 직접 만든 환경별 정답 Terraform이에요. AI 생성의 참고 템플릿이자 N-02가 실패했을 때의 대안이에요.
 
