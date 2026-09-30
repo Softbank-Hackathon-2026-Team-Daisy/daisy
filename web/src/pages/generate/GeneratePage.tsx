@@ -31,7 +31,7 @@ function GeneratePage() {
   const ready = !!d && d.state !== 'queued'
 
   return (
-    <TransitionGate kind="l02" ready={ready} meta={`Step 4 · ${d?.targets.length ?? 0} envs`}>
+    <TransitionGate kind="l02" ready={ready} meta={d ? `Step 4 · ${d.targets.length} envs` : 'Step 4'}>
       {deployment.error ? <ErrorBlock error={deployment.error} /> : !d ? <LoadingBlock /> : <GenerateView key={d.id} d={d} />}
     </TransitionGate>
   )

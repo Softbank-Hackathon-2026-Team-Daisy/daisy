@@ -28,7 +28,7 @@ function ProgressPage() {
   const ready = !!d && d.targets.some((t) => APPLY_STARTED.has(t.state))
 
   return (
-    <TransitionGate kind="l03" ready={ready} meta={`Step 5 · ${d?.targets.length ?? 0} envs`}>
+    <TransitionGate kind="l03" ready={ready} meta={d ? `Step 5 · ${d.targets.length} envs` : 'Step 5'}>
       {deployment.error ? <ErrorBlock error={deployment.error} /> : !d ? <LoadingBlock /> : <ProgressView key={d.id} d={d} />}
     </TransitionGate>
   )
