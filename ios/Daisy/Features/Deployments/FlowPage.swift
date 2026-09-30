@@ -24,7 +24,10 @@ struct FlowPage<Content: View, Bottom: View>: View {
             VStack(alignment: .leading, spacing: 16) {
                 FlowStepper(current: step)
                 VStack(alignment: .leading, spacing: 4) {
-                    Text(title).font(.title2.weight(.semibold))
+                    HStack(spacing: 8) {
+                        Text(title).font(.title2.weight(.semibold))
+                        SampleBadge()
+                    }
                     Text(description).font(.callout).foregroundStyle(.secondary)
                 }
                 content

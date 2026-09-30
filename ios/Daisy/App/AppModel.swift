@@ -17,6 +17,10 @@ final class AppModel {
     private(set) var username: String?
     /// 토큰이 만료돼 로그아웃된 경우. 로그인 화면에 오류 대신 안내를 보여줘요 (웹 W-00 NOTE).
     private(set) var sessionExpired = false
+    /// MOCK: 예시 데이터로 둘러보는 중 (서버 없이, 모든 화면에 "예시 데이터" 배지)
+    private(set) var isSampleMode: Bool {
+        didSet { defaults.set(isSampleMode, forKey: Keys.sampleMode) }
+    }
 
     private let tokenStore: TokenStore
     private let defaults: UserDefaults
@@ -28,7 +32,8 @@ final class AppModel {
         selectedProjectID = defaults.string(forKey: Keys.projectID)
         role = defaults.string(forKey: Keys.role)
         username = defaults.string(forKey: Keys.username)
-        token = tokenStore.load()
+        isSampleMode = defaults.bool(forKey: Keys.sampleMode)
+        token = isSampleMode ? SampleData.token : tokenStore.load()
     }
 
     var serverURL: URL? {
@@ -43,8 +48,20 @@ final class AppModel {
 
     /// 서버 주소와 토큰이 모두 있을 때만 만들어져요.
     var client: APIClient? {
+        if isSampleMode {
+            return APIClient(baseURL: SampleData.baseURL, token: SampleData.token, session: SampleData.session)
+        }
         guard let serverURL, let token else { return nil }
         return APIClient(baseURL: serverURL, token: token)
+    }
+
+    /// W-00 "예시 데이터로 둘러보기 (오프라인)": 서버 없이 번들 예시 데이터로 들어가요. 읽기 전용이에요.
+    func signInWithSampleData() {
+        isSampleMode = true
+        token = SampleData.token
+        role = "viewer"
+        username = "예시 데이터"
+        sessionExpired = false
     }
 
     func signIn(username: String, password: String) async throws {
@@ -72,6 +89,10 @@ final class AppModel {
     }
 
     func signOut() {
+        if isSampleMode {
+            isSampleMode = false
+            username = defaults.string(forKey: Keys.username)
+        }
         tokenStore.delete()
         token = nil
         role = nil
@@ -91,5 +112,6 @@ final class AppModel {
         static let projectID = "selectedProjectID"
         static let role = "role"
         static let username = "username"
+        static let sampleMode = "sampleMode"
     }
 }

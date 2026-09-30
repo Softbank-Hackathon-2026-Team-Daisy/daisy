@@ -49,8 +49,11 @@ struct PageHeader<Trailing: View>: View {
 
     private var titles: some View {
         VStack(alignment: .leading, spacing: 2) {
-            Text(title)
-                .font(.title2.weight(.semibold))
+            HStack(spacing: 8) {
+                Text(title)
+                    .font(.title2.weight(.semibold))
+                SampleBadge()
+            }
             if let subtitle {
                 Text(subtitle).font(.callout).foregroundStyle(.secondary)
             }

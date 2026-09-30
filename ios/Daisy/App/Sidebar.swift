@@ -227,7 +227,7 @@ struct Sidebar: View {
             Avatar(name: app.username)
             VStack(alignment: .leading, spacing: 1) {
                 Text(app.username ?? "로그인됨").font(.subheadline.weight(.medium)).lineLimit(1)
-                Text(app.isViewer ? "읽기 전용" : "팀 계정").font(.caption).foregroundStyle(.secondary)
+                Text(app.isSampleMode ? "예시 데이터 · 읽기 전용" : app.isViewer ? "읽기 전용" : "팀 계정").font(.caption).foregroundStyle(.secondary)
             }
             Spacer(minLength: 0)
         }

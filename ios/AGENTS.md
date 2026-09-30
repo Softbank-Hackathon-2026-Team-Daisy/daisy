@@ -37,13 +37,15 @@ These belong to server, so they are tier 3 in root §6: the server owner decides
 5. When the server publishes or changes the real contract, run the root §8 contradiction check against `SPEC.md`. Adapt the app to the server's decision, and remove `(가칭)` from entries that now match.
 6. At the end of the task, list every `SPEC.md` entry you added or changed (ID, what, why) in your report, and draft the server issue for each new one (root §9).
 
-## 4. No mocks
+## 4. Real server first, one labeled sample mode
 
-The app always talks to a real server. There is no mock mode, fake API client, or hard-coded data in the app.
+The app talks to a real server by default. The **only** exception is the owner-approved (9/30) offline **sample mode** ("예시 데이터로 둘러보기 (오프라인)") for judges and Apple review.
 
+- Sample mode reads `Daisy/Resources/SampleData/sample.json` through `SampleData` / `SampleDataProtocol` (`Core/API/SampleData.swift`). No other fake client, no hard-coded data anywhere else.
+- Every screen shows `SampleBadge` ("예시 데이터") while it is on (root `AGENTS.md` §4-6). Never hide or remove the badge. Never mix sample and real server data. All writes return 403 `SAMPLE_READ_ONLY`.
+- Regenerate the bundle with `python3 ios/scripts/sample-data/generate.py`: real commits and `deploy.yaml` from `sample-monolith` / `sample-msa`, example deployment states and costs, example domains (`*.example.com`). It must stay the same shape as the server API (`SampleDataTests` checks every path decodes).
 - If the server API a screen needs does not exist yet, build the layout only and report which `SPEC.md` ID it is waiting for.
-- Sample values are allowed only inside `#Preview` blocks and `DaisyTests`. Code under `App/`, `Features/`, and `Core/` never references them.
-- Sample JSON follows `SPEC.md` §6-7 exactly and contains no real tokens, passwords, or URLs with credentials.
+- Other sample values stay inside `#Preview` blocks and `DaisyTests`. No real tokens, passwords, or URLs with credentials in any sample.
 
 ## 5. Stack and structure
 
@@ -137,7 +139,8 @@ Tier per root §6. Tier 1 entries are final for this area.
 | 9/29 | SwiftUI multiplatform, one target for iOS and macOS | One codebase for both platforms, so adding macOS costs little | 1 |
 | 9/29 | ~~Minimum iOS 17 · macOS 14~~ (replaced 9/30, see below) | Needed for `@Observable` | 1 |
 | 9/29 | No third-party packages to start | Same "minimal stack, add only when blocked" principle as ADR-006 | 1 |
-| 9/29 | No mock mode; the app always uses the real server | Owner decision. Consequence: app progress depends on server API dates (`SPEC.md` R-08) | 1 |
+| 9/29 | ~~No mock mode; the app always uses the real server~~ (replaced 9/30) | Owner decision. Consequence: app progress depends on server API dates (`SPEC.md` R-08) | 1 |
+| 9/30 | Offline **sample mode** bundled in the app (login → "예시 데이터로 둘러보기 (오프라인)"), built from real `sample-monolith` / `sample-msa` commits by `scripts/sample-data/generate.py`; badge on every screen, read-only, never mixed with real data; dates shift to the launch time | Owner decision: judges and Apple review can see every screen even without the server; real server stays the default | 1 |
 | 9/29 | SSE parsed with `URLSession.bytes`, 5-second polling fallback | Uses the same SSE endpoints as web, so server builds nothing app-specific | 1 |
 | 9/29 | Tokens stored in the Keychain | Tokens must not sit in UserDefaults | 1 |
 | 9/30 | Xcode project written by hand with synchronized folders (`PBXFileSystemSynchronizedRootGroup`); no XcodeGen or Tuist | New files under `Daisy/` and `DaisyTests/` are picked up automatically, so agents never edit `project.pbxproj` to add a file | 1 |

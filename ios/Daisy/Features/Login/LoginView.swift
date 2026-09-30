@@ -114,6 +114,11 @@ struct LoginView: View {
             .buttonStyle(.glassCapsule(fullWidth: true, height: 38))
             .disabled(working || app.serverURL == nil)
 
+            // MOCK: 서버 없이 번들 예시 데이터로 둘러보기 (심사 · 발표용, 화면마다 "예시 데이터" 배지)
+            Button("예시 데이터로 둘러보기 (오프라인)") { app.signInWithSampleData() }
+                .buttonStyle(.glassCapsule(fullWidth: true, height: 38))
+                .disabled(working)
+
             Text("SoftBank Hackathon 2026 · Team Daisy")
                 .font(.caption).foregroundStyle(.secondary)
                 .padding(.top, 24)

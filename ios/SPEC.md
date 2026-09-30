@@ -110,7 +110,7 @@ M = 예선 데모 필수, S = 선택
 | 인증 저장 | Keychain | 토큰을 UserDefaults에 두지 않음 |
 | 푸시 | APNs (토큰 기반 `.p8` 키) | 백엔드가 발송 (§6-5) |
 | 배포 | Xcode 아카이브 → App Store Connect → **TestFlight 외부 테스트 공개 링크** | |
-| 목업 | **쓰지 않아요.** 앱은 항상 실서버 API에 붙어요 | 앱 안에 목업 모드 · 가짜 데이터 경로를 두지 않아요. 화면 레이아웃은 Xcode `#Preview` 안의 샘플 값으로만 잡고, 이 값은 앱 실행 경로에 들어가지 않아요 |
+| 목업 | **실서버가 기본.** 예외로 **예시 데이터 모드** 하나만 둬요 (9/30) | 로그인 화면 "예시 데이터로 둘러보기 (오프라인)" → 앱에 들어 있는 `SampleData/sample.json`(실제 sample-monolith · sample-msa 커밋 기반)으로 모든 화면을 봐요. 화면마다 "예시 데이터" 배지, 읽기 전용, 실데이터와 섞지 않아요. 만들기: `scripts/sample-data/generate.py` |
 
 ### 3-1. 폴더 구조
 
@@ -466,6 +466,7 @@ API 모양보다 **이 정보가 어딘가에 저장되어 있는지**가 더 �
 | 9/29 | 앱 목업 모드 제거 (항상 실서버 연결), 개발 서버 요구(R-08) 추가 | 박승준 |
 | 9/29 | 에이전트 규칙 파일을 `CLAUDE.md` → `AGENTS.md`로 변경 | 박승준 |
 | 9/29 | 서버 답변 반영: 경로 · 이벤트 이름 확정, Bearer만, `DELETE /devices` + 본문, `attempt` 의미, Plan 모양(`level`·`resource`, `ai_usage`), 제공 일정 D2/D3, 폴링 · 로컬 알림 폴백 | 박승준 |
+| 9/30 | 예시 데이터 모드(오프라인 번들, 배지, 읽기 전용) 추가 — 9/29 "목업 없음" 결정을 담당자가 바꿈. 생성 스크립트 · 테스트 6개 | 박승준 |
 | 9/30 | Mac DMG 공증 · GitHub Releases 첫 릴리스, `scripts/mac-dmg.sh` | 박승준 |
 | 9/30 | TestFlight 첫 업로드 ("Daisy Deploy" 0.1.0 (1)), 업로드 스크립트 `scripts/testflight.sh` | 박승준 |
 | 9/30 | 도영 님 와이어프레임 수정 반영: W-05b "○○만 멈췄어요 / ○○만 다시 시도", W-08 "일부 성공" 배지와 설명, W-09 롤백을 일반 배포처럼, W-12 배포 단위(A-04 `ai_usage`, WR-11 안 씀). 모듈 테스트 추가 (`RunLogicTests` · `AIUsageSummaryTests` · `EndpointContractTests` · `ContractDecodingTests`) | 박승준 |
