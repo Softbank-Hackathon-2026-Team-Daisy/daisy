@@ -50,10 +50,14 @@ struct TargetStatus: Decodable, Identifiable, Hashable, Sendable {
 enum DeploymentState: String, ServerEnum {
     case queued, generating, validating
     case awaitingApproval = "awaiting_approval"
-    case applying, succeeded, failed, cancelled, unknown
+    case applying, succeeded, failed, cancelled
+    /// 웹 Status Badge에 있는 상태. 서버 상태 이름이 확정되면 맞춰요 (가칭).
+    case warning
+    case rolledBack = "rolled_back"
+    case unknown
     static let unknownCase = DeploymentState.unknown
 
-    var isFinished: Bool { [.succeeded, .failed, .cancelled].contains(self) }
+    var isFinished: Bool { [.succeeded, .failed, .cancelled, .rolledBack].contains(self) }
 }
 
 enum DeploymentStep: String, ServerEnum {

@@ -6,7 +6,7 @@ struct ApprovalsView: View {
     @State private var store = DeploymentsStore()
 
     var body: some View {
-        PageScaffold("승인", subtitle: "사람이 확인해야 배포돼요") {
+        PageScaffold("승인", subtitle: "환경별 plan 결과를 확인하고 승인해요.") {
             Button { Task { await refresh() } } label: {
                 Label("새로 고침", systemImage: "arrow.clockwise")
             }

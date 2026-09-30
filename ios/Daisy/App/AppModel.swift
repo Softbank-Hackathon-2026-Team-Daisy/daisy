@@ -13,6 +13,8 @@ final class AppModel {
     }
     private(set) var token: String?
     private(set) var role: String?
+    /// 토큰이 만료돼 로그아웃된 경우. 로그인 화면에 오류 대신 안내를 보여줘요 (웹 W-00 NOTE).
+    private(set) var sessionExpired = false
 
     private let tokenStore: TokenStore
     private let defaults: UserDefaults
@@ -48,6 +50,7 @@ final class AppModel {
             .send(.token(username: username, password: password))
         tokenStore.save(result.accessToken)
         token = result.accessToken
+        sessionExpired = false
         role = result.role
         defaults.set(result.role, forKey: Keys.role)
     }
@@ -61,7 +64,10 @@ final class AppModel {
 
     /// 401이 오면 토큰이 만료된 거라 로그아웃 상태로 돌려요.
     func handle(_ error: Error) {
-        if let error = error as? APIError, error.isUnauthenticated { signOut() }
+        if let error = error as? APIError, error.isUnauthenticated {
+            signOut()
+            sessionExpired = true
+        }
     }
 
     private enum Keys {

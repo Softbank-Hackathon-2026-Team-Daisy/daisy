@@ -29,8 +29,11 @@ extension APIError: LocalizedError {
         switch self {
         case .notConfigured:
             "설정에서 서버 주소를 넣고 로그인해 주세요."
-        case .transport(let message):
-            "서버에 연결하지 못했어요. \(message)"
+        case .transport:
+            // 웹 W-00b와 같은 문구
+            "서버에 연결하지 못했어요. 잠시 후 다시 시도해 주세요."
+        case .server(401, _, _, _):
+            "아이디나 비밀번호가 맞지 않아요."
         case .server(403, _, _, _):
             "읽기 전용 계정이라 이 작업을 할 수 없어요."
         case .server(_, _, let message, _):

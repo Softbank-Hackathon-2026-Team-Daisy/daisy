@@ -44,4 +44,11 @@ extension [TargetStatus] {
     /// 배포된 환경이 모두 같은 커밋인지. 이식성("같은 이미지를 모든 환경에")을 보여주는 값이에요.
     var deployedCommits: Set<String> { Set(compactMap { $0.current?.commit }) }
     var isConsistent: Bool { deployedCommits.count <= 1 }
+
+    /// 가장 많은 환경이 쓰는 이미지에 몇 개 환경이 맞는지 ("3/3 일치").
+    var parity: (matching: Int, deployed: Int) {
+        let commits = compactMap { $0.current?.commit }
+        let counts = Dictionary(commits.map { ($0, 1) }, uniquingKeysWith: +)
+        return (counts.values.max() ?? 0, commits.count)
+    }
 }

@@ -19,13 +19,13 @@ final class HistoryStore {
     }
 }
 
-/// 5 커밋 · 파이프라인: 이 커밋이 빌드됐는지, 어느 환경까지 나갔는지.
+/// 5 이력 (웹 W-09 배포 이력): 커밋마다 빌드 결과, 이미지, 배포된 환경.
 struct HistoryView: View {
     @Environment(AppModel.self) private var app
     @State private var store = HistoryStore()
 
     var body: some View {
-        PageScaffold("커밋", subtitle: "main에 들어간 커밋과 파이프라인") {
+        PageScaffold("이력", subtitle: "버전마다 어떤 이미지로 어느 환경에 배포했는지 남겨요.") {
             Button { Task { await store.refresh(using: app) } } label: {
                 Label("새로 고침", systemImage: "arrow.clockwise")
             }

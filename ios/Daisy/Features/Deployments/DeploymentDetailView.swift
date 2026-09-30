@@ -46,7 +46,7 @@ extension DeploymentDetailView {
                 NavigationLink {
                     PlanApprovalView(deploymentID: deployment.id)
                 } label: {
-                    Label("plan 승인하러 가기", systemImage: "checkmark.seal")
+                    Label("변경 사항 확인 후 승인", systemImage: "checkmark.seal")
                 }
                 .foregroundStyle(.orange)
             }
@@ -62,14 +62,13 @@ struct TargetProgressCard: View {
             HStack {
                 Text(target.targetId).font(.headline)
                 Spacer()
-                Text(target.attemptText).font(.caption).foregroundStyle(.secondary)
-            }
-            HStack(spacing: 6) {
-                Circle().fill(target.stepState.color).frame(width: 8, height: 8)
-                Text(target.step.displayName).font(.subheadline)
                 if target.reusedScript == true {
-                    StatusBadge(text: "재사용 · AI 0회", color: .teal)
+                    StatusBadge(text: "AI 0회", color: .teal)
                 }
+            }
+            HStack(alignment: .firstTextBaseline, spacing: 6) {
+                Circle().fill(target.stepState.color).frame(width: 8, height: 8)
+                Text(target.progressText).font(.subheadline)
             }
             if let error = target.errorSummary {
                 Text(error).font(.caption).foregroundStyle(.red)

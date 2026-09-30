@@ -12,18 +12,18 @@ struct PlanApprovalView: View {
     var body: some View {
         LoadStateView(state: store.plan, retry: { await store.load(using: app) }) { plan in
             Form {
+                Section {
+                    Text("환경별 plan 결과예요. 승인하면 선택한 모든 환경에 동시에 적용해요.")
+                        .foregroundStyle(.secondary)
+                } header: {
+                    Text("환경별 요약")
+                }
                 ForEach(plan.targets) { target in
                     Section(target.targetId) {
-                        // 웹 플랜 승인 화면과 같은 +/~/- 표기
-                        LabeledContent("리소스") {
-                            HStack(spacing: 10) {
-                                Text("+\(target.counts.create)").foregroundStyle(.green)
-                                Text("~\(target.counts.update)").foregroundStyle(.orange)
-                                Text("-\(target.counts.delete)").foregroundStyle(target.counts.delete > 0 ? .red : .secondary)
-                            }
-                            .font(.body.monospacedDigit().weight(.medium))
-                            .accessibilityLabel("생성 \(target.counts.create), 변경 \(target.counts.update), 삭제 \(target.counts.delete)")
-                        }
+                        // 웹 W-06과 같은 문구: "리소스 +6 ~0 −0 · 위험 설정 0건"
+                        Text("\(target.counts.summaryText) · 위험 설정 \(target.risks.count)건")
+                            .font(.body.monospacedDigit())
+                            .accessibilityLabel("생성 \(target.counts.create), 변경 \(target.counts.update), 삭제 \(target.counts.delete), 위험 설정 \(target.risks.count)건")
                         if target.hasDelete {
                             Label("삭제되는 리소스가 있어요", systemImage: "trash")
                                 .foregroundStyle(.red)
@@ -50,7 +50,7 @@ struct PlanApprovalView: View {
             .formStyle(.grouped)
             .onContentSurface()
         }
-        .navigationTitle("plan 승인")
+        .navigationTitle("변경 사항 확인 후 승인")
         .task { await store.load(using: app) }
     }
 
@@ -64,7 +64,7 @@ struct PlanApprovalView: View {
                     // (가칭) confirm_text에 넣을 값은 서버 확정 대기 (SPEC §6-4)
                     TextField("삭제를 확인하려면 입력해 주세요", text: $store.confirmText)
                 }
-                Button("승인") { Task { await store.submit(.approve, using: app) } }
+                Button("승인하고 배포") { Task { await store.submit(.approve, using: app) } }
                     .disabled(store.isSubmitting || (plan.hasDelete && store.confirmText.isEmpty))
                 Button("거절", role: .destructive) { Task { await store.submit(.reject, using: app) } }
                     .disabled(store.isSubmitting)

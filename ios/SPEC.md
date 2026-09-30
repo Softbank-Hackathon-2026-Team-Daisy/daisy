@@ -306,7 +306,8 @@ API 모양보다 **이 정보가 어딘가에 저장되어 있는지**가 더 �
   "commit": "2311c0b…",
   "image": "ghcr.io/…:2311c0b…",
   "state": "queued" | "generating" | "validating" | "awaiting_approval"
-         | "applying" | "succeeded" | "failed" | "cancelled",   // ❓ 백엔드 상태 머신에 맞춰 확정
+         | "applying" | "succeeded" | "failed" | "cancelled"
+         | "warning" | "rolled_back",   // ❓ 백엔드 상태 머신에 맞춰 확정. 뒤 두 개는 웹 Status Badge에서 가져옴 (가칭)
   "targets": [
     {
       "target_id": "tgt_gcp",
@@ -374,7 +375,7 @@ API 모양보다 **이 정보가 어딘가에 저장되어 있는지**가 더 �
 - [x] ~~HTTPS 공개 주소 (R-04)~~ → 도메인 구매 + HTTPS (9/29 회의, 서버 담당)
 - [ ] **승인 단위**: 배포 전체 한 번 / 환경별 (§6-4)
 - [ ] **`confirm_text` 값** (§6-4)
-- [ ] **배포 상태 · 단계 값** 확정 (§6-7 `state`, `step`) — 웹 · 앱 · 백엔드가 같은 목록을 써요
+- [ ] **배포 상태 · 단계 값** 확정 (§6-7 `state`, `step`) — 웹 · 앱 · 백엔드가 같은 목록을 써요. ⚠️ Figma Status Badge 설명은 서버 상태를 `queued · running · succeeded · failed · warning · rolled_back` 6개로 적었고, 이 문서와 서버 `server/AGENTS.md`의 단계 구분(생성 · 검증 · 승인 대기 · apply)과 달라요 → 서버(하은현)와 웹(김도영) 확인 필요
 - [x] ~~푸시를 예선 범위에 넣을지~~ → D3까지 로컬 알림, APNs는 여유 있으면 (9/29)
 - [x] ~~경로 · 이벤트 이름 확정~~ → 9/29 확정. 모델 필드는 서버 OpenAPI가 나오면 맞춰요
 
@@ -388,6 +389,7 @@ API 모양보다 **이 정보가 어딘가에 저장되어 있는지**가 더 �
 | 9/29 | 앱 목업 모드 제거 (항상 실서버 연결), 개발 서버 요구(R-08) 추가 | 박승준 |
 | 9/29 | 에이전트 규칙 파일을 `CLAUDE.md` → `AGENTS.md`로 변경 | 박승준 |
 | 9/29 | 서버 답변 반영: 경로 · 이벤트 이름 확정, Bearer만, `DELETE /devices` + 본문, `attempt` 의미, Plan 모양(`level`·`resource`, `ai_usage`), 제공 일정 D2/D3, 폴링 · 로컬 알림 폴백 | 박승준 |
+| 9/30 | 웹(Figma 와이어프레임 v1.0) 문구로 통일: 메뉴 개요 · 배포 · 승인 · 이력 · 설정, 상태 이름, `리소스 +6 ~0 −0`, 로그인 · 오류 문구. 색 · 모양은 앱 방식 유지, 아이콘은 비슷한 SF Symbols | 박승준 |
 | 9/30 | 앱 아이콘 적용 (iOS 1024 꽉 찬 정사각형, macOS 둥근 사각형 격자 16–1024), 사이드바 머리에 로고 | 박승준 |
 | 9/30 | 디자인 적용: AfterPlan 재질 · 사이드바 · 움직임, Craft 버튼(글래스 원 · 캡슐 · 세그먼트), 큰 제목 머리줄, 웹과 기능 UX 맞추기 | 박승준 |
 | 9/30 | 반응형으로 변경: 최소 iOS 18 · macOS 15, 탭 ↔ 사이드바 자동 전환, 현황 · 배포 상세 적응형 카드 그리드 | 박승준 |

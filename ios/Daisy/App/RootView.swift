@@ -10,20 +10,20 @@ enum AppTab: String, CaseIterable, Identifiable {
 
     var title: String {
         switch self {
-        case .overview: "현황"
+        case .overview: "개요"
         case .deployments: "배포"
         case .approvals: "승인"
-        case .history: "커밋"
+        case .history: "이력"
         case .settings: "설정"
         }
     }
 
     var systemImage: String {
         switch self {
-        case .overview: "square.grid.2x2"
-        case .deployments: "arrow.up.circle"
+        case .overview: "cloud"
+        case .deployments: "play"
         case .approvals: "checkmark.seal"
-        case .history: "point.3.connected.trianglepath.dotted"
+        case .history: "clock"
         case .settings: "gearshape"
         }
     }

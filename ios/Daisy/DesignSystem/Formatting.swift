@@ -24,14 +24,17 @@ extension Health {
 extension DeploymentState {
     var badge: StatusBadge {
         switch self {
-        case .queued: StatusBadge(text: "대기", color: .gray)
+        // 문구는 웹 Status Badge와 같아요. 색은 앱 패턴.
+        case .queued: StatusBadge(text: "대기 중", color: .gray)
         case .generating: StatusBadge(text: "생성 중", color: .blue)
         case .validating: StatusBadge(text: "검증 중", color: .blue)
         case .awaitingApproval: StatusBadge(text: "승인 대기", color: .orange)
         case .applying: StatusBadge(text: "배포 중", color: .blue)
-        case .succeeded: StatusBadge(text: "완료", color: .green)
+        case .succeeded: StatusBadge(text: "성공", color: .green)
         case .failed: StatusBadge(text: "실패", color: .red)
-        case .cancelled: StatusBadge(text: "취소", color: .gray)
+        case .cancelled: StatusBadge(text: "중단", color: .gray)
+        case .warning: StatusBadge(text: "주의", color: .orange)
+        case .rolledBack: StatusBadge(text: "롤백됨", color: .purple)
         case .unknown: StatusBadge(text: "알 수 없음", color: .gray)
         }
     }
@@ -40,10 +43,10 @@ extension DeploymentState {
 extension DeploymentStep {
     var displayName: String {
         switch self {
-        case .generate: "생성"
+        case .generate: "AI 생성"
         case .validate: "validate"
         case .plan: "plan"
-        case .riskCheck: "위험 검사"
+        case .riskCheck: "위험 설정 검사"
         case .apply: "apply"
         case .healthCheck: "헬스체크"
         case .unknown: "알 수 없는 단계"
@@ -87,6 +90,24 @@ extension RiskLevel {
 extension Deployment.Target {
     /// 최초 생성을 포함한 총 시도 횟수. 재시도 횟수가 아니에요.
     var attemptText: String { "시도 \(attempt)/3" }
+
+    /// 웹 "환경별 진행" 한 줄과 같은 문구: "AI 생성 · validate 실행 중 · 시도 1/3".
+    var progressText: String {
+        if stepState == .failed && attempt >= 3 { return "\(attempt)회 실패 · 중단" }
+        let origin = reusedScript == true ? "재사용 · 이미지 태그만 교체" : "AI 생성"
+        let now: String = switch stepState {
+        case .running: "\(step.displayName) 실행 중"
+        case .done: "\(step.displayName) 통과"
+        case .failed: "\(step.displayName) 실패"
+        case .waiting, .unknown: "\(step.displayName) 대기 중"
+        }
+        return [origin, now, attemptText].joined(separator: " · ")
+    }
+}
+
+extension Plan.Target.Counts {
+    /// 웹과 같은 표기: "리소스 +6 ~0 −0" (빼기는 U+2212).
+    var summaryText: String { "리소스 +\(create) ~\(update) \u{2212}\(delete)" }
 }
 
 extension AIUsage {

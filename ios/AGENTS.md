@@ -85,13 +85,14 @@ Materials, the sidebar, and motion copy the owner's AfterPlan Mac app (`~/Github
 - **Screens.** Every root screen uses `PageScaffold(title, subtitle:, trailing:)`: a `title2` semibold title on the left and the screen's controls on the right. Pushed detail screens keep the system navigation title.
 - **Buttons.** Icon-only actions use `.buttonStyle(.glassCircle)`; text actions and menus use `.glassCapsule`; choices use `GlassSegmented`. They use Liquid Glass on iOS 26 / macOS 26 and a material with a hairline below that. Destructive actions use `role: .destructive`.
 - **Cards.** `cardStyle()`: corner 12, `.fill.quaternary`, hairline `.separator` border, `.fill.tertiary` on hover.
+- **Taking from the web design (Figma).** Take **wording only**: screen and menu names, labels, status names, messages, notation. Colors, shapes, radius, fonts, and layout stay with this app's design above, even where Figma says otherwise (no-pill, radius ≤ 4, IBM Plex, yellow button). For each web icon, use the closest SF Symbol: cloud → `cloud`, play → `play`, server → `server.rack`, clock → `clock`, terminal → `apple.terminal`, signal → `cellularbars`, settings → `gearshape`.
 
 ### Match the web's feature UX
 
 The app and the web show the same deployments, so a feature that exists in both follows the web's flow, wording, and notation (for example resource counts as `+create ~update -delete`). Before building or changing such a flow:
 
 1. Look for the web's current version even if it is not on `main`: `git fetch --all --prune`, then `git branch -r`, `gh pr list --state all`, and `git log origin/<branch> -- web/` or `git show origin/<branch>:web/...`.
-2. If there is no web code yet, use the Notion User Flow Chart and ask your human about 도영's Figma screens (agents may not have Figma access).
+2. If there is no web code yet, read the Figma file `5nqU4xotMh5jcsaDqOcTST`: page `0:1` 와이어프레임 v1.0 (screens W-00–W-13 with NOTE frames, and frame `80:3366` "Memo · Apple 앱 참고" written for this app) and page `2:4` 디자인 시스템. The page listing only shows `2:4`; open the others by id. Then the Notion User Flow Chart.
 3. If the app needs to differ (small screen, approve-only scope), keep the difference small and note it in `SPEC.md`. If the web and `SPEC.md` contradict each other, run the root §8 contradiction check; do not silently follow either.
 - User-facing strings are Korean, 해요체.
 - Show AI cost as an estimate: label it "추정" and show the exchange rate the server applied.
@@ -139,6 +140,8 @@ Tier per root §6. Tier 1 entries are final for this area.
 | 9/30 | Design: AfterPlan materials, sidebar, and motion; Craft-style glass buttons; `PageScaffold` headers | Owner's design references (Design section above) | 1 |
 | 9/30 | Feature UX matches the web (flow, wording, `+/~/-` notation); check web branches and PRs before building a shared flow | Owner decision: one product on two clients | 1 |
 | 9/30 | App icon: the owner's daisy logo. iOS gets a full-bleed opaque 1024 square; macOS gets the logo inside Apple's rounded-rect grid (824 of 1024, radius 185.4, soft shadow) at 16–1024. The sidebar header uses the same logo (`AppLogo`) | Owner's asset. The source is 200×200, so replace it with a 1024+ original before release | 1 |
+| 9/30 | From Figma, take wording only; keep this app's colors and shapes; icons are the nearest SF Symbols | Owner decision. 도영's memo asked for web shapes (radius ≤ 4, no pills) and the owner chose the app's own look | 1 |
+| 9/30 | Menu and wording follow the web: 개요 · 배포 · 승인 · 이력 · 설정; status labels 대기 중 · 배포 중 · 성공 · 실패 · 주의 · 롤백됨; `리소스 +6 ~0 −0`; W-00 login and error messages | Same product on two clients | 1 |
 | 9/30 | Tests use Swift Testing; sample JSON lives only in `DaisyTests` | No mock data in the app (§4) | 1 |
 | 9/29 | The app does not start deployments or change infrastructure | Keeps the app inside ADR-007 and keeps the server work small | 1 |
 | 9/29 | Widen ADR-007: add overview, commit history, macOS | Proposed in `SPEC.md` §1-2; needs the team meeting | 4 (`(가칭)`) |

@@ -6,7 +6,7 @@ struct OverviewView: View {
     @State private var store = OverviewStore()
 
     var body: some View {
-        PageScaffold("현황", subtitle: "환경마다 지금 떠 있는 버전") {
+        PageScaffold("개요", subtitle: subtitle) {
             if app.client != nil {
                 projectMenu
                 Button { Task { await store.refreshStatuses(using: app) } } label: {
@@ -31,6 +31,12 @@ struct OverviewView: View {
         }
     }
 
+    /// 웹 W-01 문구: "{프로젝트}가 지금 어느 환경에 어떤 버전으로 떠 있는지 봐요."
+    private var subtitle: String {
+        let name = store.projects.value?.first { $0.id == app.selectedProjectID }?.name
+        return (name.map { "\($0)가 " } ?? "") + "지금 어느 환경에 어떤 버전으로 떠 있는지 봐요."
+    }
+
     /// 폰은 카드 1열, iPad · Mac은 환경 카드가 가로로 나란히 (온프레미스 · AWS · GCP 한눈에).
     private func list(_ statuses: [TargetStatus]) -> some View {
         ScrollView {
@@ -40,6 +46,8 @@ struct OverviewView: View {
                 }
                 if statuses.isEmpty {
                     ContentUnavailableView("아직 등록된 환경이 없어요", systemImage: "server.rack")
+                } else {
+                    Text("환경별 현재 버전").font(.headline)
                 }
                 AdaptiveGrid {
                     ForEach(statuses) { status in
@@ -58,27 +66,25 @@ struct OverviewView: View {
         .navigationDestination(for: String.self) { DeploymentDetailView(deploymentID: $0) }
     }
 
-    /// 배포된 환경이 모두 같은 커밋인지. 이식성을 한 줄로 보여줘요.
+    /// 배포된 환경이 모두 같은 이미지인지. 이식성을 한 줄로 보여줘요 (웹 W-01 "3/3 일치").
     @ViewBuilder
     private func consistencyRow(_ statuses: [TargetStatus]) -> some View {
-        if statuses.isConsistent, let commit = statuses.deployedCommits.first {
-            Label {
-                HStack {
-                    Text("모든 환경이 같은 버전이에요")
-                    Spacer()
-                    CommitLabel(commit: commit)
-                }
-            } icon: {
-                Image(systemName: "checkmark.circle.fill").foregroundStyle(.green)
-            }
-        } else if statuses.isConsistent {
+        let parity = statuses.parity
+        if parity.deployed == 0 {
             Label("아직 배포된 환경이 없어요", systemImage: "circle.dashed")
                 .foregroundStyle(.secondary)
         } else {
             Label {
-                Text("환경마다 버전이 달라요 (\(statuses.deployedCommits.count)개 커밋)")
+                HStack {
+                    Text(parity.matching == statuses.count
+                         ? "\(statuses.count)개 환경 모두 같은 이미지예요"
+                         : "환경마다 이미지가 달라요")
+                    Spacer()
+                    Text("\(parity.matching)/\(statuses.count) 일치").font(.callout.monospacedDigit())
+                }
             } icon: {
-                Image(systemName: "exclamationmark.triangle.fill").foregroundStyle(.orange)
+                Image(systemName: parity.matching == statuses.count ? "checkmark.circle.fill" : "exclamationmark.triangle.fill")
+                    .foregroundStyle(parity.matching == statuses.count ? .green : .orange)
             }
         }
     }

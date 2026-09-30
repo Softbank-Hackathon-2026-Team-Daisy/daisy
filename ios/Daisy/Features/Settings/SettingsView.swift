@@ -23,7 +23,7 @@ struct SettingsView: View {
                 }
             }
 
-            Section("계정") {
+            Section {
                 if app.isSignedIn {
                     LabeledContent("권한", value: app.isViewer ? "읽기 전용" : "승인 가능")
                     Button("로그아웃", role: .destructive) { app.signOut() }
@@ -42,6 +42,12 @@ struct SettingsView: View {
                     if let errorMessage {
                         Text(errorMessage).font(.callout).foregroundStyle(.red)
                     }
+                }
+            } header: {
+                Text(app.isSignedIn ? "계정" : "로그인")
+            } footer: {
+                if !app.isSignedIn {
+                    Text(app.sessionExpired ? "다시 로그인해 주세요." : "팀 계정으로 로그인해요.")
                 }
             }
 
