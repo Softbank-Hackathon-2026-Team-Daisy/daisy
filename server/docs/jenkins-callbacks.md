@@ -50,7 +50,7 @@ plan의 summary/resources는 실행 도메인의 승인용 안전한 구조만 �
 
 로그는 인프라가 사전 제거한 비밀값 없는 텍스트만 보낸다. message는 UTF-8 16 KiB 이내, 백엔드의 금지 패턴 검사는 추가 방어이며 모든 비밀값 탐지를 보장하지 않는다. log stream은 인증된 source 안에서 이름을 붙이고 byte offset으로 중복/충돌을 확인한다. 늦은 로그도 실행 상태와 별개로 보존·전달한다.
 
-단계는 매 반복마다 독립 stage_occurrence_id를 사용하고 같은 occurrence의 step을 바꾸지 않는다. 같은 occurrence 시작과 종료 시각이 있을 때만 duration_ms를 산출한다. 시작이 없으면 duration_ms/started_at를 생략한다. 완료 이후 늦은 시작은 ignored_stale로 저장하고 기존 완료의 재전송에서 duration을 다시 계산하지 않는다. 단계 사건은 대상 상태를 변경하지 않는다. 실제 상태는 별도 state 결과로 전달한다.
+단계는 매 반복마다 독립 stage_occurrence_id를 사용하고 같은 occurrence의 step을 바꾸지 않는다. 같은 occurrence 시작과 종료 시각이 있을 때만 duration_ms를 산출한다. 시작이 없으면 duration_ms/started_at를 생략한다. 대상의 최신 상태보다 오래된 새 단계 시작과 완료 이후 늦은 시작은 ignored_stale로 저장한다. 이미 적용된 시작에 대한 늦은 완료는 종료 상태 뒤에도 소요 시간을 기록할 수 있다. 기존 완료의 재전송에서 duration을 다시 계산하지 않는다. 단계 사건은 대상 상태를 변경하지 않는다. 실제 상태는 별도 state 결과로 전달한다.
 
 명령 연결·결과 채택·중복 수신 기록은 같은 DB 트랜잭션이다. project → deployment → 모든 deployment_target(ID 정렬) → jenkins_execution 순서로 잠근다. 서비스 커밋 이후 `{"execution_id":"job_...","external_event_id":"...","receipt_id":"..."}`로 ACK한다. receipt_id는 내부 script/usage ID, 로그/단계 DB ID 또는 원천 사건 ID이며 공개 SSE cursor가 아니다. 같은 원천 ID의 다른 내용/연결은 409이고 원본을 보존한다.
 

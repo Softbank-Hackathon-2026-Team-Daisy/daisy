@@ -29,14 +29,26 @@ class JenkinsWorkerTest {
   }
 
   private CommandScope command(String operation, String dispatch, Long queue, Long build) {
-    return new CommandScope("job_1", "dep_1", "prj_1", "request_1", operation,
-        "stop".equals(operation) ? "job_parent" : null, "instance", "daisy/" + operation,
-        dispatch, "unknown", queue, build, new ObjectMapper().createObjectNode());
+    return new CommandScope(
+        "job_1",
+        "dep_1",
+        "prj_1",
+        "request_1",
+        operation,
+        "stop".equals(operation) ? "job_parent" : null,
+        "instance",
+        "daisy/" + operation,
+        dispatch,
+        "unknown",
+        queue,
+        build,
+        new ObjectMapper().createObjectNode());
   }
 
   @Test
   void disabledWorkerDoesNotClaimOrRecover() {
-    worker.start(); worker.tick();
+    worker.start();
+    worker.tick();
     verifyNoInteractions(commands);
   }
 
@@ -44,8 +56,10 @@ class JenkinsWorkerTest {
   void claimCommitsThroughServiceBeforeSubmissionAndAcceptedWrite() {
     when(client.enabled()).thenReturn(true);
     when(commands.claimPending()).thenReturn(command("apply", "dispatching", null, null));
-    when(client.submit(anyString(), anyString(), anyMap())).thenReturn(new JenkinsClient.Submission(11));
-    worker.start(); worker.tick();
+    when(client.submit(anyString(), anyString(), anyMap()))
+        .thenReturn(new JenkinsClient.Submission(11));
+    worker.start();
+    worker.tick();
     var order = inOrder(commands, client);
     order.verify(commands).recoverDispatching();
     order.verify(commands).claimPending();
@@ -56,7 +70,8 @@ class JenkinsWorkerTest {
 
   @Test
   void lostSubmissionRemainsUnknownWithoutResubmitOrTargetFailure() {
-    when(client.submit(anyString(), anyString(), anyMap())).thenThrow(new JenkinsClient.RequestException(false));
+    when(client.submit(anyString(), anyString(), anyMap()))
+        .thenThrow(new JenkinsClient.RequestException(false));
     worker.dispatch(command("apply", "dispatching", null, null));
     verify(commands).dispatchFailed("job_1", false);
     when(client.findRequest("daisy/apply", "request_1"))
@@ -69,7 +84,8 @@ class JenkinsWorkerTest {
 
   @Test
   void definiteRejectionIsPersistedBeforeDomainFailure() {
-    when(client.submit(anyString(), anyString(), anyMap())).thenThrow(new JenkinsClient.RequestException(true));
+    when(client.submit(anyString(), anyString(), anyMap()))
+        .thenThrow(new JenkinsClient.RequestException(true));
     worker.dispatch(command("apply", "dispatching", null, null));
     var order = inOrder(commands, deployments);
     order.verify(commands).dispatchFailed("job_1", true);
@@ -105,10 +121,36 @@ class JenkinsWorkerTest {
 
   @Test
   void successUpdatesOnlyJenkinsRunStatus() {
-    when(client.build("daisy/apply", 7)).thenReturn(new JenkinsClient.BuildSnapshot(false, "SUCCESS"));
+    when(client.build("daisy/apply", 7))
+        .thenReturn(new JenkinsClient.BuildSnapshot(false, "SUCCESS"));
     worker.reconcile(command("apply", "accepted", 11L, 7L));
     verify(commands).observed("job_1", 7L, "succeeded");
     verifyNoInteractions(deployments);
     assertThat(JenkinsWorker.runStatus(new JenkinsClient.BuildSnapshot(false, null))).isNull();
+  }
+
+  @Test
+  void cancelledQueueIsHandedToDurableTargetReconciliation() {
+    when(client.queue("daisy/apply", 11)).thenReturn(new JenkinsClient.QueueSnapshot(true, null));
+    worker.reconcile(command("apply", "accepted", 11L, null));
+    verify(commands).observed("job_1", null, "cancelled");
+    verifyNoInteractions(deployments);
+    var cancelled =
+        new CommandScope(
+            "job_1",
+            "dep_1",
+            "prj_1",
+            "request_1",
+            "apply",
+            null,
+            "instance",
+            "daisy/apply",
+            "accepted",
+            "cancelled",
+            11L,
+            null,
+            new ObjectMapper().createObjectNode());
+    worker.reconcile(cancelled);
+    verify(deployments).onQueueCancelled("job_1");
   }
 }

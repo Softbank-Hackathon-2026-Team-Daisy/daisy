@@ -25,9 +25,15 @@ public class JenkinsWorker {
   private final ObjectProvider<DeploymentExecutionService> deployments;
   private volatile boolean ready;
 
-  public JenkinsWorker(JenkinsCommandService commands, JenkinsClient client, ObjectMapper mapper,
+  public JenkinsWorker(
+      JenkinsCommandService commands,
+      JenkinsClient client,
+      ObjectMapper mapper,
       ObjectProvider<DeploymentExecutionService> deployments) {
-    this.commands = commands; this.client = client; this.mapper = mapper; this.deployments = deployments;
+    this.commands = commands;
+    this.client = client;
+    this.mapper = mapper;
+    this.deployments = deployments;
   }
 
   @EventListener(ApplicationReadyEvent.class)
@@ -48,19 +54,27 @@ public class JenkinsWorker {
 
   void dispatch(CommandScope command) {
     if (command.dispatchStatus().equals("rejected")) {
-      if (!command.operation().equals("stop")) deployments.getObject().onCommandRejected(command.id(), commands.rejectionReason(command.id()));
+      if (!command.operation().equals("stop"))
+        deployments
+            .getObject()
+            .onCommandRejected(command.id(), commands.rejectionReason(command.id()));
       return;
     }
     try {
       if (command.operation().equals("stop")) {
         CommandScope parent = commands.lookup(command.parentExecutionId());
-        if (parent.buildNumber() != null) client.stopBuild(parent.jobFullName(), parent.buildNumber());
+        if (parent.buildNumber() != null)
+          client.stopBuild(parent.jobFullName(), parent.buildNumber());
         else if (parent.queueId() != null) client.cancelQueue(parent.queueId());
-        else { commands.dispatchFailed(command.id(), false); return; }
+        else {
+          commands.dispatchFailed(command.id(), false);
+          return;
+        }
         // A control ACK is not actual parent termination and must not release its locks.
         commands.dispatched(command.id(), parent.queueId(), parent.buildNumber(), "unknown");
       } else {
-        var payload = mapper.convertValue(command.payload(), new TypeReference<Map<String, Object>>() {});
+        var payload =
+            mapper.convertValue(command.payload(), new TypeReference<Map<String, Object>>() {});
         var response = client.submit(command.jobFullName(), command.requestId(), payload);
         commands.dispatched(command.id(), response.queueId(), null, "queued");
       }
@@ -76,7 +90,10 @@ public class JenkinsWorker {
   void reconcile(CommandScope command) {
     try {
       if (command.dispatchStatus().equals("rejected")) {
-        if (!command.operation().equals("stop")) deployments.getObject().onCommandRejected(command.id(), commands.rejectionReason(command.id()));
+        if (!command.operation().equals("stop"))
+          deployments
+              .getObject()
+              .onCommandRejected(command.id(), commands.rejectionReason(command.id()));
         return;
       }
       if (command.operation().equals("stop")) {
@@ -84,15 +101,35 @@ public class JenkinsWorker {
         commands.checkUnconfirmed(command.id(), "lookup_unknown");
         return;
       }
+      if (command.dispatchStatus().equals("accepted")
+          && command.runStatus().equals("cancelled")
+          && command.queueId() != null
+          && command.buildNumber() == null) {
+        deployments.getObject().onQueueCancelled(command.id());
+        return;
+      }
       if (command.dispatchStatus().equals("unknown")) {
         var found = client.findRequest(command.jobFullName(), command.requestId());
         if (found.state() == JenkinsClient.LookupState.FOUND)
-          commands.dispatched(command.id(), found.queueId(), found.buildNumber(), found.buildNumber() == null ? "queued" : "running");
-        else commands.checkUnconfirmed(command.id(), found.state() == JenkinsClient.LookupState.AMBIGUOUS ? "lookup_ambiguous" : "lookup_unknown");
+          commands.dispatched(
+              command.id(),
+              found.queueId(),
+              found.buildNumber(),
+              found.buildNumber() == null ? "queued" : "running");
+        else
+          commands.checkUnconfirmed(
+              command.id(),
+              found.state() == JenkinsClient.LookupState.AMBIGUOUS
+                  ? "lookup_ambiguous"
+                  : "lookup_unknown");
       } else if (command.buildNumber() == null && command.queueId() != null) {
         var queue = client.queue(command.jobFullName(), command.queueId());
         if (queue.cancelled()) commands.observed(command.id(), null, "cancelled");
-        else commands.observed(command.id(), queue.buildNumber(), queue.buildNumber() == null ? "queued" : "running");
+        else
+          commands.observed(
+              command.id(),
+              queue.buildNumber(),
+              queue.buildNumber() == null ? "queued" : "running");
       } else if (command.buildNumber() != null) {
         var build = client.build(command.jobFullName(), command.buildNumber());
         String status = runStatus(build);
