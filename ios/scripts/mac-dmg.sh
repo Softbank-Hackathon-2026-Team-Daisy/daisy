@@ -69,3 +69,6 @@ rm -rf "$STAGE"
 
 echo "✅ $DMG ($(du -h "$DMG" | cut -f1), sha256 $(shasum -a 256 "$DMG" | cut -d' ' -f1))"
 echo "   앱은 Developer ID 서명 + Apple 공증 + 스테이플 완료. 다운로드한 Mac에서 경고 없이 열려요."
+echo "   릴리스(담당자가 요청할 때만):"
+echo "     gh release create mac-v${VERSION}-${BUILD} $DMG --prerelease --target <커밋>"
+echo "     cp $DMG /tmp/Daisy.dmg && gh release upload mac-latest /tmp/Daisy.dmg --clobber   # 웹 W-14 고정 주소"
