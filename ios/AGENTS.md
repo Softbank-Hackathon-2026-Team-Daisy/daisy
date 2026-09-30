@@ -47,7 +47,7 @@ The app always talks to a real server. There is no mock mode, fake API client, o
 
 ## 5. Stack and structure
 
-- SwiftUI multiplatform, one app target for iOS 17+ and macOS 14+. Swift 6 with strict concurrency. Xcode 27.
+- SwiftUI multiplatform, one app target for iPhone, iPad, and native macOS (iOS 18+, macOS 15+). Swift 6 with strict concurrency. Xcode 27.
 - No third-party packages. `URLSession` + `async/await` + `Codable`. SSE is parsed from `URLSession.bytes`, with 5-second polling as the fallback. Tokens live in the Keychain. Push uses APNs.
 
 ```
@@ -56,7 +56,7 @@ ios/
 ├─ SPEC.md
 ├─ Daisy.xcodeproj
 ├─ Daisy/
-│  ├─ App/            entry point, root view (iOS TabView / macOS NavigationSplitView), dependency wiring
+│  ├─ App/            entry point, root view (TabView + .sidebarAdaptable), dependency wiring
 │  ├─ Features/       one folder per screen: Overview, Deployments, Approvals, History, Settings (View + Store each)
 │  ├─ Core/           API, Models, Realtime, Auth, Push
 │  ├─ DesignSystem/   shared views: status badge, environment icon, commit hash label
@@ -71,7 +71,9 @@ ios/
 - A view used by one screen lives in that `Features/{Feature}/`. A view used by two or more screens moves to `DesignSystem/`.
 - Decode JSON with `convertFromSnakeCase`. Every enum decoded from a server string has an `unknown` case, so a new server value never crashes the app.
 - Map the server error envelope to `APIError`. `401 UNAUTHENTICATED` → login screen. `409 STATE_CONFLICT` → reload the latest state. A viewer account gets `403` on approval; show it as "읽기 전용 계정".
-- `#if os(iOS)` / `#if os(macOS)` only in `App/` and `DesignSystem/`, never in feature logic.
+- **Layout adapts to available width, not to the platform.** The root is `TabView` with `.sidebarAdaptable` (tabs on iPhone, sidebar on iPad and Mac). Inside a screen, use `AdaptiveGrid` and `cardStyle()` from `DesignSystem/` so cards form one column on a phone and several on wide screens. Do not branch on `horizontalSizeClass`; it does not exist on macOS.
+- `#if os(iOS)` / `#if os(macOS)` only for platform-only capabilities (keyboard type, menu bar, haptics), and only in `App/` and `DesignSystem/`, never in feature logic.
+- Test in this order: iPhone, then Mac, then iPad. iPad only needs to not break.
 - User-facing strings are Korean, 해요체.
 - Show AI cost as an estimate: label it "추정" and show the exchange rate the server applied.
 - When `approval.required` arrives again for a deployment whose `attempt` did not change, the server re-ran a stale plan. Show the approval card again with the same "시도 n/3" and say the plan was refreshed.
@@ -105,7 +107,7 @@ Tier per root §6. Tier 1 entries are final for this area.
 | Date | Decision | Why | Tier |
 |---|---|---|---|
 | 9/29 | SwiftUI multiplatform, one target for iOS and macOS | One codebase for both platforms, so adding macOS costs little | 1 |
-| 9/29 | Minimum iOS 17 · macOS 14 | Needed for `@Observable`, and covers most judges' devices | 1 |
+| 9/29 | ~~Minimum iOS 17 · macOS 14~~ (replaced 9/30, see below) | Needed for `@Observable` | 1 |
 | 9/29 | No third-party packages to start | Same "minimal stack, add only when blocked" principle as ADR-006 | 1 |
 | 9/29 | No mock mode; the app always uses the real server | Owner decision. Consequence: app progress depends on server API dates (`SPEC.md` R-08) | 1 |
 | 9/29 | SSE parsed with `URLSession.bytes`, 5-second polling fallback | Uses the same SSE endpoints as web, so server builds nothing app-specific | 1 |
@@ -113,6 +115,7 @@ Tier per root §6. Tier 1 entries are final for this area.
 | 9/30 | Xcode project written by hand with synchronized folders (`PBXFileSystemSynchronizedRootGroup`); no XcodeGen or Tuist | New files under `Daisy/` and `DaisyTests/` are picked up automatically, so agents never edit `project.pbxproj` to add a file | 1 |
 | 9/30 | Bundle ID `com.teamdaisy.daisy`, version 0.1.0, `ITSAppUsesNonExemptEncryption = NO` | Needed for App Store Connect; the encryption flag skips the export-compliance prompt on every TestFlight upload | 1 |
 | 9/30 | Lists decode as `Page<T>` (`{ items, next_cursor }`), including A-02 | v0.1 common list rule; confirm when server publishes OpenAPI | 3 (`(가칭)`) |
+| 9/30 | **One responsive codebase, not separate native apps.** Minimum iOS 18 · macOS 15 for `TabView` + `.sidebarAdaptable`; width-based `AdaptiveGrid` for cards | One developer, three days: each screen is built once. The phone (judges) and Mac (presenter) get the same app shaped to their width | 1 |
 | 9/30 | Tests use Swift Testing; sample JSON lives only in `DaisyTests` | No mock data in the app (§4) | 1 |
 | 9/29 | The app does not start deployments or change infrastructure | Keeps the app inside ADR-007 and keeps the server work small | 1 |
 | 9/29 | Widen ADR-007: add overview, commit history, macOS | Proposed in `SPEC.md` §1-2; needs the team meeting | 4 (`(가칭)`) |

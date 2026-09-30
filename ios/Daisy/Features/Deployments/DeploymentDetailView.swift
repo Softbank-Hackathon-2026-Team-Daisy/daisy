@@ -11,23 +11,16 @@ struct DeploymentDetailView: View {
 
     var body: some View {
         LoadStateView(state: store.deployment, retry: { await store.refresh(using: app) }) { deployment in
-            List {
-                Section {
-                    LabeledContent("상태") { deployment.state.badge }
-                    LabeledContent("커밋") { CommitLabel(commit: deployment.commit) }
-                    if let createdBy = deployment.createdBy {
-                        LabeledContent("시작한 사람", value: createdBy)
-                    }
-                    if deployment.pendingApproval != nil {
-                        NavigationLink("plan 승인하러 가기") {
-                            PlanApprovalView(deploymentID: deployment.id)
-                        }
-                        .foregroundStyle(.orange)
+            ScrollView {
+                VStack(alignment: .leading, spacing: 16) {
+                    summary(deployment).cardStyle()
+                    Text("환경별 진행").font(.headline)
+                    // 폰은 세로로, iPad · Mac은 환경이 나란히 보여서 병렬 배포가 한눈에 보여요.
+                    AdaptiveGrid(minimumWidth: 260) {
+                        ForEach(deployment.targets ?? []) { TargetProgressCard(target: $0) }
                     }
                 }
-                Section("환경별 진행") {
-                    ForEach(deployment.targets ?? []) { TargetProgressRow(target: $0) }
-                }
+                .padding()
             }
             .refreshable { await store.refresh(using: app) }
         }
@@ -41,11 +34,31 @@ struct DeploymentDetailView: View {
     }
 }
 
-struct TargetProgressRow: View {
+extension DeploymentDetailView {
+    private func summary(_ deployment: Deployment) -> some View {
+        VStack(alignment: .leading, spacing: 8) {
+            LabeledContent("상태") { deployment.state.badge }
+            LabeledContent("커밋") { CommitLabel(commit: deployment.commit) }
+            if let createdBy = deployment.createdBy {
+                LabeledContent("시작한 사람", value: createdBy)
+            }
+            if deployment.pendingApproval != nil {
+                NavigationLink {
+                    PlanApprovalView(deploymentID: deployment.id)
+                } label: {
+                    Label("plan 승인하러 가기", systemImage: "checkmark.seal")
+                }
+                .foregroundStyle(.orange)
+            }
+        }
+    }
+}
+
+struct TargetProgressCard: View {
     let target: Deployment.Target
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 4) {
+        VStack(alignment: .leading, spacing: 8) {
             HStack {
                 Text(target.targetId).font(.headline)
                 Spacer()
@@ -65,5 +78,6 @@ struct TargetProgressRow: View {
                 Link(url.absoluteString, destination: url).font(.caption)
             }
         }
+        .cardStyle()
     }
 }

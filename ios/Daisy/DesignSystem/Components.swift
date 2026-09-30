@@ -113,3 +113,28 @@ func poll(every seconds: Double = 5, _ body: @MainActor () async -> Void) async 
         try? await Task.sleep(for: .seconds(seconds))
     }
 }
+
+/// 화면 폭에 맞춰 열 수가 바뀌는 그리드. 폰은 1열, iPad · Mac은 여러 열.
+struct AdaptiveGrid<Content: View>: View {
+    var minimumWidth: CGFloat = 300
+    @ViewBuilder let content: () -> Content
+
+    var body: some View {
+        LazyVGrid(
+            columns: [GridItem(.adaptive(minimum: minimumWidth), spacing: 12, alignment: .top)],
+            alignment: .leading,
+            spacing: 12
+        ) {
+            content()
+        }
+    }
+}
+
+extension View {
+    /// 카드 모양 배경.
+    func cardStyle() -> some View {
+        padding(14)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .background(.fill.tertiary, in: .rect(cornerRadius: 12))
+    }
+}

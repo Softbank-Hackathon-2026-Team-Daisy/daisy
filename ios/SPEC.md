@@ -59,7 +59,7 @@
 
 ## 2. 화면 구성
 
-iOS는 탭, macOS는 사이드바(`NavigationSplitView`)로 같은 화면을 보여줘요.
+코드 하나로 iPhone · iPad · Mac을 모두 지원하고, **플랫폼이 아니라 화면 폭에 따라** 모양이 바뀌어요. 좁은 화면(iPhone)은 아래 탭, 넓은 화면(iPad · Mac)은 사이드바로 시스템이 알아서 바꿔요 (`TabView` + `.sidebarAdaptable`). 현황 · 배포 상세의 환경 카드는 폰에서는 한 열, 넓은 화면에서는 나란히 보여요.
 
 | # | 화면 | 내용 | 우선순위 |
 |---|---|---|---|
@@ -81,8 +81,8 @@ M = 예선 데모 필수, S = 선택
 
 | 항목 | 선택 | 이유 |
 |---|---|---|
-| UI | **SwiftUI 멀티플랫폼 단일 타깃** (iOS · macOS) | 코드 하나로 두 플랫폼. 플랫폼 차이는 `#if os(...)`로 최소한만 |
-| 최소 OS | iOS 17 · macOS 14 | `@Observable` 사용. 심사위원 기기 호환 범위를 넓게 |
+| UI | **SwiftUI 멀티플랫폼 단일 타깃** (iPhone · iPad · Mac, 네이티브 macOS) | 코드 하나로 모든 화면. 레이아웃은 화면 폭 기준(탭 ↔ 사이드바, 적응형 그리드), `#if os(...)`는 플랫폼 전용 기능에만 |
+| 최소 OS | iOS 18 · macOS 15 | `.sidebarAdaptable`로 탭 ↔ 사이드바를 시스템이 바꿔 줘요. 2026년 9월 기준 심사위원 기기는 대부분 이보다 최신이에요 |
 | 언어 · 도구 | Swift 6 (strict concurrency), Xcode 27 | |
 | 외부 라이브러리 | **없음** (SPM 의존성 0개로 시작) | 웹 ADR-006과 같은 "최소 스택, 막힐 때만 추가" 원칙. 추가하면 이유를 ADR에 기록 |
 | 네트워크 | `URLSession` + `async/await` + `Codable` | |
@@ -101,7 +101,7 @@ ios/
 ├─ SPEC.md                  이 문서
 ├─ Daisy.xcodeproj          앱 이름 Daisy, 번들 ID com.teamdaisy.daisy. 폴더 동기화 방식이라 파일을 추가해도 프로젝트 파일을 고칠 필요가 없어요
 ├─ Daisy/
-│  ├─ App/                  진입점, 루트 화면 (iOS TabView / macOS NavigationSplitView), 의존성 조립
+│  ├─ App/                  진입점, 루트 화면 (TabView + .sidebarAdaptable), 의존성 조립
 │  ├─ Features/             화면 단위 폴더. 각 폴더에 View + Store
 │  │  ├─ Overview/          1 현황
 │  │  ├─ Deployments/       2 배포 목록 · 3 배포 상세
@@ -383,5 +383,6 @@ API 모양보다 **이 정보가 어딘가에 저장되어 있는지**가 더 �
 | 9/29 | 앱 목업 모드 제거 (항상 실서버 연결), 개발 서버 요구(R-08) 추가 | 박승준 |
 | 9/29 | 에이전트 규칙 파일을 `CLAUDE.md` → `AGENTS.md`로 변경 | 박승준 |
 | 9/29 | 서버 답변 반영: 경로 · 이벤트 이름 확정, Bearer만, `DELETE /devices` + 본문, `attempt` 의미, Plan 모양(`level`·`resource`, `ai_usage`), 제공 일정 D2/D3, 폴링 · 로컬 알림 폴백 | 박승준 |
+| 9/30 | 반응형으로 변경: 최소 iOS 18 · macOS 15, 탭 ↔ 사이드바 자동 전환, 현황 · 배포 상세 적응형 카드 그리드 | 박승준 |
 | 9/30 | 앱 뼈대 구현 후 최신화: A-02 목록 봉투 가정, `confirm_text` 값 질문, TestFlight 업로드 준비물 | 박승준 |
 | 9/30 | 리뷰 반영: "총 시도 횟수" 문구(승환 님), plan 재생성 시 재승인 동작(은현 님), AI 비용 추정 · 환율 표시(`server/AGENTS.md`), R-04는 도메인 + HTTPS로 확정(9/29 회의) | 박승준 |

@@ -24,28 +24,34 @@ struct OverviewView: View {
         }
     }
 
+    /// 폰은 카드 1열, iPad · Mac은 환경 카드가 가로로 나란히 (온프레미스 · AWS · GCP 한눈에).
     private func list(_ statuses: [TargetStatus]) -> some View {
-        List {
-            if !statuses.isEmpty {
-                Section { consistencyRow(statuses) }
-            }
-            Section("환경") {
-                if statuses.isEmpty {
-                    Text("아직 등록된 환경이 없어요.").foregroundStyle(.secondary)
+        ScrollView {
+            VStack(alignment: .leading, spacing: 16) {
+                if !statuses.isEmpty {
+                    consistencyRow(statuses).cardStyle()
                 }
-                ForEach(statuses) { status in
-                    if let deploymentID = status.current?.deploymentId {
-                        NavigationLink(value: deploymentID) { TargetStatusRow(status: status) }
-                    } else {
-                        TargetStatusRow(status: status)
+                if statuses.isEmpty {
+                    ContentUnavailableView("아직 등록된 환경이 없어요", systemImage: "server.rack")
+                }
+                AdaptiveGrid {
+                    ForEach(statuses) { status in
+                        if let deploymentID = status.current?.deploymentId {
+                            NavigationLink(value: deploymentID) { TargetStatusCard(status: status) }
+                                .buttonStyle(.plain)
+                        } else {
+                            TargetStatusCard(status: status)
+                        }
                     }
                 }
             }
+            .padding()
         }
         .refreshable { await store.refreshStatuses(using: app) }
         .navigationDestination(for: String.self) { DeploymentDetailView(deploymentID: $0) }
     }
 
+    /// 배포된 환경이 모두 같은 커밋인지. 이식성을 한 줄로 보여줘요.
     @ViewBuilder
     private func consistencyRow(_ statuses: [TargetStatus]) -> some View {
         if statuses.isConsistent, let commit = statuses.deployedCommits.first {
@@ -58,7 +64,10 @@ struct OverviewView: View {
             } icon: {
                 Image(systemName: "checkmark.circle.fill").foregroundStyle(.green)
             }
-        } else if !statuses.isConsistent {
+        } else if statuses.isConsistent {
+            Label("아직 배포된 환경이 없어요", systemImage: "circle.dashed")
+                .foregroundStyle(.secondary)
+        } else {
             Label {
                 Text("환경마다 버전이 달라요 (\(statuses.deployedCommits.count)개 커밋)")
             } icon: {
@@ -82,35 +91,38 @@ struct OverviewView: View {
     }
 }
 
-struct TargetStatusRow: View {
+struct TargetStatusCard: View {
     let status: TargetStatus
 
     var body: some View {
-        HStack(alignment: .firstTextBaseline) {
-            EnvironmentIcon(type: status.type)
-            VStack(alignment: .leading, spacing: 4) {
-                HStack {
+        VStack(alignment: .leading, spacing: 10) {
+            HStack {
+                EnvironmentIcon(type: status.type)
+                VStack(alignment: .leading) {
                     Text(status.name).font(.headline)
                     Text(status.type.displayName).font(.caption).foregroundStyle(.secondary)
                 }
-                if let current = status.current {
-                    HStack(spacing: 6) {
-                        CommitLabel(commit: current.commit)
-                        if let deployedAt = current.deployedAt {
-                            Text(deployedAt, format: .relative(presentation: .named))
-                                .font(.caption)
-                                .foregroundStyle(.secondary)
-                        }
-                    }
-                } else {
-                    Text("아직 배포되지 않았어요").font(.caption).foregroundStyle(.secondary)
-                }
-                if let url = status.url {
-                    Link(url.host() ?? url.absoluteString, destination: url).font(.caption)
-                }
+                Spacer()
+                status.health.badge
             }
-            Spacer()
-            status.health.badge
+            Divider()
+            if let current = status.current {
+                HStack(spacing: 6) {
+                    CommitLabel(commit: current.commit)
+                    if let deployedAt = current.deployedAt {
+                        Text(deployedAt, format: .relative(presentation: .named))
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    }
+                }
+            } else {
+                Text("아직 배포되지 않았어요").font(.caption).foregroundStyle(.secondary)
+            }
+            if let url = status.url {
+                Link(url.host() ?? url.absoluteString, destination: url).font(.caption)
+            }
         }
+        .cardStyle()
+        .contentShape(.rect)
     }
 }

@@ -37,30 +37,20 @@ enum AppTab: String, CaseIterable, Identifiable {
     }
 }
 
-/// iOS는 탭, macOS는 사이드바로 같은 화면을 보여줘요.
+/// 좁은 화면(iPhone)은 탭, 넓은 화면(iPad · Mac)은 사이드바로 시스템이 알아서 바꿔요.
+/// 플랫폼이 아니라 화면 폭에 따라 달라져요 (`.sidebarAdaptable`).
 struct RootView: View {
     @State private var tab: AppTab = .overview
 
     var body: some View {
-        #if os(macOS)
-        NavigationSplitView {
-            List(AppTab.allCases, selection: $tab) { tab in
-                Label(tab.title, systemImage: tab.systemImage).tag(tab)
-            }
-            .navigationSplitViewColumnWidth(min: 160, ideal: 180)
-        } detail: {
-            NavigationStack { tab.content }
-                .id(tab)
-        }
-        #else
         TabView(selection: $tab) {
             ForEach(AppTab.allCases) { tab in
-                NavigationStack { tab.content }
-                    .tabItem { Label(tab.title, systemImage: tab.systemImage) }
-                    .tag(tab)
+                Tab(tab.title, systemImage: tab.systemImage, value: tab) {
+                    NavigationStack { tab.content }
+                }
             }
         }
-        #endif
+        .tabViewStyle(.sidebarAdaptable)
     }
 }
 
