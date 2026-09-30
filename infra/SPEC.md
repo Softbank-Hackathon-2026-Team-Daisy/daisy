@@ -248,12 +248,12 @@ DB 접속 정보는 앱에 환경변수로 넣어요. 이름은 온프레미스�
 
 ### 5-4. 완료 기준
 
-- [ ] `terraform fmt -check`, `terraform init -backend=false && terraform validate` 통과
-- [ ] `sample-monolith` 값으로 `plan` 성공. 리소스가 §5-2 표와 같고 NAT·RDS 없음
-- [ ] (사람 확인 후) `apply` → `curl ${service_url}/health` 200, `smoke-test.sh` 통과, `/version`의 `commit` = `image_tag`
-- [ ] **`image_tag`만 바꾼 `plan`이 task definition 교체(`-/+`)와 service 변경(`~`)만 보여줌** (네트워크·ALB 변경 0 → N-08 "컨테이너만 교체" 확인)
-- [ ] R-1~R-6 수동 확인 (가능하면 `checkov`나 `trivy config`로 한 번 더)
-- [ ] (사람 확인 후) `destroy` 후 `Project=daisy` 태그 리소스 0개
+- [x] `terraform fmt -check`, `terraform init -backend=false && terraform validate` 통과 (9/30, aws 6.66.0)
+- [x] `sample-monolith` 값으로 `plan` 성공. 리소스가 §5-2 표와 같고 NAT·RDS 없음 (9/30, Jenkins CD #1, 개인 계정 `PLAN_ONLY`: 22개 생성)
+- [ ] (사람 확인 후) `apply` → `curl ${service_url}/health` 200, `smoke-test.sh` 통과, `/version`의 `commit` = `image_tag` — **팀 계정에서**
+- [ ] **`image_tag`만 바꾼 `plan`이 task definition 교체(`-/+`)와 service 변경(`~`)만 보여줌** (네트워크·ALB 변경 0 → N-08 "컨테이너만 교체" 확인) — apply한 state가 있어야 해서 **팀 계정에서**
+- [x] R-1~R-6 수동 확인 (9/30 plan JSON: `0.0.0.0/0` 인바운드는 ALB 80 하나, 앱은 ALB SG에서만, NAT·RDS·EIP 0개). 정적 검사 도구(`checkov`·`trivy config`)는 아직
+- [ ] (사람 확인 후) `destroy` 후 `Project=daisy` 태그 리소스 0개 — **팀 계정에서**
 
 ---
 
