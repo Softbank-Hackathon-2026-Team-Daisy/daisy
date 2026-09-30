@@ -1,7 +1,7 @@
 # SPEC.md — infra/ 클라우드 (AWS · GCP) 기준 모듈과 state 백엔드
 
 > 작성: 임채준 (`dlacowns21`) · 상태: **초안 (9/30)**
-> 참조: 루트 `CLAUDE.md`(main) · 루트 `AGENTS.md` v1(`docs/chore-agents-md` 브랜치, 머지 대기) · `infra/CLAUDE.md` · `server/AGENTS.md` · `sample-monolith`
+> 참조: 루트 `CLAUDE.md`(main) · 루트 `AGENTS.md` v1(`docs/chore-agents-md` 브랜치, 머지 대기) · `infra/AGENTS.md`(#10, 인프라 공통 규칙 · 결정 기록) · `server/AGENTS.md` · `sample-monolith`
 > 이 문서는 `infra/` 중 **클라우드 부분만** 다뤄요. 온프레미스(황지환) 명세는 이 파일에 절을 추가하거나 따로 두면 돼요.
 > 표시: `(가칭)` = 제안(남의 영역이거나 팀 결정 전), `[미정]` = 팀 결정 대기, 표시 없음 = 내 영역에서 확정.
 
@@ -70,7 +70,7 @@ M = 예선 데모 필수, S = 여유 있을 때
 
 ### 3-1. 입력 변수
 
-이름은 `infra/CLAUDE.md` 약속대로 **`deploy.yaml` 키와 1:1**이에요.
+이름은 `infra/AGENTS.md` §4 공통 규약대로 **`deploy.yaml` 키와 1:1**이에요.
 
 | 변수 | 타입 · 기본값 | 출처 | 비고 |
 |---|---|---|---|
@@ -165,7 +165,7 @@ terraform output -raw service_url
 
 | 항목 | 값 |
 |---|---|
-| Terraform | `required_version = ">= 1.11"` (S3 네이티브 잠금 `use_lockfile` 정식 지원). 러너와 같은 **1.16.4**로 고정 (§14) |
+| Terraform | `required_version = ">= 1.11"` (S3 네이티브 잠금 `use_lockfile` 정식 지원). 러너와 같은 **1.16.4**로 고정 (`infra/AGENTS.md` §2) |
 | provider | AWS `hashicorp/aws ~> 6.0`, GCP `hashicorp/google ~> 7.0`. `.terraform.lock.hcl`은 커밋해요 |
 | 파일 | `main.tf`(terraform·provider 블록 포함), `variables.tf`, `outputs.tf` 3개만 |
 | 필수 변수 | `image_tag` (기본값 없음). 나머지는 §3-1 |
@@ -339,11 +339,11 @@ DB 접속 정보는 앱에 환경변수로 넣어요. 이름은 온프레미스�
 | D-4 | state 저장소 | `[미정]` | S3 등 | §7 제안대로 먼저 구현. 러너가 주입해서 모듈은 무관 | 4 · 회의 확인 |
 | D-5 | `deploy.yaml` 확장 (`cpu`, `memory`, `instances`, 외부 공개) | 9/29 초안에 없음 | 기본값 적용, 필요 시 수정 | 모듈에 기본값 변수로 먼저 둬요. `deploy.yaml` 반영은 결정 후 | 4 · 회의 |
 | D-6 | DB 접속 환경변수 이름 | 없음 | 없음 | 세 환경이 같은 이름을 넣어야 이식성이 지켜져요 | 2 · 황지환과 합의 |
-| D-7 | 공통 변수·출력 (§3) | `infra/CLAUDE.md` "deploy.yaml과 1:1" | — | 온프레미스 모듈과 통일 | 2 · 김승환·하은현에게 이슈로 공지 |
+| D-7 | 공통 변수·출력 (§3) | `infra/AGENTS.md` §4 (가칭) | — | 온프레미스 모듈과 통일 | 2 · 김승환·하은현에게 이슈로 공지 |
 | D-8 | 인프라 저장소(검증된 스크립트 보관) | server N-08(김승환), plan은 레포 밖 작업 디렉터리 | 별도 Git 저장소, `onprem/`·`aws/`·`gcp/` | 폴더 안 모양을 기준 모듈과 같게 제안 | 3 · 김승환, 안 풀리면 회의 |
 | D-9 | Jenkins 호스팅 위치·담당 | 없음 | 없음 | **팀원 서버 한 대가 Jenkins 러너이자 온프레미스 대상이에요.** 연결 전까지 Mac VM `daisy-runner`로 대신해요 (§12). 배포 자격증명과 온프레미스 대상이 한 기기에 모여서, 그 서버가 뚫리면 전부 노출돼요. 웹훅 수신은 외부 공개 방식 `[미정]`과 얽혀 있어요 | 4 · 서버 담당 팀원·회의 |
 | D-10 | 일정 순서 | 전역 일정: N-03(GCP) D1, N-06(AWS) D2 | — | AWS를 먼저 하면 N-03이 D2로 밀려요 | 4 · 김도영에게 공유 |
-| D-11 | 리전 | `infra/CLAUDE.md`: AWS `ap-northeast-2`, GCP `asia-northeast3` `[미정]` | — | 기본값으로 써요. 변수라 바꾸기 쉬워요 | 4 · 회의 확인만 |
+| D-11 | 리전 | `infra/AGENTS.md` §6: AWS `ap-northeast-2`, GCP `asia-northeast3` `[미정]` | — | 기본값으로 써요. 변수라 바꾸기 쉬워요 | 4 · 회의 확인만 |
 | D-12 | `sample-monolith` GHCR 패키지 공개 여부 | README: "비공개로 만들어질 수 있어요" | — | 9/30 익명 매니페스트 조회 결과 **403**. 이대로면 ECS·Cloud Run이 인증 없이 못 받아요 | 3 · 박승준·김도영에게 공개 요청 |
 
 ---
@@ -391,7 +391,7 @@ PR은 300줄 이하로 나눠요: ① 이 명세 ② bootstrap ③ AWS 모듈 �
 
 ## 11. 이 명세로 코딩하는 에이전트에게
 
-- 작업 전에 루트 `CLAUDE.md`(또는 머지된 `AGENTS.md`), `infra/CLAUDE.md`, 이 파일을 읽어요
+- 작업 전에 루트 `AGENTS.md`(머지 전이면 루트 `CLAUDE.md`), `infra/AGENTS.md`, 이 파일을 읽어요
 - **수정해도 되는 곳**: `infra/modules/aws/`, `infra/modules/gcp/`, `infra/bootstrap/`, `infra/jenkins/`, `infra/scripts/`, `infra/SPEC.md`. 그 밖은 이슈 초안만 만들어요
 - **`terraform apply`·`destroy`, `aws`·`gcloud`의 생성·삭제 명령은 사람 확인 없이 실행하지 않아요.** `fmt`·`validate`·`plan`은 괜찮아요
 - **`TF_RUN_APPROVED`를 직접 설정하지 않아요.** 사람의 Jenkins `input` 승인 뒤에만 쓰는 값이에요
@@ -472,7 +472,7 @@ PR은 300줄 이하로 나눠요: ① 이 명세 ② bootstrap ③ AWS 모듈 �
 
 - [ ] 개인 계정에 만든 리소스를 모두 destroy했는지 확인해요 (`terraform state list`가 비어 있음, `Project=daisy` 태그 리소스 0개)
 - [ ] 서버의 OS·아키텍처를 확인해요 (`uname -m`). `setup-runner.sh`는 Ubuntu 24.04 기준이에요
-- [ ] `sudo TERRAFORM_VERSION=<§14에 적은 버전> bash infra/jenkins/setup-runner.sh`로 같은 버전을 설치해요
+- [ ] `sudo TERRAFORM_VERSION=<infra/AGENTS.md §2의 버전> bash infra/jenkins/setup-runner.sh`로 같은 버전을 설치해요
 - [ ] 모듈의 `.terraform.lock.hcl`에 모든 플랫폼 해시가 있는지 확인해요: `terraform providers lock -platform=linux_arm64 -platform=linux_amd64 -platform=darwin_arm64`
 - [ ] Jenkins Job 2개와 전역 환경변수, 대상 환경 등록(§12-3)을 다시 만들어요
 - [ ] Credentials를 **팀 계정** 값으로 넣어요. 권한은 §3-5로 줄여요
@@ -480,24 +480,9 @@ PR은 300줄 이하로 나눠요: ① 이 명세 ② bootstrap ③ AWS 모듈 �
 - [ ] 개인 IAM 사용자 키, GCP SA 키, Docker Hub 토큰을 폐기해요
 - [ ] 개인 계정 ID·프로젝트 ID가 커밋이나 PR 본문(plan 출력)에 남지 않았는지 확인해요
 
-## 14. 결정 기록 (내 영역, 1·2단계)
+## 14. 결정 기록
 
-`infra/AGENTS.md`(또는 `infra/CLAUDE.md`)에 결정 기록 표가 생기면 옮겨요. 온프레미스와 같이 쓰는 파일이라 황지환과 맞춘 뒤에 옮겨요.
-
-| 날짜 | 결정 | 이유 | 단계 |
-|---|---|---|---|
-| 2026-09-30 | 기준 모듈을 3파일 루트 모듈로 | AI 생성 형식과 같아서 템플릿·폴백·재사용을 한 벌로 | 1 |
-| 2026-09-30 | 모듈에 `backend` 블록 없음, 러너가 주입 | state 저장소 미정에 막히지 않고, AI 작성 규칙과도 같음 | 2 (러너에 영향) |
-| 2026-09-30 | 모듈 변수 이름 = `deploy.yaml` 키, 출력은 `service_url` | `infra/CLAUDE.md` 약속. 소비자는 AI·러너 | 2 |
-| 2026-09-30 | AWS는 ECS Fargate + ALB, 태스크는 public 서브넷 + 공인 IP, NAT 없음 | NAT는 켜두기만 해도 하루 약 ₩2천. 인바운드는 ALB SG만 허용해서 노출 없음 | 1 |
-| 2026-09-30 | 로그 보존 3일, 삭제 보호 끔, Secrets Manager 복구 기간 0일 | 해커톤 중 destroy·재생성을 반복해요 | 1 |
-| 2026-09-30 | 구현 순서 AWS → GCP | 담당자 결정. 팀 일정과 다른 점은 D-10으로 공유 | 1 |
-| 2026-09-30 | 팀원 서버 연결 전에는 Mac VM(`daisy-runner`, Ubuntu 24.04 arm64)에서 Jenkins CI·CD를 돌려요 | 서버에 연결할 수 없어요. 설치 스크립트·Jenkinsfile을 레포에 둬서 그대로 옮겨요 | 1 |
-| 2026-09-30 | VM 단계는 개인 AWS·GCP 계정과 개인 Docker Hub 공개 저장소를 써요 | 팀 계정·레지스트리 미정. GHCR 패키지가 비공개(D-12) | 1 |
-| 2026-09-30 | CI는 `linux/amd64,linux/arm64` 멀티 아키텍처로 푸시해요 | Cloud Run은 amd64만 실행해요. 러너는 arm64예요 | 1 |
-| 2026-09-30 | apply·destroy는 터미널 입력이나 Jenkins `input` 승인 뒤 `TF_RUN_APPROVED`로만 실행해요 | 인프라 변경은 반드시 사람 승인 (루트 §4-2) | 1 |
-| 2026-09-30 | plan 파일 이름은 `plan.tfplan` | `.gitignore`가 `*.tfplan`만 막아요 | 2 (러너에 영향) |
-| 2026-09-30 | **terraform 1.16.4** 고정 (`setup-runner.sh` 기본값, apt hold) | 러너·AI 작성 규칙·서버가 같은 버전. 김승환에게 공유 | 2 |
+결정 기록은 루트 §6에 따라 **[`infra/AGENTS.md`](./AGENTS.md) §9**에 모아요 (#10). 온프레미스와 같은 표를 쓰고, 클라우드 혼자 정한 줄은 `[클라우드]`로 표시해요.
 
 ---
 
@@ -507,3 +492,4 @@ PR은 300줄 이하로 나눠요: ① 이 명세 ② bootstrap ③ AWS 모듈 �
 |---|---|
 | 2026-09-30 | 초안 |
 | 2026-09-30 | Jenkins 러너 VM 프로토타입(§12)과 서버 이전 체크리스트(§13) 추가. 공개 GHCR 직접 pull 사실 반영(D-3, §6-3), GHCR 비공개 확인(D-12), plan 파일 이름·state 잠금 권한 수정 |
+| 2026-09-30 | 결정 기록을 `infra/AGENTS.md` §9로 옮김 (#10). `infra/CLAUDE.md` 참조를 `AGENTS.md`로 바꿈 |

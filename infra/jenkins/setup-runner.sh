@@ -9,7 +9,7 @@
 # 자격증명은 설치하지 않아요. Jenkins Credentials에만 넣어요 (infra/SPEC.md 참고).
 set -euo pipefail
 
-TERRAFORM_VERSION="${TERRAFORM_VERSION:-1.16.4}"   # 러너·AI 작성 규칙과 같은 버전 (SPEC §14)
+TERRAFORM_VERSION="${TERRAFORM_VERSION:-1.16.4}"   # 러너·AI 작성 규칙과 같은 버전 (infra/AGENTS.md §2)
 SWAP_TARGET_GIB="${SWAP_TARGET_GIB:-4}"
 
 [[ $EUID -eq 0 ]] || { echo "root로 실행해 주세요: sudo bash $0" >&2; exit 1; }
