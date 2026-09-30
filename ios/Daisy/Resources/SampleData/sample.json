@@ -1,5 +1,5 @@
 {
- "generated_at": "2026-09-30T11:22:54Z",
+ "generated_at": "2026-09-30T19:54:43Z",
  "note": "예시 데이터 — 실제 GitHub 커밋 · deploy.yaml 위에 배포 상태를 예시로 채웠어요",
  "responses": {
   "deployments/dep_m2": {
@@ -8,45 +8,13 @@
     "cost_krw": 234,
     "estimated": true,
     "exchange_rate": 1380,
-    "items": [
-     {
-      "at": "2026-09-29T09:22:54Z",
-      "attempt": 1,
-      "cost_krw": 78,
-      "note": null,
-      "status": "succeeded",
-      "step": "generate",
-      "target_id": "tgt_onprem",
-      "tokens": 3000
-     },
-     {
-      "at": "2026-09-29T09:22:54Z",
-      "attempt": 1,
-      "cost_krw": 78,
-      "note": null,
-      "status": "succeeded",
-      "step": "generate",
-      "target_id": "tgt_aws",
-      "tokens": 3000
-     },
-     {
-      "at": "2026-09-29T09:22:54Z",
-      "attempt": 1,
-      "cost_krw": 78,
-      "note": null,
-      "status": "succeeded",
-      "step": "generate",
-      "target_id": "tgt_gcp",
-      "tokens": 3000
-     }
-    ],
     "tokens": 9000
    },
    "commit": "839d8c02f701c3cce2db1edf2386d28fd79f654f",
    "commit_message": "HelloCalc: portable reference workload",
-   "created_at": "2026-09-29T09:22:54Z",
+   "created_at": "2026-09-29T17:54:43Z",
    "created_by": "Seungjun Park",
-   "finished_at": "2026-09-29T09:30:54Z",
+   "finished_at": "2026-09-29T18:02:43Z",
    "id": "dep_m2",
    "image": "ghcr.io/team-daisy/sample-monolith:839d8c0",
    "kind": null,
@@ -59,6 +27,7 @@
      "attempt": 1,
      "error_summary": null,
      "health_summary": "200 OK · p95 98ms",
+     "image_digest": "sha256:b9cde1069411",
      "reused_script": false,
      "state": "succeeded",
      "step": "health_check",
@@ -66,13 +35,13 @@
      "steps": [
       {
        "duration_ms": 63000,
-       "name": "apply",
+       "name": "terraform apply",
        "started_at": null,
        "state": "done"
       },
       {
        "duration_ms": 4000,
-       "name": "health_check",
+       "name": "헬스체크",
        "started_at": null,
        "state": "done"
       }
@@ -85,6 +54,7 @@
      "attempt": 1,
      "error_summary": null,
      "health_summary": "200 OK · p95 131ms",
+     "image_digest": "sha256:b9cde1069411",
      "reused_script": false,
      "state": "succeeded",
      "step": "health_check",
@@ -92,13 +62,13 @@
      "steps": [
       {
        "duration_ms": 63000,
-       "name": "apply",
+       "name": "terraform apply",
        "started_at": null,
        "state": "done"
       },
       {
        "duration_ms": 4000,
-       "name": "health_check",
+       "name": "헬스체크",
        "started_at": null,
        "state": "done"
       }
@@ -111,6 +81,7 @@
      "attempt": 1,
      "error_summary": "헬스체크 30초 안에 응답 없음 (/health)",
      "health_summary": null,
+     "image_digest": "sha256:b9cde1069411",
      "reused_script": false,
      "state": "failed",
      "step": "health_check",
@@ -118,13 +89,13 @@
      "steps": [
       {
        "duration_ms": 58000,
-       "name": "apply",
+       "name": "terraform apply",
        "started_at": null,
        "state": "done"
       },
       {
        "duration_ms": 30000,
-       "name": "health_check",
+       "name": "헬스체크",
        "started_at": null,
        "state": "failed"
       }
@@ -142,37 +113,38 @@
      "level": "info",
      "target_id": "tgt_aws",
      "text": "terraform init",
-     "ts": "2026-09-30T11:13:54Z"
+     "ts": "2026-09-30T19:45:43Z"
     },
     {
      "level": "info",
      "target_id": "tgt_aws",
      "text": "terraform validate: Success!",
-     "ts": "2026-09-30T11:13:54Z"
+     "ts": "2026-09-30T19:45:43Z"
     },
     {
      "level": "error",
      "target_id": "tgt_aws",
      "text": "Error: creating ECS Service: AccessDeniedException (ecs:CreateService)",
-     "ts": "2026-09-30T11:14:54Z"
+     "ts": "2026-09-30T19:46:43Z"
     },
     {
      "level": "info",
      "target_id": "tgt_aws",
      "text": "AI 수정 시도 2/3: IAM 정책에 ecs:CreateService 추가",
-     "ts": "2026-09-30T11:14:54Z"
+     "ts": "2026-09-30T19:46:43Z"
     },
     {
      "level": "info",
      "target_id": "tgt_aws",
      "text": "terraform plan: 2 to add, 1 to change, 1 to destroy",
-     "ts": "2026-09-30T11:15:54Z"
+     "ts": "2026-09-30T19:47:43Z"
     }
    ],
    "next_cursor": null
   },
   "deployments/dep_m2/plan": {
    "ai_usage": {
+    "calls": 3,
     "cost_krw": 234,
     "estimated": true,
     "exchange_rate": 1380,
@@ -196,6 +168,7 @@
      ],
      "reused_script": false,
      "risks": [],
+     "summary": null,
      "target_id": "tgt_onprem"
     },
     {
@@ -236,6 +209,7 @@
        "rule": "open_ingress"
       }
      ],
+     "summary": null,
      "target_id": "tgt_aws"
     },
     {
@@ -254,6 +228,7 @@
      ],
      "reused_script": false,
      "risks": [],
+     "summary": null,
      "target_id": "tgt_gcp"
     }
    ]
@@ -262,7 +237,7 @@
    "ai_tokens": 4200,
    "attempt": 1,
    "base_commit": "839d8c02f701c3cce2db1edf2386d28fd79f654f",
-   "created_at": "2026-09-28T11:22:54Z",
+   "created_at": "2026-09-28T19:54:43Z",
    "files": [
     {
      "content": "resource \"aws_ecs_service\" \"app\" {\n  name            = var.name\n  cluster         = aws_ecs_cluster.main.id\n  task_definition = aws_ecs_task_definition.app.arn\n  desired_count   = 1\n  launch_type     = \"FARGATE\"\n}\n",
@@ -289,7 +264,7 @@
    "ai_tokens": 4200,
    "attempt": 1,
    "base_commit": "839d8c02f701c3cce2db1edf2386d28fd79f654f",
-   "created_at": "2026-09-28T11:22:54Z",
+   "created_at": "2026-09-28T19:54:43Z",
    "files": [
     {
      "content": "resource \"google_cloud_run_v2_service\" \"app\" {\n  name     = var.name\n  location = \"asia-northeast3\"\n  template {\n    containers { image = var.image }\n  }\n}\n",
@@ -316,7 +291,7 @@
    "ai_tokens": 4200,
    "attempt": 1,
    "base_commit": "839d8c02f701c3cce2db1edf2386d28fd79f654f",
-   "created_at": "2026-09-28T11:22:54Z",
+   "created_at": "2026-09-28T19:54:43Z",
    "files": [
     {
      "content": "resource \"docker_container\" \"app\" {\n  name  = var.name\n  image = var.image\n  ports {\n    internal = 8080\n    external = 8080\n  }\n}\n",
@@ -345,35 +320,13 @@
     "cost_krw": 157,
     "estimated": true,
     "exchange_rate": 1380,
-    "items": [
-     {
-      "at": "2026-09-29T15:27:54Z",
-      "attempt": 1,
-      "cost_krw": 81,
-      "note": null,
-      "status": "succeeded",
-      "step": "generate",
-      "target_id": "tgt_aws",
-      "tokens": 3100
-     },
-     {
-      "at": "2026-09-29T15:27:54Z",
-      "attempt": 1,
-      "cost_krw": 76,
-      "note": null,
-      "status": "succeeded",
-      "step": "generate",
-      "target_id": "tgt_gcp",
-      "tokens": 2950
-     }
-    ],
     "tokens": 6050
    },
    "commit": "2311c0b683ec0f46d0be1c640591245ae8d1c093",
    "commit_message": "feat(ci): Daisy 앱 연결 요구사항 추가 (deploy.yaml, /health, N-01 파이프라인)",
-   "created_at": "2026-09-29T15:22:54Z",
+   "created_at": "2026-09-29T23:54:43Z",
    "created_by": "Seungjun Park",
-   "finished_at": "2026-09-29T15:28:54Z",
+   "finished_at": "2026-09-30T00:00:43Z",
    "id": "dep_m3",
    "image": "ghcr.io/team-daisy/sample-monolith:2311c0b",
    "kind": null,
@@ -386,6 +339,7 @@
      "attempt": 1,
      "error_summary": null,
      "health_summary": "200 OK · p95 120ms",
+     "image_digest": "sha256:2177b5c728eb",
      "reused_script": true,
      "state": "succeeded",
      "step": "health_check",
@@ -393,13 +347,13 @@
      "steps": [
       {
        "duration_ms": 63000,
-       "name": "apply",
+       "name": "terraform apply",
        "started_at": null,
        "state": "done"
       },
       {
        "duration_ms": 4000,
-       "name": "health_check",
+       "name": "헬스체크",
        "started_at": null,
        "state": "done"
       }
@@ -412,6 +366,7 @@
      "attempt": 1,
      "error_summary": null,
      "health_summary": "200 OK · p95 120ms",
+     "image_digest": "sha256:2177b5c728eb",
      "reused_script": false,
      "state": "succeeded",
      "step": "health_check",
@@ -419,13 +374,13 @@
      "steps": [
       {
        "duration_ms": 63000,
-       "name": "apply",
+       "name": "terraform apply",
        "started_at": null,
        "state": "done"
       },
       {
        "duration_ms": 4000,
-       "name": "health_check",
+       "name": "헬스체크",
        "started_at": null,
        "state": "done"
       }
@@ -438,6 +393,7 @@
      "attempt": 1,
      "error_summary": null,
      "health_summary": "200 OK · p95 120ms",
+     "image_digest": "sha256:2177b5c728eb",
      "reused_script": false,
      "state": "succeeded",
      "step": "health_check",
@@ -445,13 +401,13 @@
      "steps": [
       {
        "duration_ms": 63000,
-       "name": "apply",
+       "name": "terraform apply",
        "started_at": null,
        "state": "done"
       },
       {
        "duration_ms": 4000,
-       "name": "health_check",
+       "name": "헬스체크",
        "started_at": null,
        "state": "done"
       }
@@ -469,37 +425,38 @@
      "level": "info",
      "target_id": "tgt_aws",
      "text": "terraform init",
-     "ts": "2026-09-30T11:13:54Z"
+     "ts": "2026-09-30T19:45:43Z"
     },
     {
      "level": "info",
      "target_id": "tgt_aws",
      "text": "terraform validate: Success!",
-     "ts": "2026-09-30T11:13:54Z"
+     "ts": "2026-09-30T19:45:43Z"
     },
     {
      "level": "error",
      "target_id": "tgt_aws",
      "text": "Error: creating ECS Service: AccessDeniedException (ecs:CreateService)",
-     "ts": "2026-09-30T11:14:54Z"
+     "ts": "2026-09-30T19:46:43Z"
     },
     {
      "level": "info",
      "target_id": "tgt_aws",
      "text": "AI 수정 시도 2/3: IAM 정책에 ecs:CreateService 추가",
-     "ts": "2026-09-30T11:14:54Z"
+     "ts": "2026-09-30T19:46:43Z"
     },
     {
      "level": "info",
      "target_id": "tgt_aws",
      "text": "terraform plan: 2 to add, 1 to change, 1 to destroy",
-     "ts": "2026-09-30T11:15:54Z"
+     "ts": "2026-09-30T19:47:43Z"
     }
    ],
    "next_cursor": null
   },
   "deployments/dep_m3/plan": {
    "ai_usage": {
+    "calls": 2,
     "cost_krw": 157,
     "estimated": true,
     "exchange_rate": 1380,
@@ -523,6 +480,7 @@
      ],
      "reused_script": true,
      "risks": [],
+     "summary": "이미지 태그만 교체",
      "target_id": "tgt_onprem"
     },
     {
@@ -563,6 +521,7 @@
        "rule": "open_ingress"
       }
      ],
+     "summary": null,
      "target_id": "tgt_aws"
     },
     {
@@ -581,6 +540,7 @@
      ],
      "reused_script": false,
      "risks": [],
+     "summary": null,
      "target_id": "tgt_gcp"
     }
    ]
@@ -589,7 +549,7 @@
    "ai_tokens": 4200,
    "attempt": 1,
    "base_commit": "2311c0b683ec0f46d0be1c640591245ae8d1c093",
-   "created_at": "2026-09-28T11:22:54Z",
+   "created_at": "2026-09-28T19:54:43Z",
    "files": [
     {
      "content": "resource \"aws_ecs_service\" \"app\" {\n  name            = var.name\n  cluster         = aws_ecs_cluster.main.id\n  task_definition = aws_ecs_task_definition.app.arn\n  desired_count   = 1\n  launch_type     = \"FARGATE\"\n}\n",
@@ -616,7 +576,7 @@
    "ai_tokens": 4200,
    "attempt": 1,
    "base_commit": "2311c0b683ec0f46d0be1c640591245ae8d1c093",
-   "created_at": "2026-09-28T11:22:54Z",
+   "created_at": "2026-09-28T19:54:43Z",
    "files": [
     {
      "content": "resource \"google_cloud_run_v2_service\" \"app\" {\n  name     = var.name\n  location = \"asia-northeast3\"\n  template {\n    containers { image = var.image }\n  }\n}\n",
@@ -643,7 +603,7 @@
    "ai_tokens": 4200,
    "attempt": 1,
    "base_commit": "2311c0b683ec0f46d0be1c640591245ae8d1c093",
-   "created_at": "2026-09-28T11:22:54Z",
+   "created_at": "2026-09-28T19:54:43Z",
    "files": [
     {
      "content": "resource \"docker_container\" \"app\" {\n  name  = var.name\n  image = var.image\n  ports {\n    internal = 8080\n    external = 8080\n  }\n}\n",
@@ -672,53 +632,11 @@
     "cost_krw": 253,
     "estimated": true,
     "exchange_rate": 1380,
-    "items": [
-     {
-      "at": "2026-09-30T08:27:54Z",
-      "attempt": 1,
-      "cost_krw": 80,
-      "note": null,
-      "status": "failed",
-      "step": "generate",
-      "target_id": "tgt_aws",
-      "tokens": 3050
-     },
-     {
-      "at": "2026-09-30T08:30:54Z",
-      "attempt": 2,
-      "cost_krw": 49,
-      "note": null,
-      "status": "failed",
-      "step": "fix",
-      "target_id": "tgt_aws",
-      "tokens": 1900
-     },
-     {
-      "at": "2026-09-30T08:33:54Z",
-      "attempt": 3,
-      "cost_krw": 49,
-      "note": null,
-      "status": "failed",
-      "step": "fix",
-      "target_id": "tgt_aws",
-      "tokens": 1880
-     },
-     {
-      "at": "2026-09-30T08:28:54Z",
-      "attempt": 1,
-      "cost_krw": 75,
-      "note": null,
-      "status": "failed",
-      "step": "generate",
-      "target_id": "tgt_gcp",
-      "tokens": 2900
-     }
-    ],
     "tokens": 9730
    },
    "commit": "7b1578b0092229c7cf7cbf91f1b2b176c2ca583d",
    "commit_message": "chore: Go 모듈 경로와 이미지 출처 레이블을 팀 레포로 변경",
-   "created_at": "2026-09-30T08:22:54Z",
+   "created_at": "2026-09-30T16:54:43Z",
    "created_by": "Seungjun Park",
    "finished_at": null,
    "id": "dep_m4",
@@ -733,6 +651,7 @@
      "attempt": 1,
      "error_summary": null,
      "health_summary": null,
+     "image_digest": null,
      "reused_script": true,
      "state": "awaiting_approval",
      "step": "risk_check",
@@ -740,25 +659,25 @@
      "steps": [
       {
        "duration_ms": 41000,
-       "name": "generate",
+       "name": "스크립트 재사용",
        "started_at": null,
        "state": "done"
       },
       {
        "duration_ms": 3100,
-       "name": "validate",
+       "name": "terraform validate",
        "started_at": null,
        "state": "done"
       },
       {
        "duration_ms": 8200,
-       "name": "plan",
+       "name": "terraform plan",
        "started_at": null,
        "state": "done"
       },
       {
        "duration_ms": 900,
-       "name": "risk_check",
+       "name": "위험 설정 검사",
        "started_at": null,
        "state": "done"
       }
@@ -771,6 +690,7 @@
      "attempt": 3,
      "error_summary": "terraform plan 오류: IAM 권한 부족 (ecs:CreateService)",
      "health_summary": null,
+     "image_digest": null,
      "reused_script": false,
      "state": "failed",
      "step": "plan",
@@ -778,19 +698,19 @@
      "steps": [
       {
        "duration_ms": 41000,
-       "name": "generate",
+       "name": "Terraform 생성 (AI)",
        "started_at": null,
        "state": "done"
       },
       {
        "duration_ms": 2900,
-       "name": "validate",
+       "name": "terraform validate",
        "started_at": null,
        "state": "done"
       },
       {
        "duration_ms": 8000,
-       "name": "plan",
+       "name": "terraform plan",
        "started_at": null,
        "state": "failed"
       }
@@ -803,6 +723,7 @@
      "attempt": 2,
      "error_summary": null,
      "health_summary": null,
+     "image_digest": null,
      "reused_script": false,
      "state": "validating",
      "step": "validate",
@@ -810,13 +731,13 @@
      "steps": [
       {
        "duration_ms": 40000,
-       "name": "generate",
+       "name": "Terraform 생성 (AI)",
        "started_at": null,
        "state": "done"
       },
       {
        "duration_ms": null,
-       "name": "validate",
+       "name": "terraform validate",
        "started_at": null,
        "state": "running"
       }
@@ -834,37 +755,38 @@
      "level": "info",
      "target_id": "tgt_aws",
      "text": "terraform init",
-     "ts": "2026-09-30T11:13:54Z"
+     "ts": "2026-09-30T19:45:43Z"
     },
     {
      "level": "info",
      "target_id": "tgt_aws",
      "text": "terraform validate: Success!",
-     "ts": "2026-09-30T11:13:54Z"
+     "ts": "2026-09-30T19:45:43Z"
     },
     {
      "level": "error",
      "target_id": "tgt_aws",
      "text": "Error: creating ECS Service: AccessDeniedException (ecs:CreateService)",
-     "ts": "2026-09-30T11:14:54Z"
+     "ts": "2026-09-30T19:46:43Z"
     },
     {
      "level": "info",
      "target_id": "tgt_aws",
      "text": "AI 수정 시도 2/3: IAM 정책에 ecs:CreateService 추가",
-     "ts": "2026-09-30T11:14:54Z"
+     "ts": "2026-09-30T19:46:43Z"
     },
     {
      "level": "info",
      "target_id": "tgt_aws",
      "text": "terraform plan: 2 to add, 1 to change, 1 to destroy",
-     "ts": "2026-09-30T11:15:54Z"
+     "ts": "2026-09-30T19:47:43Z"
     }
    ],
    "next_cursor": null
   },
   "deployments/dep_m4/plan": {
    "ai_usage": {
+    "calls": 4,
     "cost_krw": 253,
     "estimated": true,
     "exchange_rate": 1380,
@@ -888,6 +810,7 @@
      ],
      "reused_script": true,
      "risks": [],
+     "summary": "이미지 태그만 교체",
      "target_id": "tgt_onprem"
     },
     {
@@ -928,6 +851,7 @@
        "rule": "open_ingress"
       }
      ],
+     "summary": null,
      "target_id": "tgt_aws"
     },
     {
@@ -946,6 +870,7 @@
      ],
      "reused_script": false,
      "risks": [],
+     "summary": null,
      "target_id": "tgt_gcp"
     }
    ]
@@ -954,7 +879,7 @@
    "ai_tokens": 4200,
    "attempt": 1,
    "base_commit": "7b1578b0092229c7cf7cbf91f1b2b176c2ca583d",
-   "created_at": "2026-09-28T11:22:54Z",
+   "created_at": "2026-09-28T19:54:43Z",
    "files": [
     {
      "content": "resource \"aws_ecs_service\" \"app\" {\n  name            = var.name\n  cluster         = aws_ecs_cluster.main.id\n  task_definition = aws_ecs_task_definition.app.arn\n  desired_count   = 1\n  launch_type     = \"FARGATE\"\n}\n",
@@ -981,7 +906,7 @@
    "ai_tokens": 4200,
    "attempt": 1,
    "base_commit": "7b1578b0092229c7cf7cbf91f1b2b176c2ca583d",
-   "created_at": "2026-09-28T11:22:54Z",
+   "created_at": "2026-09-28T19:54:43Z",
    "files": [
     {
      "content": "resource \"google_cloud_run_v2_service\" \"app\" {\n  name     = var.name\n  location = \"asia-northeast3\"\n  template {\n    containers { image = var.image }\n  }\n}\n",
@@ -1008,7 +933,7 @@
    "ai_tokens": 4200,
    "attempt": 1,
    "base_commit": "7b1578b0092229c7cf7cbf91f1b2b176c2ca583d",
-   "created_at": "2026-09-28T11:22:54Z",
+   "created_at": "2026-09-28T19:54:43Z",
    "files": [
     {
      "content": "resource \"docker_container\" \"app\" {\n  name  = var.name\n  image = var.image\n  ports {\n    internal = 8080\n    external = 8080\n  }\n}\n",
@@ -1037,12 +962,11 @@
     "cost_krw": 0,
     "estimated": true,
     "exchange_rate": 1380,
-    "items": [],
     "tokens": 0
    },
    "commit": "85ef7c5047eb6e444f5b3dd6e8add1df7390d0d0",
    "commit_message": "docs: 레포 이름 기준으로 README 제목과 LICENSE 저작권자 정리",
-   "created_at": "2026-09-30T10:22:54Z",
+   "created_at": "2026-09-30T18:54:43Z",
    "created_by": "Seungjun Park",
    "finished_at": null,
    "id": "dep_m5",
@@ -1057,6 +981,7 @@
      "attempt": 1,
      "error_summary": null,
      "health_summary": null,
+     "image_digest": "sha256:6edc49cbcf2c",
      "reused_script": true,
      "state": "succeeded",
      "step": "health_check",
@@ -1064,13 +989,13 @@
      "steps": [
       {
        "duration_ms": 63000,
-       "name": "apply",
+       "name": "terraform apply",
        "started_at": null,
        "state": "done"
       },
       {
        "duration_ms": 4000,
-       "name": "health_check",
+       "name": "헬스체크",
        "started_at": null,
        "state": "done"
       }
@@ -1083,6 +1008,7 @@
      "attempt": 1,
      "error_summary": null,
      "health_summary": null,
+     "image_digest": null,
      "reused_script": false,
      "state": "applying",
      "step": "apply",
@@ -1090,13 +1016,13 @@
      "steps": [
       {
        "duration_ms": null,
-       "name": "apply",
+       "name": "terraform apply",
        "started_at": null,
        "state": "running"
       },
       {
        "duration_ms": null,
-       "name": "health_check",
+       "name": "헬스체크",
        "started_at": null,
        "state": "waiting"
       }
@@ -1109,6 +1035,7 @@
      "attempt": 1,
      "error_summary": null,
      "health_summary": null,
+     "image_digest": null,
      "reused_script": false,
      "state": "applying",
      "step": "apply",
@@ -1116,13 +1043,13 @@
      "steps": [
       {
        "duration_ms": null,
-       "name": "apply",
+       "name": "terraform apply",
        "started_at": null,
        "state": "running"
       },
       {
        "duration_ms": null,
-       "name": "health_check",
+       "name": "헬스체크",
        "started_at": null,
        "state": "waiting"
       }
@@ -1140,37 +1067,38 @@
      "level": "info",
      "target_id": "tgt_aws",
      "text": "terraform init",
-     "ts": "2026-09-30T11:13:54Z"
+     "ts": "2026-09-30T19:45:43Z"
     },
     {
      "level": "info",
      "target_id": "tgt_aws",
      "text": "terraform validate: Success!",
-     "ts": "2026-09-30T11:13:54Z"
+     "ts": "2026-09-30T19:45:43Z"
     },
     {
      "level": "error",
      "target_id": "tgt_aws",
      "text": "Error: creating ECS Service: AccessDeniedException (ecs:CreateService)",
-     "ts": "2026-09-30T11:14:54Z"
+     "ts": "2026-09-30T19:46:43Z"
     },
     {
      "level": "info",
      "target_id": "tgt_aws",
      "text": "AI 수정 시도 2/3: IAM 정책에 ecs:CreateService 추가",
-     "ts": "2026-09-30T11:14:54Z"
+     "ts": "2026-09-30T19:46:43Z"
     },
     {
      "level": "info",
      "target_id": "tgt_aws",
      "text": "terraform plan: 2 to add, 1 to change, 1 to destroy",
-     "ts": "2026-09-30T11:15:54Z"
+     "ts": "2026-09-30T19:47:43Z"
     }
    ],
    "next_cursor": null
   },
   "deployments/dep_m5/plan": {
    "ai_usage": {
+    "calls": 0,
     "cost_krw": 0,
     "estimated": true,
     "exchange_rate": 1380,
@@ -1194,6 +1122,7 @@
      ],
      "reused_script": true,
      "risks": [],
+     "summary": "이미지 태그만 교체",
      "target_id": "tgt_onprem"
     },
     {
@@ -1234,6 +1163,7 @@
        "rule": "open_ingress"
       }
      ],
+     "summary": null,
      "target_id": "tgt_aws"
     },
     {
@@ -1252,6 +1182,7 @@
      ],
      "reused_script": false,
      "risks": [],
+     "summary": null,
      "target_id": "tgt_gcp"
     }
    ]
@@ -1260,7 +1191,7 @@
    "ai_tokens": 4200,
    "attempt": 1,
    "base_commit": "85ef7c5047eb6e444f5b3dd6e8add1df7390d0d0",
-   "created_at": "2026-09-28T11:22:54Z",
+   "created_at": "2026-09-28T19:54:43Z",
    "files": [
     {
      "content": "resource \"aws_ecs_service\" \"app\" {\n  name            = var.name\n  cluster         = aws_ecs_cluster.main.id\n  task_definition = aws_ecs_task_definition.app.arn\n  desired_count   = 1\n  launch_type     = \"FARGATE\"\n}\n",
@@ -1287,7 +1218,7 @@
    "ai_tokens": 4200,
    "attempt": 1,
    "base_commit": "85ef7c5047eb6e444f5b3dd6e8add1df7390d0d0",
-   "created_at": "2026-09-28T11:22:54Z",
+   "created_at": "2026-09-28T19:54:43Z",
    "files": [
     {
      "content": "resource \"google_cloud_run_v2_service\" \"app\" {\n  name     = var.name\n  location = \"asia-northeast3\"\n  template {\n    containers { image = var.image }\n  }\n}\n",
@@ -1314,7 +1245,7 @@
    "ai_tokens": 4200,
    "attempt": 1,
    "base_commit": "85ef7c5047eb6e444f5b3dd6e8add1df7390d0d0",
-   "created_at": "2026-09-28T11:22:54Z",
+   "created_at": "2026-09-28T19:54:43Z",
    "files": [
     {
      "content": "resource \"docker_container\" \"app\" {\n  name  = var.name\n  image = var.image\n  ports {\n    internal = 8080\n    external = 8080\n  }\n}\n",
@@ -1343,43 +1274,11 @@
     "cost_krw": 206,
     "estimated": true,
     "exchange_rate": 1380,
-    "items": [
-     {
-      "at": "2026-09-30T11:11:54Z",
-      "attempt": 1,
-      "cost_krw": 82,
-      "note": null,
-      "status": "failed",
-      "step": "generate",
-      "target_id": "tgt_aws",
-      "tokens": 3120
-     },
-     {
-      "at": "2026-09-30T11:12:54Z",
-      "attempt": 2,
-      "cost_krw": 48,
-      "note": "보안 그룹 0.0.0.0/0 수정",
-      "status": "succeeded",
-      "step": "fix",
-      "target_id": "tgt_aws",
-      "tokens": 1860
-     },
-     {
-      "at": "2026-09-30T11:11:54Z",
-      "attempt": 1,
-      "cost_krw": 76,
-      "note": null,
-      "status": "succeeded",
-      "step": "generate",
-      "target_id": "tgt_gcp",
-      "tokens": 2940
-     }
-    ],
     "tokens": 7920
    },
    "commit": "574acd9980b8fba01c49a5cd0ad659639de3ebe0",
    "commit_message": "chore(ci): 로컬 이미지 태그를 커밋 해시로 통일 (latest 제거) (#1)",
-   "created_at": "2026-09-30T11:10:54Z",
+   "created_at": "2026-09-30T19:42:43Z",
    "created_by": "Seungjun Park",
    "finished_at": null,
    "id": "dep_m6",
@@ -1397,6 +1296,7 @@
      "attempt": 1,
      "error_summary": null,
      "health_summary": null,
+     "image_digest": null,
      "reused_script": true,
      "state": "awaiting_approval",
      "step": "risk_check",
@@ -1404,25 +1304,25 @@
      "steps": [
       {
        "duration_ms": 41000,
-       "name": "generate",
+       "name": "스크립트 재사용",
        "started_at": null,
        "state": "done"
       },
       {
        "duration_ms": 3100,
-       "name": "validate",
+       "name": "terraform validate",
        "started_at": null,
        "state": "done"
       },
       {
        "duration_ms": 8200,
-       "name": "plan",
+       "name": "terraform plan",
        "started_at": null,
        "state": "done"
       },
       {
        "duration_ms": 900,
-       "name": "risk_check",
+       "name": "위험 설정 검사",
        "started_at": null,
        "state": "done"
       }
@@ -1435,6 +1335,7 @@
      "attempt": 2,
      "error_summary": null,
      "health_summary": null,
+     "image_digest": null,
      "reused_script": false,
      "state": "awaiting_approval",
      "step": "risk_check",
@@ -1442,25 +1343,25 @@
      "steps": [
       {
        "duration_ms": 41000,
-       "name": "generate",
+       "name": "Terraform 생성 (AI)",
        "started_at": null,
        "state": "done"
       },
       {
        "duration_ms": 3100,
-       "name": "validate",
+       "name": "terraform validate",
        "started_at": null,
        "state": "done"
       },
       {
        "duration_ms": 8200,
-       "name": "plan",
+       "name": "terraform plan",
        "started_at": null,
        "state": "done"
       },
       {
        "duration_ms": 900,
-       "name": "risk_check",
+       "name": "위험 설정 검사",
        "started_at": null,
        "state": "done"
       }
@@ -1473,6 +1374,7 @@
      "attempt": 1,
      "error_summary": null,
      "health_summary": null,
+     "image_digest": null,
      "reused_script": false,
      "state": "awaiting_approval",
      "step": "risk_check",
@@ -1480,25 +1382,25 @@
      "steps": [
       {
        "duration_ms": 41000,
-       "name": "generate",
+       "name": "Terraform 생성 (AI)",
        "started_at": null,
        "state": "done"
       },
       {
        "duration_ms": 3100,
-       "name": "validate",
+       "name": "terraform validate",
        "started_at": null,
        "state": "done"
       },
       {
        "duration_ms": 8200,
-       "name": "plan",
+       "name": "terraform plan",
        "started_at": null,
        "state": "done"
       },
       {
        "duration_ms": 900,
-       "name": "risk_check",
+       "name": "위험 설정 검사",
        "started_at": null,
        "state": "done"
       }
@@ -1516,37 +1418,38 @@
      "level": "info",
      "target_id": "tgt_aws",
      "text": "terraform init",
-     "ts": "2026-09-30T11:13:54Z"
+     "ts": "2026-09-30T19:45:43Z"
     },
     {
      "level": "info",
      "target_id": "tgt_aws",
      "text": "terraform validate: Success!",
-     "ts": "2026-09-30T11:13:54Z"
+     "ts": "2026-09-30T19:45:43Z"
     },
     {
      "level": "error",
      "target_id": "tgt_aws",
      "text": "Error: creating ECS Service: AccessDeniedException (ecs:CreateService)",
-     "ts": "2026-09-30T11:14:54Z"
+     "ts": "2026-09-30T19:46:43Z"
     },
     {
      "level": "info",
      "target_id": "tgt_aws",
      "text": "AI 수정 시도 2/3: IAM 정책에 ecs:CreateService 추가",
-     "ts": "2026-09-30T11:14:54Z"
+     "ts": "2026-09-30T19:46:43Z"
     },
     {
      "level": "info",
      "target_id": "tgt_aws",
      "text": "terraform plan: 2 to add, 1 to change, 1 to destroy",
-     "ts": "2026-09-30T11:15:54Z"
+     "ts": "2026-09-30T19:47:43Z"
     }
    ],
    "next_cursor": null
   },
   "deployments/dep_m6/plan": {
    "ai_usage": {
+    "calls": 3,
     "cost_krw": 206,
     "estimated": true,
     "exchange_rate": 1380,
@@ -1570,6 +1473,7 @@
      ],
      "reused_script": true,
      "risks": [],
+     "summary": "이미지 태그만 교체",
      "target_id": "tgt_onprem"
     },
     {
@@ -1610,6 +1514,7 @@
        "rule": "open_ingress"
       }
      ],
+     "summary": null,
      "target_id": "tgt_aws"
     },
     {
@@ -1628,6 +1533,7 @@
      ],
      "reused_script": false,
      "risks": [],
+     "summary": null,
      "target_id": "tgt_gcp"
     }
    ]
@@ -1636,7 +1542,7 @@
    "ai_tokens": 4200,
    "attempt": 1,
    "base_commit": "574acd9980b8fba01c49a5cd0ad659639de3ebe0",
-   "created_at": "2026-09-28T11:22:54Z",
+   "created_at": "2026-09-28T19:54:43Z",
    "files": [
     {
      "content": "resource \"aws_ecs_service\" \"app\" {\n  name            = var.name\n  cluster         = aws_ecs_cluster.main.id\n  task_definition = aws_ecs_task_definition.app.arn\n  desired_count   = 1\n  launch_type     = \"FARGATE\"\n}\n",
@@ -1663,7 +1569,7 @@
    "ai_tokens": 4200,
    "attempt": 1,
    "base_commit": "574acd9980b8fba01c49a5cd0ad659639de3ebe0",
-   "created_at": "2026-09-28T11:22:54Z",
+   "created_at": "2026-09-28T19:54:43Z",
    "files": [
     {
      "content": "resource \"google_cloud_run_v2_service\" \"app\" {\n  name     = var.name\n  location = \"asia-northeast3\"\n  template {\n    containers { image = var.image }\n  }\n}\n",
@@ -1690,7 +1596,7 @@
    "ai_tokens": 4200,
    "attempt": 1,
    "base_commit": "574acd9980b8fba01c49a5cd0ad659639de3ebe0",
-   "created_at": "2026-09-28T11:22:54Z",
+   "created_at": "2026-09-28T19:54:43Z",
    "files": [
     {
      "content": "resource \"docker_container\" \"app\" {\n  name  = var.name\n  image = var.image\n  ports {\n    internal = 8080\n    external = 8080\n  }\n}\n",
@@ -1719,45 +1625,13 @@
     "cost_krw": 255,
     "estimated": true,
     "exchange_rate": 1380,
-    "items": [
-     {
-      "at": "2026-09-30T05:24:54Z",
-      "attempt": 1,
-      "cost_krw": 85,
-      "note": null,
-      "status": "succeeded",
-      "step": "generate",
-      "target_id": "tgt_onprem",
-      "tokens": 3300
-     },
-     {
-      "at": "2026-09-30T05:24:54Z",
-      "attempt": 1,
-      "cost_krw": 85,
-      "note": null,
-      "status": "succeeded",
-      "step": "generate",
-      "target_id": "tgt_aws",
-      "tokens": 3300
-     },
-     {
-      "at": "2026-09-30T05:24:54Z",
-      "attempt": 1,
-      "cost_krw": 85,
-      "note": null,
-      "status": "succeeded",
-      "step": "generate",
-      "target_id": "tgt_gcp",
-      "tokens": 3300
-     }
-    ],
     "tokens": 9900
    },
    "commit": "5e250c0aad492a86faadd482c9534a9540ca13d2",
    "commit_message": "feat: HelloCalc MSA 샘플 추가 (frontend + backend) (#1)",
-   "created_at": "2026-09-30T05:22:54Z",
+   "created_at": "2026-09-30T13:54:43Z",
    "created_by": "Seungjun Park",
-   "finished_at": "2026-09-30T05:32:54Z",
+   "finished_at": "2026-09-30T14:04:43Z",
    "id": "dep_s1",
    "image": "ghcr.io/team-daisy/sample-msa:5e250c0",
    "kind": null,
@@ -1770,6 +1644,7 @@
      "attempt": 1,
      "error_summary": null,
      "health_summary": "200 OK · p95 140ms",
+     "image_digest": "sha256:962923ce93f9",
      "reused_script": false,
      "state": "succeeded",
      "step": "health_check",
@@ -1777,13 +1652,13 @@
      "steps": [
       {
        "duration_ms": 63000,
-       "name": "apply",
+       "name": "terraform apply",
        "started_at": null,
        "state": "done"
       },
       {
        "duration_ms": 4000,
-       "name": "health_check",
+       "name": "헬스체크",
        "started_at": null,
        "state": "done"
       }
@@ -1796,6 +1671,7 @@
      "attempt": 1,
      "error_summary": null,
      "health_summary": "200 OK · p95 140ms",
+     "image_digest": "sha256:962923ce93f9",
      "reused_script": false,
      "state": "succeeded",
      "step": "health_check",
@@ -1803,13 +1679,13 @@
      "steps": [
       {
        "duration_ms": 63000,
-       "name": "apply",
+       "name": "terraform apply",
        "started_at": null,
        "state": "done"
       },
       {
        "duration_ms": 4000,
-       "name": "health_check",
+       "name": "헬스체크",
        "started_at": null,
        "state": "done"
       }
@@ -1822,6 +1698,7 @@
      "attempt": 1,
      "error_summary": null,
      "health_summary": "200 OK · p95 140ms",
+     "image_digest": "sha256:962923ce93f9",
      "reused_script": false,
      "state": "succeeded",
      "step": "health_check",
@@ -1829,13 +1706,13 @@
      "steps": [
       {
        "duration_ms": 63000,
-       "name": "apply",
+       "name": "terraform apply",
        "started_at": null,
        "state": "done"
       },
       {
        "duration_ms": 4000,
-       "name": "health_check",
+       "name": "헬스체크",
        "started_at": null,
        "state": "done"
       }
@@ -1853,37 +1730,38 @@
      "level": "info",
      "target_id": "tgt_aws",
      "text": "terraform init",
-     "ts": "2026-09-30T11:13:54Z"
+     "ts": "2026-09-30T19:45:43Z"
     },
     {
      "level": "info",
      "target_id": "tgt_aws",
      "text": "terraform validate: Success!",
-     "ts": "2026-09-30T11:13:54Z"
+     "ts": "2026-09-30T19:45:43Z"
     },
     {
      "level": "error",
      "target_id": "tgt_aws",
      "text": "Error: creating ECS Service: AccessDeniedException (ecs:CreateService)",
-     "ts": "2026-09-30T11:14:54Z"
+     "ts": "2026-09-30T19:46:43Z"
     },
     {
      "level": "info",
      "target_id": "tgt_aws",
      "text": "AI 수정 시도 2/3: IAM 정책에 ecs:CreateService 추가",
-     "ts": "2026-09-30T11:14:54Z"
+     "ts": "2026-09-30T19:46:43Z"
     },
     {
      "level": "info",
      "target_id": "tgt_aws",
      "text": "terraform plan: 2 to add, 1 to change, 1 to destroy",
-     "ts": "2026-09-30T11:15:54Z"
+     "ts": "2026-09-30T19:47:43Z"
     }
    ],
    "next_cursor": null
   },
   "deployments/dep_s1/plan": {
    "ai_usage": {
+    "calls": 3,
     "cost_krw": 255,
     "estimated": true,
     "exchange_rate": 1380,
@@ -1907,6 +1785,7 @@
      ],
      "reused_script": false,
      "risks": [],
+     "summary": null,
      "target_id": "tgt_onprem"
     },
     {
@@ -1947,6 +1826,7 @@
        "rule": "open_ingress"
       }
      ],
+     "summary": null,
      "target_id": "tgt_aws"
     },
     {
@@ -1965,6 +1845,7 @@
      ],
      "reused_script": false,
      "risks": [],
+     "summary": null,
      "target_id": "tgt_gcp"
     }
    ]
@@ -1973,7 +1854,7 @@
    "ai_tokens": 4200,
    "attempt": 1,
    "base_commit": "5e250c0aad492a86faadd482c9534a9540ca13d2",
-   "created_at": "2026-09-28T11:22:54Z",
+   "created_at": "2026-09-28T19:54:43Z",
    "files": [
     {
      "content": "resource \"aws_ecs_service\" \"app\" {\n  name            = var.name\n  cluster         = aws_ecs_cluster.main.id\n  task_definition = aws_ecs_task_definition.app.arn\n  desired_count   = 1\n  launch_type     = \"FARGATE\"\n}\n",
@@ -2000,7 +1881,7 @@
    "ai_tokens": 4200,
    "attempt": 1,
    "base_commit": "5e250c0aad492a86faadd482c9534a9540ca13d2",
-   "created_at": "2026-09-28T11:22:54Z",
+   "created_at": "2026-09-28T19:54:43Z",
    "files": [
     {
      "content": "resource \"google_cloud_run_v2_service\" \"app\" {\n  name     = var.name\n  location = \"asia-northeast3\"\n  template {\n    containers { image = var.image }\n  }\n}\n",
@@ -2027,7 +1908,7 @@
    "ai_tokens": 4200,
    "attempt": 1,
    "base_commit": "5e250c0aad492a86faadd482c9534a9540ca13d2",
-   "created_at": "2026-09-28T11:22:54Z",
+   "created_at": "2026-09-28T19:54:43Z",
    "files": [
     {
      "content": "resource \"docker_container\" \"app\" {\n  name  = var.name\n  image = var.image\n  ports {\n    internal = 8080\n    external = 8080\n  }\n}\n",
@@ -2056,33 +1937,11 @@
     "cost_krw": 140,
     "estimated": true,
     "exchange_rate": 1380,
-    "items": [
-     {
-      "at": "2026-09-30T11:19:54Z",
-      "attempt": 1,
-      "cost_krw": 88,
-      "note": null,
-      "status": "failed",
-      "step": "generate",
-      "target_id": "tgt_aws",
-      "tokens": 3400
-     },
-     {
-      "at": "2026-09-30T11:20:54Z",
-      "attempt": 2,
-      "cost_krw": 52,
-      "note": "backend 내부 ingress 규칙 추가",
-      "status": "succeeded",
-      "step": "fix",
-      "target_id": "tgt_aws",
-      "tokens": 2010
-     }
-    ],
     "tokens": 5410
    },
    "commit": "5a21c63803fba9f43a8a20839a98fccc238c881b",
    "commit_message": "docs: Cloud Run에서 backend 호출 인증 조건 안내, 로컬 이미지 태그를 커밋 해시로 통일 (#2)",
-   "created_at": "2026-09-30T11:18:54Z",
+   "created_at": "2026-09-30T19:50:43Z",
    "created_by": "Seungjun Park",
    "finished_at": null,
    "id": "dep_s2",
@@ -2097,6 +1956,7 @@
      "attempt": 1,
      "error_summary": null,
      "health_summary": null,
+     "image_digest": null,
      "reused_script": true,
      "state": "validating",
      "step": "plan",
@@ -2104,19 +1964,19 @@
      "steps": [
       {
        "duration_ms": 41000,
-       "name": "generate",
+       "name": "스크립트 재사용",
        "started_at": null,
        "state": "done"
       },
       {
        "duration_ms": 3100,
-       "name": "validate",
+       "name": "terraform validate",
        "started_at": null,
        "state": "done"
       },
       {
        "duration_ms": 8200,
-       "name": "plan",
+       "name": "terraform plan",
        "started_at": null,
        "state": "done"
       }
@@ -2129,6 +1989,7 @@
      "attempt": 2,
      "error_summary": null,
      "health_summary": null,
+     "image_digest": null,
      "reused_script": false,
      "state": "validating",
      "step": "validate",
@@ -2136,13 +1997,13 @@
      "steps": [
       {
        "duration_ms": 44000,
-       "name": "generate",
+       "name": "Terraform 생성 (AI)",
        "started_at": null,
        "state": "done"
       },
       {
        "duration_ms": null,
-       "name": "validate",
+       "name": "terraform validate",
        "started_at": null,
        "state": "running"
       }
@@ -2155,6 +2016,7 @@
      "attempt": 1,
      "error_summary": null,
      "health_summary": null,
+     "image_digest": null,
      "reused_script": false,
      "state": "generating",
      "step": "generate",
@@ -2162,7 +2024,7 @@
      "steps": [
       {
        "duration_ms": null,
-       "name": "generate",
+       "name": "Terraform 생성 (AI)",
        "started_at": null,
        "state": "running"
       }
@@ -2180,37 +2042,38 @@
      "level": "info",
      "target_id": "tgt_aws",
      "text": "terraform init",
-     "ts": "2026-09-30T11:13:54Z"
+     "ts": "2026-09-30T19:45:43Z"
     },
     {
      "level": "info",
      "target_id": "tgt_aws",
      "text": "terraform validate: Success!",
-     "ts": "2026-09-30T11:13:54Z"
+     "ts": "2026-09-30T19:45:43Z"
     },
     {
      "level": "error",
      "target_id": "tgt_aws",
      "text": "Error: creating ECS Service: AccessDeniedException (ecs:CreateService)",
-     "ts": "2026-09-30T11:14:54Z"
+     "ts": "2026-09-30T19:46:43Z"
     },
     {
      "level": "info",
      "target_id": "tgt_aws",
      "text": "AI 수정 시도 2/3: IAM 정책에 ecs:CreateService 추가",
-     "ts": "2026-09-30T11:14:54Z"
+     "ts": "2026-09-30T19:46:43Z"
     },
     {
      "level": "info",
      "target_id": "tgt_aws",
      "text": "terraform plan: 2 to add, 1 to change, 1 to destroy",
-     "ts": "2026-09-30T11:15:54Z"
+     "ts": "2026-09-30T19:47:43Z"
     }
    ],
    "next_cursor": null
   },
   "deployments/dep_s2/plan": {
    "ai_usage": {
+    "calls": 2,
     "cost_krw": 140,
     "estimated": true,
     "exchange_rate": 1380,
@@ -2234,6 +2097,7 @@
      ],
      "reused_script": true,
      "risks": [],
+     "summary": "이미지 태그만 교체",
      "target_id": "tgt_onprem"
     },
     {
@@ -2274,6 +2138,7 @@
        "rule": "open_ingress"
       }
      ],
+     "summary": null,
      "target_id": "tgt_aws"
     },
     {
@@ -2292,6 +2157,7 @@
      ],
      "reused_script": false,
      "risks": [],
+     "summary": null,
      "target_id": "tgt_gcp"
     }
    ]
@@ -2300,7 +2166,7 @@
    "ai_tokens": 4200,
    "attempt": 1,
    "base_commit": "5a21c63803fba9f43a8a20839a98fccc238c881b",
-   "created_at": "2026-09-28T11:22:54Z",
+   "created_at": "2026-09-28T19:54:43Z",
    "files": [
     {
      "content": "resource \"aws_ecs_service\" \"app\" {\n  name            = var.name\n  cluster         = aws_ecs_cluster.main.id\n  task_definition = aws_ecs_task_definition.app.arn\n  desired_count   = 1\n  launch_type     = \"FARGATE\"\n}\n",
@@ -2327,7 +2193,7 @@
    "ai_tokens": 4200,
    "attempt": 1,
    "base_commit": "5a21c63803fba9f43a8a20839a98fccc238c881b",
-   "created_at": "2026-09-28T11:22:54Z",
+   "created_at": "2026-09-28T19:54:43Z",
    "files": [
     {
      "content": "resource \"google_cloud_run_v2_service\" \"app\" {\n  name     = var.name\n  location = \"asia-northeast3\"\n  template {\n    containers { image = var.image }\n  }\n}\n",
@@ -2354,7 +2220,7 @@
    "ai_tokens": 4200,
    "attempt": 1,
    "base_commit": "5a21c63803fba9f43a8a20839a98fccc238c881b",
-   "created_at": "2026-09-28T11:22:54Z",
+   "created_at": "2026-09-28T19:54:43Z",
    "files": [
     {
      "content": "resource \"docker_container\" \"app\" {\n  name  = var.name\n  image = var.image\n  ports {\n    internal = 8080\n    external = 8080\n  }\n}\n",
@@ -2396,12 +2262,149 @@
   },
   "projects/prj_monolith": {
    "branch": "main",
-   "build": "GitHub Actions · docker build",
+   "build": "Jenkins daisy-ci · docker build",
    "id": "prj_monolith",
    "name": "sample-monolith",
    "registry": "ghcr.io/team-daisy",
    "repository": "https://github.com/Softbank-Hackathon-2026-Team-Daisy/sample-monolith",
-   "webhook_last_at": "2026-09-30T11:10:54Z"
+   "webhook_last_at": "2026-09-30T19:42:43Z"
+  },
+  "projects/prj_monolith/ai-usage": {
+   "items": [
+    {
+     "at": "2026-09-30T19:44:43Z",
+     "attempt": 2,
+     "cost_krw": 48,
+     "deployment_id": "dep_m6",
+     "note": "보안 그룹 0.0.0.0/0 수정",
+     "status": "succeeded",
+     "step": "fix",
+     "target_id": "tgt_aws",
+     "tokens": 1860
+    },
+    {
+     "at": "2026-09-30T19:43:43Z",
+     "attempt": 1,
+     "cost_krw": 82,
+     "deployment_id": "dep_m6",
+     "note": null,
+     "status": "failed",
+     "step": "generate",
+     "target_id": "tgt_aws",
+     "tokens": 3120
+    },
+    {
+     "at": "2026-09-30T19:43:43Z",
+     "attempt": 1,
+     "cost_krw": 76,
+     "deployment_id": "dep_m6",
+     "note": null,
+     "status": "succeeded",
+     "step": "generate",
+     "target_id": "tgt_gcp",
+     "tokens": 2940
+    },
+    {
+     "at": "2026-09-30T17:05:43Z",
+     "attempt": 3,
+     "cost_krw": 49,
+     "deployment_id": "dep_m4",
+     "note": null,
+     "status": "failed",
+     "step": "fix",
+     "target_id": "tgt_aws",
+     "tokens": 1880
+    },
+    {
+     "at": "2026-09-30T17:02:43Z",
+     "attempt": 2,
+     "cost_krw": 49,
+     "deployment_id": "dep_m4",
+     "note": null,
+     "status": "failed",
+     "step": "fix",
+     "target_id": "tgt_aws",
+     "tokens": 1900
+    },
+    {
+     "at": "2026-09-30T17:00:43Z",
+     "attempt": 1,
+     "cost_krw": 75,
+     "deployment_id": "dep_m4",
+     "note": null,
+     "status": "failed",
+     "step": "generate",
+     "target_id": "tgt_gcp",
+     "tokens": 2900
+    },
+    {
+     "at": "2026-09-30T16:59:43Z",
+     "attempt": 1,
+     "cost_krw": 80,
+     "deployment_id": "dep_m4",
+     "note": null,
+     "status": "failed",
+     "step": "generate",
+     "target_id": "tgt_aws",
+     "tokens": 3050
+    },
+    {
+     "at": "2026-09-29T23:59:43Z",
+     "attempt": 1,
+     "cost_krw": 81,
+     "deployment_id": "dep_m3",
+     "note": null,
+     "status": "succeeded",
+     "step": "generate",
+     "target_id": "tgt_aws",
+     "tokens": 3100
+    },
+    {
+     "at": "2026-09-29T23:59:43Z",
+     "attempt": 1,
+     "cost_krw": 76,
+     "deployment_id": "dep_m3",
+     "note": null,
+     "status": "succeeded",
+     "step": "generate",
+     "target_id": "tgt_gcp",
+     "tokens": 2950
+    },
+    {
+     "at": "2026-09-29T17:54:43Z",
+     "attempt": 1,
+     "cost_krw": 78,
+     "deployment_id": "dep_m2",
+     "note": null,
+     "status": "succeeded",
+     "step": "generate",
+     "target_id": "tgt_onprem",
+     "tokens": 3000
+    },
+    {
+     "at": "2026-09-29T17:54:43Z",
+     "attempt": 1,
+     "cost_krw": 78,
+     "deployment_id": "dep_m2",
+     "note": null,
+     "status": "succeeded",
+     "step": "generate",
+     "target_id": "tgt_aws",
+     "tokens": 3000
+    },
+    {
+     "at": "2026-09-29T17:54:43Z",
+     "attempt": 1,
+     "cost_krw": 78,
+     "deployment_id": "dep_m2",
+     "note": null,
+     "status": "succeeded",
+     "step": "generate",
+     "target_id": "tgt_gcp",
+     "tokens": 3000
+    }
+   ],
+   "next_cursor": null
   },
   "projects/prj_monolith/builds": {
    "items": [
@@ -2415,7 +2418,7 @@
      "image": "ghcr.io/team-daisy/sample-monolith:574acd9",
      "message": "chore(ci): 로컬 이미지 태그를 커밋 해시로 통일 (latest 제거) (#1)",
      "pipeline": {
-      "run_url": "https://github.com/Softbank-Hackathon-2026-Team-Daisy/sample-monolith/actions",
+      "run_url": "https://jenkins.example.com/job/daisy-ci/5/",
       "status": "success"
      },
      "steps": [
@@ -2455,7 +2458,7 @@
      "image": "ghcr.io/team-daisy/sample-monolith:85ef7c5",
      "message": "docs: 레포 이름 기준으로 README 제목과 LICENSE 저작권자 정리",
      "pipeline": {
-      "run_url": "https://github.com/Softbank-Hackathon-2026-Team-Daisy/sample-monolith/actions",
+      "run_url": "https://jenkins.example.com/job/daisy-ci/4/",
       "status": "success"
      },
      "steps": [
@@ -2495,7 +2498,7 @@
      "image": "ghcr.io/team-daisy/sample-monolith:7b1578b",
      "message": "chore: Go 모듈 경로와 이미지 출처 레이블을 팀 레포로 변경",
      "pipeline": {
-      "run_url": "https://github.com/Softbank-Hackathon-2026-Team-Daisy/sample-monolith/actions",
+      "run_url": "https://jenkins.example.com/job/daisy-ci/3/",
       "status": "success"
      },
      "steps": [
@@ -2535,7 +2538,7 @@
      "image": "ghcr.io/team-daisy/sample-monolith:2311c0b",
      "message": "feat(ci): Daisy 앱 연결 요구사항 추가 (deploy.yaml, /health, N-01 파이프라인)",
      "pipeline": {
-      "run_url": "https://github.com/Softbank-Hackathon-2026-Team-Daisy/sample-monolith/actions",
+      "run_url": "https://jenkins.example.com/job/daisy-ci/2/",
       "status": "success"
      },
      "steps": [
@@ -2575,7 +2578,7 @@
      "image": "ghcr.io/team-daisy/sample-monolith:839d8c0",
      "message": "HelloCalc: portable reference workload",
      "pipeline": {
-      "run_url": "https://github.com/Softbank-Hackathon-2026-Team-Daisy/sample-monolith/actions",
+      "run_url": "https://jenkins.example.com/job/daisy-ci/1/",
       "status": "success"
      },
      "steps": [
@@ -2616,43 +2619,11 @@
       "cost_krw": 206,
       "estimated": true,
       "exchange_rate": 1380,
-      "items": [
-       {
-        "at": "2026-09-30T11:11:54Z",
-        "attempt": 1,
-        "cost_krw": 82,
-        "note": null,
-        "status": "failed",
-        "step": "generate",
-        "target_id": "tgt_aws",
-        "tokens": 3120
-       },
-       {
-        "at": "2026-09-30T11:12:54Z",
-        "attempt": 2,
-        "cost_krw": 48,
-        "note": "보안 그룹 0.0.0.0/0 수정",
-        "status": "succeeded",
-        "step": "fix",
-        "target_id": "tgt_aws",
-        "tokens": 1860
-       },
-       {
-        "at": "2026-09-30T11:11:54Z",
-        "attempt": 1,
-        "cost_krw": 76,
-        "note": null,
-        "status": "succeeded",
-        "step": "generate",
-        "target_id": "tgt_gcp",
-        "tokens": 2940
-       }
-      ],
       "tokens": 7920
      },
      "commit": "574acd9980b8fba01c49a5cd0ad659639de3ebe0",
      "commit_message": "chore(ci): 로컬 이미지 태그를 커밋 해시로 통일 (latest 제거) (#1)",
-     "created_at": "2026-09-30T11:10:54Z",
+     "created_at": "2026-09-30T19:42:43Z",
      "created_by": "Seungjun Park",
      "finished_at": null,
      "id": "dep_m6",
@@ -2670,6 +2641,7 @@
        "attempt": 1,
        "error_summary": null,
        "health_summary": null,
+       "image_digest": null,
        "reused_script": true,
        "state": "awaiting_approval",
        "step": "risk_check",
@@ -2677,25 +2649,25 @@
        "steps": [
         {
          "duration_ms": 41000,
-         "name": "generate",
+         "name": "스크립트 재사용",
          "started_at": null,
          "state": "done"
         },
         {
          "duration_ms": 3100,
-         "name": "validate",
+         "name": "terraform validate",
          "started_at": null,
          "state": "done"
         },
         {
          "duration_ms": 8200,
-         "name": "plan",
+         "name": "terraform plan",
          "started_at": null,
          "state": "done"
         },
         {
          "duration_ms": 900,
-         "name": "risk_check",
+         "name": "위험 설정 검사",
          "started_at": null,
          "state": "done"
         }
@@ -2708,6 +2680,7 @@
        "attempt": 2,
        "error_summary": null,
        "health_summary": null,
+       "image_digest": null,
        "reused_script": false,
        "state": "awaiting_approval",
        "step": "risk_check",
@@ -2715,25 +2688,25 @@
        "steps": [
         {
          "duration_ms": 41000,
-         "name": "generate",
+         "name": "Terraform 생성 (AI)",
          "started_at": null,
          "state": "done"
         },
         {
          "duration_ms": 3100,
-         "name": "validate",
+         "name": "terraform validate",
          "started_at": null,
          "state": "done"
         },
         {
          "duration_ms": 8200,
-         "name": "plan",
+         "name": "terraform plan",
          "started_at": null,
          "state": "done"
         },
         {
          "duration_ms": 900,
-         "name": "risk_check",
+         "name": "위험 설정 검사",
          "started_at": null,
          "state": "done"
         }
@@ -2746,6 +2719,7 @@
        "attempt": 1,
        "error_summary": null,
        "health_summary": null,
+       "image_digest": null,
        "reused_script": false,
        "state": "awaiting_approval",
        "step": "risk_check",
@@ -2753,25 +2727,25 @@
        "steps": [
         {
          "duration_ms": 41000,
-         "name": "generate",
+         "name": "Terraform 생성 (AI)",
          "started_at": null,
          "state": "done"
         },
         {
          "duration_ms": 3100,
-         "name": "validate",
+         "name": "terraform validate",
          "started_at": null,
          "state": "done"
         },
         {
          "duration_ms": 8200,
-         "name": "plan",
+         "name": "terraform plan",
          "started_at": null,
          "state": "done"
         },
         {
          "duration_ms": 900,
-         "name": "risk_check",
+         "name": "위험 설정 검사",
          "started_at": null,
          "state": "done"
         }
@@ -2789,12 +2763,11 @@
       "cost_krw": 0,
       "estimated": true,
       "exchange_rate": 1380,
-      "items": [],
       "tokens": 0
      },
      "commit": "85ef7c5047eb6e444f5b3dd6e8add1df7390d0d0",
      "commit_message": "docs: 레포 이름 기준으로 README 제목과 LICENSE 저작권자 정리",
-     "created_at": "2026-09-30T10:22:54Z",
+     "created_at": "2026-09-30T18:54:43Z",
      "created_by": "Seungjun Park",
      "finished_at": null,
      "id": "dep_m5",
@@ -2809,6 +2782,7 @@
        "attempt": 1,
        "error_summary": null,
        "health_summary": null,
+       "image_digest": "sha256:6edc49cbcf2c",
        "reused_script": true,
        "state": "succeeded",
        "step": "health_check",
@@ -2816,13 +2790,13 @@
        "steps": [
         {
          "duration_ms": 63000,
-         "name": "apply",
+         "name": "terraform apply",
          "started_at": null,
          "state": "done"
         },
         {
          "duration_ms": 4000,
-         "name": "health_check",
+         "name": "헬스체크",
          "started_at": null,
          "state": "done"
         }
@@ -2835,6 +2809,7 @@
        "attempt": 1,
        "error_summary": null,
        "health_summary": null,
+       "image_digest": null,
        "reused_script": false,
        "state": "applying",
        "step": "apply",
@@ -2842,13 +2817,13 @@
        "steps": [
         {
          "duration_ms": null,
-         "name": "apply",
+         "name": "terraform apply",
          "started_at": null,
          "state": "running"
         },
         {
          "duration_ms": null,
-         "name": "health_check",
+         "name": "헬스체크",
          "started_at": null,
          "state": "waiting"
         }
@@ -2861,6 +2836,7 @@
        "attempt": 1,
        "error_summary": null,
        "health_summary": null,
+       "image_digest": null,
        "reused_script": false,
        "state": "applying",
        "step": "apply",
@@ -2868,13 +2844,13 @@
        "steps": [
         {
          "duration_ms": null,
-         "name": "apply",
+         "name": "terraform apply",
          "started_at": null,
          "state": "running"
         },
         {
          "duration_ms": null,
-         "name": "health_check",
+         "name": "헬스체크",
          "started_at": null,
          "state": "waiting"
         }
@@ -2892,53 +2868,11 @@
       "cost_krw": 253,
       "estimated": true,
       "exchange_rate": 1380,
-      "items": [
-       {
-        "at": "2026-09-30T08:27:54Z",
-        "attempt": 1,
-        "cost_krw": 80,
-        "note": null,
-        "status": "failed",
-        "step": "generate",
-        "target_id": "tgt_aws",
-        "tokens": 3050
-       },
-       {
-        "at": "2026-09-30T08:30:54Z",
-        "attempt": 2,
-        "cost_krw": 49,
-        "note": null,
-        "status": "failed",
-        "step": "fix",
-        "target_id": "tgt_aws",
-        "tokens": 1900
-       },
-       {
-        "at": "2026-09-30T08:33:54Z",
-        "attempt": 3,
-        "cost_krw": 49,
-        "note": null,
-        "status": "failed",
-        "step": "fix",
-        "target_id": "tgt_aws",
-        "tokens": 1880
-       },
-       {
-        "at": "2026-09-30T08:28:54Z",
-        "attempt": 1,
-        "cost_krw": 75,
-        "note": null,
-        "status": "failed",
-        "step": "generate",
-        "target_id": "tgt_gcp",
-        "tokens": 2900
-       }
-      ],
       "tokens": 9730
      },
      "commit": "7b1578b0092229c7cf7cbf91f1b2b176c2ca583d",
      "commit_message": "chore: Go 모듈 경로와 이미지 출처 레이블을 팀 레포로 변경",
-     "created_at": "2026-09-30T08:22:54Z",
+     "created_at": "2026-09-30T16:54:43Z",
      "created_by": "Seungjun Park",
      "finished_at": null,
      "id": "dep_m4",
@@ -2953,6 +2887,7 @@
        "attempt": 1,
        "error_summary": null,
        "health_summary": null,
+       "image_digest": null,
        "reused_script": true,
        "state": "awaiting_approval",
        "step": "risk_check",
@@ -2960,25 +2895,25 @@
        "steps": [
         {
          "duration_ms": 41000,
-         "name": "generate",
+         "name": "스크립트 재사용",
          "started_at": null,
          "state": "done"
         },
         {
          "duration_ms": 3100,
-         "name": "validate",
+         "name": "terraform validate",
          "started_at": null,
          "state": "done"
         },
         {
          "duration_ms": 8200,
-         "name": "plan",
+         "name": "terraform plan",
          "started_at": null,
          "state": "done"
         },
         {
          "duration_ms": 900,
-         "name": "risk_check",
+         "name": "위험 설정 검사",
          "started_at": null,
          "state": "done"
         }
@@ -2991,6 +2926,7 @@
        "attempt": 3,
        "error_summary": "terraform plan 오류: IAM 권한 부족 (ecs:CreateService)",
        "health_summary": null,
+       "image_digest": null,
        "reused_script": false,
        "state": "failed",
        "step": "plan",
@@ -2998,19 +2934,19 @@
        "steps": [
         {
          "duration_ms": 41000,
-         "name": "generate",
+         "name": "Terraform 생성 (AI)",
          "started_at": null,
          "state": "done"
         },
         {
          "duration_ms": 2900,
-         "name": "validate",
+         "name": "terraform validate",
          "started_at": null,
          "state": "done"
         },
         {
          "duration_ms": 8000,
-         "name": "plan",
+         "name": "terraform plan",
          "started_at": null,
          "state": "failed"
         }
@@ -3023,6 +2959,7 @@
        "attempt": 2,
        "error_summary": null,
        "health_summary": null,
+       "image_digest": null,
        "reused_script": false,
        "state": "validating",
        "step": "validate",
@@ -3030,13 +2967,13 @@
        "steps": [
         {
          "duration_ms": 40000,
-         "name": "generate",
+         "name": "Terraform 생성 (AI)",
          "started_at": null,
          "state": "done"
         },
         {
          "duration_ms": null,
-         "name": "validate",
+         "name": "terraform validate",
          "started_at": null,
          "state": "running"
         }
@@ -3054,35 +2991,13 @@
       "cost_krw": 157,
       "estimated": true,
       "exchange_rate": 1380,
-      "items": [
-       {
-        "at": "2026-09-29T15:27:54Z",
-        "attempt": 1,
-        "cost_krw": 81,
-        "note": null,
-        "status": "succeeded",
-        "step": "generate",
-        "target_id": "tgt_aws",
-        "tokens": 3100
-       },
-       {
-        "at": "2026-09-29T15:27:54Z",
-        "attempt": 1,
-        "cost_krw": 76,
-        "note": null,
-        "status": "succeeded",
-        "step": "generate",
-        "target_id": "tgt_gcp",
-        "tokens": 2950
-       }
-      ],
       "tokens": 6050
      },
      "commit": "2311c0b683ec0f46d0be1c640591245ae8d1c093",
      "commit_message": "feat(ci): Daisy 앱 연결 요구사항 추가 (deploy.yaml, /health, N-01 파이프라인)",
-     "created_at": "2026-09-29T15:22:54Z",
+     "created_at": "2026-09-29T23:54:43Z",
      "created_by": "Seungjun Park",
-     "finished_at": "2026-09-29T15:28:54Z",
+     "finished_at": "2026-09-30T00:00:43Z",
      "id": "dep_m3",
      "image": "ghcr.io/team-daisy/sample-monolith:2311c0b",
      "kind": null,
@@ -3095,6 +3010,7 @@
        "attempt": 1,
        "error_summary": null,
        "health_summary": "200 OK · p95 120ms",
+       "image_digest": "sha256:2177b5c728eb",
        "reused_script": true,
        "state": "succeeded",
        "step": "health_check",
@@ -3102,13 +3018,13 @@
        "steps": [
         {
          "duration_ms": 63000,
-         "name": "apply",
+         "name": "terraform apply",
          "started_at": null,
          "state": "done"
         },
         {
          "duration_ms": 4000,
-         "name": "health_check",
+         "name": "헬스체크",
          "started_at": null,
          "state": "done"
         }
@@ -3121,6 +3037,7 @@
        "attempt": 1,
        "error_summary": null,
        "health_summary": "200 OK · p95 120ms",
+       "image_digest": "sha256:2177b5c728eb",
        "reused_script": false,
        "state": "succeeded",
        "step": "health_check",
@@ -3128,13 +3045,13 @@
        "steps": [
         {
          "duration_ms": 63000,
-         "name": "apply",
+         "name": "terraform apply",
          "started_at": null,
          "state": "done"
         },
         {
          "duration_ms": 4000,
-         "name": "health_check",
+         "name": "헬스체크",
          "started_at": null,
          "state": "done"
         }
@@ -3147,6 +3064,7 @@
        "attempt": 1,
        "error_summary": null,
        "health_summary": "200 OK · p95 120ms",
+       "image_digest": "sha256:2177b5c728eb",
        "reused_script": false,
        "state": "succeeded",
        "step": "health_check",
@@ -3154,13 +3072,13 @@
        "steps": [
         {
          "duration_ms": 63000,
-         "name": "apply",
+         "name": "terraform apply",
          "started_at": null,
          "state": "done"
         },
         {
          "duration_ms": 4000,
-         "name": "health_check",
+         "name": "헬스체크",
          "started_at": null,
          "state": "done"
         }
@@ -3178,45 +3096,13 @@
       "cost_krw": 234,
       "estimated": true,
       "exchange_rate": 1380,
-      "items": [
-       {
-        "at": "2026-09-29T09:22:54Z",
-        "attempt": 1,
-        "cost_krw": 78,
-        "note": null,
-        "status": "succeeded",
-        "step": "generate",
-        "target_id": "tgt_onprem",
-        "tokens": 3000
-       },
-       {
-        "at": "2026-09-29T09:22:54Z",
-        "attempt": 1,
-        "cost_krw": 78,
-        "note": null,
-        "status": "succeeded",
-        "step": "generate",
-        "target_id": "tgt_aws",
-        "tokens": 3000
-       },
-       {
-        "at": "2026-09-29T09:22:54Z",
-        "attempt": 1,
-        "cost_krw": 78,
-        "note": null,
-        "status": "succeeded",
-        "step": "generate",
-        "target_id": "tgt_gcp",
-        "tokens": 3000
-       }
-      ],
       "tokens": 9000
      },
      "commit": "839d8c02f701c3cce2db1edf2386d28fd79f654f",
      "commit_message": "HelloCalc: portable reference workload",
-     "created_at": "2026-09-29T09:22:54Z",
+     "created_at": "2026-09-29T17:54:43Z",
      "created_by": "Seungjun Park",
-     "finished_at": "2026-09-29T09:30:54Z",
+     "finished_at": "2026-09-29T18:02:43Z",
      "id": "dep_m2",
      "image": "ghcr.io/team-daisy/sample-monolith:839d8c0",
      "kind": null,
@@ -3229,6 +3115,7 @@
        "attempt": 1,
        "error_summary": null,
        "health_summary": "200 OK · p95 98ms",
+       "image_digest": "sha256:b9cde1069411",
        "reused_script": false,
        "state": "succeeded",
        "step": "health_check",
@@ -3236,13 +3123,13 @@
        "steps": [
         {
          "duration_ms": 63000,
-         "name": "apply",
+         "name": "terraform apply",
          "started_at": null,
          "state": "done"
         },
         {
          "duration_ms": 4000,
-         "name": "health_check",
+         "name": "헬스체크",
          "started_at": null,
          "state": "done"
         }
@@ -3255,6 +3142,7 @@
        "attempt": 1,
        "error_summary": null,
        "health_summary": "200 OK · p95 131ms",
+       "image_digest": "sha256:b9cde1069411",
        "reused_script": false,
        "state": "succeeded",
        "step": "health_check",
@@ -3262,13 +3150,13 @@
        "steps": [
         {
          "duration_ms": 63000,
-         "name": "apply",
+         "name": "terraform apply",
          "started_at": null,
          "state": "done"
         },
         {
          "duration_ms": 4000,
-         "name": "health_check",
+         "name": "헬스체크",
          "started_at": null,
          "state": "done"
         }
@@ -3281,6 +3169,7 @@
        "attempt": 1,
        "error_summary": "헬스체크 30초 안에 응답 없음 (/health)",
        "health_summary": null,
+       "image_digest": "sha256:b9cde1069411",
        "reused_script": false,
        "state": "failed",
        "step": "health_check",
@@ -3288,13 +3177,13 @@
        "steps": [
         {
          "duration_ms": 58000,
-         "name": "apply",
+         "name": "terraform apply",
          "started_at": null,
          "state": "done"
         },
         {
          "duration_ms": 30000,
-         "name": "health_check",
+         "name": "헬스체크",
          "started_at": null,
          "state": "failed"
         }
@@ -3328,7 +3217,7 @@
      "ai_tokens": 5400,
      "attempt": 2,
      "base_commit": "839d8c02f701c3cce2db1edf2386d28fd79f654f",
-     "created_at": "2026-09-28T11:22:54Z",
+     "created_at": "2026-09-28T19:54:43Z",
      "files": [
       {
        "content": "resource \"aws_ecs_service\" \"app\" {\n  name            = var.name\n  cluster         = aws_ecs_cluster.main.id\n  task_definition = aws_ecs_task_definition.app.arn\n  desired_count   = 1\n  launch_type     = \"FARGATE\"\n}\n",
@@ -3336,7 +3225,7 @@
       }
      ],
      "input": "deploy.yaml + 기준 모듈",
-     "last_used_at": "2026-09-30T10:22:54Z",
+     "last_used_at": "2026-09-30T18:54:43Z",
      "note": "보안 그룹 수정",
      "origin": "ai_generated",
      "reuse_count": 4,
@@ -3355,7 +3244,7 @@
      "ai_tokens": 4200,
      "attempt": 1,
      "base_commit": "839d8c02f701c3cce2db1edf2386d28fd79f654f",
-     "created_at": "2026-09-27T11:22:54Z",
+     "created_at": "2026-09-27T19:54:43Z",
      "files": [
       {
        "content": "resource \"docker_container\" \"app\" {\n  name  = var.name\n  image = var.image\n  ports {\n    internal = 8080\n    external = 8080\n  }\n}\n",
@@ -3363,7 +3252,7 @@
       }
      ],
      "input": "deploy.yaml + 기준 모듈",
-     "last_used_at": "2026-09-30T10:22:54Z",
+     "last_used_at": "2026-09-30T18:54:43Z",
      "note": null,
      "origin": "ai_generated",
      "reuse_count": 6,
@@ -3382,7 +3271,7 @@
      "ai_tokens": 6600,
      "attempt": 3,
      "base_commit": "839d8c02f701c3cce2db1edf2386d28fd79f654f",
-     "created_at": "2026-09-29T11:22:54Z",
+     "created_at": "2026-09-29T19:54:43Z",
      "files": [
       {
        "content": "resource \"google_cloud_run_v2_service\" \"app\" {\n  name     = var.name\n  location = \"asia-northeast3\"\n  template {\n    containers { image = var.image }\n  }\n}\n",
@@ -3413,15 +3302,16 @@
     {
      "access_method": "사설망(VPN) + SSH",
      "connection": {
-      "checked_at": "2026-09-30T11:21:54Z",
+      "checked_at": "2026-09-30T19:53:43Z",
       "state": "ok"
      },
      "exposure": "팀 도메인 HTTPS",
-     "location": "home-lab (서울)",
+     "location": "home-lab",
+     "location_label": "위치",
      "name": "온프레미스",
      "reuse": {
       "available": true,
-      "reason": "검증된 스크립트 s1이 있어요",
+      "reason": "home-lab Proxmox VM · 사설망 · 검증된 스크립트 있음 → 태그만 교체",
       "script_id": "scr_onprem_s1"
      },
      "runtime": "Proxmox VM · Docker Compose",
@@ -3433,19 +3323,20 @@
     {
      "access_method": "IAM 역할",
      "connection": {
-      "checked_at": "2026-09-30T11:21:54Z",
+      "checked_at": "2026-09-30T19:53:43Z",
       "state": "ok"
      },
      "exposure": "ALB HTTPS",
      "location": "ap-northeast-2",
+     "location_label": "리전",
      "name": "AWS",
      "reuse": {
       "available": true,
-      "reason": "검증된 스크립트 s2가 있어요",
+      "reason": "ap-northeast-2 · 검증된 스크립트 있음 → 태그만 교체",
       "script_id": "scr_aws_s2"
      },
      "runtime": "ECS Fargate + ALB",
-     "state_backend": "S3 (네이티브 잠금)",
+     "state_backend": null,
      "target_id": "tgt_aws",
      "title": "AWS · ECS + ALB",
      "type": "aws"
@@ -3453,17 +3344,19 @@
     {
      "access_method": "서비스 계정",
      "connection": {
-      "checked_at": "2026-09-30T11:21:54Z",
+      "checked_at": "2026-09-30T19:53:43Z",
       "state": "ok"
      },
      "exposure": "Cloud Run URL",
      "location": "asia-northeast3",
+     "location_label": "리전",
      "name": "GCP",
      "reuse": {
-      "available": false
+      "available": false,
+      "reason": "asia-northeast3 · 처음 배포 → AI가 Terraform 생성"
      },
      "runtime": "Cloud Run",
-     "state_backend": "GCS",
+     "state_backend": null,
      "target_id": "tgt_gcp",
      "title": "GCP · Cloud Run",
      "type": "gcp"
@@ -3474,45 +3367,45 @@
   "projects/prj_monolith/targets/status": {
    "items": [
     {
-     "checked_at": "2026-09-30T11:22:14Z",
+     "checked_at": "2026-09-30T19:54:03Z",
      "current": {
       "commit": "2311c0b683ec0f46d0be1c640591245ae8d1c093",
-      "deployed_at": "2026-09-29T15:28:54Z",
+      "deployed_at": "2026-09-30T00:00:43Z",
       "deployment_id": "dep_m3",
       "image": "ghcr.io/team-daisy/sample-monolith:2311c0b"
      },
      "health": "healthy",
-     "image_digest": "sha256:3f9ac21e7b04",
+     "image_digest": "sha256:2177b5c728eb",
      "name": "온프레미스",
      "target_id": "tgt_onprem",
      "type": "onprem",
      "url": "https://hellocalc.onprem.example.com"
     },
     {
-     "checked_at": "2026-09-30T11:22:14Z",
+     "checked_at": "2026-09-30T19:54:03Z",
      "current": {
       "commit": "2311c0b683ec0f46d0be1c640591245ae8d1c093",
-      "deployed_at": "2026-09-29T15:28:54Z",
+      "deployed_at": "2026-09-30T00:00:43Z",
       "deployment_id": "dep_m3",
       "image": "ghcr.io/team-daisy/sample-monolith:2311c0b"
      },
      "health": "healthy",
-     "image_digest": "sha256:3f9ac21e7b04",
+     "image_digest": "sha256:2177b5c728eb",
      "name": "AWS",
      "target_id": "tgt_aws",
      "type": "aws",
      "url": "https://hellocalc.aws.example.com"
     },
     {
-     "checked_at": "2026-09-30T11:22:14Z",
+     "checked_at": "2026-09-30T19:54:03Z",
      "current": {
       "commit": "2311c0b683ec0f46d0be1c640591245ae8d1c093",
-      "deployed_at": "2026-09-29T15:28:54Z",
+      "deployed_at": "2026-09-30T00:00:43Z",
       "deployment_id": "dep_m3",
       "image": "ghcr.io/team-daisy/sample-monolith:2311c0b"
      },
      "health": "healthy",
-     "image_digest": "sha256:3f9ac21e7b04",
+     "image_digest": "sha256:2177b5c728eb",
      "name": "GCP",
      "target_id": "tgt_gcp",
      "type": "gcp",
@@ -3523,12 +3416,72 @@
   },
   "projects/prj_msa": {
    "branch": "main",
-   "build": "GitHub Actions · docker build",
+   "build": "Jenkins daisy-ci · docker build",
    "id": "prj_msa",
    "name": "sample-msa",
    "registry": "ghcr.io/team-daisy",
    "repository": "https://github.com/Softbank-Hackathon-2026-Team-Daisy/sample-msa",
-   "webhook_last_at": "2026-09-30T11:10:54Z"
+   "webhook_last_at": "2026-09-30T19:42:43Z"
+  },
+  "projects/prj_msa/ai-usage": {
+   "items": [
+    {
+     "at": "2026-09-30T19:52:43Z",
+     "attempt": 2,
+     "cost_krw": 52,
+     "deployment_id": "dep_s2",
+     "note": "backend 내부 ingress 규칙 추가",
+     "status": "succeeded",
+     "step": "fix",
+     "target_id": "tgt_aws",
+     "tokens": 2010
+    },
+    {
+     "at": "2026-09-30T19:51:43Z",
+     "attempt": 1,
+     "cost_krw": 88,
+     "deployment_id": "dep_s2",
+     "note": null,
+     "status": "failed",
+     "step": "generate",
+     "target_id": "tgt_aws",
+     "tokens": 3400
+    },
+    {
+     "at": "2026-09-30T13:56:43Z",
+     "attempt": 1,
+     "cost_krw": 85,
+     "deployment_id": "dep_s1",
+     "note": null,
+     "status": "succeeded",
+     "step": "generate",
+     "target_id": "tgt_onprem",
+     "tokens": 3300
+    },
+    {
+     "at": "2026-09-30T13:56:43Z",
+     "attempt": 1,
+     "cost_krw": 85,
+     "deployment_id": "dep_s1",
+     "note": null,
+     "status": "succeeded",
+     "step": "generate",
+     "target_id": "tgt_aws",
+     "tokens": 3300
+    },
+    {
+     "at": "2026-09-30T13:56:43Z",
+     "attempt": 1,
+     "cost_krw": 85,
+     "deployment_id": "dep_s1",
+     "note": null,
+     "status": "succeeded",
+     "step": "generate",
+     "target_id": "tgt_gcp",
+     "tokens": 3300
+    }
+   ],
+   "next_cursor": null
   },
   "projects/prj_msa/builds": {
    "items": [
@@ -3542,7 +3495,7 @@
      "image": "ghcr.io/team-daisy/sample-msa:5a21c63",
      "message": "docs: Cloud Run에서 backend 호출 인증 조건 안내, 로컬 이미지 태그를 커밋 해시로 통일 (#2)",
      "pipeline": {
-      "run_url": "https://github.com/Softbank-Hackathon-2026-Team-Daisy/sample-msa/actions",
+      "run_url": "https://jenkins.example.com/job/daisy-ci/2/",
       "status": "success"
      },
      "steps": [
@@ -3582,7 +3535,7 @@
      "image": "ghcr.io/team-daisy/sample-msa:5e250c0",
      "message": "feat: HelloCalc MSA 샘플 추가 (frontend + backend) (#1)",
      "pipeline": {
-      "run_url": "https://github.com/Softbank-Hackathon-2026-Team-Daisy/sample-msa/actions",
+      "run_url": "https://jenkins.example.com/job/daisy-ci/1/",
       "status": "success"
      },
      "steps": [
@@ -3623,33 +3576,11 @@
       "cost_krw": 140,
       "estimated": true,
       "exchange_rate": 1380,
-      "items": [
-       {
-        "at": "2026-09-30T11:19:54Z",
-        "attempt": 1,
-        "cost_krw": 88,
-        "note": null,
-        "status": "failed",
-        "step": "generate",
-        "target_id": "tgt_aws",
-        "tokens": 3400
-       },
-       {
-        "at": "2026-09-30T11:20:54Z",
-        "attempt": 2,
-        "cost_krw": 52,
-        "note": "backend 내부 ingress 규칙 추가",
-        "status": "succeeded",
-        "step": "fix",
-        "target_id": "tgt_aws",
-        "tokens": 2010
-       }
-      ],
       "tokens": 5410
      },
      "commit": "5a21c63803fba9f43a8a20839a98fccc238c881b",
      "commit_message": "docs: Cloud Run에서 backend 호출 인증 조건 안내, 로컬 이미지 태그를 커밋 해시로 통일 (#2)",
-     "created_at": "2026-09-30T11:18:54Z",
+     "created_at": "2026-09-30T19:50:43Z",
      "created_by": "Seungjun Park",
      "finished_at": null,
      "id": "dep_s2",
@@ -3664,6 +3595,7 @@
        "attempt": 1,
        "error_summary": null,
        "health_summary": null,
+       "image_digest": null,
        "reused_script": true,
        "state": "validating",
        "step": "plan",
@@ -3671,19 +3603,19 @@
        "steps": [
         {
          "duration_ms": 41000,
-         "name": "generate",
+         "name": "스크립트 재사용",
          "started_at": null,
          "state": "done"
         },
         {
          "duration_ms": 3100,
-         "name": "validate",
+         "name": "terraform validate",
          "started_at": null,
          "state": "done"
         },
         {
          "duration_ms": 8200,
-         "name": "plan",
+         "name": "terraform plan",
          "started_at": null,
          "state": "done"
         }
@@ -3696,6 +3628,7 @@
        "attempt": 2,
        "error_summary": null,
        "health_summary": null,
+       "image_digest": null,
        "reused_script": false,
        "state": "validating",
        "step": "validate",
@@ -3703,13 +3636,13 @@
        "steps": [
         {
          "duration_ms": 44000,
-         "name": "generate",
+         "name": "Terraform 생성 (AI)",
          "started_at": null,
          "state": "done"
         },
         {
          "duration_ms": null,
-         "name": "validate",
+         "name": "terraform validate",
          "started_at": null,
          "state": "running"
         }
@@ -3722,6 +3655,7 @@
        "attempt": 1,
        "error_summary": null,
        "health_summary": null,
+       "image_digest": null,
        "reused_script": false,
        "state": "generating",
        "step": "generate",
@@ -3729,7 +3663,7 @@
        "steps": [
         {
          "duration_ms": null,
-         "name": "generate",
+         "name": "Terraform 생성 (AI)",
          "started_at": null,
          "state": "running"
         }
@@ -3747,45 +3681,13 @@
       "cost_krw": 255,
       "estimated": true,
       "exchange_rate": 1380,
-      "items": [
-       {
-        "at": "2026-09-30T05:24:54Z",
-        "attempt": 1,
-        "cost_krw": 85,
-        "note": null,
-        "status": "succeeded",
-        "step": "generate",
-        "target_id": "tgt_onprem",
-        "tokens": 3300
-       },
-       {
-        "at": "2026-09-30T05:24:54Z",
-        "attempt": 1,
-        "cost_krw": 85,
-        "note": null,
-        "status": "succeeded",
-        "step": "generate",
-        "target_id": "tgt_aws",
-        "tokens": 3300
-       },
-       {
-        "at": "2026-09-30T05:24:54Z",
-        "attempt": 1,
-        "cost_krw": 85,
-        "note": null,
-        "status": "succeeded",
-        "step": "generate",
-        "target_id": "tgt_gcp",
-        "tokens": 3300
-       }
-      ],
       "tokens": 9900
      },
      "commit": "5e250c0aad492a86faadd482c9534a9540ca13d2",
      "commit_message": "feat: HelloCalc MSA 샘플 추가 (frontend + backend) (#1)",
-     "created_at": "2026-09-30T05:22:54Z",
+     "created_at": "2026-09-30T13:54:43Z",
      "created_by": "Seungjun Park",
-     "finished_at": "2026-09-30T05:32:54Z",
+     "finished_at": "2026-09-30T14:04:43Z",
      "id": "dep_s1",
      "image": "ghcr.io/team-daisy/sample-msa:5e250c0",
      "kind": null,
@@ -3798,6 +3700,7 @@
        "attempt": 1,
        "error_summary": null,
        "health_summary": "200 OK · p95 140ms",
+       "image_digest": "sha256:962923ce93f9",
        "reused_script": false,
        "state": "succeeded",
        "step": "health_check",
@@ -3805,13 +3708,13 @@
        "steps": [
         {
          "duration_ms": 63000,
-         "name": "apply",
+         "name": "terraform apply",
          "started_at": null,
          "state": "done"
         },
         {
          "duration_ms": 4000,
-         "name": "health_check",
+         "name": "헬스체크",
          "started_at": null,
          "state": "done"
         }
@@ -3824,6 +3727,7 @@
        "attempt": 1,
        "error_summary": null,
        "health_summary": "200 OK · p95 140ms",
+       "image_digest": "sha256:962923ce93f9",
        "reused_script": false,
        "state": "succeeded",
        "step": "health_check",
@@ -3831,13 +3735,13 @@
        "steps": [
         {
          "duration_ms": 63000,
-         "name": "apply",
+         "name": "terraform apply",
          "started_at": null,
          "state": "done"
         },
         {
          "duration_ms": 4000,
-         "name": "health_check",
+         "name": "헬스체크",
          "started_at": null,
          "state": "done"
         }
@@ -3850,6 +3754,7 @@
        "attempt": 1,
        "error_summary": null,
        "health_summary": "200 OK · p95 140ms",
+       "image_digest": "sha256:962923ce93f9",
        "reused_script": false,
        "state": "succeeded",
        "step": "health_check",
@@ -3857,13 +3762,13 @@
        "steps": [
         {
          "duration_ms": 63000,
-         "name": "apply",
+         "name": "terraform apply",
          "started_at": null,
          "state": "done"
         },
         {
          "duration_ms": 4000,
-         "name": "health_check",
+         "name": "헬스체크",
          "started_at": null,
          "state": "done"
         }
@@ -3897,7 +3802,7 @@
      "ai_tokens": 5400,
      "attempt": 2,
      "base_commit": "5e250c0aad492a86faadd482c9534a9540ca13d2",
-     "created_at": "2026-09-28T11:22:54Z",
+     "created_at": "2026-09-28T19:54:43Z",
      "files": [
       {
        "content": "resource \"aws_ecs_service\" \"app\" {\n  name            = var.name\n  cluster         = aws_ecs_cluster.main.id\n  task_definition = aws_ecs_task_definition.app.arn\n  desired_count   = 1\n  launch_type     = \"FARGATE\"\n}\n",
@@ -3905,7 +3810,7 @@
       }
      ],
      "input": "deploy.yaml + 기준 모듈",
-     "last_used_at": "2026-09-30T10:22:54Z",
+     "last_used_at": "2026-09-30T18:54:43Z",
      "note": "보안 그룹 수정",
      "origin": "ai_generated",
      "reuse_count": 4,
@@ -3924,7 +3829,7 @@
      "ai_tokens": 4200,
      "attempt": 1,
      "base_commit": "5e250c0aad492a86faadd482c9534a9540ca13d2",
-     "created_at": "2026-09-27T11:22:54Z",
+     "created_at": "2026-09-27T19:54:43Z",
      "files": [
       {
        "content": "resource \"docker_container\" \"app\" {\n  name  = var.name\n  image = var.image\n  ports {\n    internal = 8080\n    external = 8080\n  }\n}\n",
@@ -3932,7 +3837,7 @@
       }
      ],
      "input": "deploy.yaml + 기준 모듈",
-     "last_used_at": "2026-09-30T10:22:54Z",
+     "last_used_at": "2026-09-30T18:54:43Z",
      "note": null,
      "origin": "ai_generated",
      "reuse_count": 6,
@@ -3951,7 +3856,7 @@
      "ai_tokens": 6600,
      "attempt": 3,
      "base_commit": "5e250c0aad492a86faadd482c9534a9540ca13d2",
-     "created_at": "2026-09-29T11:22:54Z",
+     "created_at": "2026-09-29T19:54:43Z",
      "files": [
       {
        "content": "resource \"google_cloud_run_v2_service\" \"app\" {\n  name     = var.name\n  location = \"asia-northeast3\"\n  template {\n    containers { image = var.image }\n  }\n}\n",
@@ -3982,15 +3887,16 @@
     {
      "access_method": "사설망(VPN) + SSH",
      "connection": {
-      "checked_at": "2026-09-30T11:21:54Z",
+      "checked_at": "2026-09-30T19:53:43Z",
       "state": "ok"
      },
      "exposure": "팀 도메인 HTTPS",
-     "location": "home-lab (서울)",
+     "location": "home-lab",
+     "location_label": "위치",
      "name": "온프레미스",
      "reuse": {
       "available": true,
-      "reason": "검증된 스크립트 s1이 있어요",
+      "reason": "home-lab Proxmox VM · 사설망 · 검증된 스크립트 있음 → 태그만 교체",
       "script_id": "scr_onprem_s1"
      },
      "runtime": "Proxmox VM · Docker Compose",
@@ -4002,19 +3908,20 @@
     {
      "access_method": "IAM 역할",
      "connection": {
-      "checked_at": "2026-09-30T11:21:54Z",
+      "checked_at": "2026-09-30T19:53:43Z",
       "state": "ok"
      },
      "exposure": "ALB HTTPS",
      "location": "ap-northeast-2",
+     "location_label": "리전",
      "name": "AWS",
      "reuse": {
       "available": true,
-      "reason": "검증된 스크립트 s2가 있어요",
+      "reason": "ap-northeast-2 · 검증된 스크립트 있음 → 태그만 교체",
       "script_id": "scr_aws_s2"
      },
      "runtime": "ECS Fargate + ALB",
-     "state_backend": "S3 (네이티브 잠금)",
+     "state_backend": null,
      "target_id": "tgt_aws",
      "title": "AWS · ECS + ALB",
      "type": "aws"
@@ -4022,17 +3929,19 @@
     {
      "access_method": "서비스 계정",
      "connection": {
-      "checked_at": "2026-09-30T11:21:54Z",
+      "checked_at": "2026-09-30T19:53:43Z",
       "state": "ok"
      },
      "exposure": "Cloud Run URL",
      "location": "asia-northeast3",
+     "location_label": "리전",
      "name": "GCP",
      "reuse": {
-      "available": false
+      "available": false,
+      "reason": "asia-northeast3 · 처음 배포 → AI가 Terraform 생성"
      },
      "runtime": "Cloud Run",
-     "state_backend": "GCS",
+     "state_backend": null,
      "target_id": "tgt_gcp",
      "title": "GCP · Cloud Run",
      "type": "gcp"
@@ -4043,45 +3952,45 @@
   "projects/prj_msa/targets/status": {
    "items": [
     {
-     "checked_at": "2026-09-30T11:22:14Z",
+     "checked_at": "2026-09-30T19:54:03Z",
      "current": {
       "commit": "5e250c0aad492a86faadd482c9534a9540ca13d2",
-      "deployed_at": "2026-09-30T05:32:54Z",
+      "deployed_at": "2026-09-30T14:04:43Z",
       "deployment_id": "dep_s1",
       "image": "ghcr.io/team-daisy/sample-msa:5e250c0"
      },
      "health": "healthy",
-     "image_digest": "sha256:9a1c07d2e55f",
+     "image_digest": "sha256:962923ce93f9",
      "name": "온프레미스",
      "target_id": "tgt_onprem",
      "type": "onprem",
      "url": "https://hellocalc-frontend.onprem.example.com"
     },
     {
-     "checked_at": "2026-09-30T11:22:14Z",
+     "checked_at": "2026-09-30T19:54:03Z",
      "current": {
       "commit": "5e250c0aad492a86faadd482c9534a9540ca13d2",
-      "deployed_at": "2026-09-30T05:32:54Z",
+      "deployed_at": "2026-09-30T14:04:43Z",
       "deployment_id": "dep_s1",
       "image": "ghcr.io/team-daisy/sample-msa:5e250c0"
      },
      "health": "healthy",
-     "image_digest": "sha256:9a1c07d2e55f",
+     "image_digest": "sha256:962923ce93f9",
      "name": "AWS",
      "target_id": "tgt_aws",
      "type": "aws",
      "url": "https://hellocalc-frontend.aws.example.com"
     },
     {
-     "checked_at": "2026-09-30T11:22:14Z",
+     "checked_at": "2026-09-30T19:54:03Z",
      "current": {
       "commit": "5e250c0aad492a86faadd482c9534a9540ca13d2",
-      "deployed_at": "2026-09-30T05:32:54Z",
+      "deployed_at": "2026-09-30T14:04:43Z",
       "deployment_id": "dep_s1",
       "image": "ghcr.io/team-daisy/sample-msa:5e250c0"
      },
      "health": "healthy",
-     "image_digest": "sha256:9a1c07d2e55f",
+     "image_digest": "sha256:962923ce93f9",
      "name": "GCP",
      "target_id": "tgt_gcp",
      "type": "gcp",

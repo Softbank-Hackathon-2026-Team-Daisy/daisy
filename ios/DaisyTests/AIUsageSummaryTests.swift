@@ -2,7 +2,8 @@ import Foundation
 import Testing
 @testable import Daisy
 
-/// W-12 AI 사용량 — 배포 단위 (9/30 와이어프레임 수정, 서버: GET /deployments/{id}의 ai_usage).
+/// W-12 AI 사용량 — 배포 단위 (9/30 와이어프레임 수정).
+/// 10/1 서버 결정: 합계는 plan(A-05)의 `ai_usage`, 호출별 상세는 `GET /projects/{id}/ai-usage?deployment_id=`, `status`는 LLM 호출 성공 · 실패.
 struct AIUsageSummaryTests {
     typealias F = Fixture
 
@@ -41,6 +42,29 @@ struct AIUsageSummaryTests {
         #expect(rows.map(\.result) == [.passed, .failed, .passed, .noCall])
         #expect(rows.last?.tokens == 0 && rows.last?.costKrw == 0)
         #expect(AIUsageSummary.Result.noCall.text == "AI 호출 없음")
+    }
+
+    /// 결과 배지는 LLM 호출 결과예요. Terraform 검증 통과와 다르다는 게 드러나게 "호출 성공 · 호출 실패" (10/1 서버)
+    @Test func resultMeansLLMCallStatus() {
+        #expect(AIUsageSummary.Result.passed.text == "호출 성공")
+        #expect(AIUsageSummary.Result.failed.text == "호출 실패")
+    }
+
+    /// 합계는 plan에서, 호출 기록은 ai-usage 목록에서 받아요. 확인 못 한 토큰 · 비용은 0이 아니라 비워 둬요
+    @Test func totalsFromPlanAndCallsFromList() throws {
+        let plain = try deployment(usage: #"{ "tokens": 1, "cost_krw": 1 }"#)
+        let totals = try JSONDecoder.daisy.decode(AIUsage.self, from: Data(#"{ "tokens": 4980, "cost_krw": 130, "exchange_rate": 1380, "estimated": true, "calls": 2 }"#.utf8))
+        let calls = try JSONDecoder.daisy.decode(Page<AIUsage.Call>.self, from: Data(#"""
+        { "items": [
+            { "at": "2026-10-03T12:12:30Z", "deployment_id": "dep_42", "target_id": "tgt_aws", "step": "generate", "attempt": 1, "tokens": 3120, "cost_krw": 82, "status": "failed" },
+            { "at": "2026-10-03T12:12:50Z", "deployment_id": "dep_42", "target_id": "tgt_aws", "step": "fix", "attempt": 2, "status": "succeeded" }
+          ], "next_cursor": null }
+        """#.utf8)).items
+        let summary = AIUsageSummary(plain, totals: totals, callLog: calls)
+        #expect(summary.calls == 2 && summary.tokens == 4980 && summary.costKrw == 130)
+        let fix = try #require(summary.rows.first)
+        #expect(fix.tokens == nil && fix.costKrw == nil)   // 화면에는 "—"
+        #expect(summary.rows.map(\.result) == [.passed, .failed, .noCall])
     }
 
     /// 서버가 합계만 주고 `calls` · `items`를 안 주면 0회 · 재사용 줄만 보여줘요 (없는 걸 지어내지 않아요)

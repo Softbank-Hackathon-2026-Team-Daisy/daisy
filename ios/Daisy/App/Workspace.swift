@@ -59,9 +59,9 @@ enum Route: Hashable {
     case started(String)
     /// W-06 변경 사항 확인 후 승인
     case plan(String)
-    /// W-03 이미지 빌드: 이 커밋의 GitHub Actions 진행. 끝나면 W-04로 넘어가요
+    /// W-03 이미지 빌드: 이 커밋의 Jenkins CI 진행 (9/30 회의: GitHub Actions 대신 Jenkins). 끝나면 W-04로 넘어가요
     case build(commit: String)
-    /// 새 배포: W-04 배포할 환경 선택부터 (가장 최근에 빌드된 이미지)
+    /// 새 배포: W-03 이미지 빌드부터 (가장 최근 빌드, 웹 사이드바 "새 배포"와 같아요)
     case newDeployment
     /// W-04를 특정 커밋으로 (W-03에서 넘어올 때)
     case selectTargets(commit: String)
@@ -77,7 +77,7 @@ enum Route: Hashable {
         case .started(let id): RunView(deploymentID: id, loader: .generate)
         case .plan(let id): PlanApprovalView(deploymentID: id)
         case .build(let commit): BuildStage(commit: commit)
-        case .newDeployment: TargetSelectView()
+        case .newDeployment: BuildStage()
         case .selectTargets(let commit): TargetSelectView(commit: commit)
         case .connectProject: ConnectAppView()
         case .logs(let id, let target): LogsView(deploymentID: id, targetID: target)

@@ -9,6 +9,7 @@ Daisy/Resources/SampleData/sample.json 한 파일로 만들어요. 배포 상태
 시각은 만든 시각(generated_at) 기준 상대값이고, 앱이 열 때 지금 시각으로 옮겨요.
 """
 import base64
+import hashlib
 import json
 import os
 import subprocess
@@ -60,8 +61,18 @@ def url(project, env):
             "gcp": f"https://{project}.run.example.com"}[env]
 
 
+# 단계 이름은 웹 화면 표기 그대로 (web/src/pages/flow.ts)
+STEP_LABEL = {"generate": "Terraform 생성 (AI)", "validate": "terraform validate", "plan": "terraform plan",
+              "risk_check": "위험 설정 검사", "apply": "terraform apply", "health_check": "헬스체크"}
+
+
 def step(name, state, ms=None, at=None):
-    return {"name": name, "state": state, "duration_ms": ms, "started_at": at}
+    return {"name": STEP_LABEL.get(name, name), "state": state, "duration_ms": ms, "started_at": at}
+
+
+def digest(sha):
+    """이미지 digest 예시: 커밋마다 하나 (같은 이미지면 모든 환경에서 같아요)"""
+    return "sha256:" + hashlib.sha256(sha.encode()).hexdigest()[:12]
 
 
 def tstate(s, st):
@@ -77,6 +88,8 @@ def tstate(s, st):
 
 
 def tgt(env, s, st, attempt=1, reused=False, steps=None, u=None, err=None, health=None):
+    if reused and steps:
+        steps = [dict(x, name="스크립트 재사용") if x["name"] == STEP_LABEL["generate"] else x for x in steps]
     return {"target_id": T[env], "state": tstate(s, st), "step": s, "step_state": st, "attempt": attempt,
             "reused_script": reused, "url": u, "error_summary": err, "title": TITLES[env], "steps": steps,
             "health_summary": health}
@@ -88,8 +101,9 @@ APPLIED = [step("apply", "done", 63000), step("health_check", "done", 4000)]
 
 
 def usage(calls):
+    # 합계만 (10/1 서버: 합계는 A-05 plan, 호출별 상세는 GET /projects/{id}/ai-usage?deployment_id=)
     return {"tokens": sum(c["tokens"] for c in calls), "cost_krw": sum(c["cost_krw"] for c in calls),
-            "exchange_rate": 1380, "estimated": True, "calls": len(calls), "items": calls}
+            "exchange_rate": 1380, "estimated": True, "calls": len(calls)}
 
 
 def call(env, step_, attempt, tokens, cost, status, minutes, note=None):
@@ -97,8 +111,17 @@ def call(env, step_, attempt, tokens, cost, status, minutes, note=None):
             "cost_krw": cost, "status": status, "note": note}
 
 
+CALLS = {}  # 프로젝트 → 호출 기록 (ai-usage 목록)
+
+
 def deployment(pid, did, ver, c, state, targets, created, finished=None, pending=False, calls=None):
     repo = {"prj_monolith": "sample-monolith", "prj_msa": "sample-msa"}[pid]
+    for c_ in calls or []:
+        c_["deployment_id"] = did
+    # apply가 끝난 환경은 올라간 이미지 digest를 같이 줘요 (W-08 동일성 검증)
+    for t in targets:
+        t["image_digest"] = digest(c["sha"]) if t["state"] in ("verifying", "succeeded") or (t["step"] == "health_check") else None
+    CALLS.setdefault(pid, []).extend(calls or [])
     return {"id": did, "project_id": pid, "commit": c["sha"], "image": f"ghcr.io/team-daisy/{repo}:{c['sha'][:7]}",
             "version": ver, "commit_message": subject(c), "state": state, "targets": targets,
             "pending_approval": {"approval_id": f"apv_{did}", "kind": "plan"} if pending else None,
@@ -152,7 +175,7 @@ def monolith():
     current = deps[3]
     statuses = [{"target_id": T[e], "type": e, "name": {"onprem": "온프레미스", "aws": "AWS", "gcp": "GCP"}[e],
                  "current": {"commit": current["commit"], "image": current["image"], "deployment_id": current["id"], "deployed_at": current["finished_at"]},
-                 "url": u(e), "health": "healthy", "checked_at": ago(seconds=40), "image_digest": "sha256:3f9ac21e7b04"} for e in T]
+                 "url": u(e), "health": "healthy", "checked_at": ago(seconds=40), "image_digest": digest(current["commit"])} for e in T]
     return pid, name, cs, deps, statuses, file_text(name, "deploy.yaml"), "deploy.yaml"
 
 
@@ -176,7 +199,7 @@ def msa():
     current = deps[1]
     statuses = [{"target_id": T[e], "type": e, "name": {"onprem": "온프레미스", "aws": "AWS", "gcp": "GCP"}[e],
                  "current": {"commit": current["commit"], "image": current["image"], "deployment_id": current["id"], "deployed_at": current["finished_at"]},
-                 "url": u(e), "health": "healthy", "checked_at": ago(seconds=40), "image_digest": "sha256:9a1c07d2e55f"} for e in T]
+                 "url": u(e), "health": "healthy", "checked_at": ago(seconds=40), "image_digest": digest(current["commit"])} for e in T]
     return pid, name, cs, deps, statuses, file_text(name, "services/frontend/deploy.yaml"), "services/frontend/deploy.yaml"
 
 
@@ -188,16 +211,16 @@ def page(items):
 
 TARGETS = [
     {"target_id": T["onprem"], "type": "onprem", "name": "온프레미스", "title": "온프레미스 · Docker Compose", "runtime": "Proxmox VM · Docker Compose",
-     "location": "home-lab (서울)", "access_method": "사설망(VPN) + SSH", "exposure": "팀 도메인 HTTPS", "state_backend": None,
-     "reuse": {"available": True, "script_id": "scr_onprem_s1", "reason": "검증된 스크립트 s1이 있어요"},
+     "location": "home-lab", "location_label": "위치", "access_method": "사설망(VPN) + SSH", "exposure": "팀 도메인 HTTPS", "state_backend": None,
+     "reuse": {"available": True, "script_id": "scr_onprem_s1", "reason": "home-lab Proxmox VM · 사설망 · 검증된 스크립트 있음 → 태그만 교체"},
      "connection": {"state": "ok", "checked_at": ago(minutes=1)}},
     {"target_id": T["aws"], "type": "aws", "name": "AWS", "title": "AWS · ECS + ALB", "runtime": "ECS Fargate + ALB",
-     "location": "ap-northeast-2", "access_method": "IAM 역할", "exposure": "ALB HTTPS", "state_backend": "S3 (네이티브 잠금)",
-     "reuse": {"available": True, "script_id": "scr_aws_s2", "reason": "검증된 스크립트 s2가 있어요"},
+     "location": "ap-northeast-2", "location_label": "리전", "access_method": "IAM 역할", "exposure": "ALB HTTPS", "state_backend": None,
+     "reuse": {"available": True, "script_id": "scr_aws_s2", "reason": "ap-northeast-2 · 검증된 스크립트 있음 → 태그만 교체"},
      "connection": {"state": "ok", "checked_at": ago(minutes=1)}},
     {"target_id": T["gcp"], "type": "gcp", "name": "GCP", "title": "GCP · Cloud Run", "runtime": "Cloud Run",
-     "location": "asia-northeast3", "access_method": "서비스 계정", "exposure": "Cloud Run URL", "state_backend": "GCS",
-     "reuse": {"available": False}, "connection": {"state": "ok", "checked_at": ago(minutes=1)}},
+     "location": "asia-northeast3", "location_label": "리전", "access_method": "서비스 계정", "exposure": "Cloud Run URL", "state_backend": None,
+     "reuse": {"available": False, "reason": "asia-northeast3 · 처음 배포 → AI가 Terraform 생성"}, "connection": {"state": "ok", "checked_at": ago(minutes=1)}},
 ]
 
 TF = {"aws": 'resource "aws_ecs_service" "app" {\n  name            = var.name\n  cluster         = aws_ecs_cluster.main.id\n  task_definition = aws_ecs_task_definition.app.arn\n  desired_count   = 1\n  launch_type     = "FARGATE"\n}\n',
@@ -223,8 +246,8 @@ def plan(dep):
         c, u_, d = counts[t["target_id"]]
         risks = [{"level": "medium", "rule": "open_ingress", "resource": "aws_security_group.alb", "message": "443 포트가 0.0.0.0/0에 열려 있어요 (ALB 공개용이라 허용)"}] if t["target_id"] == T["aws"] else []
         targets.append({"target_id": t["target_id"], "counts": {"create": c, "update": u_, "delete": d}, "has_delete": d > 0, "risks": risks,
-                        "reused_script": t["reused_script"], "resources": [{"action": a, "address": addr, "monthly_cost_krw": None} for a, addr in res[t["target_id"]]]})
-    return {"deployment_id": dep["id"], "targets": targets, "ai_usage": {k: dep["ai_usage"][k] for k in ("tokens", "cost_krw", "exchange_rate", "estimated")}}
+                        "reused_script": t["reused_script"], "summary": "이미지 태그만 교체" if t["reused_script"] else None, "resources": [{"action": a, "address": addr, "monthly_cost_krw": None} for a, addr in res[t["target_id"]]]})
+    return {"deployment_id": dep["id"], "targets": targets, "ai_usage": {k: dep["ai_usage"][k] for k in ("tokens", "cost_krw", "exchange_rate", "estimated", "calls")}}
 
 
 def main():
@@ -234,21 +257,22 @@ def main():
         repo = f"https://github.com/{ORG}/{name}"
         projects.append({"id": pid, "name": name, "repository": repo, "branch": "main"})
         responses[f"projects/{pid}"] = {"id": pid, "name": name, "repository": repo, "branch": "main",
-                                        "build": "GitHub Actions · docker build", "registry": "ghcr.io/team-daisy", "webhook_last_at": ago(minutes=12)}
+                                        "build": "Jenkins daisy-ci · docker build", "registry": "ghcr.io/team-daisy", "webhook_last_at": ago(minutes=12)}
         responses[f"projects/{pid}/deployments"] = page(deps)
         responses[f"projects/{pid}/targets/status"] = page(statuses)
         responses[f"projects/{pid}/targets"] = page(TARGETS)
         responses[f"projects/{pid}/builds"] = page([{
             "commit": c["sha"], "message": subject(c), "author": c["commit"]["author"]["name"], "committed_at": c["commit"]["author"]["date"],
-            "pipeline": {"status": "success", "run_url": f"{repo}/actions"}, "image": f"ghcr.io/team-daisy/{name}:{c['sha'][:7]}",
+            "pipeline": {"status": "success", "run_url": f"https://jenkins.example.com/job/daisy-ci/{len(cs) - i}/"}, "image": f"ghcr.io/team-daisy/{name}:{c['sha'][:7]}",
             "deployed_to": [], "branch": "main", "digest": None,
-            "steps": [step("checkout", "done", 2000), step("test", "done", 21000), step("docker build", "done", 64000), step("push", "done", 9000)]} for c in cs])
+            "steps": [step("checkout", "done", 2000), step("test", "done", 21000), step("docker build", "done", 64000), step("push", "done", 9000)]} for i, c in enumerate(cs)])
         responses[f"projects/{pid}/manifest"] = {"port": 8080, "healthcheck": "/health", "env": ["LOG_LEVEL", "SHUTDOWN_TIMEOUT"], "secrets": [],
                                                  "database": False, "errors": [], "raw": yaml_text, "ref": f"{yaml_path} · main@{cs[0]['sha'][:7]}"}
         responses[f"projects/{pid}/scripts"] = page([
             script(f"scr_aws_{pid}", "aws", "s2", 2, "verified", 4, deps[-1]["commit"], "보안 그룹 수정"),
             script(f"scr_onprem_{pid}", "onprem", "s1", 1, "verified", 6, deps[-1]["commit"], days=3),
             script(f"scr_gcp_{pid}", "gcp", "s1", 3, "discarded", 0, deps[-1]["commit"], days=1)])
+        responses[f"projects/{pid}/ai-usage"] = page(sorted(CALLS.get(pid, []), key=lambda c_: c_["at"], reverse=True))
         for d in deps:
             responses[f"deployments/{d['id']}"] = d
             responses[f"deployments/{d['id']}/plan"] = plan(d)

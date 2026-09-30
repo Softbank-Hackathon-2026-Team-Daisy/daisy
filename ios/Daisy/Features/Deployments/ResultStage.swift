@@ -14,16 +14,13 @@ struct ResultStage: View {
 
     var body: some View {
         FlowPage(step: 6, title: "배포 결과", description: FlowCopy.result(deployment, name: workspace.name(of:))) {
-            HStack { deployment.state.badge; Spacer() }
+            HStack { deployment.badge; Spacer() }
             AdaptiveGrid(minimumWidth: 280) {
                 ForEach(targets) { card($0) }
             }
-            // 동일성 검증은 A-02의 image_digest로 앱이 만들어요 (WR-09)
-            // 일부 성공이면 성공한 환경끼리만 비교해요
-            let compared = FlowCopy.parityTargets(deployment).map { ids in workspace.statuses.filter { ids.contains($0.targetId) } }
-                ?? workspace.statuses
-            if !compared.isEmpty {
-                let parity = Parity(statuses: compared)
+            // 동일성 검증은 이 배포의 환경별 결과(A-04 `image_digest` · 헬스)로 앱이 만들어요. 성공한 환경끼리 비교해요 (웹과 같아요)
+            if !targets.isEmpty {
+                let parity = Parity(deployment: deployment)
                 ParityTable(parity: parity, targets: parity.targets.map { workspace.type(of: $0) })
             }
             FlowButtons {
@@ -39,12 +36,13 @@ struct ResultStage: View {
     }
 
     private func card(_ target: Deployment.Target) -> some View {
-        let ok = !target.isFailed && target.state != .cancelled
+        let failed = target.isFailed
         return VStack(alignment: .leading, spacing: 12) {
             HStack {
                 EnvTag(type: workspace.type(of: target.targetId))
                 Spacer()
-                ok ? StatusBadge(text: "성공", color: .green) : StatusBadge(text: "실패", color: .red)
+                // 웹: 환경별 상태 그대로 (성공 · 실패 · 취소됨 …)
+                target.state?.badge ?? (failed ? StatusBadge(text: "실패", color: .red) : StatusBadge(text: "성공", color: .green))
             }
             HStack(alignment: .top, spacing: 12) {
                 if let url = target.url {
@@ -54,10 +52,10 @@ struct ResultStage: View {
                     if let url = target.url {
                         Text(url.absoluteString).font(.caption.monospaced()).lineLimit(2).textSelection(.enabled)
                     }
-                    if ok {
-                        Text(target.healthSummary ?? "헬스체크 결과를 기다리고 있어요").font(.caption).foregroundStyle(.secondary)
+                    if !failed {
+                        Text(target.healthSummary ?? "—").font(.caption).foregroundStyle(.secondary)
                     } else {
-                        Button("헬스체크 실패 · 원인 보기") {
+                        Button("\(target.step == .healthCheck ? "헬스체크" : "apply") 실패 · 원인 보기") {
                             router.push(.logs(deploymentID: deployment.id, targetID: target.targetId))
                         }
                         .buttonStyle(.plain)
@@ -67,7 +65,7 @@ struct ResultStage: View {
                 }
             }
             HStack(spacing: 8) {
-                if ok {
+                if !failed {
                     Button("열기") { if let url = target.url { openURL(url) } }
                         .buttonStyle(.glassCapsule)
                         .disabled(target.url == nil)

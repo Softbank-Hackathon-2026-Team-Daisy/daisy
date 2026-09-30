@@ -1,13 +1,22 @@
 import SwiftUI
 
-/// W-12 AI 사용량 — 배포 단위 (9/30 와이어프레임 수정). 배포를 하나 골라서 그 배포의 `ai_usage`(A-04)를 봐요.
+/// W-12 AI 사용량 — 배포 단위 (9/30 와이어프레임 수정). 배포를 하나 골라서 합계(A-05 plan)와 호출 기록(`ai-usage?deployment_id=`)을 봐요.
 /// 재사용으로 AI를 안 부른 환경은 호출 기록이 없어서 "— 검증된 스크립트 재사용" 한 줄로 보여줘요. 규칙은 `AIUsageSummary`.
 struct AIUsageView: View {
     @Environment(AppModel.self) private var app
     @Environment(Workspace.self) private var workspace
     @State private var deployments: [Deployment] = []
     @State private var selectedID: String?
-    @State private var detail: LoadState<Deployment> = .idle
+    @State private var detail: LoadState<Detail> = .idle
+
+    /// 배포 한 건 + plan 합계 + 호출 기록. plan · 기록이 아직 없으면(생성 전, 서버 준비 전) 배포에 온 값으로 보여줘요
+    private struct Detail: Equatable {
+        let deployment: Deployment
+        let totals: AIUsage?
+        let calls: [AIUsage.Call]?
+        var id: String { deployment.id }
+        var summary: AIUsageSummary { AIUsageSummary(deployment, totals: totals, callLog: calls) }
+    }
 
     var body: some View {
         PageScaffold("AI 사용량",
@@ -21,10 +30,10 @@ struct AIUsageView: View {
                 NoProjectView()
             } else if deployments.isEmpty && detail.value == nil {
                 ContentUnavailableView("아직 배포가 없어요", systemImage: "cellularbars",
-                                       description: Text("배포를 한 번 하면 AI를 몇 번 불렀는지 여기서 볼 수 있어요."))
+                                       description: Text("배포하면 AI를 몇 번, 얼마나 썼는지 여기서 봐요"))
             } else {
-                LoadStateView(state: detail, retry: { await loadDetail() }) { deployment in
-                    content(AIUsageSummary(deployment))
+                LoadStateView(state: detail, retry: { await loadDetail() }) { detail in
+                    content(detail.summary)
                 }
             }
         }
@@ -60,7 +69,7 @@ struct AIUsageView: View {
                 // iPhone 폭에서도 2×2로 보이게 최소 폭을 150으로
                 AdaptiveGrid(minimumWidth: 150) {
                     tile("AI 호출", "\(summary.calls)회", "이번 배포")
-                    tile("토큰", summary.tokens.formatted(), "입력 + 출력")
+                    tile("토큰", summary.tokens.map { $0.formatted() } ?? "—", "입력 + 출력")
                     tile("비용", summary.costKrw.map { "₩\($0.formatted())" } ?? "—", costNote(summary))
                     tile("재사용한 환경", "\(summary.reusedTargetIDs.count)곳", reuseNote(summary))
                 }
@@ -74,22 +83,22 @@ struct AIUsageView: View {
                         }
                     }
                 }
-                InlineAlert(.info, "PoC N-09 (선택)", "비용 표시는 N-09 결과와 LLM 선택에 따라 달라져요. 범위에서 빠지면 호출 수 · 토큰만 보여줘요.")
+                InlineAlert(.info, "PoC N-09 (선택)", "비용 표시는 N-09 결과에 따라 달라져요. 범위에서 빠지면 호출 수 · 토큰만 보여줘요.")
             }
             .padding(20)
         }
         .refreshable { await loadDetail() }
     }
 
-    /// 비용은 추정치예요. 서버가 적용한 환율을 같이 보여줘요.
+    /// 비용은 추정치예요. 서버가 적용한 환율을 같이 보여줘요. 웹: "추정 · 환율 1,380원 · LLM Claude"
     private func costNote(_ summary: AIUsageSummary) -> String {
-        let rate = summary.exchangeRate.map { " · 환율 ₩\(Int($0).formatted())" } ?? ""
-        return "LLM 기준 추정\(rate)"
+        // LLM은 Claude로 확정 (9/30 김승환 담당 결정)
+        (["추정"] + [summary.exchangeRate.map { "환율 \(Int($0).formatted())원" }, "LLM Claude"].compactMap { $0 }).joined(separator: " · ")
     }
 
     /// 웹: "온프레미스 · AI 호출 0회"
     private func reuseNote(_ summary: AIUsageSummary) -> String {
-        guard !summary.reusedTargetIDs.isEmpty else { return "모든 환경이 AI로 생성" }
+        guard !summary.reusedTargetIDs.isEmpty else { return "없음" }
         return FlowCopy.join(summary.reusedTargetIDs.map { workspace.name(of: $0) }) + " · AI 호출 0회"
     }
 
@@ -114,7 +123,7 @@ struct AIUsageView: View {
                     EnvTag(type: workspace.type(of: row.targetID))
                     Text(row.task).font(.subheadline)
                     Text(row.attempt).font(.subheadline.monospacedDigit())
-                    Text(row.tokens.formatted()).font(.subheadline.monospacedDigit())
+                    Text(row.tokens.map { $0.formatted() } ?? "—").font(.subheadline.monospacedDigit())
                     Text(row.costKrw.map { "₩\($0.formatted())" } ?? "—").font(.subheadline.monospacedDigit())
                     badge(row.result)
                 }
@@ -128,7 +137,7 @@ struct AIUsageView: View {
                 VStack(alignment: .leading, spacing: 4) {
                     HStack { EnvTag(type: workspace.type(of: row.targetID)); time(row).font(.caption).foregroundStyle(.secondary); Spacer(); badge(row.result) }
                     Text(row.task).font(.subheadline)
-                    Text(["시도 \(row.attempt)", "토큰 \(row.tokens.formatted())", row.costKrw.map { "₩\($0.formatted())" }]
+                    Text(["시도 \(row.attempt)", row.tokens.map { "토큰 \($0.formatted())" }, row.costKrw.map { "₩\($0.formatted())" }]
                         .compactMap { $0 }.joined(separator: " · "))
                         .font(.caption).foregroundStyle(.secondary)
                 }
@@ -140,7 +149,7 @@ struct AIUsageView: View {
 
     private func time(_ row: AIUsageSummary.Row) -> some View {
         Group {
-            if let at = row.at { Text(at, format: .dateTime.hour().minute()) } else { Text("—") }
+            if let at = row.at { Text(TimeText.clock(at)) } else { Text("—") }
         }
     }
 
@@ -168,10 +177,13 @@ struct AIUsageView: View {
     }
 
     private func loadDetail() async {
-        guard let client = app.client, let selectedID else { return }
+        guard let client = app.client, let projectID = app.selectedProjectID, let selectedID else { return }
         if detail.value?.id != selectedID { detail = .loading }
         do {
-            detail = .loaded(try await client.send(.deployment(id: selectedID)))
+            let deployment = try await client.send(.deployment(id: selectedID))
+            async let plan = try? client.send(.plan(deploymentID: selectedID))
+            async let calls = try? client.send(.aiUsage(projectID: projectID, deploymentID: selectedID)).items
+            detail = .loaded(Detail(deployment: deployment, totals: await plan?.aiUsage, calls: await calls))
         } catch {
             app.handle(error)
             if detail.value == nil { detail = .failed(error.localizedDescription) }
