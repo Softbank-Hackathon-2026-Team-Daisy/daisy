@@ -1,0 +1,149 @@
+import type { AuthToken, Deployment, DeploymentTarget, ListResponse } from '../api/types.ts'
+import * as s from './scenario.ts'
+
+// MOCK: 서버 대신 응답하는 목업 API. 모양은 SPEC.md §6과 같아요. 서버가 열리면 VITE_USE_MOCK=false로 꺼요
+// "dep_live"는 시간이 흐르면 상태가 바뀌어서, 목업만으로 W-04 → W-08 흐름을 끝까지 볼 수 있어요
+
+const wait = (ms = 250) => new Promise((r) => setTimeout(r, ms))
+const clone = <T>(v: T): T => structuredClone(v)
+
+class MockError extends Error {
+  status: number
+  code: string
+  constructor(status: number, code: string, message: string) {
+    super(message)
+    this.status = status
+    this.code = code
+  }
+}
+
+// ── 시간에 따라 진행하는 배포 (dep_live) ──
+let live: { startedAt: number; approvedAt: number | null } | null = null
+
+function liveDeployment(): Deployment {
+  if (!live) throw new MockError(404, 'NOT_FOUND', '배포를 찾을 수 없어요')
+  const t = (Date.now() - live.startedAt) / 1000
+  const base = clone(s.deployments.dep_generate)
+  const set = (i: number, patch: Partial<DeploymentTarget>) => Object.assign(base.targets[i], patch)
+  base.id = 'dep_live'
+  base.pending_approval = null
+
+  if (live.approvedAt === null) {
+    if (t < 4) {
+      base.state = 'running'
+      set(0, { state: 'validating', step: 'plan', error_summary: null })
+      set(1, { state: 'generating', step: 'generate', attempt: 1, error_summary: null })
+      set(2, { state: 'generating', step: 'generate' })
+    } else if (t < 10) {
+      // W-05와 같은 모습: AWS 시도 2/3
+    } else {
+      base.state = 'awaiting_approval'
+      base.pending_approval = { approval_id: 'apv_live', kind: 'plan' }
+      base.targets.forEach((_, i) => set(i, { state: 'awaiting_approval', step: 'risk_check', error_summary: null }))
+    }
+    return base
+  }
+
+  const a = (Date.now() - live.approvedAt) / 1000
+  const result = clone(s.deployments.dep_result)
+  result.id = 'dep_live'
+  if (a < 6) {
+    const apply = clone(s.deployments.dep_apply)
+    apply.id = 'dep_live'
+    return apply
+  }
+  return result
+}
+
+function findDeployment(id: string): Deployment {
+  if (id === 'dep_live') return liveDeployment()
+  const d = s.deployments[id] ?? s.history.find((h) => h.id === id)
+  if (!d) throw new MockError(404, 'NOT_FOUND', '배포를 찾을 수 없어요')
+  return clone(d)
+}
+
+export const mockApi = {
+  async login(username: string, password: string): Promise<AuthToken> {
+    await wait(400)
+    if (username === 'demo') return { access_token: 'mock-viewer', expires_at: new Date(Date.now() + 3_600_000).toISOString(), role: 'viewer' }
+    if (!username || password !== 'daisy') throw new MockError(401, 'UNAUTHENTICATED', '아이디나 비밀번호가 맞지 않아요')
+    return { access_token: 'mock-admin', expires_at: new Date(Date.now() + 3_600_000).toISOString(), role: 'admin' }
+  },
+  async listProjects() {
+    await wait()
+    return { items: clone(s.projects), next_cursor: null }
+  },
+  async getTargetsStatus(_projectId: string) {
+    await wait()
+    return clone(s.targetStatus)
+  },
+  async listTargets(_projectId: string) {
+    await wait()
+    return clone(s.targets)
+  },
+  async listDeployments(_projectId: string, state?: string): Promise<ListResponse<Deployment>> {
+    await wait()
+    const items = clone(s.history).filter((d) => !state || d.state === state)
+    return { items, next_cursor: null }
+  },
+  async getDeployment(id: string) {
+    await wait(150)
+    return findDeployment(id)
+  },
+  async createDeployment(_projectId: string, _commit: string, _targetIds: string[]) {
+    await wait(400)
+    live = { startedAt: Date.now(), approvedAt: null }
+    return liveDeployment()
+  },
+  async approve(id: string, decision: 'approve' | 'reject') {
+    await wait(400)
+    if (id === 'dep_live' && live && decision === 'approve') live.approvedAt = Date.now()
+    return findDeployment(id)
+  },
+  async cancel(id: string) {
+    await wait()
+    return findDeployment(id)
+  },
+  async rollback(_id: string, _targetIds: string[]) {
+    await wait(400)
+    live = { startedAt: Date.now() - 10_000, approvedAt: null }
+    const d = liveDeployment()
+    d.kind = 'rollback'
+    d.rolled_back_from = 'dep_41'
+    return d
+  },
+  async getPlan(_id: string) {
+    await wait()
+    return clone(s.plan)
+  },
+  async getPlanDetail(_id: string) {
+    await wait()
+    return clone(s.planDetail)
+  },
+  async getLogs(_id: string) {
+    await wait()
+    return clone(s.logs)
+  },
+  async listBuilds(_projectId: string) {
+    await wait()
+    return { items: clone(s.builds), next_cursor: null }
+  },
+  async getScript(_id: string, _targetId: string) {
+    await wait()
+    return s.generatedScript
+  },
+  async listScripts(_projectId: string) {
+    await wait()
+    return clone(s.scripts)
+  },
+  async getManifest(_projectId: string) {
+    await wait()
+    return clone(s.manifest)
+  },
+  async createProject(repository: string, branch: string) {
+    await wait(600)
+    return { project: { ...clone(s.projects[0]), repository, branch }, manifest: clone(s.manifest) }
+  },
+}
+
+export { MockError }
