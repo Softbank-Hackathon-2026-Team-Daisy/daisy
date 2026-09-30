@@ -17,6 +17,7 @@ pipeline {
   parameters {
     booleanParam(name: 'DEPLOY_AWS', defaultValue: true, description: 'AWS (ECS Fargate · ALB)')
     booleanParam(name: 'DEPLOY_GCP', defaultValue: false, description: 'GCP (Cloud Run)')
+    booleanParam(name: 'DESTROY', defaultValue: false, description: '체크하면 선택한 환경의 리소스를 지워요 (삭제 plan → 승인 → 삭제)')
     string(name: 'IMAGE_TAG', defaultValue: '', description: '커밋 해시 40자')
     string(name: 'IMAGE_REPO', defaultValue: '', description: '태그 없는 이미지 주소. 예: docker.io/<계정>/hellocalc')
     string(name: 'APP', defaultValue: 'hellocalc', description: 'state key · 작업 디렉터리 이름')
@@ -25,6 +26,7 @@ pipeline {
   environment {
     WORK_ROOT = "${env.JENKINS_HOME}/daisy-work"
     TF_PLUGIN_CACHE_DIR = "${env.JENKINS_HOME}/.terraform.d/plugin-cache"
+    TF_DESTROY = "${params.DESTROY ? '1' : ''}"   // tf-run.sh plan이 삭제 plan을 만들어요
   }
   stages {
     stage('Prepare') {
@@ -39,7 +41,7 @@ pipeline {
           if (targets().isEmpty()) {
             error('배포 환경을 하나 이상 선택해 주세요')
           }
-          currentBuild.description = "${targets().join(', ')} ← ${params.IMAGE_TAG.take(7)}"
+          currentBuild.description = "${params.DESTROY ? '삭제 ' : ''}${targets().join(', ')} ← ${params.IMAGE_TAG.take(7)}"
         }
         dir('app') {
           git url: params.APP_REPO, branch: 'main'
@@ -94,7 +96,11 @@ pipeline {
             summary += "${t}: " + sh(script: "cat \"\$WORK_ROOT/\$APP/${t}/src/summary.txt\"", returnStdout: true).trim() + '\n'
           }
           timeout(time: 30, unit: 'MINUTES') {
-            input message: "plan 결과를 확인하고 승인해 주세요 (전체 plan은 Plan 단계 로그)\n${summary}", ok: '승인 · apply'
+            if (params.DESTROY) {
+              input message: "삭제 plan이에요. 지워질 리소스를 확인하고 승인해 주세요 (전체 plan은 Plan 단계 로그)\n${summary}", ok: '승인 · 삭제'
+            } else {
+              input message: "plan 결과를 확인하고 승인해 주세요 (전체 plan은 Plan 단계 로그)\n${summary}", ok: '승인 · apply'
+            }
           }
         }
       }
@@ -113,6 +119,7 @@ pipeline {
     }
 
     stage('Health check') {
+      when { expression { !params.DESTROY } }
       steps {
         script {
           forEachTarget('check') { t ->
@@ -138,7 +145,13 @@ pipeline {
   }
   post {
     success {
-      sh 'cat result-*.txt'
+      script {
+        if (params.DESTROY) {
+          echo "삭제 완료: ${targets().join(', ')}"
+        } else {
+          sh 'cat result-*.txt'
+        }
+      }
     }
     always {
       deleteDir()

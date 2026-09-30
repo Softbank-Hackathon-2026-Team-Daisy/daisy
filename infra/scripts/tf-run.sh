@@ -25,6 +25,7 @@ usage() {
   EXPECTED_AWS_ACCOUNT apply·destroy 전에 AWS 계정 ID 확인
   EXPECTED_GCP_PROJECT apply·destroy 전에 VAR_FILE의 project_id 확인
   TF_RUN_APPROVED      Jenkins input 승인 뒤에만 $ENV 값으로 설정
+  TF_DESTROY=1         plan을 삭제 plan으로 만들어요 (Jenkins CD의 DESTROY). apply가 그 plan으로 지워요
 EOF
   exit 2
 }
@@ -120,7 +121,9 @@ plan)
   [[ -f $MODULE_DIR/.terraform.lock.hcl ]] && cp "$MODULE_DIR/.terraform.lock.hcl" "$WORK/src/"
   init
   tf validate -no-color
-  tf plan -input=false -no-color -out=plan.tfplan -var-file="$VAR_FILE" -var="image_tag=$IMAGE_TAG"
+  plan_args=()
+  [[ ${TF_DESTROY:-} == 1 ]] && plan_args+=(-destroy)
+  tf plan -input=false -no-color ${plan_args[@]+"${plan_args[@]}"} -out=plan.tfplan -var-file="$VAR_FILE" -var="image_tag=$IMAGE_TAG"
   summarize plan.tfplan
   ;;
 apply)
