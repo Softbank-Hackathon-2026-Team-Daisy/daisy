@@ -1,9 +1,9 @@
 import { ICON_PATHS, type IconName } from './icons.ts'
 
-// Figma 「03 · Icons」. 색은 부모 글자색(currentColor)을 따라가요. 기본 20px, 버튼 · 입력 안에서는 16px
+// Figma 「03 · Icons」. 색은 부모 글자색(currentColor)을 따라가요. 기본 20px, 버튼 · 입력 안 16px, 표 · 칩 안 14px
 type IconProps = {
   name: IconName
-  size?: 16 | 20
+  size?: 14 | 16 | 20
   // 뜻이 있는 아이콘만 label을 줘요. 없으면 장식으로 숨겨요
   label?: string
 }

@@ -19,6 +19,7 @@ class MockError extends Error {
 
 // ── 시간에 따라 진행하는 배포 (dep_live) ──
 let live: { startedAt: number; approvedAt: number | null } | null = null
+let buildStartedAt: number | null = null
 
 function liveDeployment(): Deployment {
   if (!live) throw new MockError(404, 'NOT_FOUND', '배포를 찾을 수 없어요')
@@ -124,9 +125,16 @@ export const mockApi = {
     await wait()
     return clone(s.logs)
   },
+  // 처음 부른 뒤 6초가 지나면 빌드가 끝나요 (W-03 → W-04로 넘어가는 모습을 보려고)
   async listBuilds(_projectId: string) {
     await wait()
-    return { items: clone(s.builds), next_cursor: null }
+    buildStartedAt ??= Date.now()
+    const items = clone(s.builds)
+    if (Date.now() - buildStartedAt > 6000) {
+      items[0].pipeline.status = 'success'
+      items[0].pipeline.steps = items[0].pipeline.steps?.map((st) => ({ ...st, state: 'done' }))
+    }
+    return { items, next_cursor: null }
   },
   async getScript(_id: string, _targetId: string) {
     await wait()

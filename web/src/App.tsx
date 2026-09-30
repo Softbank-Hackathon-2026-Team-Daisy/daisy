@@ -1,7 +1,11 @@
 import { Navigate, Route, Routes } from 'react-router'
 import { MOCK_PROJECTS } from './mocks/workspace.ts'
 import AppLayout from './pages/AppLayout.tsx'
+import BuildPage from './pages/build/BuildPage.tsx'
+import ConnectPage from './pages/connect/ConnectPage.tsx'
 import LoginPage from './pages/login/LoginPage.tsx'
+import OverviewPage from './pages/overview/OverviewPage.tsx'
+import TargetsPage from './pages/targets/TargetsPage.tsx'
 import ComponentsPage from './pages/dev/ComponentsPage.tsx'
 import PrimitivesPage from './pages/dev/PrimitivesPage.tsx'
 import TokensPage from './pages/dev/TokensPage.tsx'
@@ -15,11 +19,11 @@ function App() {
       <Route path="/login" element={<LoginPage />} />
 
       <Route element={<AppLayout />}>
-        <Route path="/connect" element={<Placeholder id="W-02 · STEP 1" title="애플리케이션 연결" />} />
+        <Route path="/connect" element={<ConnectPage />} />
         <Route path="/projects/:projectId">
-          <Route index element={<Placeholder id="W-01" title="개요" />} />
-          <Route path="deploy/build" element={<Placeholder id="W-03 · STEP 2" title="이미지 빌드" note="전환 로딩 L-01(W-02 → W-03)은 이 화면으로 들어올 때 띄워요." />} />
-          <Route path="deploy/targets" element={<Placeholder id="W-04 · STEP 3" title="배포할 환경 선택" />} />
+          <Route index element={<OverviewPage />} />
+          <Route path="deploy/build" element={<BuildPage />} />
+          <Route path="deploy/targets" element={<TargetsPage />} />
           <Route
             path="deployments/current"
             element={<Placeholder id="배포" title="진행 중인 배포" note="진행 중인 배포의 현재 단계(W-05 ~ W-08)로 보내요. 서버 API A-03이 열리면 연결해요." />}

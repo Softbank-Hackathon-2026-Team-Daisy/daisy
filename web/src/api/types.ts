@@ -135,7 +135,7 @@ export type Build = {
   message: string
   author: string
   committed_at: string
-  pipeline: { status: 'running' | 'success' | 'failed'; run_url: string; steps?: { name: string; state: 'running' | 'done' | 'failed' | 'waiting' }[] }
+  pipeline: { status: 'running' | 'success' | 'failed'; run_url: string; steps?: { name: string; state: 'running' | 'done' | 'failed' | 'waiting'; duration_ms?: number }[] }
   image: string | null
   digest?: string
   deployed_to: { target_id: string; deployment_id: string; deployed_at: string }[]
