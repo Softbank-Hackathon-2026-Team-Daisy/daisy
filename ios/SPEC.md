@@ -392,7 +392,7 @@ API 모양보다 **이 정보가 어딘가에 저장되어 있는지**가 더 �
 | WR-08 | `POST /deployments/{id}/cancel` | (앱은 아직 버튼 없음) | 좋아요 · D3 |
 | WR-09 | A-02에 `image_digest` | W-01 · W-08 동일성 검증 (앱이 digest · 커밋 · 헬스로 표를 만들어요. **예전 A-09 요청은 뺐어요**) | 넣을게요 · D2 |
 | WR-10 | `GET /projects/{id}/scripts` | W-11 | 승환 님 영역, D3~ |
-| ~~WR-11~~ | ~~`GET /projects/{id}/ai-usage`~~ | W-12는 배포 단위로 바뀌어 **A-04 `ai_usage`를 써요** (9/30 와이어프레임 수정, 서버 "GET /deployments/{id}의 ai_usage로 같이 가요") | — |
+| WR-11 | W-12 AI 사용량 **응답 위치 `(가칭)`** — 앱은 지금 A-04 `ai_usage`에 합계 · `items`가 온다고 **가정**해요 | W-12 (배포 단위는 확정) | **백엔드 협의 중** (9/30 승환 님, #13): A-04에 다 담을지, 상세 기록을 별도 조회로 줄지 정해지면 맞춰요. `items`가 없으면 합계만 보여주는 폴백은 확인됨 |
 | WR-12 | `PUT /projects/{id}/secrets/{name}` | W-13 비밀값 추가 (지금은 비활성) | 전달 방식 팀 결정 대기 |
 | WR-13 | `DELETE /projects/{id}` | W-13 연결 해제 (확인 입력은 화면에서) | 좋아요 · S |
 | WR-14 | `POST /deployments/{id}/rollback` `{ target_ids[], reason }` → `Deployment(kind: "rollback")` | W-09 롤백 → 새 배포로 이동, **plan 승인을 거쳐요** | 넣을게요 (은현 님) |
@@ -409,7 +409,7 @@ API 모양보다 **이 정보가 어딘가에 저장되어 있는지**가 더 �
 **기존 모델에 더한 필드 (가칭) 🆕** — 없으면 화면이 "—"나 기본 문구로 보여줘요. 필수는 아니에요.
 
 - `Deployment`: `version`("v7"), `commit_message`
-- `Deployment.ai_usage` (W-12): 합계 `tokens, cost_krw, exchange_rate, estimated`에 더해 `calls`, `items[{ at, target_id, step: generate·fix, attempt, tokens, cost_krw, status: succeeded·failed, note? }]`. 재사용 환경은 기록이 없어서 앱이 `reused_script`로 "— 검증된 스크립트 재사용" 줄을 만들어요
+- `Deployment.ai_usage` (W-12, 응답 위치 `(가칭)` · 백엔드 협의 중): 합계 `tokens, cost_krw, exchange_rate, estimated`에 더해 `calls`, `items[{ at, target_id, step: generate·fix, attempt, tokens, cost_krw, status: succeeded·failed, note? }]`. 재사용 환경은 기록이 없어서 앱이 `reused_script`로 "— 검증된 스크립트 재사용" 줄을 만들어요
 - `Deployment.targets[]`: `title`("home-lab · Docker"), `steps[]`(`{ name, state, duration_ms, started_at }`, W-05 검증 단계 · W-07 레인), `health_summary`("200 OK · p95 120ms")
 - `Plan.targets[]`: `reused_script`
 - `Build`: `branch`, `digest`, `steps[]` (W-03 GitHub Actions 단계)
@@ -448,7 +448,9 @@ API 모양보다 **이 정보가 어딘가에 저장되어 있는지**가 더 �
 - [x] ~~배포 상태 · 단계 값~~ → 9/30 서버 확정 (§6-7): 배포 전체 `queued · running · awaiting_approval · succeeded · partially_succeeded · failed · cancelled`, 환경별 `waiting · generating · validating · awaiting_approval · applying · verifying · succeeded · failed · cancelled`. 롤백은 별도 배포
 - [x] ~~Q7 한 환경 3회 실패 시~~ → 환경별, 나머지는 계속 (9/29 서버). W-05b는 "○○만 멈췄어요" + "○○만 다시 시도" (9/30 도영 님 와이어프레임 수정)
 - [ ] **"○○만 다시 시도"를 새 배포로 만들지, 같은 배포 안에서 그 환경만 다시 돌릴지** — 앱은 WR-05 새 배포로 가정. 서버 확인 (#13)
-- [x] ~~W-12 범위~~ → 배포 단위, A-04 `ai_usage` (9/30 도영 님)
+- [x] ~~W-12 범위~~ → 배포 단위 (9/30 도영 님)
+- [ ] **W-12 응답 위치** — A-04 `ai_usage`에 다 담을지 / 상세는 별도 조회인지 `(가칭)`, 백엔드 협의 중 (#13 승환 님)
+- [ ] **AI 호출 기록 `status`의 뜻** — LLM 호출 성공 · 실패인지, Terraform 검증 결과인지 (#13 승환 님 질문). 앱은 지금 "통과/실패"로 표시해요
 - [x] ~~롤백 표시~~ → 새 배포 한 건, 목록 · 알림에서 일반 배포처럼 (9/30 도영 님)
 - [x] ~~업로드 입력(W-02b)~~ → 서버 작업 없음, 앱은 설계만 표시 (9/30 은현 님 답변. 웹 화면 처리는 도영 님 결정)
 - [x] ~~푸시를 예선 범위에 넣을지~~ → D3까지 로컬 알림, APNs는 여유 있으면 (9/29)
