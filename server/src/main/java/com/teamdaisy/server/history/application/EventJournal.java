@@ -20,13 +20,14 @@ import org.springframework.transaction.annotation.Transactional;
 @Transactional(readOnly = true)
 public class EventJournal {
   public static final int BATCH_SIZE = 100;
-  private static final Set<String> TYPES = Set.of("deployment.created", "deployment.state_changed",
+  private static final Set<String> TYPES = Set.of("deployment.created", "deployment.state_changed", "deployment.completed",
       "target.status_changed", "step.started", "step.completed", "step.failed", "plan.ready",
       "plan.stale", "approval.required", "approval.resolved", "log.batch", "build.received");
   private static final Set<String> FIELDS = Set.of("deployment_id", "deployment_target_id", "target_id",
       "execution_id", "source_version_id", "plan_id", "approval_id", "status", "state", "step",
       "attempt", "reason", "ai_reused", "revision", "digest", "input_hash", "commit_sha",
-      "processing_result", "create", "update", "delete", "has_delete", "expires_at", "request_id");
+      "processing_result", "create", "update", "delete", "has_delete", "expires_at", "request_id", "receipt_hash",
+      "duration_ms", "started_at", "stage_occurrence_id");
   private static final Pattern SECRET = Pattern.compile(
       "(?i)(-----BEGIN [A-Z ]*PRIVATE KEY|bearer\\s+\\S+|(?:password|secret|token|authorization|credential|access[_-]?key)\\s*[:=]\\s*\\S+|AKIA[A-Z0-9]{16}|gh[pousr]_[A-Za-z0-9]{20,})");
   private final NamedParameterJdbcTemplate jdbc;
@@ -85,9 +86,10 @@ public class EventJournal {
         values(:deployment,:execution,:target,:seq,:source,:event,:sourceSequence,:hash,:type,:stage,:step,:level,
           :message,cast(:payload as jsonb),:result,:stream,:offset,:endOffset,:at,now()) returning id
         """, p, Long.class));
-    if (projectProjection && "applied".equals(event.processingResult())) {
+    if (projectProjection && "applied".equals(event.processingResult())
+        && Set.of("build.received","deployment.created","target.status_changed").contains(event.eventType())) {
       appendProjectRow(projectId, new ProjectInput(event.source(), event.sourceEventId(), deploymentId,
-          null, "deployment.state_changed", event.payload(), event.occurredAt()), id);
+          null, event.eventType(), event.payload(), event.occurredAt()), id);
     }
     return new AppendResult(id, seq, false);
   }
