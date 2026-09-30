@@ -98,3 +98,27 @@
 .dev-cards > * {
   width: 260px;
 }
+
+.dev-col {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+.dev-w240 {
+  width: 240px;
+}
+
+.dev-w320 {
+  width: 320px;
+}
+
+.dev-w480 {
+  width: 480px;
+}
+
+.dev-grid2 {
+  display: grid !important;
+  grid-template-columns: repeat(2, 480px);
+  gap: var(--space-4) !important;
+}
