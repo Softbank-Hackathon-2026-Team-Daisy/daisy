@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import ThemeToggle from './ThemeToggle.tsx'
 import './dev.css'
 
 // 개발용 확인 페이지 (/dev/tokens) — Figma 「01 Foundations」와 눈으로 비교해요. 데모 화면이 아니에요.
@@ -24,28 +24,12 @@ const TYPE_SCALE = [
 const SPACES = [1, 2, 3, 4, 6, 8, 12, 16]
 const RADII = [['none', '0 · 기본'], ['sm', '2 · 배지 · 태그'], ['md', '4 · 버튼 · 카드']]
 
-type Theme = 'system' | 'light' | 'dark'
-
 function TokensPage() {
-  const [theme, setTheme] = useState<Theme>('system')
-
-  const applyTheme = (next: Theme) => {
-    setTheme(next)
-    if (next === 'system') document.documentElement.removeAttribute('data-theme')
-    else document.documentElement.setAttribute('data-theme', next)
-  }
-
   return (
     <main className="dev-page">
       <header className="dev-header">
         <h1 className="t-h1">Daisy DS · Tokens</h1>
-        <div className="dev-theme">
-          {(['system', 'light', 'dark'] as const).map((t) => (
-            <button key={t} type="button" aria-pressed={theme === t} onClick={() => applyTheme(t)}>
-              {t}
-            </button>
-          ))}
-        </div>
+        <ThemeToggle />
       </header>
 
       <section>

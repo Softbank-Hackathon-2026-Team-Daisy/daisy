@@ -26,6 +26,23 @@
   --color-env-aws: #f97316;
   --color-env-gcp: #3b82f6;
   --color-env-azure: #0ea5e9;
+  --color-primary-hover: #f5b301;
+
+  /* 컴포넌트용 의미 토큰 — Figma Color 컬렉션의 별칭. 기본 토큰을 가리켜서 테마를 따라가요 */
+  --color-card: var(--color-bg);
+  --color-card-foreground: var(--color-ink);
+  --color-input: var(--color-line);
+  --color-secondary-foreground: var(--color-ink);
+  --color-accent: var(--color-ink);
+  --color-accent-foreground: var(--color-bg);
+  --color-destructive-foreground: var(--color-bg);
+  --color-status-bg: var(--color-surface);
+  --color-status-queued: var(--color-ink-muted);
+  --color-status-running: var(--color-running);
+  --color-status-success: var(--color-success);
+  --color-status-failed: var(--color-danger);
+  --color-status-warning: var(--color-warning);
+  --color-status-rolledback: var(--color-rolledback);
 
   /* Typography */
   --font-sans: 'IBM Plex Sans KR', system-ui, -apple-system, sans-serif;
@@ -68,6 +85,7 @@
     --color-warning: #fdb022;
     --color-running: #7fa8ff;
     --color-rolledback: #b9a6f2;
+    --color-primary-hover: #ffdc57;
   }
 }
 
@@ -86,4 +104,5 @@
   --color-warning: #fdb022;
   --color-running: #7fa8ff;
   --color-rolledback: #b9a6f2;
+  --color-primary-hover: #ffdc57;
 }

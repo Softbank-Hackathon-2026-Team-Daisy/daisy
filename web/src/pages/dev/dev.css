@@ -83,3 +83,18 @@
   border: var(--border);
   background: var(--color-surface);
 }
+
+.dev-inline {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-3);
+}
+
+.dev-inputs > * {
+  width: 320px;
+}
+
+.dev-cards > * {
+  width: 260px;
+}
