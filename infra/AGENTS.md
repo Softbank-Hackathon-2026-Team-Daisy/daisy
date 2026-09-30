@@ -10,7 +10,7 @@
 
 | 누가 | 무엇 | PoC |
 |---|---|---|
-| 황지환 | Proxmox Service VM 생성용 Terraform 기준 모듈, Docker 앱 배포 연동, 서비스 외부 공개. 기존 Docker 기준 모듈과의 공통 계약은 합의 필요 | N-04 |
+| 황지환 | 사전 생성 Service VM의 Docker 컨테이너를 관리하는 Terraform 기준 모듈, 서비스 외부 공개. Proxmox VM 자동 생성은 후속 목표 | N-04 |
 | 임채준 | GCP 기준 모듈 (Cloud Run) | N-03 |
 | 임채준 | AWS 기준 모듈 (ECS Fargate · ALB · RDS) | N-06 |
 | 임채준 | state 백엔드 (환경별 분리 · 잠금), Jenkins 러너 프로토타입 | N-07 |
@@ -23,9 +23,10 @@
 |---|---|---|
 | IaC | **Terraform** | ADR-003 |
 | Terraform 버전 | **1.16.4** `(가칭)` | 러너 · AI 작성 규칙 · 모듈이 같은 버전을 써요. 모듈은 `required_version = ">= 1.11"` (S3 네이티브 잠금) |
-| provider | AWS `hashicorp/aws ~> 6.0`, Google `hashicorp/google ~> 7.0`, 온프레미스: Proxmox provider · 버전 `[미정]` | 온프레미스는 VM 생성 범위에 맞춰 선정해요 |
+| provider | AWS `hashicorp/aws ~> 6.0`, Google `hashicorp/google ~> 7.0`, 온프레미스: Docker provider · 버전 `[미정]` | 데모는 기존 VM의 컨테이너를 관리해요. Proxmox provider 선정은 후속 VM 자동 생성 범위예요 |
 | 온프레미스 런타임 | **Docker** | ADR-005 |
-| 러너 | Ubuntu 24.04 + Jenkins LTS `(가칭)` | CI/CD 도구는 루트 `[미정]`. 임채준이 VM 프로토타입으로 검증 중이에요 (클라우드 `SPEC.md` §12) |
+| CI/CD | **Jenkins 확정**: `daisy-ci`, `daisy-cd` | 10/1 전달된 팀 합의. Terraform 실행은 CI/CD VM의 Jenkins가 맡아요 |
+| 러너 OS | Ubuntu 24.04 기반 프로토타입 | 클라우드 `SPEC.md` §12 참고. 실제 CI/CD VM 사양과 도구 버전은 별도 기록해요 |
 
 ### 온프레미스 설치 현황과 설계 방향
 
@@ -40,11 +41,13 @@
 | Service VM 네트워크 | Bridge 연결, IP 수동 지정. 실제 bridge 이름과 VM IP는 별도 확인 |
 | Gateway · DNS | 둘 다 `172.16.1.254` |
 
-- Terraform은 Proxmox Service VM 생성을 맡기는 방향이에요. 기존 VM을 가져와 관리할지, 새 VM을 생성할지는 미정이에요.
-- Docker Compose는 컨테이너 CPU·메모리 등 실행 설정에 사용할 예정이에요. 이전 개인 사전 검증 범위에서 팀 배포 연동 방향으로 확장하는 제안이며, 생성·전달·실행 방식은 아직 정하지 않았어요.
+- **온프레미스 컨테이너 관리 도구는 Terraform으로 확정해요.** 데모는 사전 생성·초기화한 Service VM을 사용하고, Jenkins → Terraform → 기존 VM의 Docker 컨테이너 순서로 배포해요.
+- VM 생성 시간을 데모에서 제외하되, 컨테이너에 대한 validate · plan → 사용자 승인 → apply 흐름은 유지해요. Proxmox VM과 Docker 설치는 데모 사전 준비이며, 자동 생성 완료로 표시하지 않아요.
+- Docker Compose는 **사용자 검증용**이며 팀 배포 컨테이너의 관리 도구가 아니에요. Terraform 관리 대상과 검증용 컨테이너·네트워크·볼륨을 분리하고, 같은 리소스를 두 도구로 동시에 관리하지 않아요.
+- 후속 목표는 Terraform의 Proxmox 템플릿 복제와 cloud-init 기반 VM 준비를 현재 컨테이너 배포 앞에 연결하는 것이에요. provider·버전과 템플릿·IP 상세는 별도로 정해요.
 - VM 자원 할당과 컨테이너 자원 제한을 구분해요. 공통 `cpu`·`memory` 입력의 의미는 서버·클라우드 담당자와 합의해요.
 - Docker Engine · Compose v2의 정확한 버전과 CI/CD VM의 실제 사양은 추가로 기록해요.
-- 개발자 원격 접속은 WireGuard Client-to-Site 용도예요. 클라우드 Site-to-Site VPN의 도입·대역 합의와 구분해요.
+- WireGuard Client-to-Site VPN은 허용된 개발자의 원격 접속에만 사용해요. 온프레미스·클라우드 Site-to-Site VPN은 이번 배포 구성에서 제외해요 (황지환·임채준 합의).
 
 ## 3. 폴더 구조와 경계
 
@@ -69,7 +72,11 @@ infra/
 - 같은 Proxmox 물리 서버 안에서 Service VM과 CI/CD VM을 분리하는 설계예요.
 - 기존 구성안은 `vmbr0`를 물리 네트워크 · pfSense WAN 연결, `vmbr1`(`172.16.1.0/24`)을 Service Zone, `vmbr2`(`172.16.2.0/24`)를 CI/CD Zone으로 사용해요. 실제 적용·검증 상태는 온프레미스 명세에 기록해요.
 - Zone 간 통신은 pfSense를 경유하도록 설계해요. 같은 물리 서버라는 이유로 같은 VM이나 같은 네트워크로 취급하지 않아요.
-- 클라우드 VM · CIDR · Site-to-Site VPN은 기존 클라우드 ECS · Cloud Run 설계를 대체하는 확정 사항이 아니에요.
+- AWS 배포는 CI/CD VM에서 AWS API를 호출하고, 내부 Service VM의 앱 배포는 Private IP로 SSH 접속해 수행해요. 온프레미스 내부 SSH는 pfSense 라우팅을 이용하며 VPN 터널을 요구하지 않아요.
+- Site-to-Site VPN을 제외해 짧은 마감 동안 터널·상대망 라우팅·CIDR 조정 및 장애 분석 작업을 줄여요. 현재 AWS API 기반 배포에는 클라우드 사설망으로 직접 접속할 필요가 없다는 판단이에요. 앱 간 사설 통신 요구가 생기면 별도 검토해요.
+- AWS API 통신은 HTTPS/TLS로 암호화하고, AWS 자격증명으로 요청을 서명하며 IAM 권한으로 허용 작업을 제한해요. **키 자체가 통신을 암호화하거나 안전을 보장하는 것은 아니에요.** 키는 Jenkins Credentials로 관리하고 코드·로그에 노출하지 않으며 필요한 권한만 부여해요.
+- 근거: [AWS API 요청 서명](https://docs.aws.amazon.com/IAM/latest/UserGuide/reference_sigv.html), [HTTPS 요청과 자격증명 사용](https://docs.aws.amazon.com/IAM/latest/UserGuide/id_credentials_temp_use-resources.html).
+- 클라우드 VM · CIDR을 새로 통일하는 결정은 아니며, 기존 ECS · Cloud Run 모듈 범위는 유지해요.
 
 ## 4. 모든 기준 모듈의 공통 규약 `(가칭 — 황지환 확인 필요)`
 
@@ -102,13 +109,18 @@ server AI(김승환)와 러너가 환경에 상관없이 같은 방식으로 모
 - 모듈 입력 변수와 출력은 **infra가 제공하는 계약**이에요 (루트 §5-2). 바꾸면 김승환 · 하은현에게 먼저 알려요
 - `deploy.yaml` 스키마는 팀 결정이라 회의 후에 반영해요
 - 리전: AWS `ap-northeast-2`, GCP `asia-northeast3` `[미정]`
-- terraform을 실행하는 쪽(Jenkins 또는 server)은 클라우드 `SPEC.md` §3-4의 러너 규약 순서를 따라요
+- Terraform 실행은 Jenkins가 맡아요. 클라우드 `SPEC.md` §3-4의 검증·실행 흐름을 참고하되, 승인 연동은 아래 10/1 합의를 따라요. 기존 SPEC·서버 문서·프로토타입의 직접 실행 및 Jenkins 별도 승인 설명은 담당자별 후속 동기화가 필요해요.
 
-### 온프레미스 연동 방향 `(공동 계약 합의 필요)`
+### Jenkins 실행 · 승인 계약 (10/1 합의, 세부 연결은 미정)
 
-- 황지환의 방향은 **서버가 Jenkins API로 요청 → CI/CD VM의 Jenkins가 Terraform과 배포 파이프라인 실행**이에요. 서버 직접 실행으로 적힌 기존 문서와 차이가 있으므로 서버·임채준과 실행 책임 및 승인·상태·결과 전달 계약을 맞춰요.
-- Jenkins가 생성된 Service VM의 IP를 알아내는 방법, VM 준비 완료 확인, 접속 및 Compose 배포 방법은 미정이에요.
-- Terraform으로 VM을 생성한 것과 앱 배포가 완료된 것을 구분해요. 공통 `service_url`의 생성 주체와 헬스체크 시점도 합의해요.
+- **서버는 Jenkins API로 요청하고, CI/CD VM의 Jenkins가 Terraform과 배포를 실행**해요. 배포 대상 위치·접속 설정은 Jenkins에서 관리하며 백엔드가 직접 대상 호스트를 제어하지 않아요.
+- `daisy-ci`: 코드 → 테스트·이미지 빌드 → 레지스트리. `daisy-cd`: 이미지 → 온프레미스·AWS 배포. 기존 GCP 모듈 범위의 삭제를 뜻하지 않아요.
+- AI 호출 → Terraform 생성 → validate/plan → apply → 배포 단계는 Jenkins CD job에서 실행해요. AI 로직의 개발 소유권 변경을 뜻하지는 않아요.
+- **사용자 승인은 웹·앱 → 서버 승인 API 하나로 받아요.** 서버가 승인을 받은 뒤 Jenkins에 적용을 요청하며, 실서비스에서는 Jenkins의 별도 사용자 승인 단계를 두지 않아요.
+- 승인 대상 plan을 먼저 생성·검토한 뒤 그 plan에 대한 승인으로 apply해야 해요. 승인 후 생성·변경한 plan을 이전 승인으로 실행하지 않아요. plan 준비와 승인 후 실행을 같은 job에서 대기·재개할지, 실행을 분리할지는 아직 미정이에요.
+- 승인된 plan 전달·식별, 로그 수신, 중단 요청의 연결 방식은 **황지환·임채준이 맞춰 10/1까지 서버에 공유**해요. 재계획 시 재승인, 요청 인증·중복 방지·작업 ID 연결도 상세 계약에 포함해요.
+- 내부 Service VM 접근은 SSH를 사용해요. Terraform은 CI/CD VM에서 실행하고 Docker provider가 기존 Service VM의 Docker를 관리하도록 연결해요. SSH를 통한 provider 연결·인증·호스트 확인 방식은 선정한 provider에서 검증 후 확정하며, 원격 Compose 실행으로 대체하지 않아요.
+- 데모 대상은 사전 등록한 VM IP를 사용해요. Docker 접근·준비 확인, 공통 `service_url`의 생성 주체와 헬스체크 시점은 합의해요.
 - §4 공통 규약은 이번 온프레미스 설명만으로 승인된 것으로 취급하지 않아요.
 
 ### 온프레미스 서비스 공개 방향
@@ -132,24 +144,25 @@ APP=hellocalc IMAGE_TAG=<커밋 해시 40자> infra/scripts/tf-run.sh aws plan
 
 ### 온프레미스 실행 준비
 
-현재 Service VM은 수동 IP로 구성되어 있어요. 자동 생성 경로와 실행 명령은 아직 검증하지 않았으므로, 위 클라우드 실행 예시를 온프레미스에서 그대로 동작한다고 간주하지 않아요.
+현재 Service VM은 수동 IP로 구성되어 있어요. 데모는 이처럼 사전 준비된 VM에 Terraform으로 컨테이너를 배포해요. 실행 명령은 아직 검증하지 않았으므로 위 클라우드 실행 예시가 온프레미스에서 그대로 동작한다고 간주하지 않아요.
 
 구현 전에 다음을 정하고 온프레미스 명세에 기록해요.
 
-1. Proxmox provider·권한, VM 템플릿·노드·스토리지와 기존 VM 처리 방식.
-2. 자동 생성 VM의 IP 할당과 Jenkins의 대상 IP 확인 방법.
-3. Docker · Compose 설치 및 접속 사용자·인증 준비 등 VM 초기화 방식.
-4. Jenkins의 Service VM 접속, Compose 설정 전달·실행 방법.
+1. Docker provider·버전, 관리할 컨테이너·네트워크·볼륨 범위.
+2. 사전 준비 VM의 IP와 Docker 설치 상태, Jenkins의 대상 등록 방법.
+3. CI/CD VM에서 Service VM으로 접근할 SSH 사용자·인증·호스트 확인과 Docker 권한.
+4. 컨테이너 입력·state, plan 승인·apply, 이미지 태그만 변경하는 재배포 검증.
 5. 앱 헬스체크, pfSense HTTPS 연동, 외부 접근 및 결과 URL 확인.
 
-현재 수동 VM의 설치 현황과 Terraform 자동 생성·배포 검증 결과는 구분해서 기록해요.
+컨테이너 재배포 시 사전 생성 VM은 생성·삭제 대상에 포함하지 않아요. Compose 검증용 리소스도 Terraform 배포 대상과 분리해요.
+후속 VM 자동 생성에서는 Proxmox provider, 템플릿·노드·스토리지, IP 할당과 cloud-init 초기화를 별도로 정해요. VM 준비와 컨테이너 배포의 검증 결과를 구분해서 기록해요.
 
 ## 8. AI 에이전트에게
 
 - 이 폴더 밖은 건드리지 않아요. 필요하면 이슈로 요청해요 (루트 §9)
 - 작업을 요청한 담당자의 모듈 폴더만 고쳐요
 - `terraform apply` · `destroy`, 클라우드 CLI와 Docker 호스트의 생성 · 삭제 명령은 **사람 확인 없이 실행하지 않아요** (루트 §4-2). `fmt` · `validate` · `plan`은 괜찮아요
-- `TF_RUN_APPROVED`를 직접 설정하지 않아요. 사람이 Jenkins에서 승인한 뒤에만 쓰는 값이에요
+- `TF_RUN_APPROVED`를 직접 설정해 승인을 우회하지 않아요. 기존 프로토타입의 Jenkins `input` 승인은 실서비스의 서버 승인 API 연동으로 전환해야 해요. 승인된 plan과 연결된 실행 요청을 검증한 뒤에만 실행하도록 계약을 구현하며, 문서 변경만으로 기존 승인 검사를 제거하지 않아요.
 - §4 공통 규약은 임의로 바꾸지 않아요
 - 목업에는 `# MOCK:` 주석을 달아요 (Groovy·JS는 `// MOCK:`)
 - 작업 전에 아래 결정 기록을 읽어요
@@ -173,11 +186,15 @@ APP=hellocalc IMAGE_TAG=<커밋 해시 40자> infra/scripts/tf-run.sh aws plan
 | 2026-09-30 | `[클라우드]` VM 단계는 개인 AWS · GCP 계정과 개인 Docker Hub 공개 저장소를 써요 | 팀 계정 · 레지스트리 미정. GHCR 패키지가 비공개예요 | 1 |
 | 2026-09-30 | `[클라우드]` CI는 `linux/amd64,linux/arm64`로 푸시해요 | Cloud Run은 amd64만 실행하고, 러너는 arm64예요 | 1 |
 | 2026-09-30 | `[클라우드]` apply · destroy는 터미널 입력이나 Jenkins `input` 승인 뒤 `TF_RUN_APPROVED`로만 실행해요 | 인프라 변경은 반드시 사람 승인 (루트 §4-2) | 1 |
-| 2026-10-01 | `[온프레미스]` Terraform 관리 대상은 Proxmox Service VM 생성 방향 | 실제 온프레미스 VM 환경을 코드로 구성. 기존 Docker 기준 모듈과의 계약은 별도 합의 필요 | 1 (담당 방향) |
+| 2026-10-01 | `[온프레미스]` 데모는 기존 VM의 Docker 컨테이너를 Terraform으로 관리 | VM 생성 시간을 제외하면서 팀의 plan·승인·apply 흐름 유지. 이전 VM 생성 우선 방향을 대체 | 1 |
+| 2026-10-01 | `[온프레미스]` Proxmox 템플릿 복제·cloud-init 기반 VM 자동 생성은 후속 목표 | 데모의 컨테이너 배포와 VM 준비 자동화를 단계적으로 분리 | 1 |
 | 2026-10-01 | `[온프레미스]` Route 53 → 공인 IP, 외부 80·443으로 앱 공개 | 터널 대신 공인 IP 기반 서비스 공개 방향 | 1 |
 | 2026-10-01 | `[온프레미스]` Let's Encrypt 인증서를 pfSense에 적용 | HTTPS 인증서 처리 위치 결정. 발급·갱신·TLS 종료 구현은 미정 | 1 |
-| 2026-10-01 | 서버는 Jenkins API 호출, CI/CD VM에서 Terraform 실행 `(가칭 · 공동 합의 필요)` | 황지환이 제시한 실행 방향. 서버의 기존 직접 실행 계약과 조율 필요 | 팀 합의 대기 |
-| 2026-10-01 | `[온프레미스]` Compose로 컨테이너 실행 설정을 정의할 예정 | CPU·메모리 등 컨테이너 설정을 관리. 생성·실행 책임과 공통 입력은 미정 | 제안 |
+| 2026-10-01 | Jenkins CI·CD 확정, 서버는 Jenkins API 호출, CI/CD VM에서 Terraform 실행 | 전달된 서버 합의. 실행을 한곳에 모으고 대상 설정은 Jenkins에서 관리 | 팀 합의 (황지환 전달) |
+| 2026-10-01 | 사용자 승인은 웹·앱 → 서버 승인 API로 단일화, 실서비스 Jenkins 별도 승인 없음 | 중복 승인 제거. 승인된 plan 전달·로그·중단 연결은 인프라 두 담당자가 10/1까지 공유 | 팀 합의 (황지환 전달) |
+| 2026-10-01 | Site-to-Site VPN 제외, AWS는 API, 내부 Service VM은 SSH로 배포 | 사설망 연결 없이 배포 가능. 짧은 마감에 터널·라우팅 구성과 검증 부담 축소 | 황지환·임채준 합의 |
+| 2026-10-01 | WireGuard 원격 접속은 허용된 개발자에게 제한 | 개발자 관리 접속을 서비스 공개 및 자동 배포 경로와 분리 | 황지환·임채준 합의 |
+| 2026-10-01 | `[온프레미스]` Compose는 사용자 검증용, 배포 리소스 관리 주체는 Terraform | 기존 Compose 배포 제안을 대체. 같은 컨테이너·네트워크·볼륨의 이중 관리 방지 | 1 |
 
 ## 10. 아직 정하지 못한 것
 
@@ -185,13 +202,15 @@ APP=hellocalc IMAGE_TAG=<커밋 해시 40자> infra/scripts/tf-run.sh aws plan
 |---|---|---|
 | §4 공통 규약 | 임채준 제안. 온프레미스에도 맞는지 확인 필요 | 황지환 |
 | state 저장소 | S3 버킷 하나에 `{app}/{env}` key로 나누자는 제안. 온프레미스 state도 같이 둘지 | 팀 회의 · 황지환 |
-| CI/CD 도구 · terraform 실행 주체 | Jenkins로 전달받았지만, server는 Spring이 직접 실행하기로 기록해 둠 | **팀 회의** |
+| 서버 ↔ Jenkins 세부 계약 | 도구·실행 주체·승인 창구는 확정. plan 전달·식별, 로그 수신, 중단 요청 방식은 10/1까지 공유 | 황지환 · 임채준, 서버와 조율 |
+| 승인 전 plan과 승인 후 apply 연결 | CD job 대기·재개 또는 실행 분리, 승인 검증·재승인·중복 요청 처리, 기존 프로토타입 승인 전환 | 인프라 · 서버 |
 | 컨테이너 레지스트리 | 루트 `[미정]` | **팀 회의** |
-| 온프레미스 배포 방식과 Terraform의 관계 | Proxmox VM 생성 + Compose 앱 설정 방향. 기존 기준 모듈 계약 및 AI 생성 범위와 조율 필요 | 황지환 · 서버 · 임채준 |
+| 온프레미스 Docker 모듈 계약 | 기존 VM의 컨테이너를 Terraform으로 관리하는 방식 확정. provider·버전, 리소스 범위와 공통 입력·출력 매핑은 미정 | 황지환 · 임채준, 서버와 계약 공유 |
 | Jenkins 호스트 | 같은 Proxmox 물리 서버의 별도 CI/CD VM 방향. Service VM과 분리하며 실제 설치·운영 분담 확인 필요 | 황지환 · 임채준 · 서버 |
-| Proxmox provider · VM 생성 기준 | provider 버전, 템플릿·노드·스토리지·VM ID, 기존 VM 관리 여부, 설치 사양의 기본값 적용 여부 | 황지환 |
-| 자동 생성 VM IP · 초기화 | 현재 수동 IP. IP 할당·발견, Docker 설치, 접속 사용자·인증 준비는 미정 | 황지환 · 러너 담당 |
-| Jenkins → Service VM 배포 | 접속·파일 전달·Compose 실행, 준비 완료 확인, 재배포·실패 처리 방식 미정 | 황지환 · 임채준 |
-| Compose 계약 | 생성 담당, 이미지·env·secrets 전달, VM 자원과 컨테이너 제한의 구분 | 황지환 · 서버 · 임채준 |
+| Proxmox provider · VM 생성 기준 (후속) | provider 버전, 템플릿·노드·스토리지·VM ID, 설치 사양의 기본값 적용 여부. 데모 필수 경로에서 제외 | 황지환 |
+| VM IP · 초기화 | 데모는 수동 IP·Docker 사전 준비 및 Jenkins 대상 등록. 자동 IP 할당·cloud-init은 후속 범위 | 황지환 · 러너 담당 |
+| Jenkins → Service VM 배포 | CI/CD VM의 Terraform에서 SSH 경유 Docker 접근을 검증. 사용자·키·호스트 확인·권한, 준비 확인, 재배포·실패 처리 상세 미정 | 황지환 · 임채준 |
+| WireGuard 개발자 접근 | 허용 개발자, VPN 대역, 접근할 내부 대상·포트와 계정 회수 절차 | 황지환 |
+| 컨테이너 설정 계약 | Terraform 입력으로 이미지·env·secrets·CPU·메모리 반영. 공통 변수의 의미와 기본값, Compose 사용자 검증 환경과의 분리 방법 | 황지환 · 서버 · 임채준 |
 | 서비스 HTTPS 상세 | pfSense + Let's Encrypt 방향. TLS 종료용 서비스, 발급·갱신, 80번 처리, 내부 프로토콜·포트 미정 | 황지환 |
 | DNS · 공개 주소 계약 | 도메인·Route 53 관리 권한, 공인 IP 변경 대응, `service_url` 반환 주체·시점 | 황지환 · 임채준 · 서버 |
