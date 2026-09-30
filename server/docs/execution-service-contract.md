@@ -31,6 +31,7 @@
 - 멱등 기록·이벤트·명령은 업무 변경과 같은 트랜잭션이다. HTTP 호출은 포함하지 않는다.
 - 명령 pending → dispatching을 먼저 커밋한 뒤 제출한다. 응답 유실은 unknown이며 request_id로 기존 큐/run을 확인한다. 조회에서 못 찾았다고 자동 재전송하지 않는다.
 - STOP은 현재 작업의 상태 소유권을 가져가지 않는다. 기존 prepare/apply의 최종 결과를 계속 수신한다.
+- Jenkins의 queue 취소/build stop은 run 전체를 대상으로 한다. 같은 run에 선택하지 않은 비종료 대상이 남아 있으면 부분 STOP 요청은 `STATE_CONFLICT`로 거절한다. 대상별 중단을 지원하려면 인프라의 대상 단위 제어가 필요하다. 백엔드가 몰래 선택 대상을 늘려 다른 대상까지 중단하지 않는다.
 - JPA 상태 변경과 JDBC 이벤트 counter 갱신이 서로 덮이지 않도록 변경 컬럼만 갱신하고, 이벤트 counter는 journal이 전담한다.
 
 ## 미합의 외부 경계

@@ -35,6 +35,12 @@ public class AiUsageService {
       String status,Long inputTokens,Long outputTokens,JsonNode usageDetails,BigDecimal costUsd,String costBasis,Instant occurredAt) {}
   public record Receipt(String id,boolean duplicate) {}
 
+  public boolean hasUsage(String deploymentTargetId) {
+    text(deploymentTargetId,64);
+    return java.util.Objects.requireNonNull(jdbc.queryForObject(
+        "select count(*) from ai_usage where deployment_target_id=:target",Map.of("target",deploymentTargetId),Long.class))>0;
+  }
+
   /** Proposed v1 prepare/replan protocol uses generate/fix; unknown usage stays NULL, including late receipts. */
   @Transactional
   public Receipt receive(String executionId,String deploymentId,String deploymentTargetId,UsageInput input) {

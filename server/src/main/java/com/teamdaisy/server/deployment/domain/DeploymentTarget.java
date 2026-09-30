@@ -177,8 +177,12 @@ public class DeploymentTarget {
     if (next == DeploymentTargetStatus.AWAITING_APPROVAL) DomainChecks.require(currentPlanId != null);
     if (next == DeploymentTargetStatus.APPLYING)
       DomainChecks.require(status == DeploymentTargetStatus.AWAITING_APPROVAL || status == DeploymentTargetStatus.APPLYING);
-    if (next == DeploymentTargetStatus.VERIFYING || next == DeploymentTargetStatus.SUCCEEDED)
+    if (next == DeploymentTargetStatus.VERIFYING)
       DomainChecks.require(status == DeploymentTargetStatus.APPLYING || status == DeploymentTargetStatus.VERIFYING);
+    // The application validates immutable apply proof even when intermediate callbacks were lost.
+    if (next == DeploymentTargetStatus.SUCCEEDED)
+      DomainChecks.require(status == DeploymentTargetStatus.AWAITING_APPROVAL
+          || status == DeploymentTargetStatus.APPLYING || status == DeploymentTargetStatus.VERIFYING);
     if (next == DeploymentTargetStatus.APPLYING || next == DeploymentTargetStatus.VERIFYING
         || next == DeploymentTargetStatus.SUCCEEDED) DomainChecks.require(currentPlanId != null);
     JsonNode resultCopy = executionResult == null ? null : DomainChecks.object(executionResult);
@@ -210,6 +214,10 @@ public class DeploymentTarget {
     DomainChecks.require(!status.terminal());
     currentPlanId = null;
     status = DeploymentTargetStatus.VALIDATING;
+  }
+  public void clearCurrentPlan(String expectedPlanId) {
+    DomainChecks.require(expectedPlanId != null && expectedPlanId.equals(currentPlanId));
+    currentPlanId = null;
   }
 
   public void recordReuse(boolean reused, boolean hasAiUsage) {

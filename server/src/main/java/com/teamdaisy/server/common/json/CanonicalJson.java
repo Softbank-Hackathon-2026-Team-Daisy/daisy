@@ -3,6 +3,7 @@ package com.teamdaisy.server.common.json;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.SerializationFeature;
 import com.fasterxml.jackson.databind.node.ArrayNode;
 import com.fasterxml.jackson.databind.node.JsonNodeFactory;
 import com.fasterxml.jackson.databind.node.ObjectNode;
@@ -24,7 +25,8 @@ public class CanonicalJson {
 
   public String canonicalize(JsonNode value) {
     try {
-      String encoded = mapper.writeValueAsString(sorted(value, 0));
+      String encoded = mapper.writer().without(SerializationFeature.INDENT_OUTPUT)
+          .writeValueAsString(sorted(value, 0));
       if (encoded.getBytes(StandardCharsets.UTF_8).length > MAX_BYTES) invalid();
       return encoded;
     } catch (JsonProcessingException e) {
@@ -62,7 +64,7 @@ public class CanonicalJson {
       return result;
     }
     if (!(value.isNull() || value.isTextual() || value.isBoolean() || value.isNumber())
-        || (value.isFloatingPointNumber() && !Double.isFinite(value.doubleValue()))) invalid();
+        || ((value.isDouble() || value.isFloat()) && !Double.isFinite(value.doubleValue()))) invalid();
     return value.deepCopy();
   }
 

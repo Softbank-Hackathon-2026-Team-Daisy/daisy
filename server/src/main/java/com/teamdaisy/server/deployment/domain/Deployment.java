@@ -147,10 +147,14 @@ public class Deployment {
     DomainChecks.hash(resolvedHash);
     JsonNode copy = DomainChecks.object(images);
     if (copy.isEmpty()) DomainChecks.invalid();
+    copy.fieldNames().forEachRemaining(name->DomainChecks.safeText(name,128));
     for (JsonNode image : copy) {
+      DomainChecks.keys(image,java.util.Set.of("image_ref","digest","commit_sha"));
       if (!image.isObject() || !image.path("commit_sha").asText().equals(commit)
           || !image.path("image_ref").isTextual() || image.path("image_ref").asText().isBlank())
         DomainChecks.invalid();
+      String ref=DomainChecks.safeText(image.path("image_ref").asText(),2048);
+      if (ref.contains("?") || ref.contains("#") || ref.contains("://") || ref.contains("@") && !ref.matches("[^@]+@sha256:[0-9a-f]{64}")) DomainChecks.invalid();
       if (image.has("digest") && !image.path("digest").isNull())
         DomainChecks.hash(image.path("digest").asText());
       else if (!image.path("image_ref").asText().endsWith(":" + commit)) DomainChecks.invalid();
@@ -178,6 +182,9 @@ public class Deployment {
     DomainChecks.time(now);
     if (targets == null || targets.isEmpty()) DomainChecks.invalid();
     DomainChecks.require(targets.stream().allMatch(t -> id.equals(t.deploymentId())));
+    if (startedAt == null && targets.stream().anyMatch(t -> t.startedAt() != null))
+      startedAt = targets.stream().map(DeploymentTarget::startedAt).filter(Objects::nonNull)
+          .min(Instant::compareTo).orElse(now);
     DeploymentStatus next;
     if (targets.stream().anyMatch(t -> t.status().running())) next = DeploymentStatus.RUNNING;
     else if (targets.stream().anyMatch(t -> t.status() == DeploymentTargetStatus.AWAITING_APPROVAL))
@@ -193,9 +200,6 @@ public class Deployment {
     DomainChecks.require(!status.terminal() || status == next);
     status = next;
     if (next.terminal() && finishedAt == null) finishedAt = now;
-    if (startedAt == null && targets.stream().anyMatch(t -> t.startedAt() != null))
-      startedAt = targets.stream().map(DeploymentTarget::startedAt).filter(Objects::nonNull)
-          .min(Instant::compareTo).orElse(now);
   }
 
   public String id() { return id; }

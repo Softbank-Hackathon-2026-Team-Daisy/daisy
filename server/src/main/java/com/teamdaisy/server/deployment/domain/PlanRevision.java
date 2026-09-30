@@ -101,19 +101,23 @@ public class PlanRevision {
     value.sourcePlanId = DomainChecks.text(sourcePlanId, 255);
     value.inputHash = DomainChecks.hash(inputHash);
     value.scriptId = DomainChecks.id(scriptId);
-    value.artifactRef = DomainChecks.text(artifactRef, 4096);
+    value.artifactRef = DomainChecks.safeText(artifactRef, 4096);
+    if (artifactRef.contains("?") || artifactRef.contains("#") || artifactRef.contains("@")) DomainChecks.invalid();
     value.digest = DomainChecks.hash(digest);
     value.summary = DomainChecks.object(summary);
     validateSummary(summary);
     if (resources == null || !resources.isArray()) DomainChecks.invalid();
     for (JsonNode resource : resources) {
       if (!resource.isObject()) DomainChecks.invalid();
-      DomainChecks.text(resource.path("address").asText(), 1024);
+      DomainChecks.keys(resource, java.util.Set.of("address","actions"));
+      if (!resource.path("address").isTextual()) DomainChecks.invalid();
+      DomainChecks.safeText(resource.path("address").asText(), 1024);
       JsonNode actions = resource.path("actions");
       if (!actions.isArray() || actions.isEmpty()) DomainChecks.invalid();
       for (JsonNode action : actions) {
         if (!action.isTextual() || !java.util.Set.of("create", "update", "delete", "read", "no-op")
             .contains(action.asText())) DomainChecks.invalid();
+        if ("delete".equals(action.asText()) && !summary.path("has_delete").asBoolean()) DomainChecks.invalid();
       }
     }
     value.resources = CanonicalJson.snapshot(resources);
@@ -127,7 +131,9 @@ public class PlanRevision {
   }
 
   private static void validateSummary(JsonNode summary) {
+    DomainChecks.keys(summary,java.util.Set.of("counts","has_delete","risks"));
     JsonNode counts = summary.path("counts");
+    DomainChecks.keys(counts,java.util.Set.of("create","update","delete"));
     if (!counts.isObject() || !summary.path("has_delete").isBoolean()
         || !summary.path("risks").isArray()) DomainChecks.invalid();
     for (String name : java.util.List.of("create", "update", "delete")) {
@@ -136,12 +142,13 @@ public class PlanRevision {
     }
     if (summary.path("has_delete").asBoolean() != (counts.path("delete").asInt() > 0)) DomainChecks.invalid();
     for (JsonNode risk : summary.path("risks")) {
+      DomainChecks.keys(risk,java.util.Set.of("level","rule","resource","message"));
       if (!risk.isObject() || !risk.path("level").isTextual())
         DomainChecks.invalid();
-      DomainChecks.text(risk.path("level").asText(), 32);
+      DomainChecks.safeText(risk.path("level").asText(), 32);
       for (String field : java.util.List.of("rule", "resource", "message")) {
         if (!risk.path(field).isTextual()) DomainChecks.invalid();
-        DomainChecks.text(risk.path(field).asText(), field.equals("message") ? 4096 : 1024);
+        DomainChecks.safeText(risk.path(field).asText(), field.equals("message") ? 4096 : 1024);
       }
     }
   }

@@ -119,4 +119,15 @@ class DeploymentBehaviorTest {
     assertThrows(DaisyException.class, () -> DeploymentTarget.retry("dt_3", retry, success));
     assertThrows(DaisyException.class, () -> Deployment.rollback("dep_3", "actor_1", deployment, null, hash, now));
   }
+
+  @Test
+  void planCannotPersistUnknownSecretFieldsOrHideDeletionActions() {
+    var target=target(deployment("dep_1"),"dt_1");var valid=plan(target,false);
+    var summary=(ObjectNode) valid.summary();summary.put("tfstate","raw");
+    assertThrows(DaisyException.class,()->PlanRevision.create("plan_2",target.id(),"job_1","prj_1",target.targetId(),2,
+        "instance/job/1","source_2",hash,"script_1","artifact/plan",hash,summary,mapper.createArrayNode(),now,now.plusSeconds(600),null));
+    var resources=mapper.createArrayNode();var resource=resources.addObject().put("address","aws_instance.app");resource.putArray("actions").add("delete").add("create");
+    assertThrows(DaisyException.class,()->PlanRevision.create("plan_2",target.id(),"job_1","prj_1",target.targetId(),2,
+        "instance/job/1","source_2",hash,"script_1","artifact/plan",hash,valid.summary(),resources,now,now.plusSeconds(600),null));
+  }
 }

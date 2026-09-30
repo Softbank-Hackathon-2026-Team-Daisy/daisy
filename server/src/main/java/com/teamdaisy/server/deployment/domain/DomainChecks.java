@@ -13,6 +13,15 @@ final class DomainChecks {
     return value;
   }
   static String id(String value) { return text(value, 64); }
+  static String safeText(String value, int max) {
+    text(value,max);
+    if (java.util.regex.Pattern.compile("(?i)(-----BEGIN [A-Z ]*PRIVATE KEY|bearer\\s+\\S+|(?:password|secret|token|authorization|credential|access[_-]?key)\\s*[:=]\\s*\\S+|AKIA[A-Z0-9]{16}|gh[pousr]_[A-Za-z0-9]{20,})").matcher(value).find()) invalid();
+    return value;
+  }
+  static void keys(JsonNode value, java.util.Set<String> allowed) {
+    if (!value.isObject()) invalid();
+    value.fieldNames().forEachRemaining(key -> { if (!allowed.contains(key)) invalid(); });
+  }
   static String hash(String value) {
     if (value == null || !value.matches("sha256:[0-9a-f]{64}")) invalid();
     return value;
