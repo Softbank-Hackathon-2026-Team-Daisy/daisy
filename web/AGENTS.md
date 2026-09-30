@@ -136,7 +136,9 @@
 
 ## 6. 스택 · 구조
 
-- React + Vite SPA, TypeScript (ADR-006). 최소 스택으로 시작하고, 라이브러리는 막힐 때만 추가해요 (§8)
+- React + Vite SPA, TypeScript (ADR-006). 최소 스택으로 시작하고, 라이브러리는 막힐 때만 추가해요 (§9)
+- 라우팅은 `react-router`. 화면마다 URL이 있어서 푸시 · 공유 링크로 바로 들어올 수 있어요
+- **Node 22 LTS**(`web/.nvmrc`), 패키지 매니저는 **pnpm 9**(`package.json`의 `packageManager`로 고정). `npm` · `yarn`은 쓰지 않아요. lock 파일은 `pnpm-lock.yaml` 하나만 커밋해요
 - 스타일은 일반 CSS. §5 토큰을 `src/styles/tokens.css`에 CSS 변수로 둬요. UI 키트 · CSS 프레임워크 · 차트 라이브러리는 쓰지 않아요
 - 서버 호출은 `fetch`, 실시간은 SSE이고 실패하면 5초 폴링. 긴 로그가 느려지면 TanStack Virtual을 추가해요
 
@@ -144,6 +146,7 @@
 web/
 ├─ AGENTS.md
 ├─ SPEC.md
+├─ .nvmrc              Node 22
 ├─ index.html · package.json · vite.config.ts
 └─ src/
    ├─ main.tsx · App.tsx   진입점, 라우팅, 사이드바 레이아웃
@@ -168,18 +171,21 @@ web/
 
 ## 8. 실행 방법
 
-`(가칭)`: Vite 프로젝트를 만들 때 채워요.
+Node 22 LTS와 pnpm 9가 필요해요. Node 25에는 corepack이 없어서 pnpm은 직접 설치해요 (`npm i -g pnpm@9`).
 
 ```bash
 cd web
-npm install
-npm run dev
-npm run build
+nvm use            # .nvmrc → Node 22
+pnpm install
+pnpm dev
+pnpm build
 ```
+
+`(가칭)`: 테스트 · 린트 명령은 Vite 프로젝트를 만들 때 채워요.
 
 ## 9. 담당자에게 먼저 물어볼 것
 
-- npm 의존성 추가 (ADR-006). `react-router` 제안은 `SPEC.md` §7
+- 의존성 추가 (ADR-006). 추가하면 §10과 노션 ADR-006에 이유를 남겨요
 - 디자인 토큰 변경, §5에 없는 색 · 글자 크기 · 간격 · radius 추가
 - 실제 토큰, 데모 계정 자격증명, 배포 대상과 관련된 것
 
@@ -198,4 +204,5 @@ npm run build
 | 9/30 | 목업 허용. `src/mocks/`에만, 항상 표시 | 서버 API가 D2~D3에 나와서 그전에 화면을 만들어야 해요 | 1 |
 | 9/29 | 서버 SSE 전(D3)까지 5초 폴링 | PR #1에서 서버와 합의 | 1 |
 | 9/30 | 브라우저 SSE 인증 방식 (`WR-01`) | `EventSource`는 헤더를 못 붙여요. 서버가 결정 | 3 (`(가칭)`) |
-| 9/30 | `react-router` 추가 | 화면 14개, 푸시 · 공유 링크로 바로 진입 필요. 담당자 확인 후 확정 | 1 (`(가칭)`) |
+| 9/30 | `react-router` 사용 | 화면 14개, 푸시 · 공유 링크로 W-06 같은 화면에 바로 들어와야 해요. ADR-006에 기록 | 1 |
+| 9/30 | Node 22 LTS 고정, 패키지 매니저 pnpm 9 | LTS로 데모 서버 · CI와 맞춰요. pnpm은 설치가 빠르고, `package.json`에 없는 패키지를 못 불러와서 몰래 늘어나는 의존성을 막아요 | 1 |
