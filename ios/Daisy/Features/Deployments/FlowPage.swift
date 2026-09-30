@@ -32,7 +32,7 @@ struct FlowPage<Content: View, Bottom: View>: View {
             .padding(20)
         }
         .safeAreaInset(edge: .bottom, spacing: 0) { bottom }
-        .navigationTitle(title)
+        .flowNavigationTitle(title)
     }
 }
 

@@ -43,7 +43,7 @@ struct AIUsageView: View {
                 Button(AIUsageSummary.pickerTitle(deployment)) { selectedID = deployment.id }
             }
         } label: {
-            Label(deployments.first { $0.id == selectedID }.map(AIUsageSummary.pickerTitle) ?? "배포 선택",
+            Label(deployments.first { $0.id == selectedID }.map { AIUsageSummary.pickerTitle($0) } ?? "배포 선택",
                   systemImage: "arrow.triangle.branch")
         }
         .menuStyle(.button)
@@ -57,7 +57,8 @@ struct AIUsageView: View {
     private func content(_ summary: AIUsageSummary) -> some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 16) {
-                AdaptiveGrid(minimumWidth: 180) {
+                // iPhone 폭에서도 2×2로 보이게 최소 폭을 150으로
+                AdaptiveGrid(minimumWidth: 150) {
                     tile("AI 호출", "\(summary.calls)회", "이번 배포")
                     tile("토큰", summary.tokens.formatted(), "입력 + 출력")
                     tile("비용", summary.costKrw.map { "₩\($0.formatted())" } ?? "—", costNote(summary))

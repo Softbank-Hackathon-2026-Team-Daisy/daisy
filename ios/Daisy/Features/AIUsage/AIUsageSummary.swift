@@ -58,9 +58,12 @@ struct AIUsageSummary: Equatable {
         rows = callRows.sorted { ($0.at ?? .distantPast) > ($1.at ?? .distantPast) } + reuseRows
     }
 
-    /// 웹 "dep_42 · a1b2c3d · 21:10 배포"
-    static func pickerTitle(_ deployment: Deployment) -> String {
-        let time = deployment.createdAt.map { $0.formatted(.dateTime.hour(.twoDigits(amPM: .omitted)).minute(.twoDigits)) }
+    /// 웹 "dep_42 · a1b2c3d · 21:10 배포" — 시각은 24시간제
+    static func pickerTitle(_ deployment: Deployment, timeZone: TimeZone = .current) -> String {
+        let format = Date.VerbatimFormatStyle(
+            format: "\(hour: .twoDigits(clock: .twentyFourHour, hourCycle: .zeroBased)):\(minute: .twoDigits)",
+            timeZone: timeZone, calendar: Calendar(identifier: .gregorian))
+        let time = deployment.createdAt.map { $0.formatted(format) }
         return [deployment.version ?? deployment.id, String(deployment.commit.prefix(7)), time.map { "\($0) 배포" }]
             .compactMap { $0 }.joined(separator: " · ")
     }

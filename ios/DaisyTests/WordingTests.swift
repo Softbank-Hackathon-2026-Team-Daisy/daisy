@@ -43,8 +43,9 @@ struct WordingTests {
           { "target_id": "tgt_gcp", "type": "gcp", "name": "GCP", "health": "unhealthy", "image_digest": "sha256:bbb", "current": { "commit": "abc1234" } } ]
         """#.utf8))
         let parity = Parity(statuses: statuses)
+        // 환경 단위: 온프레미스 · AWS는 모든 항목이 맞고 GCP만 digest · 헬스가 달라요 → 2/3 (개요 카드와 같은 숫자)
         #expect(parity.total == 3)
-        #expect(parity.matching == 1)
+        #expect(parity.matching == 2)
         #expect(parity.rows.first { $0.key == "digest" }?.cells.map(\.ok) == [true, true, false])
         #expect(statuses.parity.matching == 2)
     }

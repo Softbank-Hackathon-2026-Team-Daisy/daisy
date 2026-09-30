@@ -107,6 +107,7 @@ struct PlanApprovalView: View {
             VStack(alignment: .leading, spacing: 10) { barText(plan, create, update, delete, commit); barButtons(plan) }
         }
         .padding(14)
+        .frame(maxWidth: .infinity, alignment: .leading)
         .glassSurface(in: .rect(cornerRadius: 16))
         .padding(.horizontal, 16)
         .padding(.bottom, 12)

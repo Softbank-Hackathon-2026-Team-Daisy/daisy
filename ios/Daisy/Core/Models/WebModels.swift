@@ -42,9 +42,11 @@ struct Parity: Sendable {
     let targets: [String]
     let rows: [Row]
 
-    /// 모든 칸이 맞는 행 수
-    var matching: Int { rows.filter { $0.cells.allSatisfy(\.ok) }.count }
-    var total: Int { rows.count }
+    /// 모든 항목이 맞는 환경 수 (웹 "3/3 일치"와 같은 기준: 환경 단위)
+    var matching: Int {
+        targets.filter { id in rows.allSatisfy { row in row.cells.first { $0.targetId == id }?.ok == true } }.count
+    }
+    var total: Int { targets.count }
 
     init(statuses: [TargetStatus]) {
         targets = statuses.map(\.targetId)

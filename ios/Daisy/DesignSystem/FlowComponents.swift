@@ -101,6 +101,8 @@ struct FlowStepper: View {
     let current: Int
 
     var body: some View {
+        // 좁은 화면에서도 지금 단계가 보이게 가운데로 스크롤해요
+        ScrollViewReader { proxy in
         ScrollView(.horizontal, showsIndicators: false) {
             HStack(spacing: 8) {
                 ForEach(Array(Self.labels.enumerated()), id: \.offset) { index, label in
@@ -127,9 +129,12 @@ struct FlowStepper: View {
                             .font(.caption.weight(step == current ? .semibold : .regular))
                             .foregroundStyle(step > current ? .secondary : .primary)
                     }
+                    .id(step)
                 }
             }
             .padding(.vertical, 2)
+        }
+        .onAppear { proxy.scrollTo(current, anchor: .center) }
         }
         .accessibilityElement(children: .ignore)
         .accessibilityLabel("\(Self.labels.count)단계 중 \(current)단계 \(Self.labels[max(0, min(current, 6) - 1)])")

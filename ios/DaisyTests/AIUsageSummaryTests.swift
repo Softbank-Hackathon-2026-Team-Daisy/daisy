@@ -57,10 +57,10 @@ struct AIUsageSummaryTests {
         #expect(summary.calls == 0 && summary.tokens == 0 && summary.costKrw == nil && summary.rows.isEmpty)
     }
 
-    @Test func pickerTitleLooksLikeWeb() throws {
-        let deployment = try F.deployment("succeeded", targets: [], extra: #""created_at": "2026-10-03T12:10:00Z""#)
-        let title = AIUsageSummary.pickerTitle(deployment)
-        #expect(title.hasPrefix("dep_42 · a1b2c3d · "))
-        #expect(title.hasSuffix(" 배포"))
+    /// 시각은 24시간제예요 (시뮬레이터에서 17:23이 "05:23"으로 보이던 문제, 9/30)
+    @Test func pickerTitleUses24HourClock() throws {
+        let deployment = try F.deployment("succeeded", targets: [], extra: #""created_at": "2026-10-03T08:23:00Z""#)
+        let kst = try #require(TimeZone(identifier: "Asia/Seoul"))
+        #expect(AIUsageSummary.pickerTitle(deployment, timeZone: kst) == "dep_42 · a1b2c3d · 17:23 배포")
     }
 }

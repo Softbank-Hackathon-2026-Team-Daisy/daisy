@@ -85,6 +85,15 @@ extension View {
 
     /// 루트 화면은 큰 제목 머리줄(`PageHeader`)을 쓰므로 시스템 제목 막대를 숨겨요.
     /// Mac은 창 툴바가 제목을 그리지 않아서(`showsTitle: false`) 할 일이 없어요.
+    /// 흐름 화면 제목: iOS는 막대 제목을 비워 뒤로 가기만 두고(화면 안 제목과 두 번 보이지 않게), macOS는 창 제목으로 써요.
+    func flowNavigationTitle(_ title: String) -> some View {
+        #if os(iOS)
+        navigationTitle("").navigationBarTitleDisplayMode(.inline)
+        #else
+        navigationTitle(title)
+        #endif
+    }
+
     func hidesSystemTitleBar() -> some View {
         #if os(iOS)
         toolbar(.hidden, for: .navigationBar)
