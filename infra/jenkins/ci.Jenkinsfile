@@ -91,6 +91,8 @@ pipeline {
         docker image prune -f >/dev/null || true
         docker buildx prune --builder daisy-builder --filter until=72h -f >/dev/null || true
       '''
+    }
+    cleanup {   // always는 success보다 먼저 돌아요. 작업 공간 정리는 맨 마지막에
       deleteDir()
     }
   }

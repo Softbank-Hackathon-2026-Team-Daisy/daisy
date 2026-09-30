@@ -158,7 +158,7 @@ pipeline {
         }
       }
     }
-    always {
+    cleanup {   // always는 success보다 먼저 돌아서 결과 파일을 지워요. 정리는 맨 마지막에
       deleteDir()
     }
   }
