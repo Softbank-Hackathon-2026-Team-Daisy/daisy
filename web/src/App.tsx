@@ -2,11 +2,13 @@ import { Navigate, Route, Routes } from 'react-router'
 import { MOCK_PROJECTS } from './mocks/workspace.ts'
 import AppLayout from './pages/AppLayout.tsx'
 import BuildPage from './pages/build/BuildPage.tsx'
+import ApprovePage from './pages/approve/ApprovePage.tsx'
 import ConnectPage from './pages/connect/ConnectPage.tsx'
 import ProgressPage from './pages/deploy/ProgressPage.tsx'
 import GeneratePage from './pages/generate/GeneratePage.tsx'
 import LoginPage from './pages/login/LoginPage.tsx'
 import OverviewPage from './pages/overview/OverviewPage.tsx'
+import ResultPage from './pages/result/ResultPage.tsx'
 import TargetsPage from './pages/targets/TargetsPage.tsx'
 import ComponentsPage from './pages/dev/ComponentsPage.tsx'
 import PrimitivesPage from './pages/dev/PrimitivesPage.tsx'
@@ -32,9 +34,9 @@ function App() {
           />
           <Route path="deployments/:deploymentId">
             <Route path="generate" element={<GeneratePage />} />
-            <Route path="approve" element={<Placeholder id="W-06 · STEP 5" title="변경 사항 확인 후 승인" />} />
+            <Route path="approve" element={<ApprovePage />} />
             <Route path="progress" element={<ProgressPage />} />
-            <Route path="result" element={<Placeholder id="W-08 · STEP 6" title="배포 결과" />} />
+            <Route path="result" element={<ResultPage />} />
           </Route>
           <Route path="history" element={<Placeholder id="W-09" title="배포 이력 · 롤백" />} />
           <Route path="environments" element={<Placeholder id="W-10" title="환경" />} />

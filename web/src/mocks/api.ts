@@ -34,18 +34,19 @@ function liveDeployment(): Deployment {
     if (t < 3) {
       // L-02: 생성 시작 전 (작업 큐 대기)
       base.state = 'queued'
-      base.targets.forEach((_, i) => set(i, { state: 'waiting', step: 'generate', attempt: 1, error_summary: null }))
+      base.targets.forEach((_, i) => set(i, { state: 'waiting', step: 'generate', attempt: 1, error_summary: null, steps: undefined }))
     } else if (t < 7) {
       base.state = 'running'
-      set(0, { state: 'validating', step: 'plan', error_summary: null })
-      set(1, { state: 'generating', step: 'generate', attempt: 1, error_summary: null })
-      set(2, { state: 'generating', step: 'generate' })
+      set(0, { state: 'validating', step: 'plan', error_summary: null, steps: undefined })
+      set(1, { state: 'generating', step: 'generate', attempt: 1, error_summary: null, steps: undefined })
+      set(2, { state: 'generating', step: 'generate', steps: undefined })
     } else if (t < 13) {
       // W-05와 같은 모습: AWS 시도 2/3
     } else {
       base.state = 'awaiting_approval'
       base.pending_approval = { approval_id: 'apv_live', kind: 'plan' }
-      base.targets.forEach((_, i) => set(i, { state: 'awaiting_approval', step: 'risk_check', error_summary: null }))
+      const done = clone(s.deployments.dep_approve).targets
+      base.targets.forEach((_, i) => set(i, { ...done[i] }))
     }
     return base
   }

@@ -66,6 +66,10 @@ export type DeploymentTarget = {
   url: string | null
   image_digest?: string
   error_summary: string | null
+  // 아래는 앱 요청 #13의 선택 필드 (가칭). 없으면 화면이 단계 · 상태에서 추정해요
+  title?: string // 예: "ap-northeast-2 · ECS Fargate"
+  steps?: { name: string; state: 'waiting' | 'running' | 'done' | 'failed'; duration_ms?: number }[]
+  health_summary?: string // 예: "200 OK · p95 120ms"
 }
 
 export type AiUsageSummary = {
@@ -125,7 +129,7 @@ export type Plan = {
 // WR-06 GET /deployments/{id}/plan?detail=resources
 export type PlanDetail = {
   target_id: string
-  resources: { address: string; action: 'create' | 'update' | 'delete' | 'replace' }[]
+  resources: { address: string; action: 'create' | 'update' | 'delete' | 'replace'; monthly_cost_krw?: number }[]
   plan_text: string
 }
 

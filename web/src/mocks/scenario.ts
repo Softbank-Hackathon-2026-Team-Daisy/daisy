@@ -85,9 +85,9 @@ type TargetPatch = Partial<DeploymentTarget> & Pick<DeploymentTarget, 'state' | 
 
 function deployment(id: string, state: Deployment['state'], t: [TargetPatch, TargetPatch, TargetPatch], extra: Partial<Deployment> = {}): Deployment {
   const base: DeploymentTarget[] = [
-    { target_id: 'tgt_onprem', type: 'onprem', state: 'waiting', step: 'generate', attempt: 1, reused_script: true, url: null, error_summary: null },
-    { target_id: 'tgt_aws', type: 'aws', state: 'waiting', step: 'generate', attempt: 1, reused_script: false, url: null, error_summary: null },
-    { target_id: 'tgt_gcp', type: 'gcp', state: 'waiting', step: 'generate', attempt: 1, reused_script: false, url: null, error_summary: null },
+    { target_id: 'tgt_onprem', type: 'onprem', title: 'home-lab · Docker', state: 'waiting', step: 'generate', attempt: 1, reused_script: true, url: null, error_summary: null },
+    { target_id: 'tgt_aws', type: 'aws', title: 'ap-northeast-2 · ECS Fargate', state: 'waiting', step: 'generate', attempt: 1, reused_script: false, url: null, error_summary: null },
+    { target_id: 'tgt_gcp', type: 'gcp', title: 'asia-northeast3 · Cloud Run', state: 'waiting', step: 'generate', attempt: 1, reused_script: false, url: null, error_summary: null },
   ]
   return {
     id,
@@ -112,40 +112,70 @@ function deployment(id: string, state: Deployment['state'], t: [TargetPatch, Tar
 
 const URLS = targetStatus.map((t) => t.url)
 
+type StepState = 'waiting' | 'running' | 'done' | 'failed'
+const st = (name: string, state: StepState, sec?: number) => ({ name, state, duration_ms: sec === undefined ? undefined : sec * 1000 })
+const VALIDATED = [st('스크립트 재사용', 'done', 2), st('terraform validate', 'done', 42), st('terraform plan', 'done', 42), st('위험 설정 검사', 'done', 42)]
+const AI_VALIDATED = [st('Terraform 생성 (AI)', 'done', 42), st('terraform validate', 'done', 42), st('terraform plan', 'done', 42), st('위험 설정 검사', 'done', 42)]
+const APPLIED = [st('이미지 pull', 'done', 42), st('terraform apply', 'done', 42), st('state 저장', 'done', 42), st('헬스체크', 'done', 42)]
+const HEALTHY = '200 OK · p95 120ms'
+
 // 화면별로 고정된 상태 — 경로의 deploymentId로 골라 봐요 (/projects/prj_monolith/deployments/dep_generate/generate 등)
 export const deployments: Record<string, Deployment> = {
   // W-05: 온프레미스 통과, AWS 시도 2/3 수정 중, GCP validate 중
   dep_generate: deployment('dep_generate', 'running', [
-    { state: 'awaiting_approval', step: 'risk_check' },
-    { state: 'validating', step: 'risk_check', attempt: 2, error_summary: '보안 그룹에서 0.0.0.0/0으로 DB 포트가 열려요.' },
-    { state: 'validating', step: 'validate' },
+    { state: 'awaiting_approval', step: 'risk_check', steps: VALIDATED },
+    {
+      state: 'validating',
+      step: 'risk_check',
+      attempt: 2,
+      error_summary: '보안 그룹에서 0.0.0.0/0으로 DB 포트가 열려요.',
+      steps: [
+        st('Terraform 생성 (AI)', 'done', 42),
+        st('terraform validate', 'done', 42),
+        st('terraform plan', 'done', 42),
+        st('위험 설정 검사', 'failed', 63),
+        st('AI 수정 후 재검증 · 2/3', 'running', 18),
+      ],
+    },
+    { state: 'validating', step: 'validate', steps: [st('Terraform 생성 (AI)', 'done', 42), st('terraform validate', 'running', 18), st('terraform plan', 'waiting'), st('위험 설정 검사', 'waiting')] },
   ]),
   // W-05b: AWS만 3회 실패로 멈춤, 나머지는 계속
-  dep_stuck: deployment('dep_stuck', 'running', [
-    { state: 'awaiting_approval', step: 'risk_check' },
-    { state: 'failed', step: 'plan', attempt: 3, error_summary: 'terraform plan 오류: IAM 권한 부족 (ecs:CreateService)' },
-    { state: 'awaiting_approval', step: 'risk_check' },
+  dep_stuck: deployment('dep_stuck', 'awaiting_approval', [
+    { state: 'awaiting_approval', step: 'risk_check', steps: VALIDATED },
+    {
+      state: 'failed',
+      step: 'plan',
+      attempt: 3,
+      error_summary: 'terraform plan 오류: IAM 권한 부족 (ecs:CreateService)',
+      steps: [st('시도 1/3 · plan 실패', 'failed', 63), st('시도 2/3 · plan 실패', 'failed', 63), st('시도 3/3 · plan 실패', 'failed', 63)],
+    },
+    { state: 'awaiting_approval', step: 'risk_check', steps: AI_VALIDATED },
   ]),
   // W-06: 세 환경 모두 검증 통과, 승인 대기
   dep_approve: deployment('dep_approve', 'awaiting_approval', [
-    { state: 'awaiting_approval', step: 'risk_check' },
-    { state: 'awaiting_approval', step: 'risk_check', attempt: 2 },
-    { state: 'awaiting_approval', step: 'risk_check' },
+    { state: 'awaiting_approval', step: 'risk_check', steps: VALIDATED },
+    { state: 'awaiting_approval', step: 'risk_check', attempt: 2, steps: AI_VALIDATED },
+    { state: 'awaiting_approval', step: 'risk_check', steps: AI_VALIDATED },
   ]),
   // W-07: 온프레미스 apply 중, AWS 성공, GCP 실패
   dep_apply: deployment('dep_apply', 'running', [
-    { state: 'applying', step: 'apply' },
-    { state: 'succeeded', step: 'health_check', attempt: 2, url: URLS[1] },
-    { state: 'failed', step: 'apply', error_summary: 'health check timeout on /healthz after 60s' },
+    { state: 'applying', step: 'apply', steps: [st('이미지 pull', 'done', 42), st('terraform apply', 'done', 42), st('state 저장', 'running', 18), st('헬스체크', 'waiting')] },
+    { state: 'succeeded', step: 'health_check', attempt: 2, url: URLS[1], steps: APPLIED },
+    {
+      state: 'failed',
+      step: 'apply',
+      error_summary: 'health check timeout on /healthz after 60s',
+      steps: [st('이미지 pull', 'done', 42), st('terraform apply', 'failed', 63), st('state 저장', 'waiting'), st('헬스체크', 'waiting')],
+    },
   ]),
   // W-08: 일부 성공 (GCP 헬스체크 실패)
   dep_result: deployment(
     'dep_result',
     'partially_succeeded',
     [
-      { state: 'succeeded', step: 'health_check', url: URLS[0], image_digest: DIGEST },
-      { state: 'succeeded', step: 'health_check', attempt: 2, url: URLS[1], image_digest: DIGEST },
-      { state: 'failed', step: 'health_check', url: URLS[2], image_digest: DIGEST, error_summary: '헬스체크 실패 · 503' },
+      { state: 'succeeded', step: 'health_check', url: URLS[0], image_digest: DIGEST, steps: APPLIED, health_summary: HEALTHY },
+      { state: 'succeeded', step: 'health_check', attempt: 2, url: URLS[1], image_digest: DIGEST, steps: APPLIED, health_summary: HEALTHY },
+      { state: 'failed', step: 'health_check', url: URLS[2], image_digest: DIGEST, error_summary: '헬스체크 실패 · 503', health_summary: '503 실패' },
     ],
     { finished_at: ago(1) },
   ),
@@ -190,9 +220,9 @@ export const planDetail: PlanDetail[] = [
   {
     target_id: 'tgt_aws',
     resources: [
-      { address: 'aws_ecs_service.web', action: 'create' },
-      { address: 'aws_lb.web', action: 'create' },
-      { address: 'aws_security_group_rule.db', action: 'create' },
+      { address: 'aws_ecs_service.web', action: 'create', monthly_cost_krw: 18000 },
+      { address: 'aws_lb.web', action: 'create', monthly_cost_krw: 21000 },
+      { address: 'aws_security_group_rule.db', action: 'create', monthly_cost_krw: 0 },
       { address: 'aws_ecs_task_definition.web', action: 'create' },
       { address: 'aws_lb_target_group.web', action: 'create' },
       { address: 'aws_lb_listener.https', action: 'create' },

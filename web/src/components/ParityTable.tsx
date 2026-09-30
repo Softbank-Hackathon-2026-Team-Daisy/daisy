@@ -10,10 +10,12 @@ type ParityTableProps = {
   envs: { id: string; type: EnvType }[]
   rows: ParityRow[]
   matched: number
+  // 이미지가 실제로 다를 때만 주황. 헬스체크 실패처럼 이미지와 상관없는 불일치는 초록 그대로
+  mismatch?: boolean
 }
 
-function ParityTable({ envs, rows, matched }: ParityTableProps) {
-  const all = matched === envs.length
+function ParityTable({ envs, rows, matched, mismatch }: ParityTableProps) {
+  const all = !(mismatch ?? matched !== envs.length)
   return (
     <section className="parity">
       <header className="parity__title">

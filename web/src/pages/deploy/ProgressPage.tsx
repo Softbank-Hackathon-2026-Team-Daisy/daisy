@@ -1,11 +1,24 @@
-import { useParams } from 'react-router'
+import { useEffect, useRef } from 'react'
+import { useNavigate, useParams } from 'react-router'
 import { api } from '../../api/endpoints.ts'
+import { deploymentStatus, targetStatus } from '../../api/status.ts'
+import type { Deployment } from '../../api/types.ts'
 import { useResource } from '../../api/useResource.ts'
+import Button from '../../components/Button.tsx'
+import DeployLane from '../../components/DeployLane.tsx'
+import LogViewer from '../../components/LogViewer.tsx'
+import PageHeader from '../../components/PageHeader.tsx'
+import StatusBadge from '../../components/StatusBadge.tsx'
+import Stepper from '../../components/Stepper.tsx'
+import { paths } from '../../paths.ts'
+import { applySteps } from '../flow.ts'
 import TransitionGate from '../loading/TransitionGate.tsx'
-import Placeholder from '../Placeholder.tsx'
+import { ErrorBlock, LoadingBlock } from '../Loading.tsx'
+import '../page.css'
 
-// W-07 배포 중 (STEP 5). 본문은 Step E에서 채워요
+// W-07 배포 중 (STEP 5) — 환경별 terraform apply를 레인 3개로. 로그는 서버 SSE 전까지 2초 폴링(A-07)
 const APPLY_STARTED = new Set(['applying', 'verifying', 'succeeded', 'failed'])
+const FINISHED = new Set(['succeeded', 'partially_succeeded', 'failed', 'cancelled'])
 
 function ProgressPage() {
   const { deploymentId = '' } = useParams()
@@ -16,8 +29,56 @@ function ProgressPage() {
 
   return (
     <TransitionGate kind="l03" ready={ready} meta={`Step 5 · ${d?.targets.length ?? 0} envs`}>
-      <Placeholder id="W-07 · STEP 5" title="배포 중" />
+      {deployment.error ? <ErrorBlock error={deployment.error} /> : !d ? <LoadingBlock /> : <ProgressView key={d.id} d={d} />}
     </TransitionGate>
+  )
+}
+
+function ProgressView({ d }: { d: Deployment }) {
+  const navigate = useNavigate()
+  const { projectId = '' } = useParams()
+  const logs = useResource(() => api.getLogs(d.id), [d.id], 2000)
+  const finished = FINISHED.has(d.state)
+  const status = deploymentStatus(d.state, d.kind)
+
+  // 끝나면 W-08로 넘어가요 (처음부터 끝난 배포였으면 버튼으로)
+  const wasRunning = useRef(!finished)
+  useEffect(() => {
+    if (wasRunning.current && finished) navigate(paths.result(projectId, d.id))
+    wasRunning.current = !finished
+  }, [finished, navigate, projectId, d.id])
+
+  const typeOf = (targetId: string) => d.targets.find((t) => t.target_id === targetId)?.type ?? 'onprem'
+
+  return (
+    <div className="page">
+      <Stepper current={5} />
+      <PageHeader
+        overline="Step 5"
+        title="배포 중"
+        badge={<StatusBadge tone={status.tone}>{status.label}</StatusBadge>}
+        description={`${d.targets.length}개 환경에 terraform apply를 동시에 실행하고 있어요. 환경마다 state는 따로 저장해요.`}
+      />
+
+      <div className="page__row page__row--3">
+        {d.targets.map((t) => {
+          const s = targetStatus(t.state)
+          return <DeployLane key={t.target_id} env={t.type} region={t.title ?? t.target_id} tone={s.tone} label={s.label} steps={applySteps(t)} />
+        })}
+      </div>
+
+      <LogViewer
+        lines={(logs.data ?? []).map((l) => ({ key: l.seq, time: l.at, env: typeOf(l.target_id), level: l.level, message: l.message }))}
+      />
+
+      {finished && (
+        <div className="page__actions">
+          <Button variant="secondary" onClick={() => navigate(paths.result(projectId, d.id))}>
+            결과 보기
+          </Button>
+        </div>
+      )}
+    </div>
   )
 }
 
