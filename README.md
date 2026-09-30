@@ -17,7 +17,7 @@ main merge → GitHub Actions 이미지 빌드(커밋 해시 태그)
 
 | 폴더 | 내용 | 담당 |
 |---|---|---|
-| `web/` | 웹 대시보드 (React + Vite) | 김도영, 박승준 |
+| `web/` | 웹 대시보드 (React + Vite) | 김도영 |
 | `ios/` | Swift 앱 (승인 · 진행 상태 · 알림) | 박승준 |
 | `server/` | 배포 서비스 API · AI · 검증 | 하은현, 김승환 |
 | `infra/modules/` | 환경별 기준 Terraform 모듈 | 황지환(온프레미스), 임채준(GCP · AWS) |
@@ -33,4 +33,4 @@ main merge → GitHub Actions 이미지 빌드(커밋 해시 태그)
 
 ## 팀
 
-김도영(팀장 · FE) · 박승준(FE · iOS) · 하은현(BE) · 김승환(BE · AI) · 황지환(Infra · 온프레미스) · 임채준(Infra · 클라우드)
+김도영(팀장 · Web) · 박승준(Swift 앱) · 하은현(BE) · 김승환(BE · AI) · 황지환(Infra · 온프레미스) · 임채준(Infra · 클라우드)

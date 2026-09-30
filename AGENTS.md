@@ -65,15 +65,15 @@ These exist because a mistake here costs money, leaks secrets, or breaks the dem
 | Area | Where | Owner (GitHub) |
 |---|---|---|
 | Team lead: scope, schedule, root docs, ADR records | `AGENTS.md`, `README.md`, `CONTRIBUTING.md`, `docs/` | 김도영 (`kimdoyoung1110`) |
-| Web dashboard (full flow) | `web/` | 김도영 (lead), 박승준 (`Seungjun1127`) |
+| Web dashboard (full flow) | `web/` | 김도영 (`kimdoyoung1110`) |
 | Native app (iOS · macOS: status, approval, push) | `ios/` | 박승준 (`Seungjun1127`) |
 | Server: API, deployment flow and state, approvals, SSE, CI webhook, history | `server/` | 하은현 (`gkdmsgus`) |
 | Server: AI Terraform generation, validate/fix loop, script reuse, AI cost | `server/` | 김승환 (`7SH7`) |
 | On-prem Terraform module, Docker runtime, tunnel | `infra/modules/onprem/` | 황지환 (`jihwan77`) |
 | Cloud Terraform modules (GCP, AWS), state backends | `infra/modules/gcp/`, `infra/modules/aws/` | 임채준 (`dlacowns21`) |
 | CI for this repo | `.github/workflows/` | 김도영 |
-| Sample monolith app and its image pipeline (N-01) | repo `sample-monolith` | 하은현 (app), 김도영 (Actions) `[미정]` |
-| Sample MSA app | repo `sample-msa` | 황지환 `[미정]` |
+| Sample monolith app (HelloCalc) and its image pipeline (N-01) | repo `sample-monolith` | 박승준 (app), 김도영 (Actions) |
+| Sample MSA app (HelloCalc MSA) | repo `sample-msa` | 박승준 |
 | Org issue/PR templates, org profile | repo `.github` | 김도영 |
 
 `server/` has two owners. For other areas it is one area. Inside `server/`, the two owners settle boundaries between themselves.
@@ -97,9 +97,9 @@ Before making any decision, classify it. Owners decide their own areas immediate
 
 | Tier | What it covers | What you do |
 |---|---|---|
-| **1. Own area** | Inside your human's area and invisible to other areas: internal structure, file layout, UI, internal naming, tests, libraries used only in that area | **Decide now.** It is final (`확정`) immediately; no meeting. Add one line to the area's decisions log (below). |
-| **2. Contract you provide** | A change to a contract your human's area provides (§5-2) | Decide, then open an issue to each consumer area describing the change before you merge. If a consumer reports a conflict you cannot settle in the issue, it becomes tier 4. |
-| **3. Another area** | Anything another area owns, including a contract you only consume | **The owner decides.** Write your need into your spec with `(가칭)` and open an issue to the owner (§9). No meeting unless the owner and your human disagree; then it becomes tier 4. Keep working on parts that do not depend on it. |
+| **1. Own area** | Inside your human's area and invisible to other areas: internal structure, file layout, UI, internal naming, tests, libraries used only in that area | **Decide now.** It is final (`확정`) immediately; no meeting. Add one line to the area's decisions log (below), and draft a one-line Slack note for your human to share. |
+| **2. Contract you provide** | A change to a contract your human's area provides (§5-2) | Decide, then tell each consumer area about the change before you merge: an issue, or a Slack message your human posts. If a consumer reports a conflict you cannot settle in the issue, it becomes tier 4. |
+| **3. Another area** | Anything another area owns, including a contract you only consume | **The owner decides.** Write your need into your spec with `(가칭)` and send it to the owner as an issue or a Slack request (§9). No meeting unless the owner and your human disagree; then it becomes tier 4. Keep working on parts that do not depend on it. |
 | **4. Team** | The `deploy.yaml` schema; any `[미정]` item in §12; ADRs; scope or schedule; a contradiction the owners do not settle in the issue | **Do not decide.** Write it with `(가칭)`, open a `[결정]` issue, and tell your human it needs the team meeting (daily 21:00–22:00 KST). Keep working on parts that do not depend on it. |
 
 Rules that follow from this:
@@ -114,10 +114,11 @@ Rules that follow from this:
 1. **Orient.** Read this file, the area `AGENTS.md`, and the specs the task touches. Check `git status` and your branch.
 2. **Check for contradictions** (§8) if the task touches or depends on another area or a shared contract.
 3. **Classify every decision** the task needs (§6).
-4. **Plan.** For anything larger than a small fix, state a short plan to your human first. Name the files you will touch; they must all be in your human's area.
+4. **Spec first.** Write or update the area's `SPEC.md` for the feature before implementing it. For anything larger than a small fix, also state a short plan to your human. Name the files you will touch; they must all be in your human's area.
 5. **Implement** in small steps on a branch named per §11.
 6. **Verify.** Build, run the tests, and run the thing. For infra, `terraform validate` and `plan` only (§4). Paste the actual result, not a summary of what should happen.
-7. **Report** in the format of §10.
+7. **Reconcile the spec.** Compare what you built with `SPEC.md` and update the spec so it matches, in the same PR.
+8. **Report** in the format of §10, then open the PR.
 
 ## 8. Contradiction check
 
@@ -135,9 +136,14 @@ If you find a contradiction, work out which case it is:
 
 In every case, tell your human. Never quietly code around a contradiction, and never "fix" the other side yourself.
 
-## 9. Changes outside your area: open an issue, not a PR
+## 9. Changes outside your area: request, do not implement
 
-When your task needs another area to change code or add a feature, do not implement it there. Open an issue with enough detail that the owner's agent can act on it without asking.
+When your task needs another area to change code or add a feature, do not implement it there, and do not open a PR in their folder. Request it with enough detail that the owner's agent can act on it without asking:
+
+- **Issue** (default): anything that needs tracking, a spec, or a decision.
+- **Slack**: a quick question or a small request. Draft the message; your human posts it. If it turns into real work, move it to an issue.
+
+For issues:
 
 1. Search open issues first so you do not file a duplicate.
 2. Draft the issue in Korean using the structure below, show it to your human, and file it when they say yes.
@@ -186,7 +192,8 @@ End every task with a short report in Korean:
 - **Language.** Commit descriptions, PR text, issues, docs, and messages to humans are in Korean, in the 해요체 style. Code identifiers are in English. Code comments follow the file's existing language.
 - **Branches.** `{part}/{type}-{short-desc}`. part: `web`, `ios`, `server`, `infra`, `docs`, `ci`. type: `feat`, `fix`, `refactor`, `docs`, `chore`, `test`.
 - **Commits.** Conventional Commits with the part as scope: `feat(server): ...`. Add `Refs: N-03` when a PoC is involved.
-- **PRs.** Fill in the org PR template. One approval, squash merge, aim for under 300 changed lines. Changes to a shared contract add the consumer owners as reviewers. Self-merge is allowed only on 10/3–10/4.
+- **PRs.** Fill in the org PR template. Squash merge only; merged branches are deleted automatically. Aim for under 300 changed lines. Changes to a shared contract add the consumer owners as reviewers.
+- **Merging.** `daisy` needs one approval (plus the CODEOWNERS team for `server/` and `infra/`), and pushing a new commit dismisses earlier approvals. `sample-monolith` and `sample-msa` allow self-merge after a PR. On 10/3–10/4 self-merge is allowed everywhere.
 - Full details: `CONTRIBUTING.md`.
 
 ## 12. Project reference
@@ -218,7 +225,7 @@ End every task with a short report in Korean:
 | `sample-msa` | Deployment target: two-service MSA |
 | `.github` | Org-wide issue and PR templates, org profile |
 
-The sample repos stand in for a user's app. Do not mix their code into `daisy`.
+The sample repos stand in for a user's app. Do not mix their code into `daisy`. Clone and work in `daisy` for all system work; clone a sample repo only when working on it.
 
 ### 12-4. Decided (ADR summary; full records in Notion)
 
@@ -232,7 +239,9 @@ The sample repos stand in for a user's app. Do not mix their code into `daisy`.
 | 006 | Web is a **React + Vite SPA** (not Next.js). Start with a minimal stack; add libraries only when blocked, and record why |
 | 007 | Web runs the full flow; the Swift app does approval, progress, and push only. `ios/` has proposed widening this (see `ios/SPEC.md` §1-2); until the team decides, this line stands |
 
-**Undecided `[미정]`:** backend language, LLM, container registry (GHCR used for now), Terraform state store, on-prem connection method (agent pull / SSH / Docker provider), public exposure for on-prem (Cloudflare Tunnel / ngrok), API contract format, Swift app realtime method.
+**Decided in the 9/29 meeting (Notion ADR entries pending):** backend is **Spring Boot**; public access uses a **purchased domain with HTTPS** (server owners, by 9/30 afternoon); roles: web is 김도영, the Swift app is 박승준.
+
+**Undecided `[미정]`:** `deploy.yaml` schema (flat vs `services:` map), container registry (Docker Hub / GHCR; GHCR used for now), CI/CD tool scope (GitHub Actions / Jenkins), on-prem deploy method and its relation to Terraform (ADR-003), LLM, Terraform state store, ADR-007 widening, rollback scope.
 
 ### 12-5. `deploy.yaml` schema `[미정 — 9/29 draft]`
 
