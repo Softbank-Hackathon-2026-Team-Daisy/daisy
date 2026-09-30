@@ -23,7 +23,7 @@
 |---|---|---|
 | IaC | **Terraform** | ADR-003 |
 | Terraform 버전 | **1.16.4** `(가칭)` | 러너 · AI 작성 규칙 · 모듈이 같은 버전을 써요. 모듈은 `required_version = ">= 1.11"` (S3 네이티브 잠금) |
-| provider | AWS `hashicorp/aws ~> 6.0`, Google `hashicorp/google ~> 7.0`, 온프레미스: (황지환) | |
+| provider | AWS `hashicorp/aws ~> 6.0`, Google `hashicorp/google ~> 8.0`, 온프레미스: (황지환) | |
 | 온프레미스 런타임 | **Docker** | ADR-005 |
 | 러너 | Ubuntu 24.04 + Jenkins LTS `(가칭)` | CI/CD 도구는 루트 `[미정]`. 임채준이 VM 프로토타입으로 검증 중이에요 (클라우드 `SPEC.md` §12) |
 

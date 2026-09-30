@@ -166,7 +166,7 @@ terraform output -raw service_url
 | 항목 | 값 |
 |---|---|
 | Terraform | `required_version = ">= 1.11"` (S3 네이티브 잠금 `use_lockfile` 정식 지원). 러너와 같은 **1.16.4**로 고정 (`infra/AGENTS.md` §2) |
-| provider | AWS `hashicorp/aws ~> 6.0`, GCP `hashicorp/google ~> 7.0`. `.terraform.lock.hcl`은 커밋해요 |
+| provider | AWS `hashicorp/aws ~> 6.0`, GCP `hashicorp/google ~> 8.0`. `.terraform.lock.hcl`은 커밋해요 |
 | 파일 | `main.tf`(terraform·provider 블록 포함), `variables.tf`, `outputs.tf` 3개만 |
 | 필수 변수 | `image_tag` (기본값 없음). 나머지는 §3-1 |
 | 필수 출력 | `service_url` |
@@ -499,3 +499,4 @@ PR은 300줄 이하로 나눠요: ① 이 명세 ② bootstrap ③ AWS 모듈 �
 | 2026-09-30 | 초안 |
 | 2026-09-30 | Jenkins 러너 VM 프로토타입(§12)과 서버 이전 체크리스트(§13) 추가. 공개 GHCR 직접 pull 사실 반영(D-3, §6-3), GHCR 비공개 확인(D-12), plan 파일 이름·state 잠금 권한 수정 |
 | 2026-09-30 | 결정 기록을 `infra/AGENTS.md` §9로 옮김 (#10). `infra/CLAUDE.md` 참조를 `AGENTS.md`로 바꿈 |
+| 2026-09-30 | AWS 기준 모듈 구현(§5, `database: false` 경로 우선). Google provider 제약을 `~> 8.0`으로 수정 (최신 8.5.0) |
