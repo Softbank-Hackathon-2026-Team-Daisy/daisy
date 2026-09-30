@@ -179,6 +179,7 @@ View ──▶ Store(@Observable) ──▶ APIClient ────────�
 
 - **TestFlight 외부 테스트는 첫 빌드에 Beta App Review가 필요해요.** 보통 하루 안팎이지만 보장되지 않아서 **10/1에 제출**하는 게 목표예요. 이후 빌드는 심사가 짧거나 생략되는 경우가 많지만 이것도 보장되지 않아요
 - **업로드 준비 (9/30 완료):** App Store Connect 앱 **"Daisy Deploy"** 등록 (번들 ID `com.teamdaisy.daisy`, "Daisy"는 다른 계정이 써서 등록 이름만 달라요. 홈 화면 이름은 Daisy), 서명 팀 `X5F5WM2H6M`, 개인정보 매니페스트, **첫 빌드 0.1.0 (1) 업로드 완료**. 다음 빌드부터는 `ios/scripts/testflight.sh` 한 번이면 돼요
+- **Mac 직접 다운로드 (9/30):** Developer ID 서명 · Apple 공증 · 스테이플한 DMG를 GitHub Releases에 올려요 (웹 W-14 "Mac 앱 받기"). 첫 릴리스 [`mac-v0.1.0-2609301801`](https://github.com/Softbank-Hackathon-2026-Team-Daisy/daisy/releases/tag/mac-v0.1.0-2609301801), 2.6 MB, macOS 15 이상. 다음부터는 `scripts/mac-dmg.sh`
 - **TestFlight 그룹 (9/30):** 내부 `Team Daisy`(자동 배포, 심사 없음) · 외부 `Public Link` → **https://testflight.apple.com/join/wF5sjQPG** (Beta App Review 통과 뒤 열려요). macOS 플랫폼 추가, macOS 빌드 0.1.0 (2609301801) 업로드 · 처리 완료
 - **남은 것:** 외부 테스트 공개 링크는 Beta App Review용 서버 HTTPS 주소 · 데모 계정(R-03)이 필요해요. 앱 아이콘 원본이 200×200이라 1024에서 조금 흐려서 **1024 이상 원본(또는 SVG)으로 바꿔야 해요**
 - 앱은 로그인이 필요해서 심사 때 **Apple 심사자용 계정**을 적어 내야 해요. 그래서 데모 계정(§6-1 `R-03`)과 HTTPS 서버(`R-04`)가 **D2까지 꼭 필요해요.** 데모 계정은 D2 약속을 받았고, HTTPS는 9/29 회의에서 도메인을 사서 적용하기로 했어요 (서버 담당, 9/30 오후 전)
@@ -463,6 +464,7 @@ API 모양보다 **이 정보가 어딘가에 저장되어 있는지**가 더 �
 | 9/29 | 앱 목업 모드 제거 (항상 실서버 연결), 개발 서버 요구(R-08) 추가 | 박승준 |
 | 9/29 | 에이전트 규칙 파일을 `CLAUDE.md` → `AGENTS.md`로 변경 | 박승준 |
 | 9/29 | 서버 답변 반영: 경로 · 이벤트 이름 확정, Bearer만, `DELETE /devices` + 본문, `attempt` 의미, Plan 모양(`level`·`resource`, `ai_usage`), 제공 일정 D2/D3, 폴링 · 로컬 알림 폴백 | 박승준 |
+| 9/30 | Mac DMG 공증 · GitHub Releases 첫 릴리스, `scripts/mac-dmg.sh` | 박승준 |
 | 9/30 | TestFlight 첫 업로드 ("Daisy Deploy" 0.1.0 (1)), 업로드 스크립트 `scripts/testflight.sh` | 박승준 |
 | 9/30 | 도영 님 와이어프레임 수정 반영: W-05b "○○만 멈췄어요 / ○○만 다시 시도", W-08 "일부 성공" 배지와 설명, W-09 롤백을 일반 배포처럼, W-12 배포 단위(A-04 `ai_usage`, WR-11 안 씀). 모듈 테스트 추가 (`RunLogicTests` · `AIUsageSummaryTests` · `EndpointContractTests` · `ContractDecodingTests`) | 박승준 |
 | 9/30 | 팀 방향에 맞춤: 서버 확정 상태 두 층, 웹 `WR-xx` 경로 · 모양 그대로 사용(배포 시작 `POST /projects/{id}/deployments`, 롤백은 새 배포 + 승인, 동일성은 `image_digest`), Q7 반영("빼고 계속" 제거), 업로드 설계만, W-03 · W-04를 배포 전 화면으로. §6-8을 WR-xx + 앱 추가 요청(R-09, A-10 ~ A-12)으로 다시 씀 | 박승준 |
