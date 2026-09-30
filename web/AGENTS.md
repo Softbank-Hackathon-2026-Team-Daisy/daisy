@@ -8,7 +8,7 @@
 
 배포 흐름 **전체**를 돌리는 웹 대시보드예요 (ADR-007): 저장소 연결, 환경 선택, plan 확인 · 승인, 병렬 배포 진행, 결과 · 이력.
 
-- 화면: W-00 ~ W-13 (W-02b는 범위 제외), 전환 로딩 L-01 ~ L-03 (`SPEC.md` §2)
+- 화면: W-00 ~ W-14 (W-02b는 범위 제외), 전환 로딩 L-01 ~ L-03 (`SPEC.md` §2)
 - 웹은 GitHub, 클라우드 API, Terraform에 직접 붙지 않아요. 모든 데이터는 Daisy 서버 API를 거쳐요
 - 화면은 Figma [와이어프레임 v1.0](https://www.figma.com/design/5nqU4xotMh5jcsaDqOcTST/Team-Daisy-%EC%98%88%EC%84%A0?node-id=0-1), 모양은 [디자인 시스템](https://www.figma.com/design/5nqU4xotMh5jcsaDqOcTST/Team-Daisy-%EC%98%88%EC%84%A0?node-id=2-4)을 따라요 (둘 다 9/30 확정)
 
