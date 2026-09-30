@@ -1,0 +1,45 @@
+.infra-block {
+  flex: none;
+  overflow: visible;
+}
+
+/* 흰 바탕 위에 ink를 면마다 다른 농도로 — 테마를 바꿔도 명암 순서가 유지돼요 */
+.infra-block__face {
+  stroke: var(--color-bg);
+  stroke-width: 0.75;
+  stroke-linejoin: round;
+}
+
+.infra-block__face--top {
+  fill: color-mix(in srgb, var(--color-ink) 55%, var(--color-bg));
+}
+
+.infra-block__face--left {
+  fill: color-mix(in srgb, var(--color-ink) 82%, var(--color-bg));
+}
+
+.infra-block__face--right {
+  fill: var(--color-ink);
+}
+
+/* 24px 위에서 450ms로 내려앉아요 (살짝 튕김) */
+.infra-block__drop {
+  animation: infra-drop 450ms cubic-bezier(0.34, 1.4, 0.64, 1) both;
+}
+
+@keyframes infra-drop {
+  from {
+    opacity: 0;
+    transform: translateY(-24px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .infra-block__drop {
+    animation: none;
+  }
+}

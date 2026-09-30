@@ -1,6 +1,7 @@
 import { Navigate, Route, Routes } from 'react-router'
 import { MOCK_PROJECTS } from './mocks/workspace.ts'
 import AppLayout from './pages/AppLayout.tsx'
+import LoginPage from './pages/login/LoginPage.tsx'
 import ComponentsPage from './pages/dev/ComponentsPage.tsx'
 import PrimitivesPage from './pages/dev/PrimitivesPage.tsx'
 import TokensPage from './pages/dev/TokensPage.tsx'
@@ -11,7 +12,7 @@ import { paths } from './paths.ts'
 function App() {
   return (
     <Routes>
-      <Route path="/login" element={<Placeholder id="W-00 · W-00b" title="로그인" />} />
+      <Route path="/login" element={<LoginPage />} />
 
       <Route element={<AppLayout />}>
         <Route path="/connect" element={<Placeholder id="W-02 · STEP 1" title="애플리케이션 연결" />} />

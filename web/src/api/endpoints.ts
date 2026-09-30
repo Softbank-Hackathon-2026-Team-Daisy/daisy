@@ -37,6 +37,9 @@ export const api = {
   login: (username: string, password: string) =>
     USE_MOCK ? mock(() => mockApi.login(username, password)) : request<AuthToken>('POST', '/auth/token', { body: { username, password } }),
 
+  // R-09 (가칭, #13) — 서버가 안 받으면 공개 데모 계정 + /auth/token으로 바꿔요
+  loginDemo: () => (USE_MOCK ? mock(() => mockApi.login('demo', '')) : request<AuthToken>('POST', '/auth/demo')),
+
   // A-01
   listProjects: () => (USE_MOCK ? mock(mockApi.listProjects) : request<ListResponse<Project>>('GET', '/projects')),
 
