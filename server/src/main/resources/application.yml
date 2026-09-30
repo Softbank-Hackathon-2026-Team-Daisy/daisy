@@ -11,3 +11,8 @@ spring:
       ddl-auto: validate
   jackson:
     property-naming-strategy: SNAKE_CASE
+
+logging:
+  structured:
+    format:
+      console: logstash
