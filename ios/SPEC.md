@@ -25,17 +25,20 @@
 
 웹과 앱은 코드를 공유하지 않고 **같은 백엔드 API만** 써요. 화면을 두 번 만들지 않도록 역할을 나눠요.
 
+> ⚠️ **9/30 변경 (박승준):** 앱도 웹 와이어프레임 v1.0의 화면 · 문구 · 버튼을 모두 가져가요 (W-00 ~ W-13, L-01 ~ L-03). 그래서 앱에서도 저장소 연결, 환경 선택, 배포 시작, 롤백, 연결 테스트, 프로젝트 연결 해제를 할 수 있어요.
+> 이건 ADR-007("앱은 승인 · 진행 상태 · 알림만"), 도영 님 메모("W-02~W-04, W-10~W-13, L-xx는 웹 전용"), **`web/SPEC.md` §1-1(PR #9, "웹만 하는 것: 저장소 연결 · 환경 선택 · 배포 시작 · W-10~W-13")**과 **어긋나요.** 팀 결정이라 **9/30 21시 회의에서 확정**해야 해요 (§8). 확정 전까지 앱 쪽은 이 방향으로 만들어 두고, 결정이 반대로 나면 해당 버튼만 빼요.
+> 서버에 새로 부탁하는 건 거의 없어요: 웹이 요청해 서버가 받아 준 `WR-xx`를 그대로 써요 (§6-8).
+
 | | 웹 (React) | 앱 (Swift) |
 |---|---|---|
-| 저장소 연결, 환경 선택, 배포 시작 | O | X |
-| plan 상세 검토 (리소스 전체 목록, 스크립트) | O | 요약만 |
-| plan 승인 · 거절 | O | **O** |
-| 배포 진행 상태 | O (전체 로그) | **O** (단계 · 최근 로그) |
-| 환경별 현재 버전 현황 | O | **O** |
-| 커밋 · 파이프라인 이력 | O | **O** |
+| 저장소 연결, 환경 선택, 배포 시작 (W-02 ~ W-04) | O | **O** (9/30 변경, 회의 확정 필요). 업로드(W-02b)는 둘 다 설계만 |
+| 생성 · 검증 진행, 중단 처리 (W-05, W-05b) | O | **O** |
+| plan 확인 · 승인 · 거절 (W-06) | O | **O** |
+| 배포 진행 · 결과 · 동일성 검증 (W-07, W-08) | O | **O** |
+| 배포 이력 · 롤백 (W-09) | O | **O** |
+| 환경 · 스크립트 · AI 사용량 · 설정 (W-10 ~ W-13) | O | **O** |
 | 푸시 알림 (승인 필요 · 완료 · 실패) | 브라우저 알림 | **O** |
 
-- 앱은 **보기 + 승인 + 알림**만 해요. 배포를 새로 시작하거나 인프라를 바꾸는 기능은 넣지 않아요 (승인은 예외: 사람 승인은 흐름의 필수 단계라 휴대폰에서 바로 할 수 있게 해요)
 - 앱은 **GitHub, 클라우드, Terraform에 직접 붙지 않아요.** 모든 데이터는 Daisy 백엔드 API를 거쳐요. 토큰을 하나만 관리하고, 웹과 같은 데이터를 보여주기 위해서예요
 
 ### 1-2. ADR-007 수정 제안 ❓
@@ -59,19 +62,35 @@
 
 ## 2. 화면 구성
 
-iOS는 탭, macOS는 사이드바(`NavigationSplitView`)로 같은 화면을 보여줘요.
+코드 하나로 iPhone · iPad · Mac을 모두 지원하고, **플랫폼이 아니라 화면 폭에 따라** 모양이 바뀌어요. 폭이 700 이상이면(iPad · Mac) 직접 그린 사이드바, 좁으면(iPhone) 아래 탭이에요. 현황 · 배포 상세의 환경 카드는 폰에서는 한 열, 넓은 화면에서는 나란히 보여요.
 
-| # | 화면 | 내용 | 우선순위 |
-|---|---|---|---|
-| 1 | **현황** | 프로젝트 선택 → 환경 카드(온프레미스 · AWS · GCP): 현재 커밋 해시(앞 7자리), 배포 시각, 헬스, 공개 URL. **모든 환경이 같은 커밋인지** 표시 (다르면 "버전 불일치" 배지) | M |
-| 2 | **배포 목록** | 진행 중 / 완료 / 실패. 커밋, 대상 환경, 시작 시각, 결과 | M |
-| 3 | **배포 상세** | 환경별 단계 진행 (생성 → validate → plan → 위험 검사 → 승인 대기 → apply → 완료), AI 수정 시도 `n/3`, 최근 로그, 결과 URL. 실시간 갱신 | M |
-| 4 | **승인** | 대기 중인 plan: 환경별 생성·변경·삭제 개수, 삭제 포함 경고, 위험 설정 요약, AI 비용. 승인 · 거절. 삭제가 있으면 확인 문구 입력 | M |
-| 5 | **커밋 · 파이프라인** | main 커밋 목록: 메시지, 작성자, Actions 결과, 이미지 태그, **이 커밋이 배포된 환경** | M |
-| 6 | 설정 | 서버 주소, 로그인 · 로그아웃, 알림 설정 | M |
-| 7 | 푸시 알림 | 승인 필요 · 배포 완료 · 배포 실패. 누르면 해당 화면으로 이동 | S |
-| 8 | macOS 메뉴 막대 | 메뉴 막대 아이콘에서 환경별 상태 한눈에 보기 (`MenuBarExtra`) | S |
-| 9 | 위젯 · Live Activity | 홈 화면 위젯(환경 현황), 잠금 화면 배포 진행 | S (여유 있을 때) |
+**디자인 (9/30, 박승준):**
+- 재질 · 사이드바 · 움직임은 AfterPlan Mac 앱을 그대로 따라요: 사이드바는 HUD 재질(창 뒤 블렌딩), 본문은 창 뒤가 비치는 재질 한 장, 둘 사이에 선 없음. 선택 틴트는 스프링(0.32, 0.86)으로 미끄러지고 굵기는 즉시 바뀌어요. 사이드바 폭은 끌어서 190–420
+- 버튼은 Craft 레퍼런스를 따라요: 화면마다 큰 제목 머리줄, 오른쪽에 동그란 글래스 버튼 · 캡슐 버튼 · 캡슐 세그먼트 (macOS 26 · iOS 26 이상은 Liquid Glass)
+- **기능 UX는 웹과 맞춰요.** 같은 기능(플랜 승인, 배포 진행, 멀티 환경 상태, 이력)은 웹과 같은 흐름 · 용어 · 표기(리소스 `+/~/-` 등)를 써요. 웹 코드가 아직 없어서 지금 기준은 노션 User Flow Chart와 도영 님 Figma예요
+
+**메뉴 (웹 사이드바와 같은 구성):** 프로젝트 전환 · 새 배포 · PROJECT(개요 · 배포 · 환경 · 이력 · 스크립트) · ENVIRONMENTS(환경별 상태) · AI 사용량 · 설정 · 연결 상태 · 사용자. 좁은 화면은 같은 메뉴를 탭으로 (다섯 개가 넘으면 시스템 "더 보기").
+**배치 규칙:** 웹의 좌표는 참고만 하고, 앱 패턴(큰 제목 머리줄 · 카드 · 폭 따라 바뀌는 그리드 · 넓으면 표 좁으면 목록)으로 다시 놓아요. 버튼은 모두 글래스 양식(원 · 캡슐 · 캡슐 세그먼트)이고, 화면의 핵심 동작 하나만 강조 캡슐이에요.
+
+| 웹 화면 | 앱 화면 | 들어가는 곳 | 필요한 API | 우선순위 |
+|---|---|---|---|---|
+| W-00 · W-00b 로그인 | `LoginView` | 앱 시작 (로그인 전) | R-02, R-09 (가칭) | M |
+| W-01 개요 | `OverviewView` | 메뉴 개요 | A-01, A-02(+`image_digest` WR-09), A-03 | M |
+| (웹에 없음) 배포 목록 | `DeploymentsView` | 메뉴 배포 | A-03 | M |
+| W-02 애플리케이션 연결 → L-01 (W-02b 업로드는 설계만) | `ConnectAppView` | 프로젝트 전환 › 새 프로젝트 연결 | WR-02, WR-03, A-06 | S |
+| W-03 이미지 빌드 | `BuildStage` | L-01 뒤 (배포가 생기기 전, 빌드가 끝나면 W-04로) | A-06 | S |
+| W-04 배포할 환경 선택 → L-02 | `TargetSelectView` | 사이드바 새 배포, W-03 다음 | WR-04, WR-05 | M |
+| W-05 인프라 코드 생성 · 검증 | `RunView` › `GenerateStage` | 배포 한 건 (apply 전) | A-04, WR-07 | M |
+| W-05b ○○만 멈췄어요 | `RunView` › `StoppedStage` | 배포 한 건 (한 환경이 apply 전에 3회 실패, 나머지는 계속) | A-04, A-07, WR-05("○○만 다시 시도") | S |
+| W-06 변경 사항 확인 후 승인 → L-03 | `PlanApprovalView` | 배포 한 건 (승인 대기), 개요 › 지금 할 일 | A-05 + WR-06, W-01 | M |
+| W-07 배포 중 | `RunView` › `ApplyStage` | 배포 한 건 (배포 중) | A-04, A-07 | M |
+| W-08 배포 결과 | `RunView` › `ResultStage` | 배포 한 건 (끝, `partially_succeeded`면 "일부 성공" 배지 · 성공한 환경끼리 동일성 비교) | A-04, A-02(+WR-09), WR-05(다시 시도) | M |
+| W-09 배포 이력 | `HistoryView` | 메뉴 이력 | A-03, WR-14 | M |
+| W-10 환경 | `EnvironmentsView` | 메뉴 환경 | WR-04, A-10 · A-11 (가칭) | S |
+| W-11 스크립트 | `ScriptsView` | 메뉴 스크립트 | WR-10 | S |
+| W-12 AI 사용량 (배포 단위) | `AIUsageView` | 메뉴 AI 사용량 › 배포 고르기 | A-03, A-04 `ai_usage` | S |
+| W-13 설정 | `SettingsView` (+ 앱 설정: 서버 주소 · 계정 · 버전) | 메뉴 설정 | A-12 (가칭), WR-03, WR-12, WR-13 | S |
+| 푸시 알림 | — | 승인 필요 · 완료 · 실패 | P-01, P-02 | S |
 
 M = 예선 데모 필수, S = 선택
 
@@ -81,8 +100,8 @@ M = 예선 데모 필수, S = 선택
 
 | 항목 | 선택 | 이유 |
 |---|---|---|
-| UI | **SwiftUI 멀티플랫폼 단일 타깃** (iOS · macOS) | 코드 하나로 두 플랫폼. 플랫폼 차이는 `#if os(...)`로 최소한만 |
-| 최소 OS | iOS 17 · macOS 14 | `@Observable` 사용. 심사위원 기기 호환 범위를 넓게 |
+| UI | **SwiftUI 멀티플랫폼 단일 타깃** (iPhone · iPad · Mac, 네이티브 macOS) | 코드 하나로 모든 화면. 레이아웃은 화면 폭 기준(탭 ↔ 사이드바, 적응형 그리드), `#if os(...)`는 플랫폼 전용 기능에만 |
+| 최소 OS | iOS 18 · macOS 15 | iOS 18의 `Tab` API. 2026년 9월 기준 심사위원 기기는 대부분 이보다 최신이에요 |
 | 언어 · 도구 | Swift 6 (strict concurrency), Xcode 27 | |
 | 외부 라이브러리 | **없음** (SPM 의존성 0개로 시작) | 웹 ADR-006과 같은 "최소 스택, 막힐 때만 추가" 원칙. 추가하면 이유를 ADR에 기록 |
 | 네트워크 | `URLSession` + `async/await` + `Codable` | |
@@ -91,7 +110,7 @@ M = 예선 데모 필수, S = 선택
 | 인증 저장 | Keychain | 토큰을 UserDefaults에 두지 않음 |
 | 푸시 | APNs (토큰 기반 `.p8` 키) | 백엔드가 발송 (§6-5) |
 | 배포 | Xcode 아카이브 → App Store Connect → **TestFlight 외부 테스트 공개 링크** | |
-| 목업 | **쓰지 않아요.** 앱은 항상 실서버 API에 붙어요 | 앱 안에 목업 모드 · 가짜 데이터 경로를 두지 않아요. 화면 레이아웃은 Xcode `#Preview` 안의 샘플 값으로만 잡고, 이 값은 앱 실행 경로에 들어가지 않아요 |
+| 목업 | **실서버가 기본.** 예외로 **예시 데이터 모드** 하나만 둬요 (9/30) | 로그인 화면 "예시 데이터로 둘러보기 (오프라인)" → 앱에 들어 있는 `SampleData/sample.json`(실제 sample-monolith · sample-msa 커밋 기반)으로 모든 화면을 봐요. 화면마다 "예시 데이터" 배지, 읽기 전용, 실데이터와 섞지 않아요. 만들기: `scripts/sample-data/generate.py` |
 
 ### 3-1. 폴더 구조
 
@@ -99,9 +118,9 @@ M = 예선 데모 필수, S = 선택
 ios/
 ├─ AGENTS.md                AI 에이전트 규칙 (이 폴더 전용, 영어)
 ├─ SPEC.md                  이 문서
-├─ Daisy.xcodeproj          (가칭) 앱 이름 Daisy, 번들 ID com.teamdaisy.daisy
+├─ Daisy.xcodeproj          앱 이름 Daisy, 번들 ID com.teamdaisy.daisy. 폴더 동기화 방식이라 파일을 추가해도 프로젝트 파일을 고칠 필요가 없어요
 ├─ Daisy/
-│  ├─ App/                  진입점, 루트 화면 (iOS TabView / macOS NavigationSplitView), 의존성 조립
+│  ├─ App/                  진입점, 루트 화면 (폭 700 이상 사이드바 · 미만 탭), 사이드바, 의존성 조립
 │  ├─ Features/             화면 단위 폴더. 각 폴더에 View + Store
 │  │  ├─ Overview/          1 현황
 │  │  ├─ Deployments/       2 배포 목록 · 3 배포 상세
@@ -114,9 +133,9 @@ ios/
 │  │  ├─ Realtime/          SSE 클라이언트, 이벤트 디코딩, 폴링 폴백
 │  │  ├─ Auth/              토큰 저장 (Keychain)
 │  │  └─ Push/              APNs 등록, 알림 탭 → 화면 이동
-│  ├─ DesignSystem/         상태 배지, 환경 아이콘, 커밋 해시 라벨
+│  ├─ DesignSystem/         재질, 글래스 버튼 · 세그먼트, 머리줄, 카드, 상태 배지, 환경 아이콘
 │  └─ Resources/            에셋, 한국어 문자열
-├─ DaisyTests/              모델 디코딩 · SSE 파서 · 스토어 테스트
+├─ DaisyTests/              모델 디코딩 · SSE 파서 · 스토어 테스트 (Swift Testing)
 └─ DaisyWidgets/            (S) 위젯 · Live Activity
 ```
 
@@ -159,6 +178,10 @@ View ──▶ Store(@Observable) ──▶ APIClient ────────�
 | 10/3 | 공개 링크 배포 | — |
 
 - **TestFlight 외부 테스트는 첫 빌드에 Beta App Review가 필요해요.** 보통 하루 안팎이지만 보장되지 않아서 **10/1에 제출**하는 게 목표예요. 이후 빌드는 심사가 짧거나 생략되는 경우가 많지만 이것도 보장되지 않아요
+- **업로드 준비 (9/30 완료):** App Store Connect 앱 **"Daisy Deploy"** 등록 (번들 ID `com.teamdaisy.daisy`, "Daisy"는 다른 계정이 써서 등록 이름만 달라요. 홈 화면 이름은 Daisy), 서명 팀 `X5F5WM2H6M`, 개인정보 매니페스트, **첫 빌드 0.1.0 (1) 업로드 완료**. 다음 빌드부터는 `ios/scripts/testflight.sh` 한 번이면 돼요
+- **Mac 직접 다운로드 (9/30):** Developer ID 서명 · Apple 공증 · 스테이플한 DMG를 GitHub Releases에 올려요 (웹 W-14 "Mac 앱 받기"). 웹은 **고정 주소** https://github.com/Softbank-Hackathon-2026-Team-Daisy/daisy/releases/download/mac-latest/Daisy.dmg 를 써요 (새 빌드 때 파일만 바꿔요). 지금 0.1.0 (2609302029, 예시 데이터 포함), macOS 15 이상. 만들기는 `scripts/mac-dmg.sh`
+- **TestFlight 그룹 (9/30):** 내부 `Team Daisy`(자동 배포, 심사 없음) · 외부 `Public Link` → **https://testflight.apple.com/join/wF5sjQPG** (Beta App Review 통과 뒤 열려요). macOS 플랫폼 추가, macOS 빌드 0.1.0 (2609301801) 업로드 · 처리 완료
+- **남은 것:** 외부 테스트 공개 링크는 Beta App Review용 서버 HTTPS 주소 · 데모 계정(R-03)이 필요해요. 앱 아이콘 원본이 200×200이라 1024에서 조금 흐려서 **1024 이상 원본(또는 SVG)으로 바꿔야 해요**
 - 앱은 로그인이 필요해서 심사 때 **Apple 심사자용 계정**을 적어 내야 해요. 그래서 데모 계정(§6-1 `R-03`)과 HTTPS 서버(`R-04`)가 **D2까지 꼭 필요해요.** 데모 계정은 D2 약속을 받았고, HTTPS는 9/29 회의에서 도메인을 사서 적용하기로 했어요 (서버 담당, 9/30 오후 전)
 - 승인 · 커밋 이력은 서버 API가 D3에 나와서, 첫 심사 빌드에는 레이아웃만 들어가요. 심사를 통과한 뒤 올리는 빌드는 다시 심사받지 않는 경우가 많지만 보장되지 않아서, D3 빌드를 오전에 올려요
 - 앱에 목업이 없어서 **앱 진행 속도가 백엔드 API 일정에 직접 묶여요.** API가 늦어지면 그 화면은 레이아웃만 먼저 만들고 기다려요
@@ -206,7 +229,7 @@ View ──▶ Store(@Observable) ──▶ APIClient ────────�
 | ID | 메서드 · 경로 | 쓰는 화면 | 응답 요약 | 우선 | 비고 |
 |---|---|---|---|---|---|
 | A-01 | `GET /projects` | 현황 (프로젝트 선택) | `Project[]` | M | v0.1 제안과 같음 |
-| A-02 🆕 | `GET /projects/{id}/targets/status` | **현황** | 환경별 현재 상태 `TargetStatus[]` (§6-7) | M | 앱이 자주 부르는 화면이라 별도 엔드포인트로 둬요. **앱의 핵심 화면** |
+| A-02 🆕 | `GET /projects/{id}/targets/status` | **현황** | 환경별 현재 상태 `TargetStatus[]` (§6-7) | M | 앱이 자주 부르는 화면이라 별도 엔드포인트로 둬요. **앱의 핵심 화면.** 앱은 목록 공통 봉투 `{ items, next_cursor }`로 받는다고 가정했어요 `(가칭)` |
 | A-03 | `GET /projects/{id}/deployments?state=&cursor=` | 배포 목록 | `Deployment` 요약 목록 | M | v0.1 제안과 같음 |
 | A-04 | `GET /deployments/{id}` | 배포 상세 | `Deployment` 스냅샷 | M | v0.1과 같음. 환경별 `attempt`와 현재 단계 포함. 한 환경이 3회 실패해도 다른 환경은 계속 진행해요. **`attempt`는 첫 생성을 포함한 총 시도 횟수**예요: `1/3`부터 시작하고 AI 수정은 최대 2번. 화면 문구는 "시도 n/3" |
 | A-05 | `GET /deployments/{id}/plan` | 승인 | `Plan` (환경별 개수 · 삭제 여부 · 위험 설정) + `ai_usage` | M | 서버의 `PlanSummary`(김승환) 그대로. AI 토큰 · 비용은 plan 안이 아니라 응답의 `ai_usage` 합계로 같이 와요. 원화 비용은 **고정 환율로 환산한 추정치**라, 앱은 "추정"과 적용 환율을 같이 보여줘요. 앱은 **요약 필드만** 써요 (리소스 전체 목록은 웹) |
@@ -243,6 +266,7 @@ v0.1의 SSE 채널·봉투·재연결 규칙을 **그대로** 써요. 앱에 필
 
 - 웹에서 먼저 승인했으면 **409 `STATE_CONFLICT`**를 주세요. 앱은 최신 상태를 다시 불러와요
 - 삭제가 포함된 plan은 `confirm_text`를 서버에서도 검증해 주세요 (v0.1과 같음)
+- ❓ **`confirm_text`에 무엇을 넣나요?** v0.1 예시는 대상 환경 이름(`gcp-prod`)인데, 환경이 여러 개면 어떻게 하는지 정해 주세요. 지금 앱은 사용자가 입력한 값을 그대로 보내요 `(가칭)`
 - viewer 역할이면 **403** (R-03)
 - **plan을 다시 뜨는 경우 (9/29, 하은현):** 승인 대기가 길어져 plan이 낡으면(stale) 서버가 plan을 다시 뜨고 이전 승인은 무효가 돼요. 이건 AI 수정이 아니라서 **`attempt`는 그대로**이고, `approval.required`가 다시 와요. 앱은 같은 "시도 n/3"으로 승인 카드를 다시 띄우고, "plan이 갱신됐어요"처럼 이유를 보여줘요
 - ❓ **승인 단위**: 배포 전체를 한 번에 승인하나요, 환경별로 따로 승인하나요? 플로우차트(7-1~7-3)는 전체 한 번으로 읽혀요. 앱은 둘 다 그릴 수 있지만 확정이 필요해요
@@ -298,11 +322,15 @@ API 모양보다 **이 정보가 어딘가에 저장되어 있는지**가 더 �
   "project_id": "prj_1",
   "commit": "2311c0b…",
   "image": "ghcr.io/…:2311c0b…",
-  "state": "queued" | "generating" | "validating" | "awaiting_approval"
-         | "applying" | "succeeded" | "failed" | "cancelled",   // ❓ 백엔드 상태 머신에 맞춰 확정
+  "state": "queued" | "running" | "awaiting_approval"
+         | "succeeded" | "partially_succeeded" | "failed" | "cancelled",   // 9/30 서버 확정 (배포 전체)
+  "kind": "rollback" | null,               // 롤백은 상태가 아니라 별도 배포 (WR-14)
+  "rolled_back_from": "dep_41" | null,
   "targets": [
     {
       "target_id": "tgt_gcp",
+      "state": "waiting" | "generating" | "validating" | "awaiting_approval"
+             | "applying" | "verifying" | "succeeded" | "failed" | "cancelled",   // 9/30 서버 확정 (환경별)
       "step": "generate" | "validate" | "plan" | "risk_check" | "apply" | "health_check",
       "step_state": "running" | "done" | "failed" | "waiting",
       "attempt": 1,                          // 첫 생성을 포함한 총 시도 횟수 (1~3). 화면에는 "시도 n/3"
@@ -347,6 +375,51 @@ API 모양보다 **이 정보가 어딘가에 저장되어 있는지**가 더 �
 
 ---
 
+### 6-8. 와이어프레임 화면에 쓰는 API — 9/30 저녁 최신화
+
+앱이 웹 화면을 모두 가져가면서 필요한 API예요. **웹이 먼저 요청해 서버가 답한 `WR-xx`(`web/SPEC.md` §6-1, PR #9 은현 님 답변)를 그대로 써요.** 경로 · 모양도 웹 문서를 따라요. 앱 코드는 `Core/API/WebEndpoints.swift`, `Core/Models/WebModels.swift`에 있어요.
+
+**웹과 같이 쓰는 것 (서버 답변 있음)**
+
+| ID | 메서드 · 경로 | 앱 화면 | 서버 답변 (9/30) |
+|---|---|---|---|
+| WR-02 | `POST /projects` `{ repository, branch }` | W-02 연결하기 | 좋아요, 응답에 deploy.yaml 검증 결과 · D2 |
+| WR-03 | `GET /projects/{id}/manifest` | W-02 배포 명세 확인 · W-13 | 좋아요, 모양은 `deploy.yaml` 스키마 결정 뒤 · D3 |
+| WR-04 | `GET /projects/{id}/targets` → `target_id, type, name, reuse{ available, script_id?, reason? }, connection{ state: ok·failed·unknown, checked_at }` | W-04 · W-10 · 사이드바 | 별도 엔드포인트로 · D2 |
+| WR-05 | `POST /projects/{id}/deployments` `{ commit, target_ids[] }` + `Idempotency-Key` | W-04 시작, **W-05b "○○만 다시 시도" · W-08 "다시 시도"도 같은 커밋 · 그 환경만으로 새 배포** (가정, #13에서 확인 중) | 이 경로로 확정 · D2 |
+| WR-06 | `GET /deployments/{id}/plan?detail=resources` | W-06 리소스 행 (`action`에 `replace` 포함) | 좋아요 · D3 |
+| WR-07 | `GET /deployments/{id}/targets/{target_id}/script` → `files[{ path, content }]` | W-05 생성된 스크립트 | 18시 백엔드 회의에서 확인 |
+| WR-08 | `POST /deployments/{id}/cancel` | (앱은 아직 버튼 없음) | 좋아요 · D3 |
+| WR-09 | A-02에 `image_digest` | W-01 · W-08 동일성 검증 (앱이 digest · 커밋 · 헬스로 표를 만들어요. **예전 A-09 요청은 뺐어요**) | 넣을게요 · D2 |
+| WR-10 | `GET /projects/{id}/scripts` | W-11 | 승환 님 영역, D3~ |
+| WR-11 | W-12 AI 사용량 **응답 위치 `(가칭)`** — 앱은 지금 A-04 `ai_usage`에 합계 · `items`가 온다고 **가정**해요 | W-12 (배포 단위는 확정) | **백엔드 협의 중** (9/30 승환 님, #13): A-04에 다 담을지, 상세 기록을 별도 조회로 줄지 정해지면 맞춰요. `items`가 없으면 합계만 보여주는 폴백은 확인됨 |
+| WR-12 | `PUT /projects/{id}/secrets/{name}` | W-13 비밀값 추가 (지금은 비활성) | 전달 방식 팀 결정 대기 |
+| WR-13 | `DELETE /projects/{id}` | W-13 연결 해제 (확인 입력은 화면에서) | 좋아요 · S |
+| WR-14 | `POST /deployments/{id}/rollback` `{ target_ids[], reason }` → `Deployment(kind: "rollback")` | W-09 롤백 → 새 배포로 이동, **plan 승인을 거쳐요** | 넣을게요 (은현 님) |
+
+**앱이 더 부탁하는 것 (가칭) 🆕** — 웹 W-10 · W-13 · W-00에도 같은 버튼이 있어요. 받으실지는 서버가 정해 주세요 (이슈로 전달)
+
+| ID | 메서드 · 경로 (가칭) | 앱 화면 | 요약 |
+|---|---|---|---|
+| R-09 | `POST /auth/demo` → `AuthToken(role: "viewer")` | W-00 "데모 계정으로 둘러보기 (읽기 전용)" | 심사위원이 비밀번호 없이 들어오는 버튼. **인증 범위는 9/30 회의 안건**이라 결정 뒤 맞춰요. `/auth/token` + 공개 데모 계정으로 대신해도 돼요 |
+| A-10 | `POST /targets/{id}/test` → `{ connected, message }` | W-10 "연결 테스트" | WR-04 `connection`을 지금 다시 확인 |
+| A-11 | `GET /targets/{id}/resources` → `[{ address, type }]` | W-10 "리소스 보기" | 이 환경 state에 있는 리소스 |
+| A-12 | `GET /projects/{id}` → `id, name, repository, branch, build?, registry?, webhook_last_at?` | W-13 저장소 카드 | 노션 계약 v0.2 §3-2 제안과 같아요 |
+
+**기존 모델에 더한 필드 (가칭) 🆕** — 없으면 화면이 "—"나 기본 문구로 보여줘요. 필수는 아니에요.
+
+- `Deployment`: `version`("v7"), `commit_message`
+- `Deployment.ai_usage` (W-12, 응답 위치 `(가칭)` · 백엔드 협의 중): 합계 `tokens, cost_krw, exchange_rate, estimated`에 더해 `calls`, `items[{ at, target_id, step: generate·fix, attempt, tokens, cost_krw, status: succeeded·failed, note? }]`. 재사용 환경은 기록이 없어서 앱이 `reused_script`로 "— 검증된 스크립트 재사용" 줄을 만들어요
+- `Deployment.targets[]`: `title`("home-lab · Docker"), `steps[]`(`{ name, state, duration_ms, started_at }`, W-05 검증 단계 · W-07 레인), `health_summary`("200 OK · p95 120ms")
+- `Plan.targets[]`: `reused_script`
+- `Build`: `branch`, `digest`, `steps[]` (W-03 GitHub Actions 단계)
+- `Project`: `branch`
+- WR-04 `Target`: W-10 줄 `title, runtime, location, access_method, exposure, state_backend, current_commit`
+- WR-10 `Script`: W-11 정보 카드 `note, base_commit, input, ai_tokens, storage, created_at`
+- WR-03 `Manifest`: `raw`(원문), `ref`("deploy.yaml · main@a1b2c3d")
+
+**9/30 저녁에 뺀 것:** A-09 동일성 검증 API(→ WR-09), B-01 저장소 미리 확인(→ WR-02 응답 + WR-03), B-03 · B-04 업로드(범위 밖), B-09 · B-11 재시도 API(→ WR-05 새 배포), B-10 "○○ 빼고 계속"(Q7: 나머지 환경은 자동으로 계속), 상태 `building` · `selecting_targets` · `stopped`(W-03 · W-04는 배포가 생기기 전 화면), 인프라 월 비용(서버 보류, 오면 보여줘요)
+
 ## 7. CI 요구사항 (가칭) — 김도영
 
 커밋 · 파이프라인 화면(A-06)을 채우려면 Actions가 보내는 이벤트에 정보가 조금 더 필요해요. 이 payload는 서버 웹훅으로 들어가서, **은현 님이 정리해 도영 님께 이슈로 전달**하기로 했어요 (9/29). 현재 `sample-monolith/.github/workflows/ci.yml`의 `notify` 잡 기준이에요.
@@ -366,7 +439,20 @@ API 모양보다 **이 정보가 어딘가에 저장되어 있는지**가 더 �
 - [x] ~~개발 서버 · 데모 계정 준비~~ → D2 은현 님 (9/29)
 - [x] ~~HTTPS 공개 주소 (R-04)~~ → 도메인 구매 + HTTPS (9/29 회의, 서버 담당)
 - [ ] **승인 단위**: 배포 전체 한 번 / 환경별 (§6-4)
-- [ ] **배포 상태 · 단계 값** 확정 (§6-7 `state`, `step`) — 웹 · 앱 · 백엔드가 같은 목록을 써요
+- [ ] **`confirm_text` 값** (§6-4)
+- [ ] **앱 범위를 웹 전체로 넓힐지** (§1-1 ⚠️): ADR-007 · 도영 님 메모 · `web/SPEC.md` §1-1과 어긋나요 — **9/30 21시 회의**
+- [ ] **§6-8 앱 추가 요청 R-09 · A-10 ~ A-12 · 필드 추가**를 서버가 받을지 — 하은현 · 김승환 (이슈로 전달)
+- [ ] **데모 계정 진입 방식** (R-09): 인증 범위 회의에서 — 팀
+- [ ] **Q4 빌드가 끝나면 W-04로 바로 갈지** — 앱은 지금 바로 넘어가요. 팀 결정에 맞춰요
+- [ ] **헬스체크 실패 시 자동 롤백** (은현 님 제안): 넣으면 이력에 롤백 배포가 승인 없이 생겨요. 앱은 `kind: "rollback"`으로 표시만 해요 — 팀
+- [x] ~~배포 상태 · 단계 값~~ → 9/30 서버 확정 (§6-7): 배포 전체 `queued · running · awaiting_approval · succeeded · partially_succeeded · failed · cancelled`, 환경별 `waiting · generating · validating · awaiting_approval · applying · verifying · succeeded · failed · cancelled`. 롤백은 별도 배포
+- [x] ~~Q7 한 환경 3회 실패 시~~ → 환경별, 나머지는 계속 (9/29 서버). W-05b는 "○○만 멈췄어요" + "○○만 다시 시도" (9/30 도영 님 와이어프레임 수정)
+- [ ] **"○○만 다시 시도"를 새 배포로 만들지, 같은 배포 안에서 그 환경만 다시 돌릴지** — 앱은 WR-05 새 배포로 가정. 서버 확인 (#13)
+- [x] ~~W-12 범위~~ → 배포 단위 (9/30 도영 님)
+- [ ] **W-12 응답 위치** — A-04 `ai_usage`에 다 담을지 / 상세는 별도 조회인지 `(가칭)`, 백엔드 협의 중 (#13 승환 님)
+- [ ] **AI 호출 기록 `status`의 뜻** — LLM 호출 성공 · 실패인지, Terraform 검증 결과인지 (#13 승환 님 질문). 앱은 지금 "통과/실패"로 표시해요
+- [x] ~~롤백 표시~~ → 새 배포 한 건, 목록 · 알림에서 일반 배포처럼 (9/30 도영 님)
+- [x] ~~업로드 입력(W-02b)~~ → 서버 작업 없음, 앱은 설계만 표시 (9/30 은현 님 답변. 웹 화면 처리는 도영 님 결정)
 - [x] ~~푸시를 예선 범위에 넣을지~~ → D3까지 로컬 알림, APNs는 여유 있으면 (9/29)
 - [x] ~~경로 · 이벤트 이름 확정~~ → 9/29 확정. 모델 필드는 서버 OpenAPI가 나오면 맞춰요
 
@@ -380,4 +466,15 @@ API 모양보다 **이 정보가 어딘가에 저장되어 있는지**가 더 �
 | 9/29 | 앱 목업 모드 제거 (항상 실서버 연결), 개발 서버 요구(R-08) 추가 | 박승준 |
 | 9/29 | 에이전트 규칙 파일을 `CLAUDE.md` → `AGENTS.md`로 변경 | 박승준 |
 | 9/29 | 서버 답변 반영: 경로 · 이벤트 이름 확정, Bearer만, `DELETE /devices` + 본문, `attempt` 의미, Plan 모양(`level`·`resource`, `ai_usage`), 제공 일정 D2/D3, 폴링 · 로컬 알림 폴백 | 박승준 |
+| 9/30 | 예시 데이터 모드(오프라인 번들, 배지, 읽기 전용) 추가 — 9/29 "목업 없음" 결정을 담당자가 바꿈. 생성 스크립트 · 테스트 6개 | 박승준 |
+| 9/30 | Mac DMG 공증 · GitHub Releases 첫 릴리스, `scripts/mac-dmg.sh` | 박승준 |
+| 9/30 | TestFlight 첫 업로드 ("Daisy Deploy" 0.1.0 (1)), 업로드 스크립트 `scripts/testflight.sh` | 박승준 |
+| 9/30 | 도영 님 와이어프레임 수정 반영: W-05b "○○만 멈췄어요 / ○○만 다시 시도", W-08 "일부 성공" 배지와 설명, W-09 롤백을 일반 배포처럼, W-12 배포 단위(A-04 `ai_usage`, WR-11 안 씀). 모듈 테스트 추가 (`RunLogicTests` · `AIUsageSummaryTests` · `EndpointContractTests` · `ContractDecodingTests`) | 박승준 |
+| 9/30 | 팀 방향에 맞춤: 서버 확정 상태 두 층, 웹 `WR-xx` 경로 · 모양 그대로 사용(배포 시작 `POST /projects/{id}/deployments`, 롤백은 새 배포 + 승인, 동일성은 `image_digest`), Q7 반영("빼고 계속" 제거), 업로드 설계만, W-03 · W-04를 배포 전 화면으로. §6-8을 WR-xx + 앱 추가 요청(R-09, A-10 ~ A-12)으로 다시 씀 | 박승준 |
+| 9/30 | 와이어프레임 v1.0 화면 · 문구 · 버튼을 앱에 모두 옮김 (W-00 ~ W-13, L-01 ~ L-03), 메뉴를 웹 사이드바 구성으로, 새 요청 §6-8 (가칭) | 박승준 |
+| 9/30 | 웹(Figma 와이어프레임 v1.0) 문구로 통일: 메뉴 개요 · 배포 · 승인 · 이력 · 설정, 상태 이름, `리소스 +6 ~0 −0`, 로그인 · 오류 문구. 색 · 모양은 앱 방식 유지, 아이콘은 비슷한 SF Symbols | 박승준 |
+| 9/30 | 앱 아이콘 적용 (iOS 1024 꽉 찬 정사각형, macOS 둥근 사각형 격자 16–1024), 사이드바 머리에 로고 | 박승준 |
+| 9/30 | 디자인 적용: AfterPlan 재질 · 사이드바 · 움직임, Craft 버튼(글래스 원 · 캡슐 · 세그먼트), 큰 제목 머리줄, 웹과 기능 UX 맞추기 | 박승준 |
+| 9/30 | 반응형으로 변경: 최소 iOS 18 · macOS 15, 탭 ↔ 사이드바 자동 전환, 현황 · 배포 상세 적응형 카드 그리드 | 박승준 |
+| 9/30 | 앱 뼈대 구현 후 최신화: A-02 목록 봉투 가정, `confirm_text` 값 질문, TestFlight 업로드 준비물 | 박승준 |
 | 9/30 | 리뷰 반영: "총 시도 횟수" 문구(승환 님), plan 재생성 시 재승인 동작(은현 님), AI 비용 추정 · 환율 표시(`server/AGENTS.md`), R-04는 도메인 + HTTPS로 확정(9/29 회의) | 박승준 |

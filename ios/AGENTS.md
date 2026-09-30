@@ -6,10 +6,10 @@ Follow the root `AGENTS.md` first. This file adds rules for `ios/` only and neve
 
 ## 1. What this area is
 
-A native SwiftUI app that shows Daisy deployments on iPhone and Mac: **view, approve, notify.**
+A native SwiftUI app for Daisy on iPhone, iPad, and Mac. Since 9/30 it carries **every screen, text, and button of the web wireframe v1.0** (W-00 – W-13, L-01 – L-03), laid out in this app's own design (`SPEC.md` §2 has the screen map).
 
-- Screens (M): overview of what runs where, deployment list and detail, plan approval, commits and pipelines, settings (`SPEC.md` §2)
-- The app never starts deployments, registers or deletes environments, or calls GitHub, cloud APIs, or Terraform directly. All data comes through the Daisy server API (`SPEC.md` §4).
+- This goes beyond ADR-007 ("approve, progress, notify only") and 도영's memo (W-02 – W-04 and W-10 – W-13 web-only). The owner chose it; the team still has to confirm it (tier 4, `SPEC.md` §8). If the team decides against it, remove only the affected buttons.
+- The app never calls GitHub, cloud APIs, or Terraform directly. All data and actions go through the Daisy server API (`SPEC.md` §4, §6-8).
 - Distribution goal: a public TestFlight link that judges install during the demo. The first build goes to Beta App Review on **10/1** (`SPEC.md` §5).
 
 ## 2. Contracts this area depends on
@@ -37,17 +37,19 @@ These belong to server, so they are tier 3 in root §6: the server owner decides
 5. When the server publishes or changes the real contract, run the root §8 contradiction check against `SPEC.md`. Adapt the app to the server's decision, and remove `(가칭)` from entries that now match.
 6. At the end of the task, list every `SPEC.md` entry you added or changed (ID, what, why) in your report, and draft the server issue for each new one (root §9).
 
-## 4. No mocks
+## 4. Real server first, one labeled sample mode
 
-The app always talks to a real server. There is no mock mode, fake API client, or hard-coded data in the app.
+The app talks to a real server by default. The **only** exception is the owner-approved (9/30) offline **sample mode** ("예시 데이터로 둘러보기 (오프라인)") for judges and Apple review.
 
+- Sample mode reads `Daisy/Resources/SampleData/sample.json` through `SampleData` / `SampleDataProtocol` (`Core/API/SampleData.swift`). No other fake client, no hard-coded data anywhere else.
+- Every screen shows `SampleBadge` ("예시 데이터") while it is on (root `AGENTS.md` §4-6). Never hide or remove the badge. Never mix sample and real server data. All writes return 403 `SAMPLE_READ_ONLY`.
+- Regenerate the bundle with `python3 ios/scripts/sample-data/generate.py`: real commits and `deploy.yaml` from `sample-monolith` / `sample-msa`, example deployment states and costs, example domains (`*.example.com`). It must stay the same shape as the server API (`SampleDataTests` checks every path decodes).
 - If the server API a screen needs does not exist yet, build the layout only and report which `SPEC.md` ID it is waiting for.
-- Sample values are allowed only inside `#Preview` blocks and `DaisyTests`. Code under `App/`, `Features/`, and `Core/` never references them.
-- Sample JSON follows `SPEC.md` §6-7 exactly and contains no real tokens, passwords, or URLs with credentials.
+- Other sample values stay inside `#Preview` blocks and `DaisyTests`. No real tokens, passwords, or URLs with credentials in any sample.
 
 ## 5. Stack and structure
 
-- SwiftUI multiplatform, one app target for iOS 17+ and macOS 14+. Swift 6 with strict concurrency. Xcode 27.
+- SwiftUI multiplatform, one app target for iPhone, iPad, and native macOS (iOS 18+, macOS 15+). Swift 6 with strict concurrency. Xcode 27.
 - No third-party packages. `URLSession` + `async/await` + `Codable`. SSE is parsed from `URLSession.bytes`, with 5-second polling as the fallback. Tokens live in the Keychain. Push uses APNs.
 
 ```
@@ -56,10 +58,10 @@ ios/
 ├─ SPEC.md
 ├─ Daisy.xcodeproj
 ├─ Daisy/
-│  ├─ App/            entry point, root view (iOS TabView / macOS NavigationSplitView), dependency wiring
-│  ├─ Features/       one folder per screen: Overview, Deployments, Approvals, History, Settings (View + Store each)
+│  ├─ App/            entry point, root layout (sidebar at width ≥ 700, tabs below), Sidebar, dependency wiring
+│  ├─ Features/       one folder per menu: Login, Overview, Deployments (run flow W-03 – W-08), Connect (W-02), Approvals (W-06), History, Environments, Scripts, AIUsage, Settings
 │  ├─ Core/           API, Models, Realtime, Auth, Push
-│  ├─ DesignSystem/   shared views: status badge, environment icon, commit hash label
+│  ├─ DesignSystem/   materials, glass buttons and segmented control, PageHeader/PageScaffold, cards, badges
 │  └─ Resources/
 ├─ DaisyTests/        model decoding, SSE parser, store state transitions
 └─ DaisyWidgets/      (S) widgets and Live Activity
@@ -71,7 +73,30 @@ ios/
 - A view used by one screen lives in that `Features/{Feature}/`. A view used by two or more screens moves to `DesignSystem/`.
 - Decode JSON with `convertFromSnakeCase`. Every enum decoded from a server string has an `unknown` case, so a new server value never crashes the app.
 - Map the server error envelope to `APIError`. `401 UNAUTHENTICATED` → login screen. `409 STATE_CONFLICT` → reload the latest state. A viewer account gets `403` on approval; show it as "읽기 전용 계정".
-- `#if os(iOS)` / `#if os(macOS)` only in `App/` and `DesignSystem/`, never in feature logic.
+- **Layout adapts to available width, not to the platform.** `RootView` shows the custom sidebar at width ≥ 700 (iPad, Mac; the Mac window's minimum width is 820) and system tabs below that (iPhone). Inside a screen, use `AdaptiveGrid` and `cardStyle()` so cards form one column on a phone and several on wide screens. Do not branch on `horizontalSizeClass`; it does not exist on macOS.
+- `#if os(iOS)` / `#if os(macOS)` only for platform-only capabilities (keyboard type, menu bar, haptics), and only in `App/` and `DesignSystem/`, never in feature logic.
+- Test in this order: iPhone, then Mac, then iPad. iPad only needs to not break.
+
+### Design (owner decision, 9/30)
+
+Materials, the sidebar, and motion copy the owner's AfterPlan Mac app (`~/Github/AfterPlan/docs/design/macos-design.md`); buttons follow the owner's Craft reference. Keep to these; change them only when your human asks.
+
+- **Layers.** Sidebar: `SidebarBackground()` (Mac: `NSVisualEffectView` `.hudWindow`, behind-window blending, follows window active state, no tint). Content: `.contentSurface()` (Mac: `.underWindowBackground`, translucent; Reduce Transparency makes it opaque). Lists and forms use `.onContentSurface()` so they do not paint their own background. No line between sidebar and content; the change of material is the boundary.
+- **Window (Mac).** Unified toolbar without a title, toolbar background hidden, only the sidebar button on the left (⌃⌘S). The settings gear sits alone at the bottom left of the sidebar.
+- **Sidebar rows.** 15 pt text, 16 pt icon in a 22 pt frame, 36 pt high, 10 pt inset. Selected: `.fill.tertiary` rounded 8 plus semibold; hover: `.fill.quinary`. No accent color. The tint moves with `.spring(response: 0.32, dampingFraction: 0.86)` via `matchedGeometryEffect`; weight changes at once; Reduce Motion drops the spring. Width 240 by default, 190–420 by dragging the edge, remembered.
+- **Screens.** Every root screen uses `PageScaffold(title, subtitle:, trailing:)`: a `title2` semibold title on the left and the screen's controls on the right. Pushed detail screens keep the system navigation title.
+- **Buttons (owner: "this design is 100 points").** Every button uses this family and nothing else. Icon-only: `.glassCircle`. Text and menus: `.glassCapsule` (`fullWidth:` for forms, `height:` 44 for the approval bar). The one core action on a screen (승인하고 배포, 로그인, 인프라 코드 생성 · 검증 시작, 연결하기): `.glassProminent` / `.glassCapsule(prominent: true)`. Choices: `GlassSegmented`. Destructive: `role: .destructive` (red text). Liquid Glass on iOS 26 / macOS 26, a material with a hairline below that. Web variants (Primary/Secondary/Outline/Ghost) all map onto these; do not recreate them.
+- **Cards.** `cardStyle()`: corner 12, `.fill.quaternary`, hairline `.separator` border, `.fill.tertiary` on hover.
+- **Web positions are hints, not layout.** The wireframe inventory has x/y for every element; use it to know what belongs together and in which order, then place it with `PageScaffold` / `FlowPage` / `SectionCard` / `AdaptiveGrid`. Tables become lists on narrow screens (`ViewThatFits`).
+- **Taking from the web design (Figma).** Take **wording only**: screen and menu names, labels, status names, messages, notation. Colors, shapes, radius, fonts, and layout stay with this app's design above, even where Figma says otherwise (no-pill, radius ≤ 4, IBM Plex, yellow button). For each web icon, use the closest SF Symbol: cloud → `cloud`, play → `play`, server → `server.rack`, clock → `clock`, terminal → `apple.terminal`, signal → `cellularbars`, settings → `gearshape`.
+
+### Match the web's feature UX
+
+The app and the web show the same deployments, so a feature that exists in both follows the web's flow, wording, and notation (for example resource counts as `+create ~update -delete`). Before building or changing such a flow:
+
+1. Look for the web's current version even if it is not on `main`: `git fetch --all --prune`, then `git branch -r`, `gh pr list --state all`, and `git log origin/<branch> -- web/` or `git show origin/<branch>:web/...`.
+2. If there is no web code yet, read the Figma file `5nqU4xotMh5jcsaDqOcTST`: page `0:1` 와이어프레임 v1.0 (screens W-00–W-13 with NOTE frames, and frame `80:3366` "Memo · Apple 앱 참고" written for this app) and page `2:4` 디자인 시스템. The page listing only shows `2:4`; open the others by id. Then the Notion User Flow Chart.
+3. If the app needs to differ (small screen, approve-only scope), keep the difference small and note it in `SPEC.md`. If the web and `SPEC.md` contradict each other, run the root §8 contradiction check; do not silently follow either.
 - User-facing strings are Korean, 해요체.
 - Show AI cost as an estimate: label it "추정" and show the exchange rate the server applied.
 - When `approval.required` arrives again for a deployment whose `attempt` did not change, the server re-ran a stale plan. Show the approval card again with the same "시도 n/3" and say the plan was refreshed.
@@ -81,7 +106,20 @@ ios/
 
 ```bash
 open ios/Daisy.xcodeproj
-xcodebuild test -project ios/Daisy.xcodeproj -scheme Daisy -destination 'platform=macOS'
+
+# Build without signing (what agents should run to verify)
+xcodebuild -project ios/Daisy.xcodeproj -scheme Daisy -destination 'generic/platform=macOS' build CODE_SIGNING_ALLOWED=NO
+xcodebuild -project ios/Daisy.xcodeproj -scheme Daisy -destination 'generic/platform=iOS' build CODE_SIGNING_ALLOWED=NO
+
+# Tests run on macOS with ad-hoc signing
+xcodebuild test -project ios/Daisy.xcodeproj -scheme Daisy -destination 'platform=macOS' CODE_SIGN_IDENTITY=- CODE_SIGN_STYLE=Manual DEVELOPMENT_TEAM=""
+
+# TestFlight upload (only when the owner asks): tests → archive → upload, build number = yyMMddHHmm
+ios/scripts/testflight.sh          # iOS
+ios/scripts/testflight.sh macos    # macOS, after the macOS platform is added in App Store Connect
+
+# Mac DMG for the web "Mac 앱 받기" (W-14): Developer ID signing → Apple notarization → staple → DMG (only when the owner asks)
+ios/scripts/mac-dmg.sh
 ```
 
 Set the server address (dev or demo server) in the app's settings screen and log in.
@@ -89,7 +127,7 @@ Set the server address (dev or demo server) in the app's settings screen and log
 ## 8. Ask your human first
 
 - Adding a Swift package, a new target, or an extension; changing the minimum OS, bundle ID, signing, capabilities, or entitlements
-- `xcodebuild archive`, uploading to App Store Connect, TestFlight distribution (the human does these)
+- `xcodebuild archive`, uploading to App Store Connect, TestFlight distribution. Run `ios/scripts/testflight.sh` only when the owner asks in this session. Signing into Apple, creating the App Store Connect record, and adding testers are the owner's steps; guide them
 - Anything involving the APNs `.p8` key, demo account credentials, or the Apple Developer account
 
 ## 9. Decisions log
@@ -99,12 +137,28 @@ Tier per root §6. Tier 1 entries are final for this area.
 | Date | Decision | Why | Tier |
 |---|---|---|---|
 | 9/29 | SwiftUI multiplatform, one target for iOS and macOS | One codebase for both platforms, so adding macOS costs little | 1 |
-| 9/29 | Minimum iOS 17 · macOS 14 | Needed for `@Observable`, and covers most judges' devices | 1 |
+| 9/29 | ~~Minimum iOS 17 · macOS 14~~ (replaced 9/30, see below) | Needed for `@Observable` | 1 |
 | 9/29 | No third-party packages to start | Same "minimal stack, add only when blocked" principle as ADR-006 | 1 |
-| 9/29 | No mock mode; the app always uses the real server | Owner decision. Consequence: app progress depends on server API dates (`SPEC.md` R-08) | 1 |
+| 9/29 | ~~No mock mode; the app always uses the real server~~ (replaced 9/30) | Owner decision. Consequence: app progress depends on server API dates (`SPEC.md` R-08) | 1 |
+| 9/30 | Offline **sample mode** bundled in the app (login → "예시 데이터로 둘러보기 (오프라인)"), built from real `sample-monolith` / `sample-msa` commits by `scripts/sample-data/generate.py`; badge on every screen, read-only, never mixed with real data; dates shift to the launch time | Owner decision: judges and Apple review can see every screen even without the server; real server stays the default | 1 |
 | 9/29 | SSE parsed with `URLSession.bytes`, 5-second polling fallback | Uses the same SSE endpoints as web, so server builds nothing app-specific | 1 |
 | 9/29 | Tokens stored in the Keychain | Tokens must not sit in UserDefaults | 1 |
-| 9/29 | The app does not start deployments or change infrastructure | Keeps the app inside ADR-007 and keeps the server work small | 1 |
+| 9/30 | Xcode project written by hand with synchronized folders (`PBXFileSystemSynchronizedRootGroup`); no XcodeGen or Tuist | New files under `Daisy/` and `DaisyTests/` are picked up automatically, so agents never edit `project.pbxproj` to add a file | 1 |
+| 9/30 | Bundle ID `com.teamdaisy.daisy`, version 0.1.0, `ITSAppUsesNonExemptEncryption = NO` | Needed for App Store Connect; the encryption flag skips the export-compliance prompt on every TestFlight upload | 1 |
+| 9/30 | Lists decode as `Page<T>` (`{ items, next_cursor }`), including A-02 | v0.1 common list rule; confirm when server publishes OpenAPI | 3 (`(가칭)`) |
+| 9/30 | **One responsive codebase, not separate native apps.** Minimum iOS 18 · macOS 15; width-based layout and `AdaptiveGrid` for cards | One developer, three days: each screen is built once. The phone (judges) and Mac (presenter) get the same app shaped to their width | 1 |
+| 9/30 | Custom sidebar at width ≥ 700 instead of `.sidebarAdaptable` | The system sidebar cannot take the HUD material, the no-divider boundary, or the tint animation from the AfterPlan design | 1 |
+| 9/30 | Design: AfterPlan materials, sidebar, and motion; Craft-style glass buttons; `PageScaffold` headers | Owner's design references (Design section above) | 1 |
+| 9/30 | Feature UX matches the web (flow, wording, `+/~/-` notation); check web branches and PRs before building a shared flow | Owner decision: one product on two clients | 1 |
+| 9/30 | TestFlight: signing team `X5F5WM2H6M` (owner's paid individual account, automatic signing); App Store Connect record **"Daisy Deploy"** (app ID 6817687110; "Daisy" is taken by another account, the home-screen name stays Daisy); `PrivacyInfo.xcprivacy` declares UserDefaults (CA92.1), no tracking; build numbers are `yyMMddHHmm` so they only go up across branches and squash merges; first build 0.1.0 (1) uploaded. macOS platform added (build 2609301801). TestFlight groups: internal `Team Daisy` (automatic distribution) and external `Public Link` (https://testflight.apple.com/join/wF5sjQPG, opens after Beta App Review) | Upload is rejected without a privacy manifest; a git-count build number would drop after squash merges | 1 |
+| 9/30 | Mac direct download: Developer ID-signed, notarized, stapled DMG on **GitHub Releases** of `daisy` (tag `mac-v<version>-<build>`, pre-release). First release `mac-v0.1.0-2609301801`. Web W-14 links to the fixed URL `releases/download/mac-latest/Daisy.dmg`; each new DMG replaces that asset (`gh release upload mac-latest … --clobber`) | Repo is public so anyone can download; notarization avoids Gatekeeper warnings; the first notarization took ~40 min | 1 (hosting agreed for W-14 with the owner) |
+| 9/30 | App icon: the owner's daisy logo. iOS gets a full-bleed opaque 1024 square; macOS gets the logo inside Apple's rounded-rect grid (824 of 1024, radius 185.4, soft shadow) at 16–1024. The sidebar header uses the same logo (`AppLogo`) | Owner's asset. The source is 200×200, so replace it with a 1024+ original before release | 1 |
+| 9/30 | From Figma, take wording only; keep this app's colors and shapes; icons are the nearest SF Symbols | Owner decision. 도영's memo asked for web shapes (radius ≤ 4, no pills) and the owner chose the app's own look | 1 |
+| 9/30 | Menu and wording follow the web: 개요 · 배포 · 승인 · 이력 · 설정; status labels 대기 중 · 배포 중 · 성공 · 실패 · 주의 · 롤백됨; `리소스 +6 ~0 −0`; W-00 login and error messages | Same product on two clients | 1 |
+| 9/30 | Tests use Swift Testing; sample JSON lives only in `DaisyTests` | No mock data in the app (§4) | 1 |
+| 9/29 | ~~The app does not start deployments or change infrastructure~~ (replaced 9/30) | Kept the app inside ADR-007 | 1 |
+| 9/30 | The app carries every wireframe screen, text, and button (W-00 – W-13, L-01 – L-03) with the web sidebar's menu; new server requests are `SPEC.md` §6-8 `(가칭)` | Owner decision: feature UX identical to the web. Conflicts with ADR-007 and 도영's memo, so the team must confirm it | 4 (`(가칭)`) |
+| 9/30 | For shared screens the app uses the web's `WR-xx` requests exactly as the server answered them (PR #9), plus the server's two-layer states. It asks the server only for what the web does not need (`SPEC.md` §6-8 R-09, A-10 – A-12). Retry = new deployment with the same commit; rollback = new deployment that needs approval | One contract for web and app; less server work | 1 (own code) · 3 (`(가칭)` requests via issue) |
 | 9/29 | Widen ADR-007: add overview, commit history, macOS | Proposed in `SPEC.md` §1-2; needs the team meeting | 4 (`(가칭)`) |
 | 9/29 | Requests to server and CI | `SPEC.md` §6–§7; the server and CI owners decide names and shapes | 3 |
 | 9/29 | Server accepted the §6 names; unregister device with `DELETE /devices` + body | Token in a URL path leaks into access logs (server's request). Recorded in `SPEC.md` §6-0 | 3 (decided by server) |
