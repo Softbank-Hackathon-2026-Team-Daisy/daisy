@@ -123,6 +123,7 @@ M = 예선 데모 필수, S = 선택
 web/
 ├─ AGENTS.md                AI 에이전트 규칙 (이 폴더 전용)
 ├─ SPEC.md                  이 문서
+├─ docs/work-log/           날짜별 작업 로그
 ├─ .nvmrc                  Node 22 LTS
 ├─ index.html
 ├─ package.json
