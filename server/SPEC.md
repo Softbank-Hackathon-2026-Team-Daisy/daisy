@@ -97,3 +97,19 @@
 - 별도 6.1 Sol 리뷰로 사전의 컬럼·타입·NULL·키 매핑을 대조했고 수정이 필요한 불일치를 발견하지 않았습니다.
 - `spotlessApply check build --no-daemon` 성공. DB 없는 Hibernate 메타데이터·복합키·상태 변환 테스트 3개 통과.
 - 마이그레이션·PostgreSQL 저장/조회·DB 제약·실제 낙관적 잠금 경쟁·서버 기동은 이번에 검증하지 않았습니다.
+
+## common 오류 처리와 요청 추적
+
+- 사용자 최종 승인에 따라 `common/error`의 `ErrorCode`·`DaisyException`, `common/web`의 오류 응답 DTO·전역 예외 처리기·요청 ID 필터를 구현합니다. 오류 코드만 정의하는 중간 범위에서 공통 기반 세 항목까지 확대했습니다.
+- 포함: `VALIDATION_FAILED`, `UNAUTHENTICATED`, `FORBIDDEN`, `NOT_FOUND`, `TARGET_LOCKED`, `STATE_CONFLICT`, `MANIFEST_INVALID`, `RATE_LIMITED`, `INTERNAL`.
+- 코드 이름은 사용자가 제공한 프론트·백엔드 계약 문서 §2를 유지합니다. enum 선언 자체가 HTTP 응답 구현이나 OpenAPI 제공 완료를 뜻하지 않습니다.
+- 오류 응답은 `{ "error": { "code", "message", "details", "retryable" } }` 구조입니다. `details`가 없으면 빈 객체를 쓰고 성공 응답은 감싸지 않습니다. 인증·인가·Security 필터 구현은 은현 담당 그대로입니다.
+- 403은 `FORBIDDEN`(권한 부족), 422는 `MANIFEST_INVALID`(`deploy.yaml` 검증 실패)로 사용자 위임에 따라 정합니다. 기존 7개와 달리 이번 백엔드 선택이며 웹·앱 공유가 필요합니다. 일반 HTTP 요청 형식 오류(400)와 manifest 내용 검증 실패(422)를 구분합니다.
+- 과거 `IR_SCHEMA_INVALID`, BaseEntity·공통 성공 응답·범용 유틸은 추가하지 않습니다.
+- 업무 예외는 오류 코드의 안전한 기본 메시지를 사용합니다. 원본 예외 메시지·SQL·요청 본문·rejected value·자격증명을 응답이나 공통 오류 로그로 내보내지 않습니다. 검증 실패는 필요한 필드명과 고정 안내만 제공합니다.
+- 입력 검증·JSON 파싱·파라미터 오류는 400, 없는 경로는 404로 처리합니다. Spring MVC의 405·415 등도 500으로 바꾸지 않고 원래 HTTP 상태와 필요한 표준 헤더를 유지합니다. 이미 전송 중인 SSE/응답에는 JSON 오류 본문을 덧붙이지 않습니다.
+- `retryable` 기본값은 보수적으로 false, `RATE_LIMITED`만 true로 제안합니다. true가 승인/apply의 무조건 자동 재실행을 허용하는 뜻은 아닙니다. 세부 소비자 계약은 공유가 필요합니다.
+- `X-Request-ID`는 헤더 1개, ASCII 영문·숫자·점·밑줄·하이픈 1~64자만 수용하고, 누락·중복·잘못된 값이면 UUID를 생성하는 내부 정책입니다. 응답 헤더·요청 attribute·로그 MDC의 `request_id`를 연결합니다. 클라이언트 제공값은 추적용이지 인증·멱등성 키가 아닙니다.
+- 필터 종료 시 MDC의 이전 값을 복원/제거해 요청 간 오염을 막습니다. async 재디스패치에서는 같은 요청 ID를 사용하되 임의 executor나 향후 SSE 생산 스레드로의 자동 전파까지 보장하지 않습니다. JSON 콘솔 로그는 Spring Boot 기본 기능을 사용합니다.
+- Spring Security/Servlet 필터 단계 오류는 MVC advice가 처리하지 못하므로 후속 인증 진입점·접근 거부 처리기와 연결해야 합니다. CORS·SSE 구현이나 외부 프록시 설정을 완료한 것으로 보지 않습니다.
+- 검증은 DB 없는 공통 MockMvc/필터 테스트와 기존 엔티티 테스트·전체 빌드로 수행합니다. 새 라이브러리·업무 API·마이그레이션은 추가하지 않습니다.
