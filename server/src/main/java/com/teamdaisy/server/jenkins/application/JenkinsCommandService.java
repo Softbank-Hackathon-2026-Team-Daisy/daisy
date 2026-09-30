@@ -8,6 +8,8 @@ import com.teamdaisy.server.common.error.ErrorCode;
 import com.teamdaisy.server.common.json.CanonicalJson;
 import java.sql.ResultSet;
 import java.sql.SQLException;
+import java.sql.Timestamp;
+import java.time.Instant;
 import java.util.Comparator;
 import java.util.HashSet;
 import java.util.List;
@@ -155,6 +157,61 @@ public class JenkinsCommandService {
     if (targetId != null) require(count("select count(*) from execution_target where execution_id=:execution and deployment_target_id=:target",
         new MapSqlParameterSource().addValue("execution", executionId).addValue("target", targetId)) == 1, ErrorCode.STATE_CONFLICT);
     return scope;
+  }
+
+  /** Authenticated callback binding and its receipt share the caller's transaction. */
+  @Transactional(propagation = Propagation.MANDATORY)
+  public CommandScope bindCallback(String id, String requestId, String instanceId, String job,
+      Long queue, long build, String targetId) {
+    require(build > 0 && (queue == null || queue > 0), ErrorCode.VALIDATION_FAILED);
+    CommandScope scope = lookup(id);
+    lock("project", scope.projectId());
+    lock("deployment", scope.deploymentId());
+    jdbc.queryForList("select id from deployment_target where deployment_id=:deployment order by id for update",
+        Map.of("deployment", scope.deploymentId()));
+    lock("jenkins_execution", id);
+    scope = requireScope(id, scope.deploymentId(), targetId);
+    require(scope.requestId().equals(requestId) && scope.instanceId().equals(instanceId)
+        && scope.jobFullName().equals(job), ErrorCode.FORBIDDEN);
+    require(!scope.operation().equals("stop"), ErrorCode.STATE_CONFLICT);
+    require(Set.of("dispatching", "unknown", "accepted").contains(scope.dispatchStatus()), ErrorCode.STATE_CONFLICT);
+    assertBound(id, queue, build);
+    jdbc.update("""
+        update jenkins_execution set dispatch_status='accepted',queue_id=coalesce(queue_id,:queue),
+          build_number=coalesce(build_number,:build),next_check_at=case
+            when run_status in ('succeeded','failed','cancelled') then next_check_at else now() end
+        where id=:id
+        """, new MapSqlParameterSource().addValue("id", id).addValue("queue", queue).addValue("build", build));
+    return scope;
+  }
+
+  @Transactional(propagation = Propagation.MANDATORY)
+  public void recordTargetState(String executionId, String targetId, String status, long sequence,
+      Instant now, boolean terminal) {
+    require(status != null && Set.of("waiting", "generating", "validating", "awaiting_approval", "applying",
+        "verifying", "succeeded", "failed", "cancelled", "stale").contains(status)
+        && sequence >= 0 && now != null, ErrorCode.VALIDATION_FAILED);
+    boolean finished = Set.of("succeeded", "failed", "cancelled", "stale").contains(status);
+    require(terminal == finished, ErrorCode.VALIDATION_FAILED);
+    String runState = finished ? status : status.equals("waiting") ? "pending" : "running";
+    requireScope(executionId, lookup(executionId).deploymentId(), targetId);
+    require(jdbc.update("""
+        update execution_target set status=:status,last_source_sequence=:sequence,
+          started_at=coalesce(started_at,:at),finished_at=case when :terminal then :at else finished_at end
+        where execution_id=:execution and deployment_target_id=:target
+          and (last_source_sequence is null or last_source_sequence<:sequence)
+          and finished_at is null
+        """, new MapSqlParameterSource().addValue("status", runState).addValue("sequence", sequence)
+            .addValue("at", Timestamp.from(now)).addValue("terminal", terminal)
+            .addValue("execution", executionId).addValue("target", targetId)) == 1, ErrorCode.STATE_CONFLICT);
+  }
+
+  public boolean targetFinished(String executionId, String targetId) {
+    requireScope(executionId, lookup(executionId).deploymentId(), targetId);
+    return !jdbc.queryForList("""
+        select 1 from execution_target where execution_id=:execution and deployment_target_id=:target
+          and status in ('succeeded','failed','cancelled','stale') and finished_at is not null
+        """, Map.of("execution", executionId, "target", targetId)).isEmpty();
   }
 
   @Transactional(propagation = Propagation.MANDATORY)
