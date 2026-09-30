@@ -464,6 +464,12 @@ PR은 300줄 이하로 나눠요: ① 이 명세 ② bootstrap ③ AWS 모듈 �
 
 - VM에 4GB보다 많이 주지 않아요. 빌드할 때는 Mac의 다른 무거운 앱을 닫아요
 - Ubuntu를 LVM으로 설치하면 루트가 디스크의 절반쯤만 잡혀요 (40GB 중 18.5GB). `sudo lvextend -r -l +100%FREE /dev/ubuntu-vg/ubuntu-lv`로 늘려요
+- **VMware NAT DNS(`172.16.185.2`)는 EDNS 질의에 깨진 응답을 줘요.** Go로 만든 buildkit이 레지스트리 주소를 못 찾아서 빌드가 실패해요 (`lookup registry-1.docker.io ... no such host`). `setup-runner.sh`가 VMware 게스트에서만 Docker 컨테이너 DNS를 `1.1.1.1`·`8.8.8.8`로 지정해요 (`/etc/docker/daemon.json`)
+- **Wi-Fi를 바꾸면 Mac의 Fusion NAT 서비스(`vmnet-natd`)가 꺼질 수 있어요.** Mac↔VM SSH는 되는데 VM에서 밖으로 못 나가면(`No route to host`) Mac에서 네트워크를 다시 켜요. VM은 켜 둔 채로 돼요
+  ```bash
+  sudo "/Applications/VMware Fusion.app/Contents/Library/vmnet-cli" --stop
+  sudo "/Applications/VMware Fusion.app/Contents/Library/vmnet-cli" --start
+  ```
 - Mac이 잠들었다 깨면 VM 시계가 틀어질 수 있어요. AWS가 `RequestExpired`나 `SignatureDoesNotMatch`를 내면 VM에서 `timedatectl`을 확인해요
 - Docker Hub는 익명 pull 횟수 제한이 있어요 (CI의 `golang` 이미지 등). 막히면 `docker login` 후에 받아요
 - 로컬 state를 쓰는 동안 `/var/lib/jenkins/daisy-work/<app>/<env>/state/`를 지우면 만든 리소스를 destroy할 수 없어요
