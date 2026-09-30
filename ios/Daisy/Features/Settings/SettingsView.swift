@@ -1,11 +1,12 @@
 import SwiftUI
 
-/// W-13 설정: 이 프로젝트의 저장소 연결, 배포 명세, 비밀값, 알림. 맨 아래에 앱 설정(서버 · 계정 · 버전).
+/// W-13 설정: 이 프로젝트의 저장소 연결(프로젝트 상세), 배포 명세(WR-03), 비밀값, 알림. 맨 아래에 앱 설정(서버 · 계정 · 버전).
 struct SettingsView: View {
     @Environment(AppModel.self) private var app
     @Environment(Router.self) private var router
     @Environment(Workspace.self) private var workspace
-    @State private var settings: LoadState<ProjectSettings> = .idle
+    @State private var detail: ProjectDetail?
+    @State private var manifest: Manifest?
     @State private var disconnecting = false
     @State private var confirmName = ""
     @State private var toast: ToastMessage?
@@ -34,7 +35,7 @@ struct SettingsView: View {
             Button("취소", role: .cancel) { confirmName = "" }
             Button("연결 해제", role: .destructive) { Task { await disconnect() } }
         } message: {
-            Text("되돌릴 수 없어요. 확인을 위해 프로젝트 이름(\(workspace.project?.name ?? ""))을 입력해 주세요.")
+            Text("되돌릴 수 없어요. 확인을 위해 프로젝트 이름(\(workspace.project?.name ?? ""))을 입력해 주세요. 이미 떠 있는 인프라는 지워지지 않아요.")
         }
     }
 
@@ -42,22 +43,24 @@ struct SettingsView: View {
 
     @ViewBuilder
     private var projectSettings: some View {
-        let value = settings.value
         AdaptiveGrid(minimumWidth: 320) {
             SectionCard("저장소") {
-                InfoRow("GitHub", value?.repository ?? workspace.project?.repository)
-                InfoRow("기준 브랜치", value?.branch ?? workspace.project?.branch, monospaced: true)
-                InfoRow("빌드", value?.build)
-                InfoRow("레지스트리", value?.registry)
-                InfoRow("웹훅", value?.webhookLastAt.map { "수신 중 · 마지막 \($0.formatted(date: .omitted, time: .shortened))" })
+                InfoRow("GitHub", detail?.repository ?? workspace.project?.repository)
+                InfoRow("기준 브랜치", detail?.branch ?? workspace.project?.branch, monospaced: true)
+                InfoRow("빌드", detail?.build)
+                InfoRow("레지스트리", detail?.registry)
+                InfoRow("웹훅", detail?.webhookLastAt.map { "수신 중 · 마지막 \($0.formatted(date: .omitted, time: .shortened))" })
                 Button("저장소 다시 연결") { router.open(.connectProject) }
                     .buttonStyle(.glassCapsule)
                     .disabled(app.isViewer)
             }
             SectionCard("배포 명세 (deploy.yaml)") {
                 Text("저장소의 deploy.yaml이 기준이에요. 여기서는 읽기만 해요.").font(.subheadline).foregroundStyle(.secondary)
-                if let yaml = value?.deployYaml {
-                    CodeBlock(header: value?.deployYamlRef ?? "deploy.yaml", code: yaml)
+                if let manifest {
+                    ManifestRows(manifest: manifest)
+                    if let raw = manifest.raw {
+                        CodeBlock(header: manifest.ref ?? "deploy.yaml", code: raw)
+                    }
                 } else {
                     Text("deploy.yaml을 불러오지 못했어요").foregroundStyle(.secondary)
                 }
@@ -65,7 +68,7 @@ struct SettingsView: View {
             SectionCard("비밀값") {
                 Text("deploy.yaml의 secrets에 적힌 이름만 값을 넣어요. 값은 다시 볼 수 없어요.")
                     .font(.subheadline).foregroundStyle(.secondary)
-                if let secrets = value?.secrets, !secrets.isEmpty {
+                if let secrets = manifest?.secrets, !secrets.isEmpty {
                     ForEach(secrets, id: \.self) { name in
                         Label(name, systemImage: "key").font(.subheadline.monospaced())
                     }
@@ -79,7 +82,7 @@ struct SettingsView: View {
                     .frame(maxWidth: .infinity)
                     .padding(.vertical, 12)
                 }
-                // 비밀값 전달 방식이 [미정]이라 아직 열 수 없어요
+                // WR-12: 전달 방식이 팀 결정 대기라 아직 열 수 없어요
                 Button("비밀값 추가") { }
                     .buttonStyle(.glassCapsule)
                     .disabled(true)
@@ -127,18 +130,21 @@ struct SettingsView: View {
 
     private func load() async {
         guard let client = app.client, let projectID = app.selectedProjectID else { return }
-        do {
-            settings = .loaded(try await client.send(.projectSettings(projectID: projectID)))
-        } catch {
-            app.handle(error)
-            if settings.value == nil { settings = .failed(error.localizedDescription) }
-        }
+        async let detail = try? client.send(.projectDetail(projectID: projectID))
+        async let manifest = try? client.send(.manifest(projectID: projectID))
+        self.detail = await detail ?? self.detail
+        self.manifest = await manifest ?? self.manifest
     }
 
     private func disconnect() async {
-        guard let client = app.client, let projectID = app.selectedProjectID else { return }
+        guard let client = app.client, let projectID = app.selectedProjectID,
+              confirmName.trimmingCharacters(in: .whitespaces) == workspace.project?.name else {
+            toast = ToastMessage(kind: .danger, title: "프로젝트 이름이 달라요", message: "연결 해제하지 않았어요.")
+            confirmName = ""
+            return
+        }
         do {
-            _ = try await client.send(.disconnectProject(projectID: projectID, confirmText: confirmName))
+            _ = try await client.send(.disconnectProject(projectID: projectID))
             confirmName = ""
             app.selectedProjectID = nil
             await workspace.refresh(using: app)
@@ -155,5 +161,26 @@ extension Bundle {
         let version = infoDictionary?["CFBundleShortVersionString"] as? String ?? "?"
         let build = infoDictionary?["CFBundleVersion"] as? String ?? "?"
         return "\(version) (\(build))"
+    }
+}
+
+/// 파싱된 deploy.yaml 줄 (WR-03). W-02 배포 명세 확인과 W-13에서 같이 써요.
+struct ManifestRows: View {
+    let manifest: Manifest
+
+    var body: some View {
+        InfoRow("포트", manifest.port.map(String.init))
+        InfoRow("헬스체크 경로", manifest.healthcheck, monospaced: true)
+        InfoRow("환경변수", Self.summary(manifest.env ?? []))
+        InfoRow("DB 필요", manifest.database.map { $0 ? "예" : "아니요 (상태 없는 앱)" })
+        ForEach(manifest.errors ?? [], id: \.self) { problem in
+            InlineAlert(.danger, problem.path ?? "deploy.yaml", problem.message)
+        }
+    }
+
+    /// 웹: "LOG_LEVEL 외 1개"
+    static func summary(_ env: [String]) -> String {
+        guard let first = env.first else { return "없음" }
+        return env.count > 1 ? "\(first) 외 \(env.count - 1)개" : first
     }
 }

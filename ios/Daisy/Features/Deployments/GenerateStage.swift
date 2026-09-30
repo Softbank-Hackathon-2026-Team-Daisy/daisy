@@ -1,7 +1,8 @@
 import SwiftUI
 
 /// W-05 인프라 코드 생성 · 검증: 환경별 진행 · 환경 탭 · 검증 단계 · 생성된 스크립트.
-/// 다음 버튼은 없어요. 모두 통과하면 승인(W-06)으로, 3회 실패하면 중단(W-05b)으로 서버가 넘겨요.
+/// 다음 버튼은 없어요. 통과하면 승인(W-06)으로 서버가 넘겨요. 한 환경이 3회 실패해도 나머지는 계속 가요 (Q7).
+/// 모든 환경이 실패하면 중단(W-05b)이에요.
 struct GenerateStage: View {
     let deployment: Deployment
     @Environment(AppModel.self) private var app
@@ -17,6 +18,10 @@ struct GenerateStage: View {
     var body: some View {
         FlowPage(step: 4, title: "인프라 코드 생성 · 검증",
                  description: "AI가 환경별 Terraform을 만들고 validate · plan · 위험 설정 검사를 통과할 때까지 최대 3번 고쳐요.") {
+            if let failed = targets.first(where: { $0.isFailed }), targets.count > 1 {
+                InlineAlert(.warning, "\(workspace.name(of: failed.targetId)) · \(failed.attempt)회 시도 모두 실패",
+                            "나머지 환경은 계속 진행해요. 실패한 환경은 결과 화면에서 다시 시도할 수 있어요.")
+            }
             SectionCard("환경별 진행") {
                 VStack(spacing: 10) {
                     ForEach(targets) { target in
@@ -41,9 +46,9 @@ struct GenerateStage: View {
                         }
                     }
                     SectionCard("생성된 스크립트") {
-                        if let script, let content = script.content {
-                            CodeBlock(header: scriptHeader(script, attempt: current.attempt),
-                                      aiGenerated: current.reusedScript != true, code: content)
+                        if let script, let file = script.files?.first {
+                            CodeBlock(header: scriptHeader(file.path, attempt: current.attempt),
+                                      aiGenerated: current.reusedScript != true, code: file.content)
                         } else {
                             Text("스크립트를 만들고 있어요").foregroundStyle(.secondary)
                         }
@@ -56,7 +61,8 @@ struct GenerateStage: View {
 
     /// 웹: 검증 통과 · 검증 중 · 실패
     private func validationBadge(_ target: Deployment.Target) -> StatusBadge {
-        if target.stepState == .failed && target.attempt >= 3 { return StatusBadge(text: "실패", color: .red) }
+        if target.isFailed { return StatusBadge(text: "실패", color: .red) }
+        if target.state == .awaitingApproval { return StatusBadge(text: "검증 통과", color: .green) }
         if [.plan, .riskCheck].contains(target.step) && target.stepState == .done {
             return StatusBadge(text: "검증 통과", color: .green)
         }
@@ -64,8 +70,7 @@ struct GenerateStage: View {
     }
 
     /// 웹: "aws/main.tf · AI 수정 2회차" / "aws/main.tf · AI 생성"
-    private func scriptHeader(_ script: Script, attempt: Int) -> String {
-        let file = script.file ?? "main.tf"
+    private func scriptHeader(_ file: String, attempt: Int) -> String {
         return attempt > 1 ? "\(file) · AI 수정 \(attempt - 1)회차" : "\(file) · AI 생성"
     }
 

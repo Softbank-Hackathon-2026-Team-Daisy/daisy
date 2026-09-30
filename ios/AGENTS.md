@@ -146,6 +146,7 @@ Tier per root §6. Tier 1 entries are final for this area.
 | 9/30 | Tests use Swift Testing; sample JSON lives only in `DaisyTests` | No mock data in the app (§4) | 1 |
 | 9/29 | ~~The app does not start deployments or change infrastructure~~ (replaced 9/30) | Kept the app inside ADR-007 | 1 |
 | 9/30 | The app carries every wireframe screen, text, and button (W-00 – W-13, L-01 – L-03) with the web sidebar's menu; new server requests are `SPEC.md` §6-8 `(가칭)` | Owner decision: feature UX identical to the web. Conflicts with ADR-007 and 도영's memo, so the team must confirm it | 4 (`(가칭)`) |
+| 9/30 | For shared screens the app uses the web's `WR-xx` requests exactly as the server answered them (PR #9), plus the server's two-layer states. It asks the server only for what the web does not need (`SPEC.md` §6-8 R-09, A-10 – A-12). Retry = new deployment with the same commit; rollback = new deployment that needs approval | One contract for web and app; less server work | 1 (own code) · 3 (`(가칭)` requests via issue) |
 | 9/29 | Widen ADR-007: add overview, commit history, macOS | Proposed in `SPEC.md` §1-2; needs the team meeting | 4 (`(가칭)`) |
 | 9/29 | Requests to server and CI | `SPEC.md` §6–§7; the server and CI owners decide names and shapes | 3 |
 | 9/29 | Server accepted the §6 names; unregister device with `DELETE /devices` + body | Token in a URL path leaks into access logs (server's request). Recorded in `SPEC.md` §6-0 | 3 (decided by server) |

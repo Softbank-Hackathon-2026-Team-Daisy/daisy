@@ -1,8 +1,10 @@
 import SwiftUI
 
-/// W-12 AI 사용량: 언제, 얼마나 불렀는지. 읽기 전용 화면이에요.
+/// W-12 AI 사용량 (WR-11): 언제, 얼마나 불렀는지. 읽기 전용 화면이에요.
+/// 재사용 배포는 AI를 부르지 않아서 호출 기록이 없어요.
 struct AIUsageView: View {
     @Environment(AppModel.self) private var app
+    @Environment(Workspace.self) private var workspace
     @State private var report: LoadState<AIUsageReport> = .idle
 
     var body: some View {
@@ -18,23 +20,24 @@ struct AIUsageView: View {
                 LoadStateView(state: report, retry: { await load() }) { report in
                     ScrollView {
                         VStack(alignment: .leading, spacing: 16) {
+                            let summary = report.summary
                             AdaptiveGrid(minimumWidth: 180) {
-                                tile("AI 호출", "\(report.calls)회", "이번 주")
-                                tile("토큰", report.tokens.formatted(), "입력 + 출력")
-                                tile("비용", report.costKrw.map { "₩\($0.formatted())" } ?? "—", "LLM 기준 추정")
-                                tile("재사용으로 아낀 호출", "\(report.savedCalls)회", "AI 0회 배포")
+                                tile("AI 호출", "\(summary.calls)회", "이번 주")
+                                tile("토큰", summary.tokens.formatted(), "입력 + 출력")
+                                tile("비용", summary.costKrw.map { "₩\($0.formatted())" } ?? "—", costNote(summary))
+                                tile("재사용으로 아낀 호출", "\(summary.savedCalls)회",
+                                     summary.zeroAiDeployments.map { "AI 0회 배포 \($0)건" } ?? "AI 0회 배포")
                             }
                             SectionCard("호출 기록") {
-                                if report.history.isEmpty {
+                                if report.items.isEmpty {
                                     Text("아직 AI를 부른 기록이 없어요").foregroundStyle(.secondary)
                                 } else {
                                     ViewThatFits(in: .horizontal) {
-                                        table(report.history).frame(minWidth: 720)
-                                        list(report.history)
+                                        table(report.items).frame(minWidth: 720)
+                                        list(report.items)
                                     }
                                 }
                             }
-                            InlineAlert(.info, "PoC N-09 (선택)", "비용 표시는 N-09 결과와 LLM 선택에 따라 달라져요. 범위에서 빠지면 호출 수 · 토큰만 보여줘요.")
                         }
                         .padding(20)
                     }
@@ -43,6 +46,12 @@ struct AIUsageView: View {
             }
         }
         .task(id: app.selectedProjectID) { await load() }
+    }
+
+    /// 비용은 추정치예요. 서버가 적용한 환율을 같이 보여줘요.
+    private func costNote(_ summary: AIUsageReport.Summary) -> String {
+        let rate = summary.exchangeRate.map { " · 환율 ₩\(Int($0).formatted())" } ?? ""
+        return "LLM 기준 추정\(rate)"
     }
 
     private func tile(_ label: String, _ value: String, _ note: String) -> some View {
@@ -63,10 +72,10 @@ struct AIUsageView: View {
             ForEach(calls) { call in
                 GridRow {
                     time(call).font(.caption.monospacedDigit())
-                    EnvTag(type: call.targetType)
-                    Text(call.task).font(.subheadline)
+                    EnvTag(type: workspace.type(of: call.targetId))
+                    Text(task(call)).font(.subheadline)
                     Text(call.attempt.map { "\($0)/3" } ?? "—").font(.subheadline.monospacedDigit())
-                    Text(call.tokens.formatted()).font(.subheadline.monospacedDigit())
+                    Text(call.tokens.map { $0.formatted() } ?? "—").font(.subheadline.monospacedDigit())
                     Text(call.costKrw.map { "₩\($0.formatted())" } ?? "—").font(.subheadline.monospacedDigit())
                     resultBadge(call)
                 }
@@ -78,9 +87,9 @@ struct AIUsageView: View {
         VStack(spacing: 0) {
             ForEach(calls) { call in
                 VStack(alignment: .leading, spacing: 4) {
-                    HStack { EnvTag(type: call.targetType); time(call).font(.caption).foregroundStyle(.secondary); Spacer(); resultBadge(call) }
-                    Text(call.task).font(.subheadline)
-                    Text([call.attempt.map { "시도 \($0)/3" }, "토큰 \(call.tokens.formatted())", call.costKrw.map { "₩\($0.formatted())" }]
+                    HStack { EnvTag(type: workspace.type(of: call.targetId)); time(call).font(.caption).foregroundStyle(.secondary); Spacer(); resultBadge(call) }
+                    Text(task(call)).font(.subheadline)
+                    Text([call.attempt.map { "시도 \($0)/3" }, call.tokens.map { "토큰 \($0.formatted())" }, call.costKrw.map { "₩\($0.formatted())" }]
                         .compactMap { $0 }.joined(separator: " · "))
                         .font(.caption).foregroundStyle(.secondary)
                 }
@@ -96,12 +105,19 @@ struct AIUsageView: View {
         }
     }
 
-    /// 웹: plan 통과 · 통과 · AI 호출 없음 · 실패 · 중단
+    private func task(_ call: AIUsageReport.Call) -> String {
+        switch call.step {
+        case .generate: "Terraform 생성"
+        case .fix: "Terraform 수정"
+        case .unknown: "AI 호출"
+        }
+    }
+
     private func resultBadge(_ call: AIUsageReport.Call) -> StatusBadge {
-        switch call.ok {
-        case true: StatusBadge(text: call.result, color: .green)
-        case false: StatusBadge(text: call.result, color: .red)
-        case nil: StatusBadge(text: call.result, color: .gray)
+        switch call.status {
+        case .succeeded: StatusBadge(text: "통과", color: .green)
+        case .failed: StatusBadge(text: "실패", color: .red)
+        case .unknown: StatusBadge(text: "확인 전", color: .gray)
         }
     }
 

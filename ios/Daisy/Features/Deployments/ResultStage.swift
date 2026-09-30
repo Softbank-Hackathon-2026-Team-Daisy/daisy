@@ -3,12 +3,10 @@ import SwiftUI
 /// W-08 배포 결과: 환경별 결과 카드(QR · URL · 헬스) · 동일성 검증 · 이력 보기 · QR로 공유.
 struct ResultStage: View {
     let deployment: Deployment
-    var onChange: () -> Void
     @Environment(AppModel.self) private var app
     @Environment(Router.self) private var router
     @Environment(Workspace.self) private var workspace
     @Environment(\.openURL) private var openURL
-    @State private var parity: Parity?
     @State private var sharing = false
     @State private var toast: ToastMessage?
 
@@ -19,7 +17,9 @@ struct ResultStage: View {
             AdaptiveGrid(minimumWidth: 280) {
                 ForEach(targets) { card($0) }
             }
-            if let parity {
+            // 동일성 검증은 A-02의 image_digest로 앱이 만들어요 (WR-09)
+            if !workspace.statuses.isEmpty {
+                let parity = Parity(statuses: workspace.statuses)
                 ParityTable(parity: parity, targets: parity.targets.map { workspace.type(of: $0) })
             }
             FlowButtons {
@@ -32,11 +32,10 @@ struct ResultStage: View {
         }
         .toast($toast)
         .sheet(isPresented: $sharing) { QRShareSheet(targets: targets) }
-        .task { await loadParity() }
     }
 
     private func card(_ target: Deployment.Target) -> some View {
-        let ok = target.stepState != .failed
+        let ok = !target.isFailed && target.state != .cancelled
         return VStack(alignment: .leading, spacing: 12) {
             HStack {
                 EnvTag(type: workspace.type(of: target.targetId))
@@ -86,16 +85,13 @@ struct ResultStage: View {
         .cardStyle()
     }
 
-    private func loadParity() async {
-        guard let client = app.client else { return }
-        parity = try? await client.send(.parity(projectID: deployment.projectId, deploymentID: deployment.id))
-    }
-
+    /// 실패한 환경만 같은 커밋으로 새 배포를 만들어요 (WR-05)
     private func retry(_ target: Deployment.Target) async {
         guard let client = app.client else { return }
         do {
-            _ = try await client.send(.retryTarget(deploymentID: deployment.id, targetID: target.targetId))
-            onChange()
+            let next = try await client.send(.startDeployment(projectID: deployment.projectId, commit: deployment.commit,
+                                                              targetIDs: [target.targetId]))
+            router.push(.started(next.id))
         } catch {
             app.handle(error)
             toast = ToastMessage(kind: .danger, title: "다시 시도하지 못했어요", message: error.localizedDescription)

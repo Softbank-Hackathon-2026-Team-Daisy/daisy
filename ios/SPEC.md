@@ -26,11 +26,12 @@
 웹과 앱은 코드를 공유하지 않고 **같은 백엔드 API만** 써요. 화면을 두 번 만들지 않도록 역할을 나눠요.
 
 > ⚠️ **9/30 변경 (박승준):** 앱도 웹 와이어프레임 v1.0의 화면 · 문구 · 버튼을 모두 가져가요 (W-00 ~ W-13, L-01 ~ L-03). 그래서 앱에서도 저장소 연결, 환경 선택, 배포 시작, 롤백, 연결 테스트, 프로젝트 연결 해제를 할 수 있어요.
-> 이건 ADR-007("앱은 승인 · 진행 상태 · 알림만")과 도영 님 메모("W-02~W-04, W-10~W-13, L-xx는 웹 전용")와 **어긋나요.** 팀 결정이라 **회의에서 확정**해야 해요 (§8). 확정 전까지 앱 쪽은 이 방향으로 만들어 두고, 결정이 반대로 나면 해당 버튼만 빼요.
+> 이건 ADR-007("앱은 승인 · 진행 상태 · 알림만"), 도영 님 메모("W-02~W-04, W-10~W-13, L-xx는 웹 전용"), **`web/SPEC.md` §1-1(PR #9, "웹만 하는 것: 저장소 연결 · 환경 선택 · 배포 시작 · W-10~W-13")**과 **어긋나요.** 팀 결정이라 **9/30 21시 회의에서 확정**해야 해요 (§8). 확정 전까지 앱 쪽은 이 방향으로 만들어 두고, 결정이 반대로 나면 해당 버튼만 빼요.
+> 서버에 새로 부탁하는 건 거의 없어요: 웹이 요청해 서버가 받아 준 `WR-xx`를 그대로 써요 (§6-8).
 
 | | 웹 (React) | 앱 (Swift) |
 |---|---|---|
-| 저장소 연결, 환경 선택, 배포 시작 (W-02 ~ W-04) | O | **O** (9/30 변경, 회의 확정 필요) |
+| 저장소 연결, 환경 선택, 배포 시작 (W-02 ~ W-04) | O | **O** (9/30 변경, 회의 확정 필요). 업로드(W-02b)는 둘 다 설계만 |
 | 생성 · 검증 진행, 중단 처리 (W-05, W-05b) | O | **O** |
 | plan 확인 · 승인 · 거절 (W-06) | O | **O** |
 | 배포 진행 · 결과 · 동일성 검증 (W-07, W-08) | O | **O** |
@@ -73,22 +74,22 @@
 
 | 웹 화면 | 앱 화면 | 들어가는 곳 | 필요한 API | 우선순위 |
 |---|---|---|---|---|
-| W-00 · W-00b 로그인 | `LoginView` | 앱 시작 (로그인 전) | R-02, R-09 🆕 | M |
-| W-01 개요 | `OverviewView` | 메뉴 개요 | A-01, A-02, A-03, A-09 🆕 | M |
+| W-00 · W-00b 로그인 | `LoginView` | 앱 시작 (로그인 전) | R-02, R-09 (가칭) | M |
+| W-01 개요 | `OverviewView` | 메뉴 개요 | A-01, A-02(+`image_digest` WR-09), A-03 | M |
 | (웹에 없음) 배포 목록 | `DeploymentsView` | 메뉴 배포 | A-03 | M |
-| W-02 · W-02b 애플리케이션 연결 → L-01 | `ConnectAppView` | 프로젝트 전환 › 새 프로젝트 연결 | B-01 ~ B-05 🆕 | S |
-| W-03 이미지 빌드 | `RunView` › `BuildStage` | 배포 한 건 (빌드 중) | A-04, A-06 | S |
-| W-04 배포할 환경 선택 → L-02 | `TargetSelectView` | 새 배포, 배포 한 건 (환경 선택) | B-06, B-07 🆕 | M |
-| W-05 인프라 코드 생성 · 검증 | `RunView` › `GenerateStage` | 배포 한 건 (생성 · 검증) | A-04, B-08 🆕 | M |
-| W-05b 배포를 중단했어요 | `RunView` › `StoppedStage` | 배포 한 건 (중단) | A-04, A-07, B-09, B-10 🆕 | S |
-| W-06 변경 사항 확인 후 승인 → L-03 | `PlanApprovalView` | 배포 한 건 (승인 대기), 개요 › 지금 할 일 | A-05, W-01 | M |
+| W-02 애플리케이션 연결 → L-01 (W-02b 업로드는 설계만) | `ConnectAppView` | 프로젝트 전환 › 새 프로젝트 연결 | WR-02, WR-03, A-06 | S |
+| W-03 이미지 빌드 | `BuildStage` | L-01 뒤 (배포가 생기기 전, 빌드가 끝나면 W-04로) | A-06 | S |
+| W-04 배포할 환경 선택 → L-02 | `TargetSelectView` | 사이드바 새 배포, W-03 다음 | WR-04, WR-05 | M |
+| W-05 인프라 코드 생성 · 검증 | `RunView` › `GenerateStage` | 배포 한 건 (apply 전) | A-04, WR-07 | M |
+| W-05b 배포를 중단했어요 | `RunView` › `StoppedStage` | 배포 한 건 (`failed`, apply 전에 모두 멈춤) | A-04, A-07, WR-05(다시 시도) | S |
+| W-06 변경 사항 확인 후 승인 → L-03 | `PlanApprovalView` | 배포 한 건 (승인 대기), 개요 › 지금 할 일 | A-05 + WR-06, W-01 | M |
 | W-07 배포 중 | `RunView` › `ApplyStage` | 배포 한 건 (배포 중) | A-04, A-07 | M |
-| W-08 배포 결과 | `RunView` › `ResultStage` | 배포 한 건 (끝) | A-04, A-09, B-11 🆕 | M |
-| W-09 배포 이력 | `HistoryView` | 메뉴 이력 | A-03, B-12 | M |
-| W-10 환경 | `EnvironmentsView` | 메뉴 환경 | B-06, B-13, B-14 🆕 | S |
-| W-11 스크립트 | `ScriptsView` | 메뉴 스크립트 | B-15 🆕 | S |
-| W-12 AI 사용량 | `AIUsageView` | 메뉴 AI 사용량 | B-16 🆕 | S |
-| W-13 설정 | `SettingsView` (+ 앱 설정: 서버 주소 · 계정 · 버전) | 메뉴 설정 | B-17, B-18 🆕 | S |
+| W-08 배포 결과 | `RunView` › `ResultStage` | 배포 한 건 (끝) | A-04, A-02(+WR-09), WR-05(다시 시도) | M |
+| W-09 배포 이력 | `HistoryView` | 메뉴 이력 | A-03, WR-14 | M |
+| W-10 환경 | `EnvironmentsView` | 메뉴 환경 | WR-04, A-10 · A-11 (가칭) | S |
+| W-11 스크립트 | `ScriptsView` | 메뉴 스크립트 | WR-10 | S |
+| W-12 AI 사용량 | `AIUsageView` | 메뉴 AI 사용량 | WR-11 | S |
+| W-13 설정 | `SettingsView` (+ 앱 설정: 서버 주소 · 계정 · 버전) | 메뉴 설정 | A-12 (가칭), WR-03, WR-12, WR-13 | S |
 | 푸시 알림 | — | 승인 필요 · 완료 · 실패 | P-01, P-02 | S |
 
 M = 예선 데모 필수, S = 선택
@@ -318,12 +319,15 @@ API 모양보다 **이 정보가 어딘가에 저장되어 있는지**가 더 �
   "project_id": "prj_1",
   "commit": "2311c0b…",
   "image": "ghcr.io/…:2311c0b…",
-  "state": "queued" | "generating" | "validating" | "awaiting_approval"
-         | "applying" | "succeeded" | "failed" | "cancelled"
-         | "warning" | "rolled_back",   // ❓ 백엔드 상태 머신에 맞춰 확정. 뒤 두 개는 웹 Status Badge에서 가져옴 (가칭)
+  "state": "queued" | "running" | "awaiting_approval"
+         | "succeeded" | "partially_succeeded" | "failed" | "cancelled",   // 9/30 서버 확정 (배포 전체)
+  "kind": "rollback" | null,               // 롤백은 상태가 아니라 별도 배포 (WR-14)
+  "rolled_back_from": "dep_41" | null,
   "targets": [
     {
       "target_id": "tgt_gcp",
+      "state": "waiting" | "generating" | "validating" | "awaiting_approval"
+             | "applying" | "verifying" | "succeeded" | "failed" | "cancelled",   // 9/30 서버 확정 (환경별)
       "step": "generate" | "validate" | "plan" | "risk_check" | "apply" | "health_check",
       "step_state": "running" | "done" | "failed" | "waiting",
       "attempt": 1,                          // 첫 생성을 포함한 총 시도 횟수 (1~3). 화면에는 "시도 n/3"
@@ -368,40 +372,49 @@ API 모양보다 **이 정보가 어딘가에 저장되어 있는지**가 더 �
 
 ---
 
-### 6-8. 와이어프레임을 옮기면서 새로 필요한 것 (가칭) 🆕 — 9/30
+### 6-8. 와이어프레임 화면에 쓰는 API — 9/30 저녁 최신화
 
-앱이 웹 화면을 모두 가져가면서 생긴 요청이에요. 웹도 같은 화면이라 같은 API를 쓸 수 있어요. **이름과 모양은 서버가 정해 주세요.** 앱 코드는 `Core/API/WebEndpoints.swift`, `Core/Models/WebModels.swift`에 있어요.
+앱이 웹 화면을 모두 가져가면서 필요한 API예요. **웹이 먼저 요청해 서버가 답한 `WR-xx`(`web/SPEC.md` §6-1, PR #9 은현 님 답변)를 그대로 써요.** 경로 · 모양도 웹 문서를 따라요. 앱 코드는 `Core/API/WebEndpoints.swift`, `Core/Models/WebModels.swift`에 있어요.
 
-| ID | 메서드 · 경로 (가칭) | 쓰는 화면 | 응답 · 요청 요약 |
+**웹과 같이 쓰는 것 (서버 답변 있음)**
+
+| ID | 메서드 · 경로 | 앱 화면 | 서버 답변 (9/30) |
 |---|---|---|---|
-| R-09 | `POST /auth/demo` | W-00 "데모 계정으로 둘러보기 (읽기 전용)" | `AuthToken` (`role: "viewer"`) |
-| A-09 | `GET /projects/{id}/parity?deployment_id=` | W-01 · W-08 동일성 검증 | `{ targets[], rows: [{ key: digest·commit·app_version·health·env_hash, cells: [{ target_id, value, ok }] }], matching, total }` |
-| B-01 | `GET /repositories/inspect?url=&branch=` | W-02 배포 명세 확인 | `{ branches[], dockerfile, deploy_yaml, port, healthcheck, env[], database }` |
-| B-02 | `POST /projects` `{ repository_url, branch }` | W-02 연결하기 | `Project` |
-| B-03 | `POST /projects` `{ name, source: "upload" }` | W-02b | `Project` |
-| B-04 | `POST /projects/{id}/sources/upload-url` → PUT → `POST /projects/{id}/sources` | W-02b 업로드하고 연결 | v0.1 3-4 흐름 그대로 |
-| B-05 | (A-03) 새 프로젝트의 첫 배포 | L-01 → W-03 | 연결 뒤 이미지 빌드 배포가 생기면 앱이 넘어가요 |
-| B-06 | `GET /projects/{id}/targets` | W-04 · W-10 · 사이드바 ENVIRONMENTS | `DeployTarget[]`: `type, name, title, runtime, location, connection, exposure, state_backend, current_commit, connected, health, has_verified_script` |
-| B-07 | `POST /deployments` `{ project_id, commit, target_ids[] }` | W-04 인프라 코드 생성 · 검증 시작 | v0.1 `POST /deployments`와 같은 자리 |
-| B-08 | `GET /deployments/{id}/targets/{tid}/script` | W-05 생성된 스크립트 | `Script` (`file, content, attempt …`) |
-| B-09 | `POST /deployments/{id}/retry` | W-05b 처음부터 다시 시도 | `Deployment` |
-| B-10 | `POST /deployments/{id}/exclude` `{ target_id }` | W-05b "○○ 빼고 계속 (가안)" | Q7 결정 전 가안 |
-| B-11 | `POST /deployments/{id}/targets/{tid}/retry` | W-08 다시 시도 | `Deployment` |
-| B-12 | `POST /deployments/{id}/rollback` `{ confirm_text, reason }` | W-09 롤백 | v0.1과 같음, `confirm_text` 추가 |
-| B-13 | `POST /targets/{id}/test` | W-10 연결 테스트 | `{ connected, message }` |
-| B-14 | `GET /targets/{id}/resources` | W-10 리소스 보기 | `[{ address, type }]` |
-| B-15 | `GET /projects/{id}/scripts` | W-11 | `Script[]`: `target_id, target_type, version, attempt, outcome(passed·discarded), note, checks, reuse_count, last_used_at, file, content, base_commit, input, ai_tokens, storage, created_at` |
-| B-16 | `GET /projects/{id}/ai-usage` | W-12 | `{ calls, tokens, cost_krw, saved_calls, history: [{ at, target_type, task, attempt, tokens, cost_krw, result, ok }] }` (v0.1 `GET /costs` 자리) |
-| B-17 | `GET /projects/{id}/settings` | W-13 | `{ repository, branch, build, registry, webhook_last_at, deploy_yaml_ref, deploy_yaml, secrets[] }` |
-| B-18 | `DELETE /projects/{id}` `{ confirm_text }` | W-13 연결 해제 | 되돌릴 수 없어요 |
-| A-07 | `GET /deployments/{id}/logs?target_id=&tail=` | W-05b 오류 로그 보기 · W-07 로그 · W-08 원인 보기 | `LogLine[]`: `ts, target_id, level, text` (이미 있는 요청, S → M) |
+| WR-02 | `POST /projects` `{ repository, branch }` | W-02 연결하기 | 좋아요, 응답에 deploy.yaml 검증 결과 · D2 |
+| WR-03 | `GET /projects/{id}/manifest` | W-02 배포 명세 확인 · W-13 | 좋아요, 모양은 `deploy.yaml` 스키마 결정 뒤 · D3 |
+| WR-04 | `GET /projects/{id}/targets` → `target_id, type, name, reuse{ available, script_id?, reason? }, connection{ state: ok·failed·unknown, checked_at }` | W-04 · W-10 · 사이드바 | 별도 엔드포인트로 · D2 |
+| WR-05 | `POST /projects/{id}/deployments` `{ commit, target_ids[] }` + `Idempotency-Key` | W-04 시작, **W-05b "처음부터 다시 시도" · W-08 "다시 시도"도 같은 커밋으로 새 배포** | 이 경로로 확정 · D2 |
+| WR-06 | `GET /deployments/{id}/plan?detail=resources` | W-06 리소스 행 (`action`에 `replace` 포함) | 좋아요 · D3 |
+| WR-07 | `GET /deployments/{id}/targets/{target_id}/script` → `files[{ path, content }]` | W-05 생성된 스크립트 | 18시 백엔드 회의에서 확인 |
+| WR-08 | `POST /deployments/{id}/cancel` | (앱은 아직 버튼 없음) | 좋아요 · D3 |
+| WR-09 | A-02에 `image_digest` | W-01 · W-08 동일성 검증 (앱이 digest · 커밋 · 헬스로 표를 만들어요. **예전 A-09 요청은 뺐어요**) | 넣을게요 · D2 |
+| WR-10 | `GET /projects/{id}/scripts` | W-11 | 승환 님 영역, D3~ |
+| WR-11 | `GET /projects/{id}/ai-usage` → `summary{…}, items[{ at, target_id, step: generate·fix, attempt, tokens, cost_krw, status }]` | W-12 | 좋아요, 환율 숫자만 미정 · D3 |
+| WR-12 | `PUT /projects/{id}/secrets/{name}` | W-13 비밀값 추가 (지금은 비활성) | 전달 방식 팀 결정 대기 |
+| WR-13 | `DELETE /projects/{id}` | W-13 연결 해제 (확인 입력은 화면에서) | 좋아요 · S |
+| WR-14 | `POST /deployments/{id}/rollback` `{ target_ids[], reason }` → `Deployment(kind: "rollback")` | W-09 롤백 → 새 배포로 이동, **plan 승인을 거쳐요** | 넣을게요 (은현 님) |
 
-**기존 모델에 더한 필드 (가칭):**
-- `Deployment`: `version`("v7"), `commit_message`; 상태 `building`(W-03) · `selecting_targets`(W-04) · `stopped`(W-05b) 추가
+**앱이 더 부탁하는 것 (가칭) 🆕** — 웹 W-10 · W-13 · W-00에도 같은 버튼이 있어요. 받으실지는 서버가 정해 주세요 (이슈로 전달)
+
+| ID | 메서드 · 경로 (가칭) | 앱 화면 | 요약 |
+|---|---|---|---|
+| R-09 | `POST /auth/demo` → `AuthToken(role: "viewer")` | W-00 "데모 계정으로 둘러보기 (읽기 전용)" | 심사위원이 비밀번호 없이 들어오는 버튼. **인증 범위는 9/30 회의 안건**이라 결정 뒤 맞춰요. `/auth/token` + 공개 데모 계정으로 대신해도 돼요 |
+| A-10 | `POST /targets/{id}/test` → `{ connected, message }` | W-10 "연결 테스트" | WR-04 `connection`을 지금 다시 확인 |
+| A-11 | `GET /targets/{id}/resources` → `[{ address, type }]` | W-10 "리소스 보기" | 이 환경 state에 있는 리소스 |
+| A-12 | `GET /projects/{id}` → `id, name, repository, branch, build?, registry?, webhook_last_at?` | W-13 저장소 카드 | 노션 계약 v0.2 §3-2 제안과 같아요 |
+
+**기존 모델에 더한 필드 (가칭) 🆕** — 없으면 화면이 "—"나 기본 문구로 보여줘요. 필수는 아니에요.
+
+- `Deployment`: `version`("v7"), `commit_message`
 - `Deployment.targets[]`: `title`("home-lab · Docker"), `steps[]`(`{ name, state, duration_ms, started_at }`, W-05 검증 단계 · W-07 레인), `health_summary`("200 OK · p95 120ms")
-- `Plan.targets[]`: `reused_script`("이미지 태그만 교체"), `resources[]`(`{ action: create·update·delete, address, monthly_cost_krw }`, W-06 리소스 변경 행)
+- `Plan.targets[]`: `reused_script`
 - `Build`: `branch`, `digest`, `steps[]` (W-03 GitHub Actions 단계)
 - `Project`: `branch`
+- WR-04 `Target`: W-10 줄 `title, runtime, location, access_method, exposure, state_backend, current_commit`
+- WR-10 `Script`: W-11 정보 카드 `note, base_commit, input, ai_tokens, storage, created_at`
+- WR-03 `Manifest`: `raw`(원문), `ref`("deploy.yaml · main@a1b2c3d")
+
+**9/30 저녁에 뺀 것:** A-09 동일성 검증 API(→ WR-09), B-01 저장소 미리 확인(→ WR-02 응답 + WR-03), B-03 · B-04 업로드(범위 밖), B-09 · B-11 재시도 API(→ WR-05 새 배포), B-10 "○○ 빼고 계속"(Q7: 나머지 환경은 자동으로 계속), 상태 `building` · `selecting_targets` · `stopped`(W-03 · W-04는 배포가 생기기 전 화면), 인프라 월 비용(서버 보류, 오면 보여줘요)
 
 ## 7. CI 요구사항 (가칭) — 김도영
 
@@ -423,9 +436,14 @@ API 모양보다 **이 정보가 어딘가에 저장되어 있는지**가 더 �
 - [x] ~~HTTPS 공개 주소 (R-04)~~ → 도메인 구매 + HTTPS (9/29 회의, 서버 담당)
 - [ ] **승인 단위**: 배포 전체 한 번 / 환경별 (§6-4)
 - [ ] **`confirm_text` 값** (§6-4)
-- [ ] **앱 범위를 웹 전체로 넓힐지** (§1-1 ⚠️): ADR-007 · 도영 님 메모(W-02~W-04, W-10~W-13 웹 전용)와 어긋나요 — 9/30 회의
-- [ ] **§6-8 새 요청 B-01 ~ B-18, A-09, R-09** 을 서버가 받을지 · 이름 — 하은현 · 김승환
-- [ ] **배포 상태 · 단계 값** 확정 (§6-7 `state`, `step`) — 웹 · 앱 · 백엔드가 같은 목록을 써요. ⚠️ Figma Status Badge 설명은 서버 상태를 `queued · running · succeeded · failed · warning · rolled_back` 6개로 적었고, 이 문서와 서버 `server/AGENTS.md`의 단계 구분(생성 · 검증 · 승인 대기 · apply)과 달라요 → 서버(하은현)와 웹(김도영) 확인 필요
+- [ ] **앱 범위를 웹 전체로 넓힐지** (§1-1 ⚠️): ADR-007 · 도영 님 메모 · `web/SPEC.md` §1-1과 어긋나요 — **9/30 21시 회의**
+- [ ] **§6-8 앱 추가 요청 R-09 · A-10 ~ A-12 · 필드 추가**를 서버가 받을지 — 하은현 · 김승환 (이슈로 전달)
+- [ ] **데모 계정 진입 방식** (R-09): 인증 범위 회의에서 — 팀
+- [ ] **Q4 빌드가 끝나면 W-04로 바로 갈지** — 앱은 지금 바로 넘어가요. 팀 결정에 맞춰요
+- [ ] **헬스체크 실패 시 자동 롤백** (은현 님 제안): 넣으면 이력에 롤백 배포가 승인 없이 생겨요. 앱은 `kind: "rollback"`으로 표시만 해요 — 팀
+- [x] ~~배포 상태 · 단계 값~~ → 9/30 서버 확정 (§6-7): 배포 전체 `queued · running · awaiting_approval · succeeded · partially_succeeded · failed · cancelled`, 환경별 `waiting · generating · validating · awaiting_approval · applying · verifying · succeeded · failed · cancelled`. 롤백은 별도 배포
+- [x] ~~Q7 한 환경 3회 실패 시~~ → 환경별, 나머지는 계속 (9/29 서버). W-05b "빼고 계속" 버튼 뺌
+- [x] ~~업로드 입력(W-02b)~~ → 서버 작업 없음, 앱은 설계만 표시 (9/30 은현 님 답변. 웹 화면 처리는 도영 님 결정)
 - [x] ~~푸시를 예선 범위에 넣을지~~ → D3까지 로컬 알림, APNs는 여유 있으면 (9/29)
 - [x] ~~경로 · 이벤트 이름 확정~~ → 9/29 확정. 모델 필드는 서버 OpenAPI가 나오면 맞춰요
 
@@ -439,6 +457,7 @@ API 모양보다 **이 정보가 어딘가에 저장되어 있는지**가 더 �
 | 9/29 | 앱 목업 모드 제거 (항상 실서버 연결), 개발 서버 요구(R-08) 추가 | 박승준 |
 | 9/29 | 에이전트 규칙 파일을 `CLAUDE.md` → `AGENTS.md`로 변경 | 박승준 |
 | 9/29 | 서버 답변 반영: 경로 · 이벤트 이름 확정, Bearer만, `DELETE /devices` + 본문, `attempt` 의미, Plan 모양(`level`·`resource`, `ai_usage`), 제공 일정 D2/D3, 폴링 · 로컬 알림 폴백 | 박승준 |
+| 9/30 | 팀 방향에 맞춤: 서버 확정 상태 두 층, 웹 `WR-xx` 경로 · 모양 그대로 사용(배포 시작 `POST /projects/{id}/deployments`, 롤백은 새 배포 + 승인, 동일성은 `image_digest`), Q7 반영("빼고 계속" 제거), 업로드 설계만, W-03 · W-04를 배포 전 화면으로. §6-8을 WR-xx + 앱 추가 요청(R-09, A-10 ~ A-12)으로 다시 씀 | 박승준 |
 | 9/30 | 와이어프레임 v1.0 화면 · 문구 · 버튼을 앱에 모두 옮김 (W-00 ~ W-13, L-01 ~ L-03), 메뉴를 웹 사이드바 구성으로, 새 요청 §6-8 (가칭) | 박승준 |
 | 9/30 | 웹(Figma 와이어프레임 v1.0) 문구로 통일: 메뉴 개요 · 배포 · 승인 · 이력 · 설정, 상태 이름, `리소스 +6 ~0 −0`, 로그인 · 오류 문구. 색 · 모양은 앱 방식 유지, 아이콘은 비슷한 SF Symbols | 박승준 |
 | 9/30 | 앱 아이콘 적용 (iOS 1024 꽉 찬 정사각형, macOS 둥근 사각형 격자 16–1024), 사이드바 머리에 로고 | 박승준 |

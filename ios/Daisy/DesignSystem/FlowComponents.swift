@@ -395,6 +395,7 @@ struct ResourceDiffRow: View {
         case .create: "+"
         case .update: "~"
         case .delete: "\u{2212}"
+        case .replace: "\u{00B1}"
         case .unknown: "?"
         }
     }
@@ -404,6 +405,7 @@ struct ResourceDiffRow: View {
         case .create: .green
         case .update: .orange
         case .delete: .red
+        case .replace: .purple
         case .unknown: .secondary
         }
     }
@@ -419,9 +421,7 @@ struct ParityTable: View {
         switch key {
         case "digest": "이미지 digest"
         case "commit": "커밋"
-        case "app_version": "앱 버전"
         case "health": "헬스체크"
-        case "env_hash": "환경변수 해시"
         default: key
         }
     }

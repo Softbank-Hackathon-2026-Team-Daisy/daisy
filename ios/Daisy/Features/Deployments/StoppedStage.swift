@@ -1,9 +1,9 @@
 import SwiftUI
 
-/// W-05b 배포를 중단했어요: 한 환경이 3번 모두 실패해서 멈춘 상태.
+/// W-05b 배포를 중단했어요: apply 전에 모든 환경이 멈춘 배포.
+/// Q7(9/29 서버 결정): 3회는 환경별이고, 한 환경이 실패해도 나머지는 계속 가요. 그래서 "○○ 빼고 계속" 버튼은 없어요.
 struct StoppedStage: View {
     let deployment: Deployment
-    var onChange: () -> Void
     @Environment(AppModel.self) private var app
     @Environment(Router.self) private var router
     @Environment(Workspace.self) private var workspace
@@ -12,13 +12,13 @@ struct StoppedStage: View {
     @State private var errorMessage: String?
 
     private var targets: [Deployment.Target] { deployment.targets ?? [] }
-    private var failed: Deployment.Target? { targets.first { $0.stepState == .failed } }
+    private var failed: Deployment.Target? { targets.first(where: \.isFailed) }
     private var failedName: String { failed.map { workspace.name(of: $0.targetId) } ?? "한 환경" }
 
     var body: some View {
         FlowPage(step: 4, title: "배포를 중단했어요",
-                 description: "\(failedName) 검증이 3번 모두 실패해서 배포를 멈췄어요. 다른 환경은 검증을 마친 상태예요.") {
-            InlineAlert(.danger, "\(failedName) · 3회 시도 모두 실패", failed?.errorSummary)
+                 description: "\(failedName) 검증이 \(failed?.attempt ?? 3)번 모두 실패해서 배포를 멈췄어요.") {
+            InlineAlert(.danger, "\(failedName) · \(failed?.attempt ?? 3)회 시도 모두 실패", failed?.errorSummary)
             AdaptiveGrid(minimumWidth: 320) {
                 SectionCard("\(failedName) 시도 기록") {
                     let steps = failed?.steps ?? []
@@ -30,10 +30,9 @@ struct StoppedStage: View {
                 SectionCard("환경별 상태") {
                     VStack(spacing: 10) {
                         ForEach(targets) { target in
-                            let failedHere = target.stepState == .failed
                             ProgressLine(name: workspace.type(of: target.targetId),
-                                         text: failedHere ? "\(target.attempt)회 실패 · 중단" : "검증 통과") {
-                                failedHere ? StatusBadge(text: "실패", color: .red) : StatusBadge(text: "검증 통과", color: .green)
+                                         text: target.isFailed ? "\(target.attempt)회 실패 · 중단" : "검증 통과") {
+                                target.isFailed ? StatusBadge(text: "실패", color: .red) : StatusBadge(text: "검증 통과", color: .green)
                             }
                         }
                     }
@@ -46,12 +45,6 @@ struct StoppedStage: View {
                 Button("처음부터 다시 시도") { Task { await retry() } }
                     .buttonStyle(.glassCapsule)
                     .disabled(working || app.isViewer)
-                if let failed {
-                    // Q7 결정 전 가안이라 웹과 같이 "(가안)"을 붙여요
-                    Button("\(failedName) 빼고 계속 (가안)") { Task { await exclude(failed.targetId) } }
-                        .buttonStyle(.glassCapsule)
-                        .disabled(working || app.isViewer || targets.count < 2)
-                }
             }
         }
         .toast($toast)
@@ -61,26 +54,15 @@ struct StoppedStage: View {
         }
     }
 
+    /// 같은 커밋 · 같은 환경으로 새 배포를 만들어요 (WR-05). 별도 재시도 API는 쓰지 않아요.
     private func retry() async {
         guard let client = app.client else { return }
         working = true
         defer { working = false }
         do {
-            _ = try await client.send(.retryDeployment(deploymentID: deployment.id))
-            onChange()
-        } catch {
-            app.handle(error)
-            errorMessage = error.localizedDescription
-        }
-    }
-
-    private func exclude(_ targetID: String) async {
-        guard let client = app.client else { return }
-        working = true
-        defer { working = false }
-        do {
-            _ = try await client.send(.excludeTarget(deploymentID: deployment.id, targetID: targetID))
-            onChange()
+            let next = try await client.send(.startDeployment(projectID: deployment.projectId, commit: deployment.commit,
+                                                              targetIDs: targets.map(\.targetId)))
+            router.replaceTop(with: .started(next.id))
         } catch {
             app.handle(error)
             errorMessage = error.localizedDescription

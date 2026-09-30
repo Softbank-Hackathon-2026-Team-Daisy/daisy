@@ -1,9 +1,10 @@
 import SwiftUI
 
 /// W-09 배포 이력: 버전 · 커밋 · 상태 · 환경 · 배포자 · 시간 · 롤백.
-/// 넓으면 표, 좁으면 목록 (도영 님 메모).
+/// 넓으면 표, 좁으면 목록 (도영 님 메모). 롤백(WR-14)은 새 배포 한 건이고 plan 승인을 거쳐요.
 struct HistoryView: View {
     @Environment(AppModel.self) private var app
+    @Environment(Router.self) private var router
     @Environment(Workspace.self) private var workspace
     @State private var store = DeploymentsStore()
     @State private var rollbackTarget: Deployment?
@@ -42,8 +43,8 @@ struct HistoryView: View {
         .task(id: app.selectedProjectID) { await store.refresh(using: app) }
         .toast($toast)
         .sheet(item: $rollbackTarget) { deployment in
-            RollbackDialog(deployment: deployment, environments: environmentNames(deployment)) { confirm in
-                Task { await rollback(deployment, confirm: confirm) }
+            RollbackDialog(deployment: deployment, environments: environmentNames(deployment)) {
+                Task { await rollback(deployment) }
             }
         }
     }
@@ -59,7 +60,7 @@ struct HistoryView: View {
             Divider()
             ForEach(deployments) { deployment in
                 GridRow {
-                    Text(deployment.version ?? "—").font(.subheadline.monospaced())
+                    versionText(deployment).font(.subheadline.monospaced())
                     NavigationLink(value: Route.run(deployment.id)) { CommitLabel(commit: deployment.commit) }
                         .buttonStyle(.plain)
                     deployment.state.badge
@@ -77,7 +78,7 @@ struct HistoryView: View {
             ForEach(deployments) { deployment in
                 VStack(alignment: .leading, spacing: 6) {
                     HStack {
-                        Text(deployment.version ?? "—").font(.subheadline.monospaced().weight(.semibold))
+                        versionText(deployment).font(.subheadline.monospaced().weight(.semibold))
                         CommitLabel(commit: deployment.commit)
                         Spacer()
                         deployment.state.badge
@@ -95,6 +96,11 @@ struct HistoryView: View {
                 if deployment.id != deployments.last?.id { Divider() }
             }
         }
+    }
+
+    /// 롤백 배포는 "v6 ↩" 처럼 표시해요
+    private func versionText(_ deployment: Deployment) -> Text {
+        Text(deployment.version ?? "—") + (deployment.isRollback ? Text(" ↩").foregroundStyle(.purple) : Text(""))
     }
 
     private func environmentTags(_ deployment: Deployment) -> some View {
@@ -121,7 +127,7 @@ struct HistoryView: View {
     private func rollbackButton(_ deployment: Deployment) -> some View {
         Button("롤백") { rollbackTarget = deployment }
             .buttonStyle(.glassCapsule)
-            .disabled(app.isViewer || deployment.state != .succeeded)
+            .disabled(app.isViewer || ![.succeeded, .partiallySucceeded].contains(deployment.state))
     }
 
     private func environmentNames(_ deployment: Deployment) -> [String] {
@@ -130,13 +136,15 @@ struct HistoryView: View {
 
     // MARK: 롤백
 
-    private func rollback(_ deployment: Deployment, confirm: String) async {
+    private func rollback(_ deployment: Deployment) async {
         guard let client = app.client else { return }
         do {
-            _ = try await client.send(.rollback(deploymentID: deployment.id, confirmText: confirm))
+            let next = try await client.send(.rollback(deploymentID: deployment.id,
+                                                       targetIDs: (deployment.targets ?? []).map(\.targetId),
+                                                       reason: "앱에서 \(deployment.version ?? "이전 버전")로 롤백"))
             rollbackTarget = nil
-            toast = ToastMessage(kind: .info, title: "롤백 시작", message: "\(deployment.version ?? "이전 버전")로 되돌리는 중이에요.")
-            await store.refresh(using: app)
+            toast = ToastMessage(kind: .info, title: "롤백 시작", message: "\(deployment.version ?? "이전 버전")로 되돌리는 plan을 만들고 있어요. 승인하면 배포돼요.")
+            router.push(.started(next.id))
         } catch {
             app.handle(error)
             rollbackTarget = nil
@@ -149,7 +157,7 @@ struct HistoryView: View {
 struct RollbackDialog: View {
     let deployment: Deployment
     let environments: [String]
-    let onConfirm: (String) -> Void
+    let onConfirm: () -> Void
     @State private var name = ""
     @Environment(\.dismiss) private var dismiss
 
@@ -171,9 +179,9 @@ struct RollbackDialog: View {
             HStack {
                 Spacer()
                 Button("취소") { dismiss() }.buttonStyle(.glassCapsule)
-                Button("롤백", role: .destructive) { onConfirm(name) }
+                Button("롤백", role: .destructive) { onConfirm() }
                     .buttonStyle(.glassCapsule)
-                    .disabled(name.isEmpty)
+                    .disabled(!environments.contains(name.trimmingCharacters(in: .whitespaces)))
             }
         }
         .padding(24)

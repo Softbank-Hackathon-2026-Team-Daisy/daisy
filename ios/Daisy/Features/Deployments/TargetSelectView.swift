@@ -1,11 +1,10 @@
 import SwiftUI
 
-/// W-04 배포할 환경 선택. 여러 환경을 동시에 골라요.
+/// W-04 배포할 환경 선택. 여러 환경을 동시에 골라요 (WR-04 목록, WR-05 시작).
 /// - 사이드바 "새 배포"로 들어오면: 가장 최근에 빌드된 이미지로 새 배포를 시작해요.
-/// - 배포가 환경 선택 단계에 있으면: 그 배포의 이미지로 이어가요.
+/// - W-03에서 넘어오면: 그 커밋의 이미지로 시작해요.
 struct TargetSelectView: View {
-    var deployment: Deployment?
-    var onStarted: (() -> Void)?
+    var fixedCommit: String?
     @Environment(AppModel.self) private var app
     @Environment(Router.self) private var router
     @Environment(Workspace.self) private var workspace
@@ -15,13 +14,12 @@ struct TargetSelectView: View {
     @State private var starting = false
     @State private var errorMessage: String?
 
-    init(deployment: Deployment? = nil, onStarted: (() -> Void)? = nil) {
-        self.deployment = deployment
-        self.onStarted = onStarted
+    init(commit: String? = nil) {
+        self.fixedCommit = commit
     }
 
-    private var commit: String? { deployment?.commit ?? latestBuild?.commit }
-    private var image: String? { deployment?.image ?? latestBuild?.image }
+    private var commit: String? { fixedCommit ?? latestBuild?.commit }
+    private var image: String? { latestBuild?.image }
 
     var body: some View {
         FlowPage(step: 3, title: "배포할 환경 선택",
@@ -80,17 +78,22 @@ struct TargetSelectView: View {
     }
 
     /// 웹: "home-lab Proxmox VM · 사설망 · 검증된 스크립트 있음 → 태그만 교체" / "ap-northeast-2 · 처음 배포 → AI가 Terraform 생성"
+    /// 재사용 판단과 이유는 서버가 줘요 (WR-04 `reuse`).
     private func cardDescription(_ target: DeployTarget) -> String {
-        let reuse = target.hasVerifiedScript == true ? "검증된 스크립트 있음 → 태그만 교체" : "처음 배포 → AI가 Terraform 생성"
-        return [target.location, reuse].compactMap { $0 }.joined(separator: " · ")
+        let reuse = target.reuse?.available == true
+            ? "\(target.reuse?.reason ?? "검증된 스크립트 있음") → 태그만 교체"
+            : "처음 배포 → AI가 Terraform 생성"
+        var parts = [target.location, reuse].compactMap { $0 }
+        if target.connection?.state == .failed { parts.append("연결 끊김") }
+        return parts.joined(separator: " · ")
     }
 
     // MARK: 선택 요약
 
     private func summary(_ targets: [DeployTarget]) -> some View {
         let chosen = targets.filter { selected.contains($0.id) }
-        let reused = chosen.filter { $0.hasVerifiedScript == true }
-        let fresh = chosen.filter { $0.hasVerifiedScript != true }
+        let reused = chosen.filter { $0.reuse?.available == true }
+        let fresh = chosen.filter { $0.reuse?.available != true }
         func names(_ list: [DeployTarget]) -> String {
             list.isEmpty ? "0개" : "\(list.count)개 · " + list.map(\.type.displayName).joined(separator: ", ")
         }
@@ -115,9 +118,9 @@ struct TargetSelectView: View {
             app.handle(error)
             targets = .failed(error.localizedDescription)
         }
-        if deployment == nil {
-            let builds = try? await client.send(.builds(projectID: projectID)).items
-            latestBuild = builds?.first { $0.pipeline.status == .success && $0.image != nil }
+        let builds = try? await client.send(.builds(projectID: projectID)).items
+        latestBuild = builds?.first { build in
+            fixedCommit.map { build.commit == $0 } ?? (build.pipeline.status == .success && build.image != nil)
         }
     }
 
@@ -128,11 +131,7 @@ struct TargetSelectView: View {
         do {
             let started = try await client.send(.startDeployment(projectID: projectID, commit: commit, targetIDs: Array(selected)))
             errorMessage = nil
-            if let onStarted {
-                onStarted()
-            } else {
-                router.replaceTop(with: .run(started.id))
-            }
+            router.replaceTop(with: .started(started.id))
             await workspace.refresh(using: app)
         } catch {
             app.handle(error)

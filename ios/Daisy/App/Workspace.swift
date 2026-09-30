@@ -53,12 +53,18 @@ enum AppTab: String, CaseIterable, Identifiable, Hashable {
 
 /// 화면 안에서 들어가는 곳.
 enum Route: Hashable {
-    /// 배포 한 건 (W-03 ~ W-08 중 지금 단계)
+    /// 배포 한 건 (W-05 ~ W-08 중 지금 단계)
     case run(String)
+    /// 방금 시작한 배포: L-02 전환 로딩부터
+    case started(String)
     /// W-06 변경 사항 확인 후 승인
     case plan(String)
-    /// 새 배포: W-04 배포할 환경 선택부터
+    /// W-03 이미지 빌드: 이 커밋의 GitHub Actions 진행. 끝나면 W-04로 넘어가요
+    case build(commit: String)
+    /// 새 배포: W-04 배포할 환경 선택부터 (가장 최근에 빌드된 이미지)
     case newDeployment
+    /// W-04를 특정 커밋으로 (W-03에서 넘어올 때)
+    case selectTargets(commit: String)
     /// 새 프로젝트 연결: W-02 애플리케이션 연결
     case connectProject
     /// 로그 (W-05b 오류 로그 보기, W-08 원인 보기)
@@ -68,8 +74,11 @@ enum Route: Hashable {
     var destination: some View {
         switch self {
         case .run(let id): RunView(deploymentID: id)
+        case .started(let id): RunView(deploymentID: id, loader: .generate)
         case .plan(let id): PlanApprovalView(deploymentID: id)
+        case .build(let commit): BuildStage(commit: commit)
         case .newDeployment: TargetSelectView()
+        case .selectTargets(let commit): TargetSelectView(commit: commit)
         case .connectProject: ConnectAppView()
         case .logs(let id, let target): LogsView(deploymentID: id, targetID: target)
         }
@@ -167,7 +176,7 @@ final class Workspace {
     var environments: [EnvironmentSummary] {
         if !targets.isEmpty {
             return targets.map { target in
-                let health = statuses.first { $0.targetId == target.id }?.health ?? target.health ?? .unknown
+                let health = statuses.first { $0.targetId == target.id }?.health ?? .unknown
                 return EnvironmentSummary(id: target.id, type: target.type, name: target.name, health: health)
             }
         }

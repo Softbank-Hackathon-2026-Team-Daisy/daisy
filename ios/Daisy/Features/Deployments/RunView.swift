@@ -1,8 +1,9 @@
 import SwiftUI
 import Observation
 
-/// 배포 한 건 (A-04). 서버 상태에 따라 웹 흐름의 해당 화면을 보여줘요.
-/// 빌드 중 → W-03 · 환경 선택 → W-04 · 생성 · 검증 → W-05 · 중단 → W-05b · 승인 대기 → W-06 · 배포 중 → W-07 · 끝 → W-08
+/// 배포 한 건 (A-04). 서버 상태(9/30 확정 두 층)에 따라 웹 흐름의 해당 화면을 보여줘요.
+/// 생성 · 검증 → W-05 · 승인 대기 → W-06 · 배포 중 → W-07 · 끝 → W-08 (apply 전에 모두 실패하면 W-05b)
+/// W-03 이미지 빌드와 W-04 환경 선택은 배포가 생기기 전 단계라 `Route.build` · `Route.newDeployment`에서 보여줘요.
 @MainActor
 @Observable
 final class RunStore {
@@ -64,24 +65,23 @@ struct RunView: View {
 
     @ViewBuilder
     private func stage(for deployment: Deployment) -> some View {
+        let targets = deployment.targets ?? []
         switch deployment.state {
-        case .queued, .building:
-            BuildStage(deployment: deployment)
-        case .selectingTargets:
-            TargetSelectView(deployment: deployment) { store.showLoader(.generate) }
-        case .generating, .validating:
-            GenerateStage(deployment: deployment)
-        case .stopped:
-            StoppedStage(deployment: deployment) { Task { await store.refresh(using: app) } }
         case .awaitingApproval:
             PlanApprovalView(deploymentID: deployment.id, deployment: deployment) { approved in
                 if approved { store.showLoader(.deploy) }
                 Task { await store.refresh(using: app) }
             }
-        case .applying:
-            ApplyStage(deployment: deployment)
-        case .succeeded, .failed, .cancelled, .warning, .rolledBack, .unknown:
-            ResultStage(deployment: deployment) { Task { await store.refresh(using: app) } }
+        case .queued, .running:
+            if targets.contains(where: \.reachedApply) {
+                ApplyStage(deployment: deployment)
+            } else {
+                GenerateStage(deployment: deployment)
+            }
+        case .failed where !targets.contains(where: \.reachedApply):
+            StoppedStage(deployment: deployment)
+        case .succeeded, .partiallySucceeded, .failed, .cancelled, .unknown:
+            ResultStage(deployment: deployment)
         }
     }
 }

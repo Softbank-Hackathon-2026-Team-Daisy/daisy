@@ -1,7 +1,7 @@
 import Foundation
 import Observation
 
-/// plan 요약(A-05)과 승인 · 거절(W-01).
+/// plan 요약(A-05) + 리소스 목록(WR-06)과 승인 · 거절(W-01).
 @MainActor
 @Observable
 final class PlanApprovalStore {
@@ -21,7 +21,7 @@ final class PlanApprovalStore {
         guard let client = app.client else { return }
         if plan.value == nil { plan = .loading }
         do {
-            plan = .loaded(try await client.send(.plan(deploymentID: deploymentID)))
+            plan = .loaded(try await client.send(.plan(deploymentID: deploymentID, detail: true)))
         } catch {
             app.handle(error)
             if plan.value == nil { plan = .failed(error.localizedDescription) }

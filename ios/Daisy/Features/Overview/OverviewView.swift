@@ -29,8 +29,8 @@ struct OverviewView: View {
                             }
                             VStack(spacing: 16) { currentVersions; todo }
                         }
-                        if let parity = store.parity {
-                            ParityTable(parity: parity, targets: workspace.statuses.map(\.type))
+                        if !workspace.statuses.isEmpty {
+                            ParityTable(parity: Parity(statuses: workspace.statuses), targets: workspace.statuses.map(\.type))
                         }
                         recentRuns
                     }

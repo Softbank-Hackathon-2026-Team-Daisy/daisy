@@ -43,28 +43,35 @@ struct TargetStatus: Decodable, Identifiable, Hashable, Sendable {
     let url: URL?
     let health: Health
     let checkedAt: Date?
+    /// WR-09: 떠 있는 이미지의 digest. 동일성 검증("3/3 일치")의 근거예요 (9/30 서버 수락).
+    let imageDigest: String?
 
     var id: String { targetId }
 }
 
 // MARK: - 배포 (A-03, A-04)
 
+/// 배포 전체 상태 (9/30 서버 확정). 우선순위: 승인 대기 > 진행 중 > 전부 성공 · 섞임 · 전부 실패 > 취소.
+/// 롤백은 상태가 아니라 별도 배포(`kind: "rollback"`)예요.
 enum DeploymentState: String, ServerEnum {
-    case queued
-    /// 웹 흐름 W-03 · W-04 · W-05b 단계 (가칭)
-    case building
-    case selectingTargets = "selecting_targets"
-    case generating, validating
+    case queued, running
     case awaitingApproval = "awaiting_approval"
-    case applying, succeeded, failed, cancelled
-    case stopped
-    /// 웹 Status Badge에 있는 상태. 서버 상태 이름이 확정되면 맞춰요 (가칭).
-    case warning
-    case rolledBack = "rolled_back"
+    case succeeded
+    case partiallySucceeded = "partially_succeeded"
+    case failed, cancelled
     case unknown
     static let unknownCase = DeploymentState.unknown
 
-    var isFinished: Bool { [.succeeded, .failed, .cancelled, .stopped, .rolledBack].contains(self) }
+    var isFinished: Bool { [.succeeded, .partiallySucceeded, .failed, .cancelled].contains(self) }
+}
+
+/// 환경별 상태 (9/30 서버 확정).
+enum TargetState: String, ServerEnum {
+    case waiting, generating, validating
+    case awaitingApproval = "awaiting_approval"
+    case applying, verifying, succeeded, failed, cancelled
+    case unknown
+    static let unknownCase = TargetState.unknown
 }
 
 enum DeploymentStep: String, ServerEnum {
@@ -84,6 +91,8 @@ enum StepState: String, ServerEnum {
 struct Deployment: Decodable, Identifiable, Hashable, Sendable {
     struct Target: Decodable, Identifiable, Hashable, Sendable {
         let targetId: String
+        /// 환경별 상태. 서버가 아직 안 보내면 nil이고 그때는 step · step_state로 판단해요.
+        let state: TargetState?
         let step: DeploymentStep
         let stepState: StepState
         /// 최초 생성을 포함한 총 시도 횟수 (1~3). 화면에는 "시도 n/3".
@@ -120,6 +129,11 @@ struct Deployment: Decodable, Identifiable, Hashable, Sendable {
     let createdBy: String?
     let createdAt: Date?
     let finishedAt: Date?
+    /// 롤백도 배포 한 건이에요: `kind: "rollback"`, `rolled_back_from` (WR-14)
+    let kind: String?
+    let rolledBackFrom: String?
+
+    var isRollback: Bool { kind == "rollback" }
 }
 
 // MARK: - 승인 (A-05, W-01)

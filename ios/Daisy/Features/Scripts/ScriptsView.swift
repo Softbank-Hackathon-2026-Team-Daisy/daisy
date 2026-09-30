@@ -3,6 +3,7 @@ import SwiftUI
 /// W-11 스크립트: AI가 만들고 검증을 통과한 Terraform. 같은 환경에 다시 배포할 땐 이미지 태그만 바꿔 재사용해요.
 struct ScriptsView: View {
     @Environment(AppModel.self) private var app
+    @Environment(Workspace.self) private var workspace
     @State private var scripts: LoadState<[Script]> = .idle
     @State private var selectedID: String?
     @State private var tabTarget: String?
@@ -48,7 +49,7 @@ struct ScriptsView: View {
 
     private func selected(_ scripts: [Script]) -> Script? {
         if let tabTarget {
-            return scripts.filter { $0.targetId == tabTarget && $0.outcome == .passed }.first
+            return scripts.filter { $0.targetId == tabTarget && $0.status == .verified }.first
                 ?? scripts.first { $0.targetId == tabTarget }
         }
         return scripts.first { $0.id == selectedID } ?? scripts.first
@@ -64,10 +65,10 @@ struct ScriptsView: View {
             Divider()
             ForEach(scripts) { script in
                 GridRow {
-                    EnvTag(type: script.targetType)
+                    EnvTag(type: workspace.type(of: script.targetId))
                     Text(script.version).font(.subheadline.monospaced())
                     Text(origin(script)).font(.subheadline)
-                    Text(script.checks ?? "—").font(.caption).foregroundStyle(script.outcome == .discarded ? .red : .secondary)
+                    Text(checks(script)).font(.caption).foregroundStyle(script.status == .discarded ? .red : .secondary)
                     Text(script.reuseCount.map { "\($0)회" } ?? "—").font(.subheadline.monospacedDigit())
                     lastUsed(script).font(.caption).foregroundStyle(.secondary)
                 }
@@ -83,9 +84,9 @@ struct ScriptsView: View {
             ForEach(scripts) { script in
                 Button { selectedID = script.id; tabTarget = nil } label: {
                     VStack(alignment: .leading, spacing: 4) {
-                        HStack { EnvTag(type: script.targetType); Text(script.version).font(.subheadline.monospaced()); Spacer(); lastUsed(script).font(.caption).foregroundStyle(.secondary) }
+                        HStack { EnvTag(type: workspace.type(of: script.targetId)); Text(script.version).font(.subheadline.monospaced()); Spacer(); lastUsed(script).font(.caption).foregroundStyle(.secondary) }
                         Text(origin(script)).font(.subheadline)
-                        Text([script.checks, script.reuseCount.map { "재사용 \($0)회" }].compactMap { $0 }.joined(separator: " · "))
+                        Text([checks(script), script.reuseCount.map { "재사용 \($0)회" }].compactMap { $0 }.joined(separator: " · "))
                             .font(.caption).foregroundStyle(.secondary)
                     }
                     .padding(.vertical, 8)
@@ -99,10 +100,20 @@ struct ScriptsView: View {
 
     /// 웹: "AI 생성 · 시도 2/3 통과 (보안 그룹 수정)" / "AI 생성 · 3회 실패 → 폐기"
     private func origin(_ script: Script) -> String {
-        let base = script.outcome == .discarded
-            ? "AI 생성 · \(script.attempt)회 실패 → 폐기"
-            : "AI 생성 · 시도 \(script.attempt)/3 통과"
+        let base = switch (script.status, script.origin) {
+        case (.discarded, _): "AI 생성 · \(script.attempt)회 실패 → 폐기"
+        case (_, .reused): "재사용 · 이미지 태그만 교체"
+        default: "AI 생성 · 시도 \(script.attempt)/3 통과"
+        }
         return script.note.map { "\(base) (\($0))" } ?? base
+    }
+
+    /// 웹: "validate · plan · 위험 0" / "plan 실패" (WR-10 `validation`)
+    private func checks(_ script: Script) -> String {
+        guard let v = script.validation else { return "—" }
+        if v.validate == false { return "validate 실패" }
+        if v.plan == false { return "plan 실패" }
+        return "validate · plan · 위험 \(v.risks ?? 0)"
     }
 
     private func lastUsed(_ script: Script) -> some View {
@@ -114,16 +125,21 @@ struct ScriptsView: View {
     // MARK: 코드 · 정보
 
     private func code(_ script: Script, all: [Script]) -> some View {
-        SectionCard("\(script.file ?? "main.tf") · \(script.version)") {
+        let file = script.files?.first
+        return SectionCard("\(file?.path ?? "main.tf") · \(script.version)") {
             let targetIDs = Array(Set(all.map(\.targetId))).sorted()
             if targetIDs.count > 1 {
                 GlassSegmented(selection: Binding(get: { script.targetId }, set: { tabTarget = $0 }),
                                items: targetIDs.map { id in
-                                   .init(value: id, title: all.first { $0.targetId == id }?.targetType.displayName ?? id)
+                                   .init(value: id, title: workspace.name(of: id))
                                })
             }
-            CodeBlock(header: "\(script.file ?? "main.tf") · AI 생성 · 시도 \(script.attempt)/3",
-                      aiGenerated: true, code: script.content ?? "")
+            if let file {
+                CodeBlock(header: "\(file.path) · AI 생성 · 시도 \(script.attempt)/3",
+                          aiGenerated: script.origin == .aiGenerated, code: file.content)
+            } else {
+                Text("스크립트 내용은 배포 화면(W-05)에서 볼 수 있어요").font(.subheadline).foregroundStyle(.secondary)
+            }
         }
     }
 
@@ -134,7 +150,7 @@ struct ScriptsView: View {
             InfoRow("AI 토큰", script.aiTokens.map { $0.formatted() })
             InfoRow("저장 위치", script.storage)
             InfoRow("만든 시각", script.createdAt.map { $0.formatted(date: .numeric, time: .shortened) })
-            if script.outcome == .passed {
+            if script.status == .verified {
                 InlineAlert(.info, "다음 배포는 재사용", "이미지 태그만 바꿔서 AI 호출 0회로 배포해요.")
             }
         }

@@ -51,9 +51,9 @@ extension Endpoint {
         .init(path: "deployments/\(id)")
     }
 
-    /// A-05 · D3
-    static func plan(deploymentID: String) -> Endpoint<Plan> {
-        .init(path: "deployments/\(deploymentID)/plan")
+    /// A-05 · D3. `detail`이면 환경별 리소스 전체 목록까지 (WR-06, W-06 리소스 행)
+    static func plan(deploymentID: String, detail: Bool = false) -> Endpoint<Plan> {
+        .init(path: "deployments/\(deploymentID)/plan", query: [("detail", detail ? "resources" : nil)])
     }
 
     /// A-06 · D3

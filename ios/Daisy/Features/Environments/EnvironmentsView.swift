@@ -49,13 +49,15 @@ struct EnvironmentsView: View {
             HStack {
                 EnvTag(type: target.type)
                 Spacer()
-                target.connected == false
-                    ? StatusBadge(text: "연결 끊김", color: .red)
-                    : StatusBadge(text: "연결됨", color: .green)
+                switch target.connection?.state {
+                case .ok: StatusBadge(text: "연결됨", color: .green)
+                case .failed: StatusBadge(text: "연결 끊김", color: .red)
+                default: StatusBadge(text: "확인 전", color: .gray)
+                }
             }
             InfoRow("유형", target.runtime)
             InfoRow(target.type == .onprem ? "위치" : "리전", target.location)
-            InfoRow("연결", target.connection)
+            InfoRow("연결", target.accessMethod)
             InfoRow("공개", target.exposure)
             InfoRow("state", target.stateBackend)
             InfoRow("현재 버전", target.currentCommit.map { String($0.prefix(7)) }, monospaced: true)

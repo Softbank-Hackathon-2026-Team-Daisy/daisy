@@ -26,21 +26,42 @@ extension DeploymentState {
         switch self {
         // 문구는 웹 Status Badge와 같아요. 색은 앱 패턴.
         case .queued: StatusBadge(text: "대기 중", color: .gray)
-        case .building: StatusBadge(text: "빌드 중", color: .blue)
-        case .selectingTargets: StatusBadge(text: "환경 선택", color: .orange)
-        case .stopped: StatusBadge(text: "중단", color: .red)
+        case .running: StatusBadge(text: "진행 중", color: .blue)
+        case .awaitingApproval: StatusBadge(text: "승인 대기", color: .orange)
+        case .succeeded: StatusBadge(text: "성공", color: .green)
+        case .partiallySucceeded: StatusBadge(text: "일부 성공", color: .orange)
+        case .failed: StatusBadge(text: "실패", color: .red)
+        case .cancelled: StatusBadge(text: "취소", color: .gray)
+        case .unknown: StatusBadge(text: "알 수 없음", color: .gray)
+        }
+    }
+}
+
+extension TargetState {
+    var badge: StatusBadge {
+        switch self {
+        case .waiting: StatusBadge(text: "대기 중", color: .gray)
         case .generating: StatusBadge(text: "생성 중", color: .blue)
         case .validating: StatusBadge(text: "검증 중", color: .blue)
         case .awaitingApproval: StatusBadge(text: "승인 대기", color: .orange)
         case .applying: StatusBadge(text: "배포 중", color: .blue)
+        case .verifying: StatusBadge(text: "헬스체크 중", color: .blue)
         case .succeeded: StatusBadge(text: "성공", color: .green)
         case .failed: StatusBadge(text: "실패", color: .red)
-        case .cancelled: StatusBadge(text: "중단", color: .gray)
-        case .warning: StatusBadge(text: "주의", color: .orange)
-        case .rolledBack: StatusBadge(text: "롤백됨", color: .purple)
+        case .cancelled: StatusBadge(text: "취소", color: .gray)
         case .unknown: StatusBadge(text: "알 수 없음", color: .gray)
         }
     }
+}
+
+extension Deployment.Target {
+    /// apply까지 갔는지. 서버가 `state`를 주면 그걸로, 아니면 단계로 판단해요.
+    var reachedApply: Bool {
+        if let state { return [.applying, .verifying, .succeeded].contains(state) }
+        return [.apply, .healthCheck].contains(step)
+    }
+
+    var isFailed: Bool { state == .failed || stepState == .failed }
 }
 
 extension DeploymentStep {
