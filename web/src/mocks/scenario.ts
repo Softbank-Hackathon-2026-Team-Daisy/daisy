@@ -24,7 +24,7 @@ export const IMAGE = `ghcr.io/team-daisy/sample-monolith:${COMMIT}`
 export const DIGEST = 'sha256:9f3c…e1a'
 
 export const projects: Project[] = [
-  { id: 'prj_monolith', name: 'sample-monolith', repository: 'Softbank-Hackathon-2026-Team-Daisy/sample-monolith', branch: 'main' },
+  { id: 'prj_monolith', name: 'sample-monolith', repository: 'Softbank-Hackathon-2026-Team-Daisy/sample-monolith', branch: 'main', build: 'GitHub Actions · ci.yml', registry: 'ghcr.io', webhook_last_at: ago(3) },
   { id: 'prj_msa', name: 'sample-msa', repository: 'Softbank-Hackathon-2026-Team-Daisy/sample-msa', branch: 'main' },
 ]
 
@@ -35,9 +35,9 @@ export const targetStatus: TargetStatus[] = [
 ]
 
 export const targets: Target[] = [
-  { target_id: 'tgt_onprem', type: 'onprem', name: 'home-lab', title: '온프레미스 · Docker Compose', reuse: { available: true, script_id: 'scr_onprem_s3', reason: 'home-lab Proxmox VM · 사설망 · 검증된 스크립트 있음 → 태그만 교체' }, connection: { state: 'ok', checked_at: ago(1) } },
-  { target_id: 'tgt_aws', type: 'aws', name: 'aws-prod', title: 'AWS · ECS + ALB', reuse: { available: false, reason: 'ap-northeast-2 · 처음 배포 → AI가 Terraform 생성' }, connection: { state: 'ok', checked_at: ago(1) } },
-  { target_id: 'tgt_gcp', type: 'gcp', name: 'gcp-prod', title: 'GCP · Cloud Run', reuse: { available: false, reason: 'asia-northeast3 · 처음 배포 → AI가 Terraform 생성' }, connection: { state: 'ok', checked_at: ago(1) } },
+  { target_id: 'tgt_onprem', type: 'onprem', name: 'home-lab', title: '온프레미스 · Docker Compose', runtime: 'Proxmox VM · Docker Compose', location: 'home-lab', location_label: '위치', access_method: '사설망(VPN) + SSH', exposure: '팀 도메인 HTTPS', state_backend: null, current_commit: COMMIT, reuse: { available: true, script_id: 'scr_onprem_s3', reason: 'home-lab Proxmox VM · 사설망 · 검증된 스크립트 있음 → 태그만 교체' }, connection: { state: 'ok', checked_at: ago(1) } },
+  { target_id: 'tgt_aws', type: 'aws', name: 'aws-prod', title: 'AWS · ECS + ALB', runtime: 'ECS Fargate + ALB', location: 'ap-northeast-2', location_label: '리전', access_method: 'IAM 역할', exposure: 'ALB · 팀 도메인', state_backend: null, current_commit: COMMIT, reuse: { available: false, reason: 'ap-northeast-2 · 처음 배포 → AI가 Terraform 생성' }, connection: { state: 'ok', checked_at: ago(1) } },
+  { target_id: 'tgt_gcp', type: 'gcp', name: 'gcp-prod', title: 'GCP · Cloud Run', runtime: 'Cloud Run', location: 'asia-northeast3', location_label: '리전', access_method: '서비스 계정', exposure: 'run.app 자동 URL', state_backend: null, current_commit: COMMIT, reuse: { available: false, reason: 'asia-northeast3 · 처음 배포 → AI가 Terraform 생성' }, connection: { state: 'ok', checked_at: ago(1) } },
 ]
 
 export const manifest: Manifest = {
@@ -48,6 +48,14 @@ export const manifest: Manifest = {
   secrets: [],
   database: false,
   errors: [],
+  raw: `name: hellocalc
+port: 8080
+healthcheck: /health
+env:
+  - LOG_LEVEL
+  - SHUTDOWN_TIMEOUT
+secrets: []
+database: false`,
 }
 
 export const builds: Build[] = [
@@ -262,10 +270,38 @@ resource "aws_security_group_rule" "app" {
   source_security_group_id = aws_security_group.alb.id
 }`
 
+const ONPREM_MAIN_TF = `resource "docker_container" "web" {
+  name  = "sample-monolith"
+  image = "ghcr.io/team-daisy/sample-monolith:\${var.image_tag}"
+  ports {
+    internal = 8080
+  }
+}`
+
+const GCP_MAIN_TF = `resource "google_cloud_run_v2_service" "web" {
+  name     = "sample-monolith"
+  location = "asia-northeast3"
+  template {
+    containers {
+      image = "ghcr.io/team-daisy/sample-monolith:\${var.image_tag}"
+    }
+  }
+}`
+
+export const resources: Record<string, { address: string; type: string }[]> = {
+  tgt_onprem: [{ address: 'docker_container.web', type: 'docker_container' }, { address: 'docker_network.app', type: 'docker_network' }],
+  tgt_aws: [
+    { address: 'aws_ecs_service.web', type: 'aws_ecs_service' },
+    { address: 'aws_lb.web', type: 'aws_lb' },
+    { address: 'aws_security_group_rule.db', type: 'aws_security_group_rule' },
+  ],
+  tgt_gcp: [{ address: 'google_cloud_run_v2_service.web', type: 'google_cloud_run_v2_service' }],
+}
+
 export const scripts: Script[] = [
-  { script_id: 'scr_onprem_s3', target_id: 'tgt_onprem', type: 'onprem', version: 's3', origin: 'ai_generated', attempt: 1, validation: { validate: true, plan: true, risks: 0 }, status: 'verified', reuse_count: 4, last_used_at: ago(12) },
-  { script_id: 'scr_aws_s2', target_id: 'tgt_aws', type: 'aws', version: 's2', origin: 'ai_generated', attempt: 2, note: '보안 그룹 수정', validation: { validate: true, plan: true, risks: 0 }, status: 'verified', reuse_count: 1, last_used_at: ago(12), files: [{ path: 'aws/main.tf', content: AWS_MAIN_TF }] },
-  { script_id: 'scr_gcp_s2', target_id: 'tgt_gcp', type: 'gcp', version: 's2', origin: 'ai_generated', attempt: 1, validation: { validate: true, plan: true, risks: 0 }, status: 'verified', reuse_count: 1, last_used_at: ago(12) },
+  { script_id: 'scr_onprem_s3', target_id: 'tgt_onprem', type: 'onprem', version: 's3', origin: 'ai_generated', attempt: 1, validation: { validate: true, plan: true, risks: 0 }, status: 'verified', reuse_count: 4, last_used_at: ago(12), base_commit: COMMIT, input: 'deploy.yaml (port 8080)', ai_tokens: 2210, storage: null, created_at: ago(60 * 24 * 2), files: [{ path: 'onprem/main.tf', content: ONPREM_MAIN_TF }] },
+  { script_id: 'scr_aws_s2', target_id: 'tgt_aws', type: 'aws', version: 's2', origin: 'ai_generated', attempt: 2, note: '보안 그룹 수정', validation: { validate: true, plan: true, risks: 0 }, status: 'verified', reuse_count: 1, last_used_at: ago(12), files: [{ path: 'aws/main.tf', content: AWS_MAIN_TF }], base_commit: COMMIT, input: 'deploy.yaml (port 8080)', ai_tokens: 3120, storage: null, created_at: ago(12) },
+  { script_id: 'scr_gcp_s2', target_id: 'tgt_gcp', type: 'gcp', version: 's2', origin: 'ai_generated', attempt: 1, validation: { validate: true, plan: true, risks: 0 }, status: 'verified', reuse_count: 1, last_used_at: ago(12), base_commit: COMMIT, input: 'deploy.yaml (port 8080)', ai_tokens: 2940, storage: null, created_at: ago(13), files: [{ path: 'gcp/main.tf', content: GCP_MAIN_TF }] },
   { script_id: 'scr_aws_s1', target_id: 'tgt_aws', type: 'aws', version: 's1', origin: 'ai_generated', attempt: 3, validation: { validate: true, plan: false, risks: 0 }, status: 'discarded', reuse_count: 0, last_used_at: ago(60 * 24 * 2) },
 ]
 

@@ -2,21 +2,26 @@ import { Navigate, Route, Routes } from 'react-router'
 import { MOCK_PROJECTS } from './mocks/workspace.ts'
 import AppLayout from './pages/AppLayout.tsx'
 import BuildPage from './pages/build/BuildPage.tsx'
+import AiUsagePage from './pages/ai-usage/AiUsagePage.tsx'
 import ApprovePage from './pages/approve/ApprovePage.tsx'
 import ConnectPage from './pages/connect/ConnectPage.tsx'
+import CurrentDeployment from './pages/deploy/CurrentDeployment.tsx'
 import ProgressPage from './pages/deploy/ProgressPage.tsx'
+import EnvironmentsPage from './pages/environments/EnvironmentsPage.tsx'
 import GeneratePage from './pages/generate/GeneratePage.tsx'
+import HistoryPage from './pages/history/HistoryPage.tsx'
 import LoginPage from './pages/login/LoginPage.tsx'
 import OverviewPage from './pages/overview/OverviewPage.tsx'
 import ResultPage from './pages/result/ResultPage.tsx'
+import ScriptsPage from './pages/scripts/ScriptsPage.tsx'
+import SettingsPage from './pages/settings/SettingsPage.tsx'
 import TargetsPage from './pages/targets/TargetsPage.tsx'
 import ComponentsPage from './pages/dev/ComponentsPage.tsx'
 import PrimitivesPage from './pages/dev/PrimitivesPage.tsx'
 import TokensPage from './pages/dev/TokensPage.tsx'
-import Placeholder from './pages/Placeholder.tsx'
 import { paths } from './paths.ts'
 
-// 화면 경로 (SPEC.md §2, 경로 함수는 paths.ts). 각 Placeholder는 화면을 만들면서 실제 페이지로 바꿔요
+// 화면 경로 (SPEC.md §2, 경로 함수는 paths.ts)
 function App() {
   return (
     <Routes>
@@ -28,21 +33,18 @@ function App() {
           <Route index element={<OverviewPage />} />
           <Route path="deploy/build" element={<BuildPage />} />
           <Route path="deploy/targets" element={<TargetsPage />} />
-          <Route
-            path="deployments/current"
-            element={<Placeholder id="배포" title="진행 중인 배포" note="진행 중인 배포의 현재 단계(W-05 ~ W-08)로 보내요. 서버 API A-03이 열리면 연결해요." />}
-          />
+          <Route path="deployments/current" element={<CurrentDeployment />} />
           <Route path="deployments/:deploymentId">
             <Route path="generate" element={<GeneratePage />} />
             <Route path="approve" element={<ApprovePage />} />
             <Route path="progress" element={<ProgressPage />} />
             <Route path="result" element={<ResultPage />} />
           </Route>
-          <Route path="history" element={<Placeholder id="W-09" title="배포 이력 · 롤백" />} />
-          <Route path="environments" element={<Placeholder id="W-10" title="환경" />} />
-          <Route path="scripts" element={<Placeholder id="W-11" title="스크립트" />} />
-          <Route path="ai-usage" element={<Placeholder id="W-12" title="AI 사용량" />} />
-          <Route path="settings" element={<Placeholder id="W-13" title="설정" />} />
+          <Route path="history" element={<HistoryPage />} />
+          <Route path="environments" element={<EnvironmentsPage />} />
+          <Route path="scripts" element={<ScriptsPage />} />
+          <Route path="ai-usage" element={<AiUsagePage />} />
+          <Route path="settings" element={<SettingsPage />} />
         </Route>
       </Route>
 

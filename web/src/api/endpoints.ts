@@ -49,6 +49,24 @@ export const api = {
       ? mock(() => mockApi.createProject(repository, branch))
       : request<{ project: Project; manifest: Manifest }>('POST', '/projects', { body: { repository, branch } }),
 
+  // A-12 (#13 가칭)
+  getProject: (projectId: string) =>
+    USE_MOCK ? mock(() => mockApi.getProject(projectId)) : request<Project>('GET', `/projects/${projectId}`),
+
+  // WR-13
+  deleteProject: (projectId: string) =>
+    USE_MOCK ? mock(() => mockApi.deleteProject(projectId)) : request<void>('DELETE', `/projects/${projectId}`),
+
+  // A-10 · A-11 (#13 가칭) — W-10 연결 테스트 · 리소스 보기
+  testTarget: (targetId: string) =>
+    USE_MOCK
+      ? mock(() => mockApi.testTarget(targetId))
+      : request<{ connected: boolean; message: string }>('POST', `/targets/${targetId}/test`),
+  listTargetResources: (targetId: string) =>
+    USE_MOCK
+      ? mock(() => mockApi.listTargetResources(targetId))
+      : request<ListResponse<{ address: string; type: string }>>('GET', `/targets/${targetId}/resources`),
+
   // WR-03
   getManifest: (projectId: string) =>
     USE_MOCK ? mock(() => mockApi.getManifest(projectId)) : request<Manifest>('GET', `/projects/${projectId}/manifest`),

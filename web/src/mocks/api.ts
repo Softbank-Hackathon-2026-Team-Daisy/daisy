@@ -164,6 +164,23 @@ export const mockApi = {
     await wait()
     return clone(s.manifest)
   },
+  async getProject(id: string) {
+    await wait()
+    const p = s.projects.find((x) => x.id === id)
+    if (!p) throw new MockError(404, 'NOT_FOUND', '프로젝트를 찾을 수 없어요')
+    return clone(p)
+  },
+  async testTarget(_id: string) {
+    await wait(800)
+    return { connected: true, message: '연결됐어요' }
+  },
+  async listTargetResources(id: string) {
+    await wait()
+    return { items: clone(s.resources[id] ?? []), next_cursor: null }
+  },
+  async deleteProject(_id: string) {
+    await wait(500)
+  },
   async createProject(repository: string, branch: string) {
     await wait(600)
     connectedAt = Date.now()

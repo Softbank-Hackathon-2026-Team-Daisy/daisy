@@ -32,6 +32,10 @@ export type Project = {
   name: string
   repository: string
   branch?: string
+  // A-12 GET /projects/{id} (#13 가칭) 선택 필드
+  build?: string
+  registry?: string
+  webhook_last_at?: string
 }
 
 // A-02 GET /projects/{id}/targets/status
@@ -54,6 +58,14 @@ export type Target = {
   title?: string // 예: "ECS Fargate · ap-northeast-2"
   reuse: { available: boolean; script_id?: string; reason?: string }
   connection: { state: 'ok' | 'failed' | 'unknown'; checked_at: string }
+  // W-10 정보 (#13 가칭 선택 필드)
+  runtime?: string
+  location?: string
+  location_label?: '위치' | '리전'
+  access_method?: string
+  exposure?: string
+  state_backend?: string | null
+  current_commit?: string | null
 }
 
 export type DeploymentTarget = {
@@ -159,11 +171,18 @@ export type Script = {
   reuse_count: number
   last_used_at: string
   files?: { path: string; content: string }[]
+  // W-11 정보 카드 (#13 가칭 선택 필드)
+  base_commit?: string
+  input?: string
+  ai_tokens?: number
+  storage?: string | null
+  created_at?: string
 }
 
 // WR-03
 export type Manifest = {
   ref: string
+  raw?: string // 원문 (#13 가칭)
   port: number
   healthcheck: string
   env: string[]

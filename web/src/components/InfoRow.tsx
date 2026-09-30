@@ -4,7 +4,7 @@ import type { ReactNode } from 'react'
 function InfoRow({ label, children }: { label: string; children: ReactNode }) {
   return (
     <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-4)', padding: 'var(--space-2) 0', borderBottom: 'var(--border)' }}>
-      <span className="t-muted" style={{ flex: 'none', width: 120 }}>
+      <span className="t-muted" style={{ flex: 'none', width: 'clamp(56px, 32%, 120px)' }}>
         {label}
       </span>
       <span className="t-mono" style={{ minWidth: 0, overflowWrap: 'anywhere' }}>
