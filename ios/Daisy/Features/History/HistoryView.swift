@@ -1,84 +1,183 @@
 import SwiftUI
-import Observation
 
-/// 커밋 · 파이프라인 이력 (A-06, 서버 D3 제공).
-@MainActor
-@Observable
-final class HistoryStore {
-    private(set) var builds: LoadState<[Build]> = .idle
-
-    func refresh(using app: AppModel) async {
-        guard let client = app.client, let projectID = app.selectedProjectID else { return }
-        if builds.value == nil { builds = .loading }
-        do {
-            builds = .loaded(try await client.send(.builds(projectID: projectID)).items)
-        } catch {
-            app.handle(error)
-            if builds.value == nil { builds = .failed(error.localizedDescription) }
-        }
-    }
-}
-
-/// 5 이력 (웹 W-09 배포 이력): 커밋마다 빌드 결과, 이미지, 배포된 환경.
+/// W-09 배포 이력: 버전 · 커밋 · 상태 · 환경 · 배포자 · 시간 · 롤백.
+/// 넓으면 표, 좁으면 목록 (도영 님 메모).
 struct HistoryView: View {
     @Environment(AppModel.self) private var app
-    @State private var store = HistoryStore()
+    @Environment(Workspace.self) private var workspace
+    @State private var store = DeploymentsStore()
+    @State private var rollbackTarget: Deployment?
+    @State private var confirmName = ""
+    @State private var toast: ToastMessage?
 
     var body: some View {
-        PageScaffold("이력", subtitle: "버전마다 어떤 이미지로 어느 환경에 배포했는지 남겨요.") {
+        PageScaffold("배포 이력", subtitle: "버전마다 어떤 이미지와 스크립트로 어느 환경에 배포했는지 남겨요.") {
             Button { Task { await store.refresh(using: app) } } label: {
                 Label("새로 고침", systemImage: "arrow.clockwise")
             }
             .buttonStyle(.glassCircle)
             .help("새로 고침")
         } content: {
-            if app.client == nil {
-                NotConnectedView()
-            } else if app.selectedProjectID == nil {
+            if app.selectedProjectID == nil {
                 NoProjectView()
             } else {
-                LoadStateView(state: store.builds, retry: { await store.refresh(using: app) }) { builds in
-                    List(builds) { BuildRow(build: $0) }
-                        .overlay {
-                            if builds.isEmpty {
-                                ContentUnavailableView("빌드 기록이 없어요", systemImage: "hammer")
+                LoadStateView(state: store.list, retry: { await store.refresh(using: app) }) { deployments in
+                    ScrollView {
+                        SectionCard(workspace.project?.name ?? "배포") {
+                            if deployments.isEmpty {
+                                Text("아직 배포한 기록이 없어요").foregroundStyle(.secondary)
+                            } else {
+                                ViewThatFits(in: .horizontal) {
+                                    table(deployments).frame(minWidth: 760)
+                                    list(deployments)
+                                }
                             }
                         }
-                        .onContentSurface()
-                        .refreshable { await store.refresh(using: app) }
+                        .padding(20)
+                    }
+                    .refreshable { await store.refresh(using: app) }
                 }
             }
         }
         .task(id: app.selectedProjectID) { await store.refresh(using: app) }
+        .toast($toast)
+        .sheet(item: $rollbackTarget) { deployment in
+            RollbackDialog(deployment: deployment, environments: environmentNames(deployment)) { confirm in
+                Task { await rollback(deployment, confirm: confirm) }
+            }
+        }
+    }
+
+    // MARK: 표 · 목록
+
+    private func table(_ deployments: [Deployment]) -> some View {
+        Grid(alignment: .leading, horizontalSpacing: 16, verticalSpacing: 12) {
+            GridRow {
+                Text("버전"); Text("커밋"); Text("상태"); Text("환경"); Text("배포자"); Text("시간"); Text("")
+            }
+            .font(.caption.weight(.semibold)).foregroundStyle(.secondary)
+            Divider()
+            ForEach(deployments) { deployment in
+                GridRow {
+                    Text(deployment.version ?? "—").font(.subheadline.monospaced())
+                    NavigationLink(value: Route.run(deployment.id)) { CommitLabel(commit: deployment.commit) }
+                        .buttonStyle(.plain)
+                    deployment.state.badge
+                    environmentTags(deployment)
+                    HStack(spacing: 6) { Avatar(name: deployment.createdBy); Text(deployment.createdBy ?? "—").font(.subheadline) }
+                    timeText(deployment).font(.caption).foregroundStyle(.secondary)
+                    rollbackButton(deployment)
+                }
+            }
+        }
+    }
+
+    private func list(_ deployments: [Deployment]) -> some View {
+        VStack(spacing: 0) {
+            ForEach(deployments) { deployment in
+                VStack(alignment: .leading, spacing: 6) {
+                    HStack {
+                        Text(deployment.version ?? "—").font(.subheadline.monospaced().weight(.semibold))
+                        CommitLabel(commit: deployment.commit)
+                        Spacer()
+                        deployment.state.badge
+                    }
+                    environmentTags(deployment)
+                    HStack {
+                        Avatar(name: deployment.createdBy)
+                        Text(deployment.createdBy ?? "—").font(.caption)
+                        timeText(deployment).font(.caption).foregroundStyle(.secondary)
+                        Spacer()
+                        rollbackButton(deployment)
+                    }
+                }
+                .padding(.vertical, 10)
+                if deployment.id != deployments.last?.id { Divider() }
+            }
+        }
+    }
+
+    private func environmentTags(_ deployment: Deployment) -> some View {
+        HStack(spacing: 4) {
+            ForEach(deployment.targets ?? []) { EnvTag(type: workspace.type(of: $0.targetId)) }
+        }
+    }
+
+    /// 웹: "10:12 · 12분 전", "어제 18:40", "9/27 21:05"
+    private func timeText(_ deployment: Deployment) -> some View {
+        Group {
+            if let date = deployment.finishedAt ?? deployment.createdAt {
+                HStack(spacing: 4) {
+                    Text(date, format: .dateTime.hour().minute())
+                    Text("·")
+                    RelativeTime(date: date)
+                }
+            } else {
+                Text("—")
+            }
+        }
+    }
+
+    private func rollbackButton(_ deployment: Deployment) -> some View {
+        Button("롤백") { rollbackTarget = deployment }
+            .buttonStyle(.glassCapsule)
+            .disabled(app.isViewer || deployment.state != .succeeded)
+    }
+
+    private func environmentNames(_ deployment: Deployment) -> [String] {
+        (deployment.targets ?? []).map { workspace.name(of: $0.targetId) }
+    }
+
+    // MARK: 롤백
+
+    private func rollback(_ deployment: Deployment, confirm: String) async {
+        guard let client = app.client else { return }
+        do {
+            _ = try await client.send(.rollback(deploymentID: deployment.id, confirmText: confirm))
+            rollbackTarget = nil
+            toast = ToastMessage(kind: .info, title: "롤백 시작", message: "\(deployment.version ?? "이전 버전")로 되돌리는 중이에요.")
+            await store.refresh(using: app)
+        } catch {
+            app.handle(error)
+            rollbackTarget = nil
+            toast = ToastMessage(kind: .danger, title: "롤백하지 못했어요", message: error.localizedDescription)
+        }
     }
 }
 
-struct BuildRow: View {
-    let build: Build
+/// 웹 Dialog: "v6로 롤백할까요?" + 환경 이름 입력 + 취소 · 롤백
+struct RollbackDialog: View {
+    let deployment: Deployment
+    let environments: [String]
+    let onConfirm: (String) -> Void
+    @State private var name = ""
+    @Environment(\.dismiss) private var dismiss
+
+    private var version: String { deployment.version ?? String(deployment.commit.prefix(7)) }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 4) {
+        VStack(alignment: .leading, spacing: 16) {
             HStack {
-                CommitLabel(commit: build.commit)
+                Label("\(version)로 롤백할까요?", systemImage: "arrow.counterclockwise").font(.headline)
                 Spacer()
-                build.pipeline.status.badge
+                Button { dismiss() } label: { Label("닫기", systemImage: "xmark") }
+                    .buttonStyle(GlassCircleButtonStyle(diameter: 28))
             }
-            Text(build.message).lineLimit(2)
-            HStack(spacing: 6) {
-                Text(build.author)
-                if let committedAt = build.committedAt {
-                    Text(committedAt, format: .relative(presentation: .named))
-                }
-            }
-            .font(.caption)
-            .foregroundStyle(.secondary)
-            if !build.deployedTo.isEmpty {
-                Text("배포된 환경: " + build.deployedTo.map(\.targetId).joined(separator: ", "))
-                    .font(.caption)
-            }
-            if let runURL = build.pipeline.runUrl {
-                Link("Actions 실행 보기", destination: runURL).font(.caption)
+            Text("\(environments.joined(separator: " · ")) \(environments.count)개 환경이 모두 \(version)(\(deployment.commit.prefix(7)))로 돌아가요. 확인을 위해 환경 이름을 입력해 주세요.")
+                .font(.subheadline).foregroundStyle(.secondary)
+            TextField("환경 이름", text: $name)
+                .textFieldStyle(.roundedBorder)
+                .plainInput()
+            HStack {
+                Spacer()
+                Button("취소") { dismiss() }.buttonStyle(.glassCapsule)
+                Button("롤백", role: .destructive) { onConfirm(name) }
+                    .buttonStyle(.glassCapsule)
+                    .disabled(name.isEmpty)
             }
         }
+        .padding(24)
+        .frame(minWidth: 380)
+        .presentationDetents([.medium])
     }
 }

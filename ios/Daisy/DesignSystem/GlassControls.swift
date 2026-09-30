@@ -32,16 +32,49 @@ struct GlassCircleButtonStyle: ButtonStyle {
     }
 }
 
-/// 글자가 있는 캡슐 버튼 (프로젝트 고르기, 필터 메뉴).
+/// 글자가 있는 캡슐 버튼. 앱의 모든 글자 버튼이 이 한 가지 모양이에요.
+/// - `prominent`: 화면의 핵심 동작 하나 (웹의 Primary · 노란 버튼 자리). 강조색 글래스.
+/// - `role: .destructive` 버튼은 빨간 글자.
+/// - `fullWidth`: 폼 · 카드 폭을 꽉 채워요 (로그인, 새 배포).
 struct GlassCapsuleButtonStyle: ButtonStyle {
+    var prominent = false
+    var fullWidth = false
+    var height: CGFloat = 34
+    @Environment(\.isEnabled) private var isEnabled
+
     func makeBody(configuration: Configuration) -> some View {
         configuration.label
-            .font(.system(size: 13, weight: .medium))
+            .font(.system(size: 13, weight: prominent ? .semibold : .medium))
+            .foregroundStyle(foreground(configuration))
             .padding(.horizontal, 14)
-            .frame(height: 34)
+            .frame(maxWidth: fullWidth ? .infinity : nil)
+            .frame(height: height)
             .contentShape(.capsule)
-            .glassSurface(in: .capsule)
-            .opacity(configuration.isPressed ? 0.6 : 1)
+            .modifier(CapsuleSurface(prominent: prominent && isEnabled))
+            .opacity(isEnabled ? (configuration.isPressed ? 0.6 : 1) : 0.45)
+            .animation(.snappy(duration: 0.15), value: configuration.isPressed)
+    }
+
+    private func foreground(_ configuration: Configuration) -> AnyShapeStyle {
+        if configuration.role == .destructive { return AnyShapeStyle(.red) }
+        if prominent && isEnabled { return AnyShapeStyle(.white) }
+        return AnyShapeStyle(.primary)
+    }
+}
+
+private struct CapsuleSurface: ViewModifier {
+    let prominent: Bool
+
+    func body(content: Content) -> some View {
+        if prominent {
+            if #available(iOS 26, macOS 26, *) {
+                content.glassEffect(.regular.tint(.accentColor).interactive(), in: .capsule)
+            } else {
+                content.background(Color.accentColor, in: .capsule)
+            }
+        } else {
+            content.glassSurface(in: .capsule)
+        }
     }
 }
 
@@ -51,6 +84,11 @@ extension ButtonStyle where Self == GlassCircleButtonStyle {
 
 extension ButtonStyle where Self == GlassCapsuleButtonStyle {
     static var glassCapsule: GlassCapsuleButtonStyle { GlassCapsuleButtonStyle() }
+    /// 화면의 핵심 동작 하나 (승인하고 배포, 로그인 등).
+    static var glassProminent: GlassCapsuleButtonStyle { GlassCapsuleButtonStyle(prominent: true) }
+    static func glassCapsule(prominent: Bool = false, fullWidth: Bool = false, height: CGFloat = 34) -> GlassCapsuleButtonStyle {
+        GlassCapsuleButtonStyle(prominent: prominent, fullWidth: fullWidth, height: height)
+    }
 }
 
 /// 캡슐 안의 세그먼트. 고른 칸의 틴트가 스프링으로 미끄러져요 (사이드바와 같은 움직임).

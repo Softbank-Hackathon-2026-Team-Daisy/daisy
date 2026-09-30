@@ -25,17 +25,19 @@
 
 웹과 앱은 코드를 공유하지 않고 **같은 백엔드 API만** 써요. 화면을 두 번 만들지 않도록 역할을 나눠요.
 
+> ⚠️ **9/30 변경 (박승준):** 앱도 웹 와이어프레임 v1.0의 화면 · 문구 · 버튼을 모두 가져가요 (W-00 ~ W-13, L-01 ~ L-03). 그래서 앱에서도 저장소 연결, 환경 선택, 배포 시작, 롤백, 연결 테스트, 프로젝트 연결 해제를 할 수 있어요.
+> 이건 ADR-007("앱은 승인 · 진행 상태 · 알림만")과 도영 님 메모("W-02~W-04, W-10~W-13, L-xx는 웹 전용")와 **어긋나요.** 팀 결정이라 **회의에서 확정**해야 해요 (§8). 확정 전까지 앱 쪽은 이 방향으로 만들어 두고, 결정이 반대로 나면 해당 버튼만 빼요.
+
 | | 웹 (React) | 앱 (Swift) |
 |---|---|---|
-| 저장소 연결, 환경 선택, 배포 시작 | O | X |
-| plan 상세 검토 (리소스 전체 목록, 스크립트) | O | 요약만 |
-| plan 승인 · 거절 | O | **O** |
-| 배포 진행 상태 | O (전체 로그) | **O** (단계 · 최근 로그) |
-| 환경별 현재 버전 현황 | O | **O** |
-| 커밋 · 파이프라인 이력 | O | **O** |
+| 저장소 연결, 환경 선택, 배포 시작 (W-02 ~ W-04) | O | **O** (9/30 변경, 회의 확정 필요) |
+| 생성 · 검증 진행, 중단 처리 (W-05, W-05b) | O | **O** |
+| plan 확인 · 승인 · 거절 (W-06) | O | **O** |
+| 배포 진행 · 결과 · 동일성 검증 (W-07, W-08) | O | **O** |
+| 배포 이력 · 롤백 (W-09) | O | **O** |
+| 환경 · 스크립트 · AI 사용량 · 설정 (W-10 ~ W-13) | O | **O** |
 | 푸시 알림 (승인 필요 · 완료 · 실패) | 브라우저 알림 | **O** |
 
-- 앱은 **보기 + 승인 + 알림**만 해요. 배포를 새로 시작하거나 인프라를 바꾸는 기능은 넣지 않아요 (승인은 예외: 사람 승인은 흐름의 필수 단계라 휴대폰에서 바로 할 수 있게 해요)
 - 앱은 **GitHub, 클라우드, Terraform에 직접 붙지 않아요.** 모든 데이터는 Daisy 백엔드 API를 거쳐요. 토큰을 하나만 관리하고, 웹과 같은 데이터를 보여주기 위해서예요
 
 ### 1-2. ADR-007 수정 제안 ❓
@@ -66,17 +68,28 @@
 - 버튼은 Craft 레퍼런스를 따라요: 화면마다 큰 제목 머리줄, 오른쪽에 동그란 글래스 버튼 · 캡슐 버튼 · 캡슐 세그먼트 (macOS 26 · iOS 26 이상은 Liquid Glass)
 - **기능 UX는 웹과 맞춰요.** 같은 기능(플랜 승인, 배포 진행, 멀티 환경 상태, 이력)은 웹과 같은 흐름 · 용어 · 표기(리소스 `+/~/-` 등)를 써요. 웹 코드가 아직 없어서 지금 기준은 노션 User Flow Chart와 도영 님 Figma예요
 
-| # | 화면 | 내용 | 우선순위 |
-|---|---|---|---|
-| 1 | **현황** | 프로젝트 선택 → 환경 카드(온프레미스 · AWS · GCP): 현재 커밋 해시(앞 7자리), 배포 시각, 헬스, 공개 URL. **모든 환경이 같은 커밋인지** 표시 (다르면 "버전 불일치" 배지) | M |
-| 2 | **배포 목록** | 진행 중 / 완료 / 실패. 커밋, 대상 환경, 시작 시각, 결과 | M |
-| 3 | **배포 상세** | 환경별 단계 진행 (생성 → validate → plan → 위험 검사 → 승인 대기 → apply → 완료), AI 수정 시도 `n/3`, 최근 로그, 결과 URL. 실시간 갱신 | M |
-| 4 | **승인** | 대기 중인 plan: 환경별 생성·변경·삭제 개수, 삭제 포함 경고, 위험 설정 요약, AI 비용. 승인 · 거절. 삭제가 있으면 확인 문구 입력 | M |
-| 5 | **커밋 · 파이프라인** | main 커밋 목록: 메시지, 작성자, Actions 결과, 이미지 태그, **이 커밋이 배포된 환경** | M |
-| 6 | 설정 | 서버 주소, 로그인 · 로그아웃, 알림 설정 | M |
-| 7 | 푸시 알림 | 승인 필요 · 배포 완료 · 배포 실패. 누르면 해당 화면으로 이동 | S |
-| 8 | macOS 메뉴 막대 | 메뉴 막대 아이콘에서 환경별 상태 한눈에 보기 (`MenuBarExtra`) | S |
-| 9 | 위젯 · Live Activity | 홈 화면 위젯(환경 현황), 잠금 화면 배포 진행 | S (여유 있을 때) |
+**메뉴 (웹 사이드바와 같은 구성):** 프로젝트 전환 · 새 배포 · PROJECT(개요 · 배포 · 환경 · 이력 · 스크립트) · ENVIRONMENTS(환경별 상태) · AI 사용량 · 설정 · 연결 상태 · 사용자. 좁은 화면은 같은 메뉴를 탭으로 (다섯 개가 넘으면 시스템 "더 보기").
+**배치 규칙:** 웹의 좌표는 참고만 하고, 앱 패턴(큰 제목 머리줄 · 카드 · 폭 따라 바뀌는 그리드 · 넓으면 표 좁으면 목록)으로 다시 놓아요. 버튼은 모두 글래스 양식(원 · 캡슐 · 캡슐 세그먼트)이고, 화면의 핵심 동작 하나만 강조 캡슐이에요.
+
+| 웹 화면 | 앱 화면 | 들어가는 곳 | 필요한 API | 우선순위 |
+|---|---|---|---|---|
+| W-00 · W-00b 로그인 | `LoginView` | 앱 시작 (로그인 전) | R-02, R-09 🆕 | M |
+| W-01 개요 | `OverviewView` | 메뉴 개요 | A-01, A-02, A-03, A-09 🆕 | M |
+| (웹에 없음) 배포 목록 | `DeploymentsView` | 메뉴 배포 | A-03 | M |
+| W-02 · W-02b 애플리케이션 연결 → L-01 | `ConnectAppView` | 프로젝트 전환 › 새 프로젝트 연결 | B-01 ~ B-05 🆕 | S |
+| W-03 이미지 빌드 | `RunView` › `BuildStage` | 배포 한 건 (빌드 중) | A-04, A-06 | S |
+| W-04 배포할 환경 선택 → L-02 | `TargetSelectView` | 새 배포, 배포 한 건 (환경 선택) | B-06, B-07 🆕 | M |
+| W-05 인프라 코드 생성 · 검증 | `RunView` › `GenerateStage` | 배포 한 건 (생성 · 검증) | A-04, B-08 🆕 | M |
+| W-05b 배포를 중단했어요 | `RunView` › `StoppedStage` | 배포 한 건 (중단) | A-04, A-07, B-09, B-10 🆕 | S |
+| W-06 변경 사항 확인 후 승인 → L-03 | `PlanApprovalView` | 배포 한 건 (승인 대기), 개요 › 지금 할 일 | A-05, W-01 | M |
+| W-07 배포 중 | `RunView` › `ApplyStage` | 배포 한 건 (배포 중) | A-04, A-07 | M |
+| W-08 배포 결과 | `RunView` › `ResultStage` | 배포 한 건 (끝) | A-04, A-09, B-11 🆕 | M |
+| W-09 배포 이력 | `HistoryView` | 메뉴 이력 | A-03, B-12 | M |
+| W-10 환경 | `EnvironmentsView` | 메뉴 환경 | B-06, B-13, B-14 🆕 | S |
+| W-11 스크립트 | `ScriptsView` | 메뉴 스크립트 | B-15 🆕 | S |
+| W-12 AI 사용량 | `AIUsageView` | 메뉴 AI 사용량 | B-16 🆕 | S |
+| W-13 설정 | `SettingsView` (+ 앱 설정: 서버 주소 · 계정 · 버전) | 메뉴 설정 | B-17, B-18 🆕 | S |
+| 푸시 알림 | — | 승인 필요 · 완료 · 실패 | P-01, P-02 | S |
 
 M = 예선 데모 필수, S = 선택
 
@@ -355,6 +368,41 @@ API 모양보다 **이 정보가 어딘가에 저장되어 있는지**가 더 �
 
 ---
 
+### 6-8. 와이어프레임을 옮기면서 새로 필요한 것 (가칭) 🆕 — 9/30
+
+앱이 웹 화면을 모두 가져가면서 생긴 요청이에요. 웹도 같은 화면이라 같은 API를 쓸 수 있어요. **이름과 모양은 서버가 정해 주세요.** 앱 코드는 `Core/API/WebEndpoints.swift`, `Core/Models/WebModels.swift`에 있어요.
+
+| ID | 메서드 · 경로 (가칭) | 쓰는 화면 | 응답 · 요청 요약 |
+|---|---|---|---|
+| R-09 | `POST /auth/demo` | W-00 "데모 계정으로 둘러보기 (읽기 전용)" | `AuthToken` (`role: "viewer"`) |
+| A-09 | `GET /projects/{id}/parity?deployment_id=` | W-01 · W-08 동일성 검증 | `{ targets[], rows: [{ key: digest·commit·app_version·health·env_hash, cells: [{ target_id, value, ok }] }], matching, total }` |
+| B-01 | `GET /repositories/inspect?url=&branch=` | W-02 배포 명세 확인 | `{ branches[], dockerfile, deploy_yaml, port, healthcheck, env[], database }` |
+| B-02 | `POST /projects` `{ repository_url, branch }` | W-02 연결하기 | `Project` |
+| B-03 | `POST /projects` `{ name, source: "upload" }` | W-02b | `Project` |
+| B-04 | `POST /projects/{id}/sources/upload-url` → PUT → `POST /projects/{id}/sources` | W-02b 업로드하고 연결 | v0.1 3-4 흐름 그대로 |
+| B-05 | (A-03) 새 프로젝트의 첫 배포 | L-01 → W-03 | 연결 뒤 이미지 빌드 배포가 생기면 앱이 넘어가요 |
+| B-06 | `GET /projects/{id}/targets` | W-04 · W-10 · 사이드바 ENVIRONMENTS | `DeployTarget[]`: `type, name, title, runtime, location, connection, exposure, state_backend, current_commit, connected, health, has_verified_script` |
+| B-07 | `POST /deployments` `{ project_id, commit, target_ids[] }` | W-04 인프라 코드 생성 · 검증 시작 | v0.1 `POST /deployments`와 같은 자리 |
+| B-08 | `GET /deployments/{id}/targets/{tid}/script` | W-05 생성된 스크립트 | `Script` (`file, content, attempt …`) |
+| B-09 | `POST /deployments/{id}/retry` | W-05b 처음부터 다시 시도 | `Deployment` |
+| B-10 | `POST /deployments/{id}/exclude` `{ target_id }` | W-05b "○○ 빼고 계속 (가안)" | Q7 결정 전 가안 |
+| B-11 | `POST /deployments/{id}/targets/{tid}/retry` | W-08 다시 시도 | `Deployment` |
+| B-12 | `POST /deployments/{id}/rollback` `{ confirm_text, reason }` | W-09 롤백 | v0.1과 같음, `confirm_text` 추가 |
+| B-13 | `POST /targets/{id}/test` | W-10 연결 테스트 | `{ connected, message }` |
+| B-14 | `GET /targets/{id}/resources` | W-10 리소스 보기 | `[{ address, type }]` |
+| B-15 | `GET /projects/{id}/scripts` | W-11 | `Script[]`: `target_id, target_type, version, attempt, outcome(passed·discarded), note, checks, reuse_count, last_used_at, file, content, base_commit, input, ai_tokens, storage, created_at` |
+| B-16 | `GET /projects/{id}/ai-usage` | W-12 | `{ calls, tokens, cost_krw, saved_calls, history: [{ at, target_type, task, attempt, tokens, cost_krw, result, ok }] }` (v0.1 `GET /costs` 자리) |
+| B-17 | `GET /projects/{id}/settings` | W-13 | `{ repository, branch, build, registry, webhook_last_at, deploy_yaml_ref, deploy_yaml, secrets[] }` |
+| B-18 | `DELETE /projects/{id}` `{ confirm_text }` | W-13 연결 해제 | 되돌릴 수 없어요 |
+| A-07 | `GET /deployments/{id}/logs?target_id=&tail=` | W-05b 오류 로그 보기 · W-07 로그 · W-08 원인 보기 | `LogLine[]`: `ts, target_id, level, text` (이미 있는 요청, S → M) |
+
+**기존 모델에 더한 필드 (가칭):**
+- `Deployment`: `version`("v7"), `commit_message`; 상태 `building`(W-03) · `selecting_targets`(W-04) · `stopped`(W-05b) 추가
+- `Deployment.targets[]`: `title`("home-lab · Docker"), `steps[]`(`{ name, state, duration_ms, started_at }`, W-05 검증 단계 · W-07 레인), `health_summary`("200 OK · p95 120ms")
+- `Plan.targets[]`: `reused_script`("이미지 태그만 교체"), `resources[]`(`{ action: create·update·delete, address, monthly_cost_krw }`, W-06 리소스 변경 행)
+- `Build`: `branch`, `digest`, `steps[]` (W-03 GitHub Actions 단계)
+- `Project`: `branch`
+
 ## 7. CI 요구사항 (가칭) — 김도영
 
 커밋 · 파이프라인 화면(A-06)을 채우려면 Actions가 보내는 이벤트에 정보가 조금 더 필요해요. 이 payload는 서버 웹훅으로 들어가서, **은현 님이 정리해 도영 님께 이슈로 전달**하기로 했어요 (9/29). 현재 `sample-monolith/.github/workflows/ci.yml`의 `notify` 잡 기준이에요.
@@ -375,6 +423,8 @@ API 모양보다 **이 정보가 어딘가에 저장되어 있는지**가 더 �
 - [x] ~~HTTPS 공개 주소 (R-04)~~ → 도메인 구매 + HTTPS (9/29 회의, 서버 담당)
 - [ ] **승인 단위**: 배포 전체 한 번 / 환경별 (§6-4)
 - [ ] **`confirm_text` 값** (§6-4)
+- [ ] **앱 범위를 웹 전체로 넓힐지** (§1-1 ⚠️): ADR-007 · 도영 님 메모(W-02~W-04, W-10~W-13 웹 전용)와 어긋나요 — 9/30 회의
+- [ ] **§6-8 새 요청 B-01 ~ B-18, A-09, R-09** 을 서버가 받을지 · 이름 — 하은현 · 김승환
 - [ ] **배포 상태 · 단계 값** 확정 (§6-7 `state`, `step`) — 웹 · 앱 · 백엔드가 같은 목록을 써요. ⚠️ Figma Status Badge 설명은 서버 상태를 `queued · running · succeeded · failed · warning · rolled_back` 6개로 적었고, 이 문서와 서버 `server/AGENTS.md`의 단계 구분(생성 · 검증 · 승인 대기 · apply)과 달라요 → 서버(하은현)와 웹(김도영) 확인 필요
 - [x] ~~푸시를 예선 범위에 넣을지~~ → D3까지 로컬 알림, APNs는 여유 있으면 (9/29)
 - [x] ~~경로 · 이벤트 이름 확정~~ → 9/29 확정. 모델 필드는 서버 OpenAPI가 나오면 맞춰요
@@ -389,6 +439,7 @@ API 모양보다 **이 정보가 어딘가에 저장되어 있는지**가 더 �
 | 9/29 | 앱 목업 모드 제거 (항상 실서버 연결), 개발 서버 요구(R-08) 추가 | 박승준 |
 | 9/29 | 에이전트 규칙 파일을 `CLAUDE.md` → `AGENTS.md`로 변경 | 박승준 |
 | 9/29 | 서버 답변 반영: 경로 · 이벤트 이름 확정, Bearer만, `DELETE /devices` + 본문, `attempt` 의미, Plan 모양(`level`·`resource`, `ai_usage`), 제공 일정 D2/D3, 폴링 · 로컬 알림 폴백 | 박승준 |
+| 9/30 | 와이어프레임 v1.0 화면 · 문구 · 버튼을 앱에 모두 옮김 (W-00 ~ W-13, L-01 ~ L-03), 메뉴를 웹 사이드바 구성으로, 새 요청 §6-8 (가칭) | 박승준 |
 | 9/30 | 웹(Figma 와이어프레임 v1.0) 문구로 통일: 메뉴 개요 · 배포 · 승인 · 이력 · 설정, 상태 이름, `리소스 +6 ~0 −0`, 로그인 · 오류 문구. 색 · 모양은 앱 방식 유지, 아이콘은 비슷한 SF Symbols | 박승준 |
 | 9/30 | 앱 아이콘 적용 (iOS 1024 꽉 찬 정사각형, macOS 둥근 사각형 격자 16–1024), 사이드바 머리에 로고 | 박승준 |
 | 9/30 | 디자인 적용: AfterPlan 재질 · 사이드바 · 움직임, Craft 버튼(글래스 원 · 캡슐 · 세그먼트), 큰 제목 머리줄, 웹과 기능 UX 맞추기 | 박승준 |

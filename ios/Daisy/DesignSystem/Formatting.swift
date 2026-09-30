@@ -26,6 +26,9 @@ extension DeploymentState {
         switch self {
         // 문구는 웹 Status Badge와 같아요. 색은 앱 패턴.
         case .queued: StatusBadge(text: "대기 중", color: .gray)
+        case .building: StatusBadge(text: "빌드 중", color: .blue)
+        case .selectingTargets: StatusBadge(text: "환경 선택", color: .orange)
+        case .stopped: StatusBadge(text: "중단", color: .red)
         case .generating: StatusBadge(text: "생성 중", color: .blue)
         case .validating: StatusBadge(text: "검증 중", color: .blue)
         case .awaitingApproval: StatusBadge(text: "승인 대기", color: .orange)

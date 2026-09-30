@@ -6,10 +6,10 @@ Follow the root `AGENTS.md` first. This file adds rules for `ios/` only and neve
 
 ## 1. What this area is
 
-A native SwiftUI app that shows Daisy deployments on iPhone and Mac: **view, approve, notify.**
+A native SwiftUI app for Daisy on iPhone, iPad, and Mac. Since 9/30 it carries **every screen, text, and button of the web wireframe v1.0** (W-00 – W-13, L-01 – L-03), laid out in this app's own design (`SPEC.md` §2 has the screen map).
 
-- Screens (M): overview of what runs where, deployment list and detail, plan approval, commits and pipelines, settings (`SPEC.md` §2)
-- The app never starts deployments, registers or deletes environments, or calls GitHub, cloud APIs, or Terraform directly. All data comes through the Daisy server API (`SPEC.md` §4).
+- This goes beyond ADR-007 ("approve, progress, notify only") and 도영's memo (W-02 – W-04 and W-10 – W-13 web-only). The owner chose it; the team still has to confirm it (tier 4, `SPEC.md` §8). If the team decides against it, remove only the affected buttons.
+- The app never calls GitHub, cloud APIs, or Terraform directly. All data and actions go through the Daisy server API (`SPEC.md` §4, §6-8).
 - Distribution goal: a public TestFlight link that judges install during the demo. The first build goes to Beta App Review on **10/1** (`SPEC.md` §5).
 
 ## 2. Contracts this area depends on
@@ -57,7 +57,7 @@ ios/
 ├─ Daisy.xcodeproj
 ├─ Daisy/
 │  ├─ App/            entry point, root layout (sidebar at width ≥ 700, tabs below), Sidebar, dependency wiring
-│  ├─ Features/       one folder per screen: Overview, Deployments, Approvals, History, Settings (View + Store each)
+│  ├─ Features/       one folder per menu: Login, Overview, Deployments (run flow W-03 – W-08), Connect (W-02), Approvals (W-06), History, Environments, Scripts, AIUsage, Settings
 │  ├─ Core/           API, Models, Realtime, Auth, Push
 │  ├─ DesignSystem/   materials, glass buttons and segmented control, PageHeader/PageScaffold, cards, badges
 │  └─ Resources/
@@ -83,8 +83,9 @@ Materials, the sidebar, and motion copy the owner's AfterPlan Mac app (`~/Github
 - **Window (Mac).** Unified toolbar without a title, toolbar background hidden, only the sidebar button on the left (⌃⌘S). The settings gear sits alone at the bottom left of the sidebar.
 - **Sidebar rows.** 15 pt text, 16 pt icon in a 22 pt frame, 36 pt high, 10 pt inset. Selected: `.fill.tertiary` rounded 8 plus semibold; hover: `.fill.quinary`. No accent color. The tint moves with `.spring(response: 0.32, dampingFraction: 0.86)` via `matchedGeometryEffect`; weight changes at once; Reduce Motion drops the spring. Width 240 by default, 190–420 by dragging the edge, remembered.
 - **Screens.** Every root screen uses `PageScaffold(title, subtitle:, trailing:)`: a `title2` semibold title on the left and the screen's controls on the right. Pushed detail screens keep the system navigation title.
-- **Buttons.** Icon-only actions use `.buttonStyle(.glassCircle)`; text actions and menus use `.glassCapsule`; choices use `GlassSegmented`. They use Liquid Glass on iOS 26 / macOS 26 and a material with a hairline below that. Destructive actions use `role: .destructive`.
+- **Buttons (owner: "this design is 100 points").** Every button uses this family and nothing else. Icon-only: `.glassCircle`. Text and menus: `.glassCapsule` (`fullWidth:` for forms, `height:` 44 for the approval bar). The one core action on a screen (승인하고 배포, 로그인, 인프라 코드 생성 · 검증 시작, 연결하기): `.glassProminent` / `.glassCapsule(prominent: true)`. Choices: `GlassSegmented`. Destructive: `role: .destructive` (red text). Liquid Glass on iOS 26 / macOS 26, a material with a hairline below that. Web variants (Primary/Secondary/Outline/Ghost) all map onto these; do not recreate them.
 - **Cards.** `cardStyle()`: corner 12, `.fill.quaternary`, hairline `.separator` border, `.fill.tertiary` on hover.
+- **Web positions are hints, not layout.** The wireframe inventory has x/y for every element; use it to know what belongs together and in which order, then place it with `PageScaffold` / `FlowPage` / `SectionCard` / `AdaptiveGrid`. Tables become lists on narrow screens (`ViewThatFits`).
 - **Taking from the web design (Figma).** Take **wording only**: screen and menu names, labels, status names, messages, notation. Colors, shapes, radius, fonts, and layout stay with this app's design above, even where Figma says otherwise (no-pill, radius ≤ 4, IBM Plex, yellow button). For each web icon, use the closest SF Symbol: cloud → `cloud`, play → `play`, server → `server.rack`, clock → `clock`, terminal → `apple.terminal`, signal → `cellularbars`, settings → `gearshape`.
 
 ### Match the web's feature UX
@@ -143,7 +144,8 @@ Tier per root §6. Tier 1 entries are final for this area.
 | 9/30 | From Figma, take wording only; keep this app's colors and shapes; icons are the nearest SF Symbols | Owner decision. 도영's memo asked for web shapes (radius ≤ 4, no pills) and the owner chose the app's own look | 1 |
 | 9/30 | Menu and wording follow the web: 개요 · 배포 · 승인 · 이력 · 설정; status labels 대기 중 · 배포 중 · 성공 · 실패 · 주의 · 롤백됨; `리소스 +6 ~0 −0`; W-00 login and error messages | Same product on two clients | 1 |
 | 9/30 | Tests use Swift Testing; sample JSON lives only in `DaisyTests` | No mock data in the app (§4) | 1 |
-| 9/29 | The app does not start deployments or change infrastructure | Keeps the app inside ADR-007 and keeps the server work small | 1 |
+| 9/29 | ~~The app does not start deployments or change infrastructure~~ (replaced 9/30) | Kept the app inside ADR-007 | 1 |
+| 9/30 | The app carries every wireframe screen, text, and button (W-00 – W-13, L-01 – L-03) with the web sidebar's menu; new server requests are `SPEC.md` §6-8 `(가칭)` | Owner decision: feature UX identical to the web. Conflicts with ADR-007 and 도영's memo, so the team must confirm it | 4 (`(가칭)`) |
 | 9/29 | Widen ADR-007: add overview, commit history, macOS | Proposed in `SPEC.md` §1-2; needs the team meeting | 4 (`(가칭)`) |
 | 9/29 | Requests to server and CI | `SPEC.md` §6–§7; the server and CI owners decide names and shapes | 3 |
 | 9/29 | Server accepted the §6 names; unregister device with `DELETE /devices` + body | Token in a URL path leaks into access logs (server's request). Recorded in `SPEC.md` §6-0 | 3 (decided by server) |

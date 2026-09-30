@@ -1,109 +1,164 @@
 import SwiftUI
 
-/// 1 현황: 어느 환경에 어떤 커밋이 떠 있는지 (SPEC §2).
+/// W-01 개요: 환경별 현재 버전 · 지금 할 일 · 동일성 검증 · 최근 실행.
 struct OverviewView: View {
     @Environment(AppModel.self) private var app
+    @Environment(Router.self) private var router
+    @Environment(Workspace.self) private var workspace
     @State private var store = OverviewStore()
 
     var body: some View {
         PageScaffold("개요", subtitle: subtitle) {
-            if app.client != nil {
-                projectMenu
-                Button { Task { await store.refreshStatuses(using: app) } } label: {
-                    Label("새로 고침", systemImage: "arrow.clockwise")
+            projectMenu
+            Button { Task { await refresh() } } label: {
+                Label("새로 고침", systemImage: "arrow.clockwise")
+            }
+            .buttonStyle(.glassCircle)
+            .help("새로 고침")
+        } content: {
+            if workspace.projects.isEmpty && workspace.loadedOnce {
+                empty
+            } else {
+                ScrollView {
+                    VStack(alignment: .leading, spacing: 16) {
+                        // 넓으면 2:1 두 열, 좁으면 한 열
+                        ViewThatFits(in: .horizontal) {
+                            HStack(alignment: .top, spacing: 16) {
+                                currentVersions.frame(minWidth: 460)
+                                todo.frame(width: 340)
+                            }
+                            VStack(spacing: 16) { currentVersions; todo }
+                        }
+                        if let parity = store.parity {
+                            ParityTable(parity: parity, targets: workspace.statuses.map(\.type))
+                        }
+                        recentRuns
+                    }
+                    .padding(20)
                 }
-                .buttonStyle(.glassCircle)
-                .help("새로 고침")
+                .refreshable { await refresh() }
+            }
+        }
+        .task(id: app.selectedProjectID) { await poll { await store.refresh(using: app) } }
+    }
+
+    /// 웹: "sample-monolith가 지금 어느 환경에 어떤 버전으로 떠 있는지, 다음에 할 일이 뭔지 봐요."
+    private var subtitle: String {
+        (workspace.project.map { "\($0.name)가 " } ?? "") + "지금 어느 환경에 어떤 버전으로 떠 있는지, 다음에 할 일이 뭔지 봐요."
+    }
+
+    private func refresh() async {
+        await workspace.refresh(using: app)
+        await store.refresh(using: app)
+    }
+
+    // MARK: 환경별 현재 버전
+
+    private var currentVersions: some View {
+        SectionCard("환경별 현재 버전") {
+            if let image = workspace.statuses.compactMap({ $0.current?.image }).first {
+                Text(image).font(.caption.monospaced()).foregroundStyle(.secondary).lineLimit(1).truncationMode(.middle)
             }
         } content: {
-            if app.client == nil {
-                NotConnectedView()
+            if workspace.statuses.isEmpty {
+                Text("아직 등록된 환경이 없어요").foregroundStyle(.secondary)
             } else {
-                LoadStateView(state: store.statuses, retry: { await store.refreshStatuses(using: app) }) { statuses in
-                    list(statuses)
+                VStack(spacing: 0) {
+                    ForEach(workspace.statuses) { status in
+                        VersionRow(status: status)
+                        if status.id != workspace.statuses.last?.id { Divider() }
+                    }
                 }
-            }
-        }
-        .task(id: app.client == nil) { await store.loadProjects(using: app) }
-        .task(id: app.selectedProjectID) {
-            store.reset()
-            await poll { await store.refreshStatuses(using: app) }
-        }
-    }
-
-    /// 웹 W-01 문구: "{프로젝트}가 지금 어느 환경에 어떤 버전으로 떠 있는지 봐요."
-    private var subtitle: String {
-        let name = store.projects.value?.first { $0.id == app.selectedProjectID }?.name
-        return (name.map { "\($0)가 " } ?? "") + "지금 어느 환경에 어떤 버전으로 떠 있는지 봐요."
-    }
-
-    /// 폰은 카드 1열, iPad · Mac은 환경 카드가 가로로 나란히 (온프레미스 · AWS · GCP 한눈에).
-    private func list(_ statuses: [TargetStatus]) -> some View {
-        ScrollView {
-            VStack(alignment: .leading, spacing: 16) {
-                if !statuses.isEmpty {
-                    consistencyRow(statuses).cardStyle()
-                }
-                if statuses.isEmpty {
-                    ContentUnavailableView("아직 등록된 환경이 없어요", systemImage: "server.rack")
-                } else {
-                    Text("환경별 현재 버전").font(.headline)
-                }
-                AdaptiveGrid {
-                    ForEach(statuses) { status in
-                        if let deploymentID = status.current?.deploymentId {
-                            NavigationLink(value: deploymentID) { TargetStatusCard(status: status) }
-                                .buttonStyle(.plain)
-                        } else {
-                            TargetStatusCard(status: status)
-                        }
+                let parity = workspace.statuses.parity
+                if parity.deployed > 0 {
+                    HStack(spacing: 8) {
+                        StatusBadge(text: "\(parity.matching)/\(workspace.statuses.count) 일치",
+                                    color: parity.matching == workspace.statuses.count ? .green : .orange)
+                        Text(parity.matching == workspace.statuses.count
+                             ? "\(koreanCount(workspace.statuses.count)) 환경 모두 같은 이미지 digest예요"
+                             : "환경마다 이미지가 달라요")
+                            .font(.subheadline).foregroundStyle(.secondary)
                     }
                 }
             }
-            .padding()
         }
-        .refreshable { await store.refreshStatuses(using: app) }
-        .navigationDestination(for: String.self) { DeploymentDetailView(deploymentID: $0) }
     }
 
-    /// 배포된 환경이 모두 같은 이미지인지. 이식성을 한 줄로 보여줘요 (웹 W-01 "3/3 일치").
-    @ViewBuilder
-    private func consistencyRow(_ statuses: [TargetStatus]) -> some View {
-        let parity = statuses.parity
-        if parity.deployed == 0 {
-            Label("아직 배포된 환경이 없어요", systemImage: "circle.dashed")
-                .foregroundStyle(.secondary)
-        } else {
-            Label {
-                HStack {
-                    Text(parity.matching == statuses.count
-                         ? "\(statuses.count)개 환경 모두 같은 이미지예요"
-                         : "환경마다 이미지가 달라요")
-                    Spacer()
-                    Text("\(parity.matching)/\(statuses.count) 일치").font(.callout.monospacedDigit())
+    // MARK: 지금 할 일
+
+    private var todo: some View {
+        SectionCard("지금 할 일") {
+            if let waiting = workspace.awaitingApproval.first {
+                VStack(alignment: .leading, spacing: 12) {
+                    Button {
+                        router.push(.plan(waiting.id))
+                    } label: {
+                        RunListItem(deployment: waiting)
+                    }
+                    .buttonStyle(.plain)
+                    InlineAlert(.info, "검증 통과 · 승인만 남았어요", reuseNote(waiting))
+                    Button("plan 보고 승인하기") { router.push(.plan(waiting.id)) }
+                        .buttonStyle(.glassCapsule(fullWidth: true))
                 }
-            } icon: {
-                Image(systemName: parity.matching == statuses.count ? "checkmark.circle.fill" : "exclamationmark.triangle.fill")
-                    .foregroundStyle(parity.matching == statuses.count ? .green : .orange)
+            } else {
+                Text("지금 할 일이 없어요").foregroundStyle(.secondary)
             }
         }
     }
 
-    /// Craft의 캡슐 버튼 모양으로 프로젝트를 골라요.
+    /// "온프레미스는 검증된 스크립트 재사용이라 AI 호출 0회예요."
+    private func reuseNote(_ deployment: Deployment) -> String? {
+        let reused = (deployment.targets ?? []).filter { $0.reusedScript == true }
+        guard !reused.isEmpty else { return nil }
+        let names = reused.map { target in
+            workspace.statuses.first { $0.targetId == target.targetId }?.type.displayName ?? target.targetId
+        }
+        return "\(names.joined(separator: " · "))는 검증된 스크립트 재사용이라 AI 호출 0회예요."
+    }
+
+    // MARK: 최근 실행
+
+    private var recentRuns: some View {
+        SectionCard("최근 실행") {
+            Button("이력 전체 보기") { router.tab = .history }
+                .buttonStyle(.glassCapsule)
+        } content: {
+            if store.recent.isEmpty {
+                Text("아직 실행한 배포가 없어요").foregroundStyle(.secondary)
+            } else {
+                VStack(spacing: 0) {
+                    ForEach(store.recent) { deployment in
+                        NavigationLink(value: Route.run(deployment.id)) {
+                            RunListItem(deployment: deployment).padding(.vertical, 8)
+                        }
+                        .buttonStyle(.plain)
+                        if deployment.id != store.recent.last?.id { Divider() }
+                    }
+                }
+            }
+        }
+    }
+
+    // MARK: 프로젝트 · 빈 상태
+
+    /// 좁은 화면에는 사이드바가 없어서 여기서 프로젝트를 바꿔요.
     @ViewBuilder
     private var projectMenu: some View {
-        if let projects = store.projects.value, !projects.isEmpty {
+        if !workspace.projects.isEmpty {
             Menu {
                 Picker("프로젝트", selection: Binding(
                     get: { app.selectedProjectID ?? "" },
-                    set: { app.selectedProjectID = $0 }
+                    set: { app.selectedProjectID = $0; Task { await refresh() } }
                 )) {
-                    ForEach(projects) { Text($0.name).tag($0.id) }
+                    ForEach(workspace.projects) { Text($0.name).tag($0.id) }
                 }
+                Divider()
+                Button { router.open(.connectProject) } label: { Label("새 프로젝트 연결", systemImage: "plus") }
+                    .disabled(app.isViewer)
             } label: {
                 HStack(spacing: 6) {
                     Image(systemName: "folder")
-                    Text(projects.first { $0.id == app.selectedProjectID }?.name ?? "프로젝트")
+                    Text(workspace.project?.name ?? "프로젝트")
                     Image(systemName: "chevron.down").font(.caption2.weight(.semibold))
                 }
             }
@@ -113,40 +168,54 @@ struct OverviewView: View {
             .fixedSize()
         }
     }
+
+    /// 웹 Empty State: "아직 배포한 프로젝트가 없어요"
+    private var empty: some View {
+        ContentUnavailableView {
+            Label("아직 배포한 프로젝트가 없어요", systemImage: "shippingbox")
+        } description: {
+            Text("GitHub 레포를 연결하거나 소스를 올려서 시작해 보세요")
+        } actions: {
+            Button("새 프로젝트") { router.open(.connectProject) }
+                .buttonStyle(.glassCapsule(prominent: true))
+                .disabled(app.isViewer)
+        }
+    }
 }
 
-struct TargetStatusCard: View {
+/// 환경 한 줄: 환경 태그 · 커밋 · 시각 · URL · 상태.
+private struct VersionRow: View {
     let status: TargetStatus
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 10) {
-            HStack {
-                EnvironmentIcon(type: status.type)
-                VStack(alignment: .leading) {
-                    Text(status.name).font(.headline)
-                    Text(status.type.displayName).font(.caption).foregroundStyle(.secondary)
-                }
-                Spacer()
+        ViewThatFits(in: .horizontal) {
+            HStack(spacing: 12) {
+                EnvTag(type: status.type).frame(width: 100, alignment: .leading)
+                details
+                Spacer(minLength: 8)
                 status.health.badge
             }
-            Divider()
+            VStack(alignment: .leading, spacing: 6) {
+                HStack { EnvTag(type: status.type); Spacer(); status.health.badge }
+                details
+            }
+        }
+        .padding(.vertical, 10)
+    }
+
+    private var details: some View {
+        HStack(spacing: 10) {
             if let current = status.current {
-                HStack(spacing: 6) {
-                    CommitLabel(commit: current.commit)
-                    if let deployedAt = current.deployedAt {
-                        Text(deployedAt, format: .relative(presentation: .named))
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
-                    }
+                CommitLabel(commit: current.commit)
+                if let deployedAt = current.deployedAt {
+                    RelativeTime(date: deployedAt).font(.caption).foregroundStyle(.secondary)
                 }
             } else {
                 Text("아직 배포되지 않았어요").font(.caption).foregroundStyle(.secondary)
             }
             if let url = status.url {
-                Link(url.host() ?? url.absoluteString, destination: url).font(.caption)
+                Link(url.absoluteString, destination: url).font(.caption).lineLimit(1).truncationMode(.middle)
             }
         }
-        .cardStyle()
-        .contentShape(.rect)
     }
 }

@@ -12,6 +12,8 @@ struct Project: Decodable, Identifiable, Hashable, Sendable {
     let id: String
     let name: String
     let repository: String?
+    /// 배포 기준 브랜치 (가칭)
+    let branch: String?
 }
 
 // MARK: - 현황 (A-02)
@@ -48,16 +50,21 @@ struct TargetStatus: Decodable, Identifiable, Hashable, Sendable {
 // MARK: - 배포 (A-03, A-04)
 
 enum DeploymentState: String, ServerEnum {
-    case queued, generating, validating
+    case queued
+    /// 웹 흐름 W-03 · W-04 · W-05b 단계 (가칭)
+    case building
+    case selectingTargets = "selecting_targets"
+    case generating, validating
     case awaitingApproval = "awaiting_approval"
     case applying, succeeded, failed, cancelled
+    case stopped
     /// 웹 Status Badge에 있는 상태. 서버 상태 이름이 확정되면 맞춰요 (가칭).
     case warning
     case rolledBack = "rolled_back"
     case unknown
     static let unknownCase = DeploymentState.unknown
 
-    var isFinished: Bool { [.succeeded, .failed, .cancelled, .rolledBack].contains(self) }
+    var isFinished: Bool { [.succeeded, .failed, .cancelled, .stopped, .rolledBack].contains(self) }
 }
 
 enum DeploymentStep: String, ServerEnum {
@@ -84,6 +91,12 @@ struct Deployment: Decodable, Identifiable, Hashable, Sendable {
         let reusedScript: Bool?
         let url: URL?
         let errorSummary: String?
+        /// 레인 부제 (가칭): "home-lab · Docker", "ap-northeast-2 · ECS Fargate"
+        let title: String?
+        /// 단계 줄 (가칭): W-05 검증 단계, W-07 배포 단계
+        let steps: [StepItem]?
+        /// W-08 헬스 요약 (가칭): "200 OK · p95 120ms"
+        let healthSummary: String?
 
         var id: String { targetId }
     }
@@ -97,6 +110,10 @@ struct Deployment: Decodable, Identifiable, Hashable, Sendable {
     let projectId: String
     let commit: String
     let image: String?
+    /// 웹 W-09 "버전" 열 (가칭): "v7"
+    let version: String?
+    /// 웹 실행 목록의 커밋 메시지 (가칭)
+    let commitMessage: String?
     let state: DeploymentState
     let targets: [Target]?
     let pendingApproval: PendingApproval?
@@ -132,6 +149,10 @@ struct Plan: Decodable, Sendable {
         /// 리소스 교체(replace)로 삭제가 생겨도 true.
         let hasDelete: Bool
         let risks: [Risk]
+        /// 검증된 스크립트 재사용이면 true → "이미지 태그만 교체" (가칭)
+        let reusedScript: Bool?
+        /// W-06 리소스 변경 행 (가칭)
+        let resources: [PlanResource]?
 
         var id: String { targetId }
     }
@@ -181,6 +202,10 @@ struct Build: Decodable, Identifiable, Hashable, Sendable {
     let pipeline: Pipeline
     let image: String?
     let deployedTo: [DeployedTarget]
+    /// W-03 이미지 카드 · 단계 (가칭)
+    let branch: String?
+    let digest: String?
+    let steps: [StepItem]?
 
     var id: String { commit }
 }

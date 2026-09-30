@@ -13,6 +13,8 @@ final class AppModel {
     }
     private(set) var token: String?
     private(set) var role: String?
+    /// 사이드바 사용자 줄에 보여줄 이름
+    private(set) var username: String?
     /// 토큰이 만료돼 로그아웃된 경우. 로그인 화면에 오류 대신 안내를 보여줘요 (웹 W-00 NOTE).
     private(set) var sessionExpired = false
 
@@ -25,6 +27,7 @@ final class AppModel {
         serverURLString = defaults.string(forKey: Keys.serverURL) ?? ""
         selectedProjectID = defaults.string(forKey: Keys.projectID)
         role = defaults.string(forKey: Keys.role)
+        username = defaults.string(forKey: Keys.username)
         token = tokenStore.load()
     }
 
@@ -48,7 +51,20 @@ final class AppModel {
         guard let serverURL else { throw APIError.notConfigured }
         let result = try await APIClient(baseURL: serverURL, token: nil)
             .send(.token(username: username, password: password))
+        adopt(result, username: username)
+    }
+
+    /// W-00 "데모 계정으로 둘러보기 (읽기 전용)" — 서버가 viewer 토큰을 줘요 (R-09 가칭).
+    func signInAsDemo() async throws {
+        guard let serverURL else { throw APIError.notConfigured }
+        let result = try await APIClient(baseURL: serverURL, token: nil).send(.demoToken())
+        adopt(result, username: "데모 계정")
+    }
+
+    private func adopt(_ result: AuthToken, username: String) {
         tokenStore.save(result.accessToken)
+        self.username = username
+        defaults.set(username, forKey: Keys.username)
         token = result.accessToken
         sessionExpired = false
         role = result.role
@@ -74,5 +90,6 @@ final class AppModel {
         static let serverURL = "serverURL"
         static let projectID = "selectedProjectID"
         static let role = "role"
+        static let username = "username"
     }
 }

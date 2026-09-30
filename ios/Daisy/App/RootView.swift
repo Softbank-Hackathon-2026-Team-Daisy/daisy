@@ -1,73 +1,61 @@
 import SwiftUI
 
-enum AppTab: String, CaseIterable, Identifiable {
-    case overview, deployments, approvals, history, settings
-
-    var id: Self { self }
-
-    /// 사이드바 본문 행. 설정은 왼쪽 아래 톱니로 가요.
-    static let primary: [AppTab] = [.overview, .deployments, .approvals, .history]
-
-    var title: String {
-        switch self {
-        case .overview: "개요"
-        case .deployments: "배포"
-        case .approvals: "승인"
-        case .history: "이력"
-        case .settings: "설정"
-        }
-    }
-
-    var systemImage: String {
-        switch self {
-        case .overview: "cloud"
-        case .deployments: "play"
-        case .approvals: "checkmark.seal"
-        case .history: "clock"
-        case .settings: "gearshape"
-        }
-    }
-
-    @MainActor @ViewBuilder
-    var content: some View {
-        switch self {
-        case .overview: OverviewView()
-        case .deployments: DeploymentsView()
-        case .approvals: ApprovalsView()
-        case .history: HistoryView()
-        case .settings: SettingsView()
-        }
-    }
-}
-
-/// 화면 폭으로 모양을 골라요. 넓으면(iPad · Mac) 사이드바, 좁으면(iPhone) 아래 탭.
+/// 로그인 전에는 W-00 로그인, 로그인 뒤에는 화면 폭으로 모양을 골라요.
+/// 넓으면(iPad · Mac) 사이드바, 좁으면(iPhone) 아래 탭.
 struct RootView: View {
-    @State private var tab: AppTab = .overview
+    @Environment(AppModel.self) private var app
+    @State private var router = Router()
+    @State private var workspace = Workspace()
 
     /// 사이드바 240 + 본문 최소 460.
     static let sidebarBreakpoint: CGFloat = 700
 
     var body: some View {
-        GeometryReader { proxy in
-            if proxy.size.width >= Self.sidebarBreakpoint {
-                SidebarLayout(tab: $tab)
+        Group {
+            if app.isSignedIn {
+                GeometryReader { proxy in
+                    if proxy.size.width >= Self.sidebarBreakpoint {
+                        SidebarLayout()
+                    } else {
+                        TabLayout()
+                    }
+                }
+                .task(id: app.token) { await workspace.run(using: app) }
             } else {
-                TabLayout(tab: $tab)
+                LoginView()
             }
+        }
+        .environment(router)
+        .environment(workspace)
+    }
+}
+
+/// 메뉴 한 칸의 내용 + 그 안에서 들어가는 화면들.
+private struct TabStack: View {
+    let tab: AppTab
+    @Environment(Router.self) private var router
+
+    var body: some View {
+        NavigationStack(path: router.path(for: tab)) {
+            tab.content
+                .navigationDestination(for: Route.self) { $0.destination }
         }
     }
 }
 
-/// 좁은 화면: 시스템 탭.
+/// 좁은 화면: 시스템 탭. 다섯 개가 넘는 메뉴는 시스템이 "더 보기"로 묶어요.
 private struct TabLayout: View {
-    @Binding var tab: AppTab
+    @Environment(Router.self) private var router
+    @Environment(Workspace.self) private var workspace
 
     var body: some View {
-        TabView(selection: $tab) {
+        @Bindable var router = router
+        TabView(selection: $router.tab) {
             ForEach(AppTab.allCases) { tab in
                 Tab(tab.title, systemImage: tab.systemImage, value: tab) {
-                    NavigationStack { tab.content }
+                    TabStack(tab: tab)
                 }
+                .badge(tab == .deployments ? workspace.awaitingApproval.count : 0)
             }
         }
     }
@@ -75,7 +63,7 @@ private struct TabLayout: View {
 
 /// 넓은 화면: HUD 재질 사이드바 + 본문 한 장. 시스템 분할 대신 직접 나눠서 둘 사이에 선이 없어요.
 private struct SidebarLayout: View {
-    @Binding var tab: AppTab
+    @Environment(Router.self) private var router
     @State private var sidebarShown = true
     @AppStorage("sidebar.width") private var sidebarWidth = 240.0
     /// 가장자리를 끄는 동안의 폭. 끝나면 저장해요.
@@ -85,7 +73,7 @@ private struct SidebarLayout: View {
     var body: some View {
         HStack(spacing: 0) {
             if sidebarShown {
-                Sidebar(selection: $tab)
+                Sidebar()
                     .frame(width: draggedWidth ?? sidebarWidth)
                     .overlay(alignment: .trailing) {
                         SidebarResizer(width: sidebarWidth, dragged: $draggedWidth) { sidebarWidth = $0 }
@@ -93,8 +81,8 @@ private struct SidebarLayout: View {
                     .transition(.move(edge: .leading))
                     .zIndex(1)
             }
-            NavigationStack { tab.content }
-                .id(tab)
+            TabStack(tab: router.tab)
+                .id(router.tab)
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
                 .contentSurface()
         }
