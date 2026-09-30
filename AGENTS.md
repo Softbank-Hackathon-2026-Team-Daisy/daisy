@@ -2,7 +2,7 @@
 
 You are a coding agent working for one member of Team Daisy at SoftBank Hackathon 2026 in Korea (Term 1 prelims). This file is the team-wide contract that every agent in every area follows. Read all of it at the start of a session, then read the `AGENTS.md` of the area you are about to change.
 
-- Status: v1 (2026-09-29). Owner: team lead (김도영). Change it only by PR with team review.
+- Status: v1.1 (2026-09-30, synced with the 9/29 meeting, server decisions, and the 9/30 wireframe changes). Owner: team lead (김도영). Change it only by PR with team review.
 - This file is written in English for precision. **Everything you write for humans is in Korean** (see §11).
 - Some area folders may still have a `CLAUDE.md` instead of an `AGENTS.md`. Treat it as that area's `AGENTS.md`. Where it says "root `CLAUDE.md`", it means this file.
 
@@ -55,7 +55,7 @@ These exist because a mistake here costs money, leaks secrets, or breaks the dem
 3. **Never push to `main`, and never force-push a branch someone else uses.** Every change goes through a PR.
 4. **Never edit files in an area you do not own**, in this repo or the sample repos. Open an issue instead (§9). The only exception: the owner explicitly asks you to in that issue or PR.
 5. **Never change a team decision or shared contract on your own** (§5-2, §12). Propose it with `(가칭)` and take it to the team (§6).
-6. **Label every mock.** `// MOCK:` in code and a visible badge on screen. The presentation rules forbid hiding mocks.
+6. **Label every mock.** `// MOCK:` in code and a visible badge on screen. The presentation rules forbid hiding mocks. Areas decide whether they use mocks at all (`web/` uses them in `src/mocks/`, `ios/` does not); report every remaining mock to your human before the 10/3 submission.
 7. **Never report work as done without verifying it** (§7 step 6). If a test fails or you skipped a step, say so.
 
 ## 5. Areas and owners
@@ -66,14 +66,14 @@ These exist because a mistake here costs money, leaks secrets, or breaks the dem
 |---|---|---|
 | Team lead: scope, schedule, root docs, ADR records | `AGENTS.md`, `README.md`, `CONTRIBUTING.md`, `docs/` | 김도영 (`kimdoyoung1110`) |
 | Web dashboard (full flow) | `web/` | 김도영 (`kimdoyoung1110`) |
-| Native app (iOS · macOS: status, approval, push) | `ios/` | 박승준 (`Seungjun1127`) |
-| Server: API, deployment flow and state, approvals, SSE, CI webhook, history | `server/` | 하은현 (`gkdmsgus`) |
-| Server: AI Terraform generation, validate/fix loop, script reuse, AI cost | `server/` | 김승환 (`7SH7`) |
+| Native app (iOS · macOS). Scope is under team decision (§12-4, ADR-007) | `ios/` | 박승준 (`Seungjun1127`) |
+| Server: API, deployment state machine, approvals, `terraform apply` execution, locks, SSE, CI webhook, history · rollback | `server/` | 하은현 (`gkdmsgus`) |
+| Server: `deploy.yaml` parsing, AI Terraform generation, validate/fix loop, common Terraform CLI runner, script reuse, AI cost | `server/` | 김승환 (`7SH7`) |
 | On-prem Terraform module, Docker runtime, tunnel | `infra/modules/onprem/` | 황지환 (`jihwan77`) |
-| Cloud Terraform modules (GCP, AWS), state backends | `infra/modules/gcp/`, `infra/modules/aws/` | 임채준 (`dlacowns21`) |
+| Cloud Terraform modules (GCP, AWS), state backends, runner prototype | `infra/modules/gcp/`, `infra/modules/aws/`, `infra/bootstrap/` (가칭) | 임채준 (`dlacowns21`) |
 | CI for this repo | `.github/workflows/` | 김도영 |
 | Sample monolith app (HelloCalc) and its image pipeline (N-01) | repo `sample-monolith` | 박승준 (app), 김도영 (Actions) |
-| Sample MSA app (HelloCalc MSA) | repo `sample-msa` | 박승준 |
+| Sample MSA app (HelloCalc MSA: one frontend + one backend container) | repo `sample-msa` | 박승준 |
 | Org issue/PR templates, org profile | repo `.github` | 김도영 |
 
 `server/` has two owners. For other areas it is one area. Inside `server/`, the two owners settle boundaries between themselves.
@@ -85,9 +85,9 @@ A shared contract is anything another area builds against. Each has a **provider
 | Contract | Provider (decides) | Consumers | Changed by |
 |---|---|---|---|
 | `deploy.yaml` schema (§12-5) | whole team | all | team meeting only |
-| REST API: paths, payloads, errors, auth | server (하은현) | web, ios | provider, after notifying consumers |
+| REST API: paths, payloads, errors, auth. **Single source: the server's OpenAPI** (springdoc `/v3/api-docs`); Notion "Backend API Endpoint" is the agreement record | server (하은현; AI-side payloads 김승환) | web, ios | provider, after notifying consumers |
 | SSE events: channels, names, payloads | server (하은현) | web, ios | provider, after notifying consumers |
-| Deployment state and step names | server | web, ios | provider, after notifying consumers |
+| Deployment state and step names (decided 9/30, §12-4) | server | web, ios | provider, after notifying consumers |
 | Terraform module input variables | infra (황지환, 임채준) | server AI (김승환) | provider, after notifying consumers |
 | CI → deploy service event payload | CI (김도영) | server (하은현) | provider, after notifying consumers |
 
@@ -211,10 +211,10 @@ End every task with a short report in Korean:
 1. **Connect the app (once):** `Dockerfile` + `deploy.yaml` in the user's repo.
 2. **Change code:** PR → merge to `main`.
 3. **Build the image:** GitHub Actions builds and tests, tags with the **commit hash**, pushes to the registry, and sends an event to the deploy service.
-4. **Select environments** in the web UI (on-prem, AWS, GCP; several at once).
+4. **Select environments** in the UI (on-prem, AWS, GCP; several at once). Only GitHub repos are an input; source upload is out of scope (9/30).
 5. **Generate Terraform (AI)** per environment. If a validated script exists, only swap the image tag (0 AI calls).
-6. **Validate and fix:** `validate` → `plan` → risk check. On failure the AI reads the log and fixes it, **at most 3 times**. After that, stop and notify the user.
-7. **Approve and apply:** a human approves the plan → **parallel `apply`** per environment. State is stored separately per environment.
+6. **Validate and fix:** `validate` → `plan` → risk check. On failure the AI reads the log and fixes it, **3 attempts in total per environment** (the first generation counts). An environment that runs out stops and the user is notified; **the other environments keep going**.
+7. **Approve and apply:** a human approves the plan → **parallel `apply`** per environment. State is stored separately per environment. A **rollback** is a new deployment of an earlier successful commit with its validated script, and it also needs plan approval.
 
 ### 12-3. Repos
 
@@ -237,11 +237,21 @@ The sample repos stand in for a user's app. Do not mix their code into `daisy`. 
 | 004 | App input: GitHub repo + `main` merge + GitHub Actions |
 | 005 | On-prem runtime is **Docker** |
 | 006 | Web is a **React + Vite SPA** (not Next.js). Start with a minimal stack; add libraries only when blocked, and record why |
-| 007 | Web runs the full flow; the Swift app does approval, progress, and push only. `ios/` has proposed widening this (see `ios/SPEC.md` §1-2); until the team decides, this line stands |
+| 007 | Web runs the full flow; the Swift app does approval, progress, and push only. `ios/` proposes widening it to the full wireframe (`ios/SPEC.md` §1-1, §8), which conflicts with `web/SPEC.md` §1-1; **team meeting item**. Until the team decides, this line stands |
 
-**Decided in the 9/29 meeting (Notion ADR entries pending):** backend is **Spring Boot**; public access uses a **purchased domain with HTTPS** (server owners, by 9/30 afternoon); roles: web is 김도영, the Swift app is 박승준.
+**Decided in the 9/29 meeting (Notion ADR entries pending):** backend is **Spring Boot**; public access uses a **purchased domain with HTTPS** (server owners); roles: web is 김도영, the Swift app is 박승준; build features first and add visualization (e.g. loading screens) afterwards; the presenter is chosen on 10/3; part meetings use Slack huddles (backend daily 18:00–19:00).
 
-**Undecided `[미정]`:** `deploy.yaml` schema (flat vs `services:` map), container registry (Docker Hub / GHCR; GHCR used for now), CI/CD tool scope (GitHub Actions / Jenkins), on-prem deploy method and its relation to Terraform (ADR-003), LLM, Terraform state store, ADR-007 widening, rollback scope.
+**Decided by the owning area (server decisions log, PR #9 replies, 9/30 Slack):**
+
+- Auth: one **Bearer** token for REST and SSE. The web reads SSE with `fetch` streaming. GitHub is used only to connect repos, not to log in. Demo accounts (`viewer`) can read but get 403 on approve.
+- Deployment state, two layers. Whole deployment: `queued · running · awaiting_approval · succeeded · partially_succeeded · failed · cancelled`. Per environment: `waiting · generating · validating · awaiting_approval · applying · verifying · succeeded · failed · cancelled`. Steps: `generate · validate · plan · risk_check · apply · health_check`. Unknown values must not crash clients.
+- `attempt` counts per environment, 3 in total; a stale re-plan does not count and needs a new approval.
+- Starting a deployment: `POST /projects/{id}/deployments`; the image identity is `image_digest`, not only the tag.
+- Rollback is in scope: a new deployment (`kind: "rollback"`) that goes through plan approval.
+- Source upload (W-02b) is out of scope; the service never builds user code.
+- AI cost: USD summed per deployment, converted at a fixed rate, always shown as an estimate with the rate. Clients poll every 5 s until SSE is ready (D3).
+
+**Undecided `[미정]`:** `deploy.yaml` schema (flat vs `services:` map) and secret delivery, container registry (Docker Hub / GHCR; GHCR used for now), CI/CD tool scope (GitHub Actions for app images; Jenkins runner being prototyped in `infra/`), on-prem deploy method and its relation to Terraform (ADR-003), HTTPS exposure method (Cloudflare Tunnel proposed), LLM and the fixed exchange rate, Terraform state store, ADR-007 widening, automatic rollback on health-check failure (proposed by 하은현), demo account and auth scope, "왜 AI인가" sentence, cloud-specific features.
 
 ### 12-5. `deploy.yaml` schema `[미정 — 9/29 draft]`
 
@@ -280,7 +290,7 @@ database: true          # AWS RDS · GCP Cloud SQL · on-prem DB container
 | **10/3 24:00** | **System works end to end (this repo's goal)** |
 | 10/4 | Final presentation: 5 minutes, design doc + live demo, no slides |
 
-Team meetings: daily 21:00–22:00 KST until 10/2.
+Team meetings: daily 21:00–22:00 KST until 10/2 (Slack huddle). Backend: daily 18:00–19:00.
 
 ### 12-8. Budget
 
@@ -289,6 +299,7 @@ The team has ₩300,000 of cloud credit in total. ALB, NAT Gateway, and RDS cost
 ### 12-9. Where things live
 
 - Design docs, ADRs, PoC plan, meeting notes: team Notion (https://app.notion.com/p/5218bee9ada483ecba4881553589f692). If you have Notion access, read it there; otherwise ask your human.
+- API agreement record: Notion "Backend API Endpoint" › "프론트 ↔ 백엔드 계약 초안 v0.2". The server's OpenAPI wins when they differ.
 - Branch, commit, PR rules: `CONTRIBUTING.md`.
 - Per-area rules and decisions logs: `{area}/AGENTS.md`.
 
