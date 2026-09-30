@@ -81,7 +81,13 @@ ios/
 
 ```bash
 open ios/Daisy.xcodeproj
-xcodebuild test -project ios/Daisy.xcodeproj -scheme Daisy -destination 'platform=macOS'
+
+# Build without signing (what agents should run to verify)
+xcodebuild -project ios/Daisy.xcodeproj -scheme Daisy -destination 'generic/platform=macOS' build CODE_SIGNING_ALLOWED=NO
+xcodebuild -project ios/Daisy.xcodeproj -scheme Daisy -destination 'generic/platform=iOS' build CODE_SIGNING_ALLOWED=NO
+
+# Tests run on macOS with ad-hoc signing
+xcodebuild test -project ios/Daisy.xcodeproj -scheme Daisy -destination 'platform=macOS' CODE_SIGN_IDENTITY=- CODE_SIGN_STYLE=Manual DEVELOPMENT_TEAM=""
 ```
 
 Set the server address (dev or demo server) in the app's settings screen and log in.
@@ -104,6 +110,10 @@ Tier per root §6. Tier 1 entries are final for this area.
 | 9/29 | No mock mode; the app always uses the real server | Owner decision. Consequence: app progress depends on server API dates (`SPEC.md` R-08) | 1 |
 | 9/29 | SSE parsed with `URLSession.bytes`, 5-second polling fallback | Uses the same SSE endpoints as web, so server builds nothing app-specific | 1 |
 | 9/29 | Tokens stored in the Keychain | Tokens must not sit in UserDefaults | 1 |
+| 9/30 | Xcode project written by hand with synchronized folders (`PBXFileSystemSynchronizedRootGroup`); no XcodeGen or Tuist | New files under `Daisy/` and `DaisyTests/` are picked up automatically, so agents never edit `project.pbxproj` to add a file | 1 |
+| 9/30 | Bundle ID `com.teamdaisy.daisy`, version 0.1.0, `ITSAppUsesNonExemptEncryption = NO` | Needed for App Store Connect; the encryption flag skips the export-compliance prompt on every TestFlight upload | 1 |
+| 9/30 | Lists decode as `Page<T>` (`{ items, next_cursor }`), including A-02 | v0.1 common list rule; confirm when server publishes OpenAPI | 3 (`(가칭)`) |
+| 9/30 | Tests use Swift Testing; sample JSON lives only in `DaisyTests` | No mock data in the app (§4) | 1 |
 | 9/29 | The app does not start deployments or change infrastructure | Keeps the app inside ADR-007 and keeps the server work small | 1 |
 | 9/29 | Widen ADR-007: add overview, commit history, macOS | Proposed in `SPEC.md` §1-2; needs the team meeting | 4 (`(가칭)`) |
 | 9/29 | Requests to server and CI | `SPEC.md` §6–§7; the server and CI owners decide names and shapes | 3 |
