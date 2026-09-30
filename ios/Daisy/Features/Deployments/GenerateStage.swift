@@ -1,8 +1,7 @@
 import SwiftUI
 
 /// W-05 인프라 코드 생성 · 검증: 환경별 진행 · 환경 탭 · 검증 단계 · 생성된 스크립트.
-/// 다음 버튼은 없어요. 통과하면 승인(W-06)으로 서버가 넘겨요. 한 환경이 3회 실패해도 나머지는 계속 가요 (Q7).
-/// 모든 환경이 실패하면 중단(W-05b)이에요.
+/// 다음 버튼은 없어요. 통과하면 승인(W-06)으로 서버가 넘겨요. 한 환경이 3회 실패하면 W-05b로 바뀌어요 (`RunStage`).
 struct GenerateStage: View {
     let deployment: Deployment
     @Environment(AppModel.self) private var app
@@ -18,10 +17,6 @@ struct GenerateStage: View {
     var body: some View {
         FlowPage(step: 4, title: "인프라 코드 생성 · 검증",
                  description: "AI가 환경별 Terraform을 만들고 validate · plan · 위험 설정 검사를 통과할 때까지 최대 3번 고쳐요.") {
-            if let failed = targets.first(where: { $0.isFailed }), targets.count > 1 {
-                InlineAlert(.warning, "\(workspace.name(of: failed.targetId)) · \(failed.attempt)회 시도 모두 실패",
-                            "나머지 환경은 계속 진행해요. 실패한 환경은 결과 화면에서 다시 시도할 수 있어요.")
-            }
             SectionCard("환경별 진행") {
                 VStack(spacing: 10) {
                     ForEach(targets) { target in

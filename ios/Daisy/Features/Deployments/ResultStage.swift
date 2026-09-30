@@ -13,13 +13,17 @@ struct ResultStage: View {
     private var targets: [Deployment.Target] { deployment.targets ?? [] }
 
     var body: some View {
-        FlowPage(step: 6, title: "배포 결과", description: "모든 환경이 같은 이미지로 떠 있는지 확인해요.") {
+        FlowPage(step: 6, title: "배포 결과", description: FlowCopy.result(deployment, name: workspace.name(of:))) {
+            HStack { deployment.state.badge; Spacer() }
             AdaptiveGrid(minimumWidth: 280) {
                 ForEach(targets) { card($0) }
             }
             // 동일성 검증은 A-02의 image_digest로 앱이 만들어요 (WR-09)
-            if !workspace.statuses.isEmpty {
-                let parity = Parity(statuses: workspace.statuses)
+            // 일부 성공이면 성공한 환경끼리만 비교해요
+            let compared = FlowCopy.parityTargets(deployment).map { ids in workspace.statuses.filter { ids.contains($0.targetId) } }
+                ?? workspace.statuses
+            if !compared.isEmpty {
+                let parity = Parity(statuses: compared)
                 ParityTable(parity: parity, targets: parity.targets.map { workspace.type(of: $0) })
             }
             FlowButtons {
@@ -89,8 +93,8 @@ struct ResultStage: View {
     private func retry(_ target: Deployment.Target) async {
         guard let client = app.client else { return }
         do {
-            let next = try await client.send(.startDeployment(projectID: deployment.projectId, commit: deployment.commit,
-                                                              targetIDs: [target.targetId]))
+            let retry = RetryRequest.only(target.targetId, of: deployment)
+            let next = try await client.send(.startDeployment(projectID: retry.projectID, commit: retry.commit, targetIDs: retry.targetIDs))
             router.push(.started(next.id))
         } catch {
             app.handle(error)

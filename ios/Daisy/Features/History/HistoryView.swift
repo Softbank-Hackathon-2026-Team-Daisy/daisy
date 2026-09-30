@@ -98,9 +98,9 @@ struct HistoryView: View {
         }
     }
 
-    /// 롤백 배포는 "v6 ↩" 처럼 표시해요
+    /// 롤백 배포도 일반 배포처럼 보여줘요 (9/30 도영 님)
     private func versionText(_ deployment: Deployment) -> Text {
-        Text(deployment.version ?? "—") + (deployment.isRollback ? Text(" ↩").foregroundStyle(.purple) : Text(""))
+        Text(deployment.version ?? "—")
     }
 
     private func environmentTags(_ deployment: Deployment) -> some View {

@@ -204,45 +204,6 @@ struct Script: Decodable, Identifiable, Hashable, Sendable {
     var id: String { scriptId }
 }
 
-/// WR-11 AI 사용량.
-struct AIUsageReport: Decodable, Sendable {
-    struct Summary: Decodable, Sendable {
-        let calls: Int
-        let tokens: Int
-        let costKrw: Int?
-        let savedCalls: Int
-        let zeroAiDeployments: Int?
-        let exchangeRate: Double?
-        let estimated: Bool?
-    }
-
-    struct Call: Decodable, Identifiable, Hashable, Sendable {
-        enum Step: String, ServerEnum {
-            case generate, fix, unknown
-            static let unknownCase = Step.unknown
-        }
-
-        enum Status: String, ServerEnum {
-            case succeeded, failed, unknown
-            static let unknownCase = Status.unknown
-        }
-
-        let at: Date?
-        let targetId: String
-        let step: Step
-        let attempt: Int?
-        let tokens: Int?
-        let costKrw: Int?
-        let status: Status
-
-        var id: String { "\(at?.timeIntervalSince1970 ?? 0)-\(targetId)-\(step.rawValue)-\(attempt ?? 0)" }
-    }
-
-    let summary: Summary
-    let items: [Call]
-    let nextCursor: String?
-}
-
 /// 로그 한 줄 (A-07, SSE log.batch와 같은 모양).
 struct LogLine: Decodable, Hashable, Sendable {
     let ts: Date?

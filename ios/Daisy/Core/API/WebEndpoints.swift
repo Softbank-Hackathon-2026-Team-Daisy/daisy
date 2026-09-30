@@ -68,11 +68,6 @@ extension Endpoint {
         .init(path: "projects/\(projectID)/scripts")
     }
 
-    /// WR-11 · W-12 AI 사용량
-    static func aiUsage(projectID: String, cursor: String? = nil) -> Endpoint<AIUsageReport> {
-        .init(path: "projects/\(projectID)/ai-usage", query: [("cursor", cursor)])
-    }
-
     /// WR-13 · W-13 "연결 해제". 인프라는 지우지 않아요. 확인 입력은 화면에서 해요
     static func disconnectProject(projectID: String) -> Endpoint<EmptyResponse> {
         .init(method: "DELETE", path: "projects/\(projectID)")

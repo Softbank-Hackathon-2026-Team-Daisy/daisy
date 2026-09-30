@@ -81,14 +81,14 @@
 | W-03 이미지 빌드 | `BuildStage` | L-01 뒤 (배포가 생기기 전, 빌드가 끝나면 W-04로) | A-06 | S |
 | W-04 배포할 환경 선택 → L-02 | `TargetSelectView` | 사이드바 새 배포, W-03 다음 | WR-04, WR-05 | M |
 | W-05 인프라 코드 생성 · 검증 | `RunView` › `GenerateStage` | 배포 한 건 (apply 전) | A-04, WR-07 | M |
-| W-05b 배포를 중단했어요 | `RunView` › `StoppedStage` | 배포 한 건 (`failed`, apply 전에 모두 멈춤) | A-04, A-07, WR-05(다시 시도) | S |
+| W-05b ○○만 멈췄어요 | `RunView` › `StoppedStage` | 배포 한 건 (한 환경이 apply 전에 3회 실패, 나머지는 계속) | A-04, A-07, WR-05("○○만 다시 시도") | S |
 | W-06 변경 사항 확인 후 승인 → L-03 | `PlanApprovalView` | 배포 한 건 (승인 대기), 개요 › 지금 할 일 | A-05 + WR-06, W-01 | M |
 | W-07 배포 중 | `RunView` › `ApplyStage` | 배포 한 건 (배포 중) | A-04, A-07 | M |
-| W-08 배포 결과 | `RunView` › `ResultStage` | 배포 한 건 (끝) | A-04, A-02(+WR-09), WR-05(다시 시도) | M |
+| W-08 배포 결과 | `RunView` › `ResultStage` | 배포 한 건 (끝, `partially_succeeded`면 "일부 성공" 배지 · 성공한 환경끼리 동일성 비교) | A-04, A-02(+WR-09), WR-05(다시 시도) | M |
 | W-09 배포 이력 | `HistoryView` | 메뉴 이력 | A-03, WR-14 | M |
 | W-10 환경 | `EnvironmentsView` | 메뉴 환경 | WR-04, A-10 · A-11 (가칭) | S |
 | W-11 스크립트 | `ScriptsView` | 메뉴 스크립트 | WR-10 | S |
-| W-12 AI 사용량 | `AIUsageView` | 메뉴 AI 사용량 | WR-11 | S |
+| W-12 AI 사용량 (배포 단위) | `AIUsageView` | 메뉴 AI 사용량 › 배포 고르기 | A-03, A-04 `ai_usage` | S |
 | W-13 설정 | `SettingsView` (+ 앱 설정: 서버 주소 · 계정 · 버전) | 메뉴 설정 | A-12 (가칭), WR-03, WR-12, WR-13 | S |
 | 푸시 알림 | — | 승인 필요 · 완료 · 실패 | P-01, P-02 | S |
 
@@ -383,13 +383,13 @@ API 모양보다 **이 정보가 어딘가에 저장되어 있는지**가 더 �
 | WR-02 | `POST /projects` `{ repository, branch }` | W-02 연결하기 | 좋아요, 응답에 deploy.yaml 검증 결과 · D2 |
 | WR-03 | `GET /projects/{id}/manifest` | W-02 배포 명세 확인 · W-13 | 좋아요, 모양은 `deploy.yaml` 스키마 결정 뒤 · D3 |
 | WR-04 | `GET /projects/{id}/targets` → `target_id, type, name, reuse{ available, script_id?, reason? }, connection{ state: ok·failed·unknown, checked_at }` | W-04 · W-10 · 사이드바 | 별도 엔드포인트로 · D2 |
-| WR-05 | `POST /projects/{id}/deployments` `{ commit, target_ids[] }` + `Idempotency-Key` | W-04 시작, **W-05b "처음부터 다시 시도" · W-08 "다시 시도"도 같은 커밋으로 새 배포** | 이 경로로 확정 · D2 |
+| WR-05 | `POST /projects/{id}/deployments` `{ commit, target_ids[] }` + `Idempotency-Key` | W-04 시작, **W-05b "○○만 다시 시도" · W-08 "다시 시도"도 같은 커밋 · 그 환경만으로 새 배포** (가정, #13에서 확인 중) | 이 경로로 확정 · D2 |
 | WR-06 | `GET /deployments/{id}/plan?detail=resources` | W-06 리소스 행 (`action`에 `replace` 포함) | 좋아요 · D3 |
 | WR-07 | `GET /deployments/{id}/targets/{target_id}/script` → `files[{ path, content }]` | W-05 생성된 스크립트 | 18시 백엔드 회의에서 확인 |
 | WR-08 | `POST /deployments/{id}/cancel` | (앱은 아직 버튼 없음) | 좋아요 · D3 |
 | WR-09 | A-02에 `image_digest` | W-01 · W-08 동일성 검증 (앱이 digest · 커밋 · 헬스로 표를 만들어요. **예전 A-09 요청은 뺐어요**) | 넣을게요 · D2 |
 | WR-10 | `GET /projects/{id}/scripts` | W-11 | 승환 님 영역, D3~ |
-| WR-11 | `GET /projects/{id}/ai-usage` → `summary{…}, items[{ at, target_id, step: generate·fix, attempt, tokens, cost_krw, status }]` | W-12 | 좋아요, 환율 숫자만 미정 · D3 |
+| ~~WR-11~~ | ~~`GET /projects/{id}/ai-usage`~~ | W-12는 배포 단위로 바뀌어 **A-04 `ai_usage`를 써요** (9/30 와이어프레임 수정, 서버 "GET /deployments/{id}의 ai_usage로 같이 가요") | — |
 | WR-12 | `PUT /projects/{id}/secrets/{name}` | W-13 비밀값 추가 (지금은 비활성) | 전달 방식 팀 결정 대기 |
 | WR-13 | `DELETE /projects/{id}` | W-13 연결 해제 (확인 입력은 화면에서) | 좋아요 · S |
 | WR-14 | `POST /deployments/{id}/rollback` `{ target_ids[], reason }` → `Deployment(kind: "rollback")` | W-09 롤백 → 새 배포로 이동, **plan 승인을 거쳐요** | 넣을게요 (은현 님) |
@@ -406,6 +406,7 @@ API 모양보다 **이 정보가 어딘가에 저장되어 있는지**가 더 �
 **기존 모델에 더한 필드 (가칭) 🆕** — 없으면 화면이 "—"나 기본 문구로 보여줘요. 필수는 아니에요.
 
 - `Deployment`: `version`("v7"), `commit_message`
+- `Deployment.ai_usage` (W-12): 합계 `tokens, cost_krw, exchange_rate, estimated`에 더해 `calls`, `items[{ at, target_id, step: generate·fix, attempt, tokens, cost_krw, status: succeeded·failed, note? }]`. 재사용 환경은 기록이 없어서 앱이 `reused_script`로 "— 검증된 스크립트 재사용" 줄을 만들어요
 - `Deployment.targets[]`: `title`("home-lab · Docker"), `steps[]`(`{ name, state, duration_ms, started_at }`, W-05 검증 단계 · W-07 레인), `health_summary`("200 OK · p95 120ms")
 - `Plan.targets[]`: `reused_script`
 - `Build`: `branch`, `digest`, `steps[]` (W-03 GitHub Actions 단계)
@@ -442,7 +443,10 @@ API 모양보다 **이 정보가 어딘가에 저장되어 있는지**가 더 �
 - [ ] **Q4 빌드가 끝나면 W-04로 바로 갈지** — 앱은 지금 바로 넘어가요. 팀 결정에 맞춰요
 - [ ] **헬스체크 실패 시 자동 롤백** (은현 님 제안): 넣으면 이력에 롤백 배포가 승인 없이 생겨요. 앱은 `kind: "rollback"`으로 표시만 해요 — 팀
 - [x] ~~배포 상태 · 단계 값~~ → 9/30 서버 확정 (§6-7): 배포 전체 `queued · running · awaiting_approval · succeeded · partially_succeeded · failed · cancelled`, 환경별 `waiting · generating · validating · awaiting_approval · applying · verifying · succeeded · failed · cancelled`. 롤백은 별도 배포
-- [x] ~~Q7 한 환경 3회 실패 시~~ → 환경별, 나머지는 계속 (9/29 서버). W-05b "빼고 계속" 버튼 뺌
+- [x] ~~Q7 한 환경 3회 실패 시~~ → 환경별, 나머지는 계속 (9/29 서버). W-05b는 "○○만 멈췄어요" + "○○만 다시 시도" (9/30 도영 님 와이어프레임 수정)
+- [ ] **"○○만 다시 시도"를 새 배포로 만들지, 같은 배포 안에서 그 환경만 다시 돌릴지** — 앱은 WR-05 새 배포로 가정. 서버 확인 (#13)
+- [x] ~~W-12 범위~~ → 배포 단위, A-04 `ai_usage` (9/30 도영 님)
+- [x] ~~롤백 표시~~ → 새 배포 한 건, 목록 · 알림에서 일반 배포처럼 (9/30 도영 님)
 - [x] ~~업로드 입력(W-02b)~~ → 서버 작업 없음, 앱은 설계만 표시 (9/30 은현 님 답변. 웹 화면 처리는 도영 님 결정)
 - [x] ~~푸시를 예선 범위에 넣을지~~ → D3까지 로컬 알림, APNs는 여유 있으면 (9/29)
 - [x] ~~경로 · 이벤트 이름 확정~~ → 9/29 확정. 모델 필드는 서버 OpenAPI가 나오면 맞춰요
@@ -457,6 +461,7 @@ API 모양보다 **이 정보가 어딘가에 저장되어 있는지**가 더 �
 | 9/29 | 앱 목업 모드 제거 (항상 실서버 연결), 개발 서버 요구(R-08) 추가 | 박승준 |
 | 9/29 | 에이전트 규칙 파일을 `CLAUDE.md` → `AGENTS.md`로 변경 | 박승준 |
 | 9/29 | 서버 답변 반영: 경로 · 이벤트 이름 확정, Bearer만, `DELETE /devices` + 본문, `attempt` 의미, Plan 모양(`level`·`resource`, `ai_usage`), 제공 일정 D2/D3, 폴링 · 로컬 알림 폴백 | 박승준 |
+| 9/30 | 도영 님 와이어프레임 수정 반영: W-05b "○○만 멈췄어요 / ○○만 다시 시도", W-08 "일부 성공" 배지와 설명, W-09 롤백을 일반 배포처럼, W-12 배포 단위(A-04 `ai_usage`, WR-11 안 씀). 모듈 테스트 추가 (`RunLogicTests` · `AIUsageSummaryTests` · `EndpointContractTests` · `ContractDecodingTests`) | 박승준 |
 | 9/30 | 팀 방향에 맞춤: 서버 확정 상태 두 층, 웹 `WR-xx` 경로 · 모양 그대로 사용(배포 시작 `POST /projects/{id}/deployments`, 롤백은 새 배포 + 승인, 동일성은 `image_digest`), Q7 반영("빼고 계속" 제거), 업로드 설계만, W-03 · W-04를 배포 전 화면으로. §6-8을 WR-xx + 앱 추가 요청(R-09, A-10 ~ A-12)으로 다시 씀 | 박승준 |
 | 9/30 | 와이어프레임 v1.0 화면 · 문구 · 버튼을 앱에 모두 옮김 (W-00 ~ W-13, L-01 ~ L-03), 메뉴를 웹 사이드바 구성으로, 새 요청 §6-8 (가칭) | 박승준 |
 | 9/30 | 웹(Figma 와이어프레임 v1.0) 문구로 통일: 메뉴 개요 · 배포 · 승인 · 이력 · 설정, 상태 이름, `리소스 +6 ~0 −0`, 로그인 · 오류 문구. 색 · 모양은 앱 방식 유지, 아이콘은 비슷한 SF Symbols | 박승준 |

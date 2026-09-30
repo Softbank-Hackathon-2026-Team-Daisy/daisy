@@ -132,7 +132,10 @@ struct Deployment: Decodable, Identifiable, Hashable, Sendable {
     /// 롤백도 배포 한 건이에요: `kind: "rollback"`, `rolled_back_from` (WR-14)
     let kind: String?
     let rolledBackFrom: String?
+    /// W-12: 이 배포의 AI 사용량 (9/30 서버: GET /deployments/{id}의 ai_usage)
+    let aiUsage: AIUsage?
 
+    /// 롤백도 배포 한 건이에요. 목록 · 알림에서는 일반 배포처럼 보여줘요 (9/30 도영 님).
     var isRollback: Bool { kind == "rollback" }
 }
 
@@ -178,12 +181,40 @@ struct Plan: Decodable, Sendable {
     var hasDelete: Bool { targets.contains { $0.hasDelete } }
 }
 
-/// AI 비용 누적 합계. 원화는 고정 환율로 환산한 추정치예요 (가칭).
-struct AIUsage: Decodable, Sendable {
+/// AI 사용량 합계. 원화는 고정 환율로 환산한 추정치예요.
+/// plan(A-05)과 배포(A-04)에 같은 모양으로 와요. `calls` · `items`는 W-12 호출 기록용 (가칭).
+struct AIUsage: Decodable, Hashable, Sendable {
+    /// 실제 LLM 호출 한 번. 재사용으로 AI를 안 부른 환경은 기록이 없어요.
+    struct Call: Decodable, Identifiable, Hashable, Sendable {
+        enum Step: String, ServerEnum {
+            case generate, fix, unknown
+            static let unknownCase = Step.unknown
+        }
+
+        enum Status: String, ServerEnum {
+            case succeeded, failed, unknown
+            static let unknownCase = Status.unknown
+        }
+
+        let at: Date?
+        let targetId: String
+        let step: Step
+        let attempt: Int?
+        let tokens: Int?
+        let costKrw: Int?
+        let status: Status
+        /// "보안 그룹 0.0.0.0/0 수정" 같은 한 줄 (가칭)
+        let note: String?
+
+        var id: String { "\(at?.timeIntervalSince1970 ?? 0)-\(targetId)-\(step.rawValue)-\(attempt ?? 0)" }
+    }
+
     let tokens: Int?
     let costKrw: Int?
     let exchangeRate: Double?
     let estimated: Bool?
+    let calls: Int?
+    let items: [Call]?
 }
 
 enum ApprovalDecision: String, Encodable, Sendable {

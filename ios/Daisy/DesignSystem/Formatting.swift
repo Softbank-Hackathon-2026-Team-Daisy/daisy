@@ -57,8 +57,12 @@ extension TargetState {
 extension Deployment.Target {
     /// apply까지 갔는지. 서버가 `state`를 주면 그걸로, 아니면 단계로 판단해요.
     var reachedApply: Bool {
-        if let state { return [.applying, .verifying, .succeeded].contains(state) }
-        return [.apply, .healthCheck].contains(step)
+        switch state {
+        case .applying, .verifying, .succeeded: true
+        case .waiting, .generating, .validating, .awaitingApproval: false
+        // 실패 · 취소 · 모름은 어느 단계에서 멈췄는지로 판단해요
+        case .failed, .cancelled, .unknown, nil: [.apply, .healthCheck].contains(step)
+        }
     }
 
     var isFailed: Bool { state == .failed || stepState == .failed }
