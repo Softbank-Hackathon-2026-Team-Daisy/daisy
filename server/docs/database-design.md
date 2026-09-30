@@ -33,10 +33,12 @@
 | `project` | Project와 membership; Target; SourceVersion | 은현. 관리·입력 조회, 프로젝트 접근, 대상 설정과 버전. 승환이 받은 빌드 결과는 이 경계의 수신 서비스로 전달 |
 | `deployment` | Deployment와 DeploymentTarget, PlanRevision, Approval | 승환. 입력 고정·상태 집계·승인·retry/rollback. 한 배포 안의 변경을 같은 짧은 트랜잭션에서 판단 |
 | `jenkins` | JenkinsExecution와 ExecutionTarget, TargetLock | 승환. 명령 payload 고정·전달·조회·복구. domain 상태 변경은 deployment 서비스와 한 application 트랜잭션으로 조정 |
-| 산출물·사용량 | Script; AIUsage | 승환 수신·검증·중복 방지. 은현 조회·합산. 실제 코드 재사용 판단·보관은 인프라 소유 |
-| 이벤트·멱등성 | DeploymentLog, ProjectEvent, Idempotency | 승환 실행 변경과 원자적으로 기록하는 지원 데이터. 은현은 조회 서비스와 SSE 기반을 사용 |
+| `script` · `ai` | Script; AiUsage | 승환 수신·검증·중복 방지. 은현 조회·합산. 실제 코드 재사용 판단·보관은 인프라 소유 |
+| `history` · `idempotency` | DeploymentLog, ProjectEvent; Idempotency | 승환 실행 변경과 원자적으로 기록하는 지원 데이터. 은현은 조회 서비스와 SSE 기반을 사용 |
 
 Account나 Project를 통째로 배포 aggregate에 포함하지 않는다. 실행용 snapshot을 취득하고 원본 ID를 유지한다. Project 상태를 수정하는 명령과 Deployment 상태 변경 명령은 각 소유 서비스가 담당한다. 교차 경계의 원자성이 필요한 수신·배포 접수는 단일 DB application 트랜잭션으로 묶을 수 있으며 외부 HTTP 호출은 포함하지 않는다.
+
+후속 엔티티 초안은 각 기능의 `domain` 패키지에 둔다. 이번 단계는 private 필드와 JPA 매핑·복합키·배포 상태 타입만 정의하며, 생성/조회 메서드와 상태 전이 동작은 실제 사용 사례 구현 시 추가한다. FK는 scalar ID로만 매핑하므로 DB FK·CHECK·부분 UNIQUE·기본값은 후속 Flyway에서 구현해야 한다. JPA의 일반 UNIQUE 선언도 마이그레이션 없는 DB에 자동 적용되지 않는다.
 
 ## 3. ERD
 
