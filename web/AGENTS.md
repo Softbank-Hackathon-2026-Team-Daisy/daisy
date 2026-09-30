@@ -1,6 +1,6 @@
 # AGENTS.md — web/ (웹 대시보드)
 
-담당: 김도영 (`kimdoyoung1110`, 리드), 박승준 (`Seungjun1127`). 상태: v1 (2026-09-30).
+담당: 김도영 (`kimdoyoung1110`, 루트 §5-1). 상태: v1 (2026-09-30).
 
 루트 `AGENTS.md`를 먼저 따라요. 이 파일은 `web/`에만 해당하는 규칙을 더하고, 루트 하드 규칙(§4)을 느슨하게 하지 않아요. 제품 명세, 화면 목록, 백엔드 요청 전부는 [`SPEC.md`](./SPEC.md)에 있어요. **여기서 작업하기 전에 `SPEC.md`를 읽어요.**
 
@@ -82,6 +82,19 @@
 | `--color-env-aws` | `#f97316` | `#f97316` | 환경 태그: AWS |
 | `--color-env-gcp` | `#3b82f6` | `#3b82f6` | 환경 태그: GCP |
 | `--color-env-azure` | `#0ea5e9` | `#0ea5e9` | 환경 태그: Azure |
+| `--color-primary-hover` | `#f5b301` | `#ffdc57` | Primary 버튼 hover |
+
+Figma Color 컬렉션의 **의미 토큰**도 있어요. 모두 위 토큰을 가리켜서 테마를 따라가요 (`tokens.css`).
+
+| 토큰 | 가리키는 값 | 용도 |
+|---|---|---|
+| `--color-card` · `--color-card-foreground` | bg · ink | 카드 · Dialog · 결과 카드 |
+| `--color-input` | line | Input · Select · Checkbox 테두리 |
+| `--color-secondary-foreground` | ink | Secondary 버튼 글자 |
+| `--color-accent` · `--color-accent-foreground` | ink · bg | "추천" 칩, AI 아바타 |
+| `--color-destructive-foreground` | bg | Destructive 버튼 글자 |
+| `--color-status-bg` | surface | 상태 배지 · Alert · 진행 중 단계 배경 |
+| `--color-status-{queued · running · success · failed · warning · rolledback}` | ink-muted · running · success · danger · warning · rolledback | 상태 글자 · 점 |
 
 ### 5-3. 타이포그래피
 
@@ -119,7 +132,7 @@
 
 - Status Badge: 대기 중 · 배포 중 · 성공 · 실패 · 주의 · 롤백됨
 - Env Tag: 온프레미스 · AWS · GCP · Azure
-- Stepper: 소스 입력 · 분석 · 대상 환경 · 계획 · 검증 · 배포 · 결과
+- Stepper (와이어프레임 기준): 저장소 연결 · 이미지 빌드 · 대상 환경 · 생성 · 검증 · 승인 · 배포 · 결과
 
 ### 5-6. 사이드바 · 로딩 규칙
 
@@ -155,9 +168,11 @@ web/
    ├─ main.tsx · App.tsx   진입점, 라우팅, 사이드바 레이아웃
    ├─ styles/              tokens.css (라이트 · 다크), base.css
    ├─ components/          디자인 시스템 컴포넌트 (§5-5)
-   ├─ pages/               화면 단위 폴더 (SPEC.md §3-1), loading/captions.ts
-   ├─ api/                 API 클라이언트, 타입, SSE · 폴링
-   └─ mocks/               MOCK 데이터만 (§4)
+   ├─ pages/               화면 단위 폴더 (SPEC.md §3-1), loading/captions.ts, flow.ts, dev/(확인 페이지)
+   ├─ api/                 types · client · realtime(SSE) · endpoints · status · useResource · auth
+   ├─ mocks/               MOCK 데이터만 (§4): scenario · api · workspace
+   ├─ utils/format.ts      시간 · 커밋 · 소요 시간 · 원화 표시
+   └─ paths.ts             화면 경로 (SPEC.md §2-6)
 ```
 
 ## 7. 컨벤션
@@ -174,17 +189,21 @@ web/
 
 ## 8. 실행 방법
 
-Node 22 LTS와 pnpm 9가 필요해요. Node 25에는 corepack이 없어서 pnpm은 직접 설치해요 (`npm i -g pnpm@9`).
+Node 22 LTS와 pnpm 9가 필요해요. nvm이면 `nvm use`(`.nvmrc`), Homebrew면 `brew install node@22 && brew link --overwrite node@22`. Node 25에는 corepack이 없어서 pnpm은 직접 설치해요 (`npm i -g pnpm@9`).
 
 ```bash
 cd web
-nvm use            # .nvmrc → Node 22
 pnpm install
-pnpm dev
-pnpm build
+pnpm dev      # http://localhost:5173 (서버 CORS 허용 포트라 고정)
+pnpm build    # tsc -b + vite build
+pnpm lint     # oxlint — 경고 0으로 유지
 ```
 
-`(가칭)`: 테스트 · 린트 명령은 Vite 프로젝트를 만들 때 채워요.
+- 환경 변수는 `.env.example`을 `.env.local`로 복사해서 써요: `VITE_API_BASE_URL`(서버 주소), `VITE_USE_MOCK`(기본 `true`, 실서버면 `false`)
+- 목업 로그인: 비밀번호 `daisy` (아이디 `demo`는 읽기 전용). 토큰은 메모리에만 있어서 새로고침하면 다시 로그인해요
+- 화면별 고정 상태: `/projects/prj_monolith/deployments/{dep_generate · dep_stuck · dep_approve · dep_apply · dep_result}/…` — W-05 · W-05b · W-06 · W-07 · W-08을 바로 볼 수 있어요. `dep_live`는 시간이 흐르며 W-04 → W-08을 끝까지 진행해요
+- 개발용 확인 페이지: `/dev/tokens` · `/dev/components` · `/dev/primitives` — Figma와 라이트 · 다크로 비교해요
+- 테스트 러너는 아직 없어요 (가칭). 검증은 `build` · `lint` · 브라우저 확인으로 해요
 
 ## 9. 담당자에게 먼저 물어볼 것
 
@@ -211,3 +230,10 @@ pnpm build
 | 9/30 | `react-router` 사용 | 화면 14개, 푸시 · 공유 링크로 W-06 같은 화면에 바로 들어와야 해요. ADR-006에 기록 | 1 |
 | 9/30 | Node 22 LTS 고정, 패키지 매니저 pnpm 9 | LTS로 데모 서버 · CI와 맞춰요. pnpm은 설치가 빠르고, `package.json`에 없는 패키지를 못 불러와서 몰래 늘어나는 의존성을 막아요 | 1 |
 | 9/30 | 날짜별 작업 로그 `web/docs/work-log/` | 과정 · 결정 · 막힌 것을 남겨 설계 문서와 심사 Q&A 근거로 써요. 결정은 이 표에도 같이 적어요 | 1 |
+| 9/30 | 상태 배지 색은 와이어프레임 기준, 매핑은 `api/status.ts` 한 곳 (승인 대기 · 취소됨은 회색, 일부 성공은 주황) | 서버 상태 값 16개를 배지 6톤에 나눠 담아야 해서 | 1 |
+| 9/30 | 전환 로딩은 `TransitionGate`: 앞 화면에서 넘어왔고 준비 안 됐을 때만, 준비되면 되돌아가지 않음 | 3초 안에 끝나면 로딩 없이 넘어가서 깜빡이지 않아요 | 1 |
+| 9/30 | 서버가 `steps` 같은 선택 필드를 안 주면 화면이 단계 · 상태로 추정 (`pages/flow.ts`) | 선택 필드(SPEC §6-1-2)가 늦어져도 화면이 막히지 않게 | 1 |
+| 9/30 | 목업 시나리오는 와이어프레임 예시 값, 화면별 고정 배포 ID + 시간이 흐르는 `dep_live` | 서버 없이 모든 화면과 전체 흐름을 확인 · 시연하려고 | 1 |
+| 9/30 | 토큰은 메모리에만, 역할만 context로 (새로고침 시 재로그인) | 브라우저 저장소에 토큰을 두지 않아요 (SPEC §3-2) | 1 |
+| 9/30 | 롤백 · 연결 해제 확인 문구는 프로젝트 이름 | 환경이 여러 개라 환경 이름으로는 하나를 고를 수 없어서 | 1 |
+| 9/30 | W-14: Mac은 GitHub Releases `.dmg`, iPhone은 TestFlight. 값은 `MacAppDialog.tsx` 상수 한 곳 | 승준 님 결정 (PR #9). 새 빌드마다 URL이 바뀌어요 | 3 (앱 확정) |

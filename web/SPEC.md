@@ -97,7 +97,7 @@ W-00 로그인 → W-01 개요 → W-02 저장소 연결 → L-01 → W-03 이�
 | W-11 | 스크립트 | 검증된 스크립트 목록(환경 · 버전 · 만든 방식 · 검증 · 재사용 횟수 · 마지막 사용), 폐기된 스크립트도 표시, 스크립트 내용 보기 | S (데모 효과 큼) |
 | W-12 | AI 사용량 | **배포를 골라서** 그 배포의 AI 호출 수 · 토큰 · 비용(추정) · 재사용한 환경(AI 호출 0회), 호출 기록 표. 여러 배포 합계는 예선 범위에서 하지 않아요. 차트 없음 | S (데모 효과 큼) |
 | W-13 | 설정 | 저장소, `deploy.yaml`(읽기 전용), 비밀값(이름만, 값은 다시 볼 수 없음), 알림, 프로젝트 연결 해제(환경 이름 입력 확인) | S |
-| W-14 | Mac 앱 다운로드 (Dialog) | 사이드바 하단 "Mac 앱 받기"와 W-00 폼 아래 링크에서 열어요. 로그인 전 · 데모 계정도 받을 수 있어요. 파일 호스팅(GitHub Releases / 웹 정적 파일) · 버전 · 용량은 승준 님과 결정 `[미정]`. 공증 여부에 따라 Gatekeeper 안내 문구가 달라요. iPhone은 TestFlight라 대상 아님 | S |
+| W-14 | Mac 앱 다운로드 (Dialog) | 사이드바 하단 "Mac 앱 받기"와 W-00 폼 아래 링크에서 열어요. 로그인 전 · 데모 계정도 받을 수 있어요. **Mac: GitHub Releases `.dmg`** (v0.1.0 · 빌드 2609301801 · 2.6 MB · macOS 15 이상, Developer ID 서명 + 공증 완료라 Gatekeeper 안내 없음). **iPhone: TestFlight 공개 링크** (베타 심사 뒤 열림). 새 빌드가 나오면 승준 님이 알려 주는 값으로 `MacAppDialog.tsx`의 상수만 바꿔요 (9/30 확정) | S |
 
 ### 2-4. 사이드바 (9/30 결정)
 
@@ -106,7 +106,28 @@ W-00 로그인 → W-01 개요 → W-02 저장소 연결 → L-01 → W-03 이�
 - **배포 흐름 화면(W-02~W-08, L-xx)에서는 64px 아이콘 바**, 그 밖에서는 240px
 - 활성 메뉴는 `--color-surface-strong` 배경 + 왼쪽 2px ink 막대. 노란색은 쓰지 않아요
 
-M = 예선 데모 필수, S = 선택 (S도 10/2까지 모두 만들어요, §5)
+M = 예선 데모 필수, S = 선택 (S도 모두 만들었어요, §5)
+
+### 2-6. 화면 경로
+
+경로는 `src/paths.ts` 한 곳에서 관리해요. 링크는 문자열 대신 이 함수로 만들어요.
+
+| 화면 | 경로 |
+|---|---|
+| W-00 · W-00b 로그인 | `/login` (`?next=` 원래 보려던 화면, `?expired=1` 세션 만료 안내) |
+| W-01 개요 | `/projects/:projectId` |
+| W-02 저장소 연결 | `/connect` |
+| W-03 이미지 빌드 | `/projects/:projectId/deploy/build` |
+| W-04 환경 선택 | `/projects/:projectId/deploy/targets?commit=` |
+| 사이드바 "배포" | `/projects/:projectId/deployments/current` → 가장 최근 배포의 현재 단계로 이동 |
+| W-05 · W-05b 생성 · 검증 | `/projects/:projectId/deployments/:deploymentId/generate` |
+| W-06 승인 | `…/deployments/:deploymentId/approve` |
+| W-07 배포 중 | `…/deployments/:deploymentId/progress` |
+| W-08 결과 | `…/deployments/:deploymentId/result` |
+| W-09 ~ W-13 | `/projects/:projectId/history` · `/environments` · `/scripts` · `/ai-usage` · `/settings` |
+| W-14 앱 설치 | 경로 없음 — 사이드바 · 로그인 화면에서 여는 Dialog |
+| L-01 ~ L-03 | 경로 없음 — W-03 · W-05 · W-07에 들어갈 때 게이트로 보여줘요 (§2-2) |
+| 개발용 확인 페이지 | `/dev/tokens` · `/dev/components` · `/dev/primitives` (데모 화면 아님) |
 
 ### 2-5. 상태 값 (9/30 서버 확정)
 
@@ -117,8 +138,8 @@ M = 예선 데모 필수, S = 선택 (S도 10/2까지 모두 만들어요, §5)
 | 단계 (`step`) | `generate` · `validate` · `plan` · `risk_check` · `apply` · `health_check` | W-05는 앞 4개, W-07은 `apply` · `health_check` |
 
 - 롤백 전용 상태(`rolling_back`)는 없어요. 롤백은 `kind: "rollback"`인 **새 배포**예요
-- 화면 문구 중 디자인 시스템 Status Badge에 없는 것(승인 대기 · 일부 성공 · 취소됨 · 생성 중 등)은 색 매핑을 담당자와 정해요
-- 모르는 값이 오면 중립(대기 중 색)으로 보여주고 깨지지 않아요
+- **배지 색 (9/30 확정, 와이어프레임 기준)**: 대기 중 · 승인 대기 · 취소됨 = 회색(queued), 진행 중 · 생성 중 · 검증 중 · 배포 중 · 확인 중 = 파랑(running), 일부 성공 = 주황(warning), 성공 = 초록, 실패 = 빨강, 롤백 배포가 성공하면 "롤백됨" = 보라. 매핑은 `src/api/status.ts` 한 곳
+- 모르는 값이 오면 회색 "알 수 없음"으로 보여주고 깨지지 않아요
 
 ---
 
@@ -137,7 +158,8 @@ M = 예선 데모 필수, S = 선택 (S도 10/2까지 모두 만들어요, §5)
 | 긴 로그 | 느려지면 TanStack Virtual 추가 | 와이어프레임 W-07 NOTE (ADR-006) |
 | 차트 | 쓰지 않아요 | W-12도 숫자 · 표로만 |
 | 폰트 | IBM Plex Sans KR · IBM Plex Mono | 디자인 시스템 |
-| 목업 | **허용.** `src/mocks/`에만 두고 `// MOCK:` + 화면 배지 | 서버 API가 D2~D3에 나와서, 그전에 화면을 만들어야 해요 (`AGENTS.md` §4) |
+| 목업 | **허용.** `src/mocks/`에만 두고 `// MOCK:` + 화면 배지. `VITE_USE_MOCK=false`면 실서버 | 서버 API가 D2~D3에 나와서, 그전에 화면을 만들어야 해요 (`AGENTS.md` §4) |
+| 인증 상태 | 토큰은 메모리에만, 역할(admin · viewer)은 React context | 새로고침하면 다시 로그인해요 (SPEC §3-2) |
 
 ### 3-1. 폴더 구조
 
@@ -170,9 +192,13 @@ web/
    │  ├─ ai-usage/          W-12
    │  ├─ settings/          W-13
    │  ├─ app-download/      W-14 (Dialog)
-   │  └─ loading/           L-01 ~ L-03, captions.ts
-   ├─ api/                  API 클라이언트, 타입(§6-6과 1:1), SSE · 폴링
-   └─ mocks/                MOCK 데이터만
+   │  ├─ loading/           L-01 ~ L-03 (TransitionLoader · TransitionGate), captions.ts
+   │  ├─ dev/               개발용 확인 페이지
+   │  └─ flow.ts            W-05 ~ W-08 단계 · 상태 표시 규칙
+   ├─ api/                  types(§6-4와 1:1) · client · realtime(SSE) · endpoints · status · useResource · auth
+   ├─ mocks/                MOCK 데이터만 (scenario · api · workspace)
+   ├─ utils/format.ts       상대 시간 · 커밋 7자리 · 소요 시간 · 원화
+   └─ paths.ts              화면 경로 (§2-6)
 ```
 
 ### 3-2. 데이터 흐름
@@ -192,7 +218,7 @@ Page ──▶ hook ──▶ api/client ──────────▶ Daisy
 
 ## 4. 경계: 누가 무엇을 하나요
 
-| 영역 | 웹 (김도영 · 박승준) | 백엔드 (하은현 · 김승환) | CI (담당 `[미정]`, Actions · Jenkins 결정 대기) |
+| 영역 | 웹 (김도영) | 백엔드 (하은현 · 김승환) | CI (담당 `[미정]`, Actions · Jenkins 결정 대기) |
 |---|---|---|---|
 | 저장소 연결 | 입력 · 결과 표시 | 프로젝트 저장, `deploy.yaml` 파싱 · 검증 | — |
 | 이미지 빌드 | 진행 표시 | webhook 수신 · 저장 · 조회 API | Actions 빌드, 이벤트 전송 |
@@ -209,13 +235,13 @@ Page ──▶ hook ──▶ api/client ──────────▶ Daisy
 
 ## 5. 일정
 
-**와이어프레임의 모든 화면(W-00 ~ W-14, W-00b, W-05b, L-01 ~ L-03)을 10/2(금)까지 만들어요.** W-02b는 범위 제외예요. 선택 화면은 따로 두지 않아요.
+**와이어프레임의 모든 화면(W-00 ~ W-14, W-00b, W-05b, L-01 ~ L-03)을 9/30에 목업으로 완성했어요** (#15 · #18). W-02b는 범위 제외예요. 10/1 ~ 10/2는 서버 API가 열리는 대로 목업을 걷어내요.
 
 | 날짜 | 웹 | 백엔드에 필요한 시점 |
 |---|---|---|
-| D1 (9/30) | Vite 프로젝트, `tokens.css`(라이트 · 다크), **기본 컴포넌트**: Core(Button · Status Badge · Env Tag · Input · Checkbox · Env Select Card · Logo), Primitives(Icon · Spinner · Toggle · Select · Select Menu · Progress Bar · Tooltip · Avatar · Skeleton · Tab Item · Alert · Toast · Dialog · Empty State), 레이아웃(Sidebar · Nav Item · Project Menu) | 이 문서 §6 리뷰 → `WR-xx` 이름 확정 |
-| D2 (10/1) | **로그인 W-00 · W-00b, 흐름 화면 W-01 ~ W-08** (W-05b 포함). 화면 전용 컴포넌트는 화면과 같이 만들어요. 목업으로 시작해서 서버가 열리면 W-01 · W-05 · W-07부터 실서버 연결 (5초 폴링) | 인증 R-01·R-02, 개발 서버 R-08, API A-01 · A-02 · A-04, **WR-02 · WR-09** (서버 D2 약속) |
-| D3 (10/2) | 오전: **W-09 ~ W-14, L-01 ~ L-03** → 모든 화면 완성. 오후: 승인 · 결과 · 이력 서버 연결, 폴링 → SSE, 전체 흐름 1회 통과 · 데모 리허설 | API A-03 · A-05 · A-06 · A-07 · W-01, SSE, WR-03 · WR-06 · WR-07 · WR-08 · WR-11 · WR-14 (서버 D3 약속) |
+| D1 (9/30) ✅ | Vite 프로젝트, `tokens.css`(라이트 · 다크), **기본 컴포넌트**: Core(Button · Status Badge · Env Tag · Input · Checkbox · Env Select Card · Logo), Primitives(Icon · Spinner · Toggle · Select · Select Menu · Progress Bar · Tooltip · Avatar · Skeleton · Tab Item · Alert · Toast · Dialog · Empty State), 레이아웃(Sidebar · Nav Item · Project Menu) | 이 문서 §6 리뷰 → `WR-xx` 이름 확정 |
+| D2 (10/1) | ~~로그인 · 흐름 화면~~ → 9/30에 완성. 서버가 열리면 로그인 · W-01 · W-05 · W-07부터 실서버 연결 (5초 폴링) | 인증 R-01·R-02, 개발 서버 R-08, API A-01 · A-02 · A-04, **WR-02 · WR-09** (서버 D2 약속) |
+| D3 (10/2) | ~~W-09 ~ W-14 · L-01 ~ L-03~~ → 9/30에 완성. 승인 · 결과 · 이력 서버 연결, 폴링 → SSE, 전체 흐름 1회 통과 · 데모 리허설 | API A-03 · A-05 · A-06 · A-07 · W-01, SSE, WR-03 · WR-06 · WR-07 · WR-08 · WR-11 · WR-14 (서버 D3 약속) |
 | 10/3 | 10:00 제출. 남은 화면 서버 연결, 버그 수정, **목업 0개 확인**. 24:00 전체 동작 | — |
 | 10/4 | 본선 발표 (설계 문서 2분 + 라이브 데모 3분) | — |
 
@@ -278,6 +304,24 @@ Page ──▶ hook ──▶ api/client ──────────▶ Daisy
 
 기존 응답의 선택 필드 추가(`Deployment.version` · `commit_message`, `targets[].steps[]` 등)도 #13을 따라요. 웹은 필드가 없으면 "—"로 보여줘요.
 
+### 6-1-2. 선택 필드 요청 (가칭, 서버 이슈로 전달 예정)
+
+화면에 필요한데 아직 응답에 없는 필드예요. 없으면 화면이 단계 · 상태로 추정하거나 "—"로 보여줘서 막히지는 않아요. 대부분 #13(앱 요청)과 겹쳐요.
+
+| 필드 | 쓰는 곳 | 비고 |
+|---|---|---|
+| `Deployment.targets[].steps[] { name, state, duration_ms }` | W-05 · W-05b · W-07 단계 · 소요 시간 | #13 |
+| `Deployment.targets[].title` · `health_summary` | W-07 레인 · W-08 결과 카드 | #13 |
+| `PlanDetail.resources[].monthly_cost_krw` | W-06 리소스별 월 비용 | 🆕 새 요청 |
+| 동일성 검증 "앱 버전" · "환경변수 해시" (환경별) | W-01 · W-08 동일성 검증 표 | 🆕 새 요청. 지금은 digest · 커밋 · 배포 버전 · 헬스체크만 |
+| `Build.pipeline.steps[]` · `digest` | W-03 | #13 |
+| `Target`의 `runtime` · `location` · `access_method` · `exposure` · `state_backend` · `current_commit` | W-10 | #13 |
+| `Script`의 `base_commit` · `input` · `ai_tokens` · `storage` · `created_at` · `files` | W-11 | #13 |
+| `Manifest.raw` (deploy.yaml 원문) | W-13 | #13 |
+| `Project`의 `build` · `registry` · `webhook_last_at` | W-13 | #13 (A-12) |
+
+승환 님 확인 대기(#9 코멘트): WR-06 **plan 원문**은 비밀값 처리 때문에 제공 여부 미정 → 웹은 원문이 없으면 리소스 목록만 보여줘요. `reuse.available` 판단 기준, `ai_usage` 합계를 어느 응답에 둘지, 롤백 때 manifest를 어디까지 복원할지도 서버끼리 정해요.
+
 ### 6-2. 실시간 (SSE)
 
 - **연결 방식 (WR-01 확정):** `fetch`로 `Authorization: Bearer` 헤더를 붙여 스트림을 열고 직접 파싱해요. 재연결은 `Last-Event-ID` 헤더
@@ -285,7 +329,7 @@ Page ──▶ hook ──▶ api/client ──────────▶ Daisy
 - **`seq`는 채널(배포별 · 프로젝트별) 안에서 1부터** 시작해요. 다른 배포의 `seq`끼리 비교하지 않아요. 재생은 DB 기반이라 보관 기간이 없어요
 - **CORS:** 허용 헤더 `Authorization` · `Content-Type` · `Last-Event-ID` · `Idempotency-Key` · `X-Request-ID`, 노출 헤더 `X-Request-ID`, 허용 Origin `localhost:5173` · `5174` · 개발 서버. **Vite 개발 서버 포트는 5173을 써요**
 - 웹은 E-01 · E-02 이벤트를 **전부** 써요. 특히 `log.batch`(W-07), `plan.ready`(L-02 → W-06 전환), `deployment.completed`(W-08 전환)
-- 🆕 **전환 로딩 완료 신호:** L-01은 `build.received`(이미지 준비), L-02는 `plan.ready`, L-03은 첫 `step.started`(apply)로 넘어가요. 이 이벤트들이 E-01 · E-02에 있으면 추가 작업은 없어요
+- 🆕 **전환 로딩 끝 신호 (9/30 정정):** L-01은 첫 빌드가 나타날 때(`build.received` · A-06에 항목), L-02는 배포가 `queued`를 벗어날 때(첫 `step.started`), L-03은 한 환경이라도 `applying` 이후 상태가 될 때 넘어가요. L-02를 `plan.ready`로 두면 W-05를 건너뛰어서 고쳤어요. 이 이벤트들이 E-01 · E-02에 있으면 추가 작업은 없어요
 - D2까지는 A-04 · A-02 · A-06을 5초 폴링해요
 
 ### 6-3. 백엔드가 가진 정보 중 웹이 꼭 받아야 하는 것
@@ -354,8 +398,9 @@ Page ──▶ hook ──▶ api/client ──────────▶ Daisy
 와이어프레임 NOTE의 Q번호(플로우차트 설계서 "확인이 필요한 부분")를 모았어요. 이미 정해진 건 줄을 그었어요.
 
 - [ ] **앱 범위 (ADR-007)** — 앱도 전체 흐름(#8) / ADR-007대로 승인 · 진행 · 알림 · 현황만. 정해지면 §1-1과 `ios/SPEC.md` §1-1을 맞춰요 — **팀 회의 (4단계)**
-- [ ] **Q1 거절하면 어디로?** 종료 / W-04로 복귀 / AI 재생성 — 서버 · 팀
+- [ ] **Q1 거절하면 어디로?** 종료 / W-04로 복귀 / AI 재생성 — 서버 · 팀. **그전까지 웹은 개요(W-01)로 돌아가요**
 - [ ] **헬스체크 실패 시 자동 롤백을 할지** — 자동이면 승인 없이 인프라가 바뀌는 유일한 경로가 생겨요. 은현 님은 "사전 동의로 보고 넣자" 쪽 — 팀 회의
+- [ ] **롤백 범위** — 서버는 수동 롤백을 넣기로 했지만(WR-14) 루트 `AGENTS.md` §12-4에는 `[미정]`이에요. 웹은 W-09 롤백을 만들어 뒀고, 회의에서 빼기로 하면 버튼만 숨겨요 — 팀 회의
 - [ ] **Q2 빌드 · 테스트 실패 시** W-03에서 Failed + 실행 종료 + 알림으로 가정 — CI 담당 · 서버
 - [ ] **Q3 main merge마다 실행이 하나씩 쌓이는 구조** 가정 — 서버
 - [ ] **Q4 merge마다 W-04에서 환경을 고르나, 한 번 고른 환경으로 자동 진행하나** — 팀
@@ -371,8 +416,9 @@ Page ──▶ hook ──▶ api/client ──────────▶ Daisy
 - [x] ~~로그인 화면~~ → **W-00 · W-00b 추가** (9/30 와이어프레임)
 - [ ] **웹도 앱과 같은 토큰으로 로그인하나, 토큰 만료 처리** — 가정: 같은 `POST /auth/token`, `401` → W-00 — 서버 답변 대기
 - [x] ~~배포 상태 · 단계 값~~ → §2-5 (9/30 서버)
-- [ ] **상태 배지 색 매핑** — 승인 대기 · 일부 성공 · 취소됨 · 생성 중 등 디자인 시스템 Status Badge에 없는 문구 — 웹
-- [ ] **W-14 Mac 앱 파일 호스팅 위치 · 버전 정보 출처** — GitHub Releases / 웹 정적 파일 — 웹 · 앱(승준)
+- [x] ~~상태 배지 색 매핑~~ → 와이어프레임 기준 (§2-5, 9/30)
+- [x] ~~W-14 Mac 앱 호스팅 · 버전~~ → GitHub Releases `.dmg` + iPhone TestFlight (§2-3, 9/30 승준 님)
+- [x] ~~롤백 · 연결 해제 확인 문구~~ → 환경이 여러 개라 환경 이름 대신 **프로젝트 이름**을 입력해요 (9/30, 웹)
 - [ ] **W-12 AI 사용량 API** — 합계 API(WR-11)인지 A-04의 `ai_usage`인지 서버 답변이 둘 — 은현 님 확인
 - [x] ~~인증 방식 · 브라우저 SSE~~ → Bearer 하나 (9/29), 브라우저는 `fetch` 스트리밍 (WR-01, 9/30)
 - [x] ~~HTTPS 공개 주소~~ → 팀 도메인 HTTPS (9/29 회의, 서버 담당)
@@ -390,3 +436,4 @@ Page ──▶ hook ──▶ api/client ──────────▶ Daisy
 | 9/30 | 와이어프레임 수정 · 서버 답변 반영: W-00 로그인 추가, W-02b 범위 제외, W-05b 한 환경만 중단, 상태 값(§2-5), 롤백(WR-14) 범위 포함, WR-01 `fetch` 스트리밍, WR-04 · WR-05 모양 확정, W-12 배포별 보기, Q7 · Q9 · Q10 해결 | 김도영 |
 | 9/30 | 승준 님 코멘트 반영: §1-1 앱 범위는 회의 안건으로 표시(ADR-007 기준 유지), §6-1-1 앱 요청(#13) 중 웹도 쓰는 R-09 · A-10 ~ A-12 연결 | 김도영 |
 | 9/30 | W-14 Mac 앱 다운로드(Dialog) 추가 (와이어프레임 갱신) | 김도영 |
+| 9/30 | 화면 구현 반영(#15 · #18): 화면 경로 §2-6, 배지 색 확정, 전환 로딩 끝 신호 정정, 선택 필드 요청 §6-1-2, W-14 값 확정, 롤백 범위 `[미정]` 표시, 웹 담당 김도영(루트 §5-1), 일정 갱신 | 김도영 |
