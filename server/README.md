@@ -4,6 +4,8 @@
 
 Java 21, Spring Boot 3.5.16, Gradle 8.14, PostgreSQL, JPA/Flyway, Spring MVC, springdoc-openapi를 사용해요.
 
+> 현재 브랜치는 ERD 기반 엔티티 검토 단계예요. Flyway 마이그레이션이 아직 없으므로 빈 DB에 아래 기동 명령을 실행하면 `ddl-auto=validate`에서 실패해요. 스키마 검증을 끄지 않고, 후속 마이그레이션 적용 후 기동을 확인해야 해요. DB 없이 실행하는 매핑 테스트와 컴파일은 `./gradlew check build`로 확인할 수 있어요.
+
 PostgreSQL이 이미 설치되어 있다면 `server/`에서 아래처럼 실행해요. `createdb`는 처음 한 번만 필요해요. 로컬 계정에 암호가 없다면 빈 문자열을 지정할 수 있어요.
 
 ```bash
