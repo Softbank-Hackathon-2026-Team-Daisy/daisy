@@ -19,6 +19,12 @@ public enum DeploymentTargetStatus {
     this.code = code;
   }
 
+  public String code() { return code; }
+  public boolean terminal() { return this == SUCCEEDED || this == FAILED || this == CANCELLED; }
+  public boolean running() {
+    return this == GENERATING || this == VALIDATING || this == APPLYING || this == VERIFYING;
+  }
+
   @jakarta.persistence.Converter
   public static class Converter implements AttributeConverter<DeploymentTargetStatus, String> {
     @Override

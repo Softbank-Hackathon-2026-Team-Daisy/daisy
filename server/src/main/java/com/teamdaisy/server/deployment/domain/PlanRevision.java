@@ -7,6 +7,7 @@ import jakarta.persistence.Id;
 import jakarta.persistence.Table;
 import jakarta.persistence.UniqueConstraint;
 import java.time.Instant;
+import com.teamdaisy.server.common.json.CanonicalJson;
 import org.hibernate.annotations.JdbcTypeCode;
 import org.hibernate.type.SqlTypes;
 
@@ -83,4 +84,104 @@ public class PlanRevision {
   private Instant artifactExpiresAt;
 
   protected PlanRevision() {}
+
+  public static PlanRevision create(String id, String deploymentTargetId, String executionId,
+      String projectId, String targetId, int revision, String source, String sourcePlanId,
+      String inputHash, String scriptId, String artifactRef, String digest, JsonNode summary,
+      JsonNode resources, Instant now, Instant expiry, Instant artifactExpiry) {
+    var value = new PlanRevision();
+    value.id = DomainChecks.id(id);
+    value.deploymentTargetId = DomainChecks.id(deploymentTargetId);
+    value.executionId = DomainChecks.id(executionId);
+    value.projectId = DomainChecks.id(projectId);
+    value.targetId = DomainChecks.id(targetId);
+    if (revision < 1) DomainChecks.invalid();
+    value.revision = revision;
+    value.source = DomainChecks.text(source, 512);
+    value.sourcePlanId = DomainChecks.text(sourcePlanId, 255);
+    value.inputHash = DomainChecks.hash(inputHash);
+    value.scriptId = DomainChecks.id(scriptId);
+    value.artifactRef = DomainChecks.text(artifactRef, 4096);
+    value.digest = DomainChecks.hash(digest);
+    value.summary = DomainChecks.object(summary);
+    validateSummary(summary);
+    if (resources == null || !resources.isArray()) DomainChecks.invalid();
+    for (JsonNode resource : resources) {
+      if (!resource.isObject()) DomainChecks.invalid();
+      DomainChecks.text(resource.path("address").asText(), 1024);
+      JsonNode actions = resource.path("actions");
+      if (!actions.isArray() || actions.isEmpty()) DomainChecks.invalid();
+      for (JsonNode action : actions) {
+        if (!action.isTextual() || !java.util.Set.of("create", "update", "delete", "read", "no-op")
+            .contains(action.asText())) DomainChecks.invalid();
+      }
+    }
+    value.resources = CanonicalJson.snapshot(resources);
+    value.createdAt = DomainChecks.time(now);
+    value.expiresAt = DomainChecks.time(expiry);
+    if (!expiry.isAfter(now) || (artifactExpiry != null && artifactExpiry.isBefore(expiry)))
+      DomainChecks.invalid();
+    value.artifactExpiresAt = artifactExpiry;
+    value.state = "active";
+    return value;
+  }
+
+  private static void validateSummary(JsonNode summary) {
+    JsonNode counts = summary.path("counts");
+    if (!counts.isObject() || !summary.path("has_delete").isBoolean()
+        || !summary.path("risks").isArray()) DomainChecks.invalid();
+    for (String name : java.util.List.of("create", "update", "delete")) {
+      JsonNode count = counts.path(name);
+      if (!count.isIntegralNumber() || !count.canConvertToInt() || count.asInt() < 0) DomainChecks.invalid();
+    }
+    if (summary.path("has_delete").asBoolean() != (counts.path("delete").asInt() > 0)) DomainChecks.invalid();
+    for (JsonNode risk : summary.path("risks")) {
+      if (!risk.isObject() || !risk.path("level").isTextual())
+        DomainChecks.invalid();
+      DomainChecks.text(risk.path("level").asText(), 32);
+      for (String field : java.util.List.of("rule", "resource", "message")) {
+        if (!risk.path(field).isTextual()) DomainChecks.invalid();
+        DomainChecks.text(risk.path(field).asText(), field.equals("message") ? 4096 : 1024);
+      }
+    }
+  }
+
+  public void assertUsable(String expectedId, String expectedDigest, String expectedInputHash, Instant now) {
+    DomainChecks.time(now);
+    DomainChecks.require("active".equals(state) && id.equals(expectedId)
+        && digest.equals(expectedDigest) && inputHash.equals(expectedInputHash)
+        && now.isBefore(expiresAt)
+        && (artifactExpiresAt == null || now.isBefore(artifactExpiresAt)));
+  }
+
+  public void invalidate(String reason, Instant now) {
+    DomainChecks.text(reason, 255);
+    DomainChecks.time(now);
+    if (!"active".equals(state)) return;
+    state = "expired".equals(reason) ? "expired" : "superseded";
+    invalidatedAt = now;
+    invalidationReason = reason;
+  }
+
+  public boolean hasDelete() { return summary.path("has_delete").asBoolean(); }
+  public String id() { return id; }
+  public String deploymentTargetId() { return deploymentTargetId; }
+  public String executionId() { return executionId; }
+  public String projectId() { return projectId; }
+  public String targetId() { return targetId; }
+  public int revision() { return revision; }
+  public String source() { return source; }
+  public String sourcePlanId() { return sourcePlanId; }
+  public String inputHash() { return inputHash; }
+  public String scriptId() { return scriptId; }
+  public String artifactRef() { return artifactRef; }
+  public String digest() { return digest; }
+  public JsonNode summary() { return summary.deepCopy(); }
+  public JsonNode resources() { return resources.deepCopy(); }
+  public String state() { return state; }
+  public Instant createdAt() { return createdAt; }
+  public Instant expiresAt() { return expiresAt; }
+  public Instant artifactExpiresAt() { return artifactExpiresAt; }
+  public Instant invalidatedAt() { return invalidatedAt; }
+  public String invalidationReason() { return invalidationReason; }
 }
