@@ -111,6 +111,10 @@ xcodebuild -project ios/Daisy.xcodeproj -scheme Daisy -destination 'generic/plat
 
 # Tests run on macOS with ad-hoc signing
 xcodebuild test -project ios/Daisy.xcodeproj -scheme Daisy -destination 'platform=macOS' CODE_SIGN_IDENTITY=- CODE_SIGN_STYLE=Manual DEVELOPMENT_TEAM=""
+
+# TestFlight upload (only when the owner asks): tests → archive → upload, build number = yyMMddHHmm
+ios/scripts/testflight.sh          # iOS
+ios/scripts/testflight.sh macos    # macOS, after the macOS platform is added in App Store Connect
 ```
 
 Set the server address (dev or demo server) in the app's settings screen and log in.
@@ -118,7 +122,7 @@ Set the server address (dev or demo server) in the app's settings screen and log
 ## 8. Ask your human first
 
 - Adding a Swift package, a new target, or an extension; changing the minimum OS, bundle ID, signing, capabilities, or entitlements
-- `xcodebuild archive`, uploading to App Store Connect, TestFlight distribution (the human does these)
+- `xcodebuild archive`, uploading to App Store Connect, TestFlight distribution. Run `ios/scripts/testflight.sh` only when the owner asks in this session. Signing into Apple, creating the App Store Connect record, and adding testers are the owner's steps; guide them
 - Anything involving the APNs `.p8` key, demo account credentials, or the Apple Developer account
 
 ## 9. Decisions log
@@ -140,6 +144,7 @@ Tier per root §6. Tier 1 entries are final for this area.
 | 9/30 | Custom sidebar at width ≥ 700 instead of `.sidebarAdaptable` | The system sidebar cannot take the HUD material, the no-divider boundary, or the tint animation from the AfterPlan design | 1 |
 | 9/30 | Design: AfterPlan materials, sidebar, and motion; Craft-style glass buttons; `PageScaffold` headers | Owner's design references (Design section above) | 1 |
 | 9/30 | Feature UX matches the web (flow, wording, `+/~/-` notation); check web branches and PRs before building a shared flow | Owner decision: one product on two clients | 1 |
+| 9/30 | TestFlight: signing team `X5F5WM2H6M` (owner's paid individual account, automatic signing); App Store Connect record **"Daisy Deploy"** (app ID 6817687110; "Daisy" is taken by another account, the home-screen name stays Daisy); `PrivacyInfo.xcprivacy` declares UserDefaults (CA92.1), no tracking; build numbers are `yyMMddHHmm` so they only go up across branches and squash merges; first build 0.1.0 (1) uploaded | Upload is rejected without a privacy manifest; a git-count build number would drop after squash merges | 1 |
 | 9/30 | App icon: the owner's daisy logo. iOS gets a full-bleed opaque 1024 square; macOS gets the logo inside Apple's rounded-rect grid (824 of 1024, radius 185.4, soft shadow) at 16–1024. The sidebar header uses the same logo (`AppLogo`) | Owner's asset. The source is 200×200, so replace it with a 1024+ original before release | 1 |
 | 9/30 | From Figma, take wording only; keep this app's colors and shapes; icons are the nearest SF Symbols | Owner decision. 도영's memo asked for web shapes (radius ≤ 4, no pills) and the owner chose the app's own look | 1 |
 | 9/30 | Menu and wording follow the web: 개요 · 배포 · 승인 · 이력 · 설정; status labels 대기 중 · 배포 중 · 성공 · 실패 · 주의 · 롤백됨; `리소스 +6 ~0 −0`; W-00 login and error messages | Same product on two clients | 1 |
