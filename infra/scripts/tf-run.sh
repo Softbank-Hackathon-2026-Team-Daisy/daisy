@@ -26,6 +26,7 @@ usage() {
   EXPECTED_GCP_PROJECT apply·destroy 전에 VAR_FILE의 project_id 확인
   TF_RUN_APPROVED      Jenkins input 승인 뒤에만 $ENV 값으로 설정
   TF_DESTROY=1         plan을 삭제 plan으로 만들어요 (Jenkins CD의 DESTROY). apply가 그 plan으로 지워요
+  PLAN_ONLY=1          apply·destroy를 막아요 (개인 계정 0원 모드, SPEC §12-5)
 EOF
   exit 2
 }
@@ -90,6 +91,7 @@ check_account() {
 }
 
 confirm() {
+  [[ ${PLAN_ONLY:-} != 1 ]] || die "PLAN_ONLY=1이라 $CMD 을(를) 막았어요 (개인 계정 0원 모드)"
   if [[ ${TF_RUN_APPROVED:-} == "$ENV" ]]; then
     echo "tf-run: 승인됨 (TF_RUN_APPROVED=$ENV)"
     return

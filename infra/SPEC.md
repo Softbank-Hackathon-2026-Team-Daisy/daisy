@@ -450,10 +450,17 @@ PR은 300줄 이하로 나눠요: ① 이 명세 ② bootstrap ③ AWS 모듈 �
 
 ### 12-5. 개인 계정 단계
 
-- **AWS**:
-  - root에 MFA를 켜고, IAM 사용자 `daisy-deployer`로 액세스 키를 만들어요. SSO는 Organizations가 필요하고 Free plan이 유료 plan으로 바뀌어서 쓰지 않아요
-  - Budgets 알림을 $5 정도로 설정해요
-  - 2025-07-15 이후 만든 계정은 크레딧 기반이고 Fargate 무료 사용량이 없어요. 기본 구성이 시간당 약 $0.05라서 **apply → 확인 → destroy를 1시간 안에** 끝내요
+**원칙: 개인 계정에서는 돈이 한 푼도 나오지 않게 해요.**
+
+- **AWS: plan까지만 해요 (0원 보장)**
+  - 개인 계정이 2025-07-15 이전 가입이라 12개월 프리티어가 끝났어요. ALB · Fargate · EC2 · 공인 IPv4가 모두 유료라, 리소스를 띄우는 순간 돈이 나와요
+  - plan은 조회 API만 써서 아무것도 만들지 않아요. 모듈이 실제 AWS에서 맞는지와 Jenkins CD 흐름을 여기까지 검증해요
+  - 보장 장치 세 겹:
+    1. IAM 사용자 `daisy-deployer`에 **`ReadOnlyAccess`만** 줘요. 실수로 승인해도 AWS가 생성을 거부해요
+    2. Jenkins 전역 환경변수 **`PLAN_ONLY=1`**: CD가 plan에서 끝나고, `tf-run.sh`도 apply · destroy를 막아요
+    3. Billing → Budgets → **Zero spend budget**: $0.01만 나와도 메일이 와요
+  - root에 MFA를 켜요. SSO · Organizations는 쓰지 않아요
+  - apply → 헬스체크 → destroy는 **팀 계정(₩300,000 지원금)**에서 해요. 그때 `PLAN_ONLY`를 지우고 `daisy-deployer` 권한을 §3-5로 바꿔요
 - **GCP**:
   - 프로젝트를 만들고 결제 계정을 연결해요 (프리티어도 결제 계정이 필요해요). 예산 알림도 설정해요
   - SA `daisy-deployer` 키를 발급해요. 조직이 없는 개인 계정이라 키 생성 제한 정책이 없어요
@@ -500,3 +507,4 @@ PR은 300줄 이하로 나눠요: ① 이 명세 ② bootstrap ③ AWS 모듈 �
 | 2026-09-30 | Jenkins 러너 VM 프로토타입(§12)과 서버 이전 체크리스트(§13) 추가. 공개 GHCR 직접 pull 사실 반영(D-3, §6-3), GHCR 비공개 확인(D-12), plan 파일 이름·state 잠금 권한 수정 |
 | 2026-09-30 | 결정 기록을 `infra/AGENTS.md` §9로 옮김 (#10). `infra/CLAUDE.md` 참조를 `AGENTS.md`로 바꿈 |
 | 2026-09-30 | AWS 기준 모듈 구현(§5, `database: false` 경로 우선). Google provider 제약을 `~> 8.0`으로 수정 (최신 8.5.0) |
+| 2026-09-30 | 개인 AWS 계정은 plan까지만 (ReadOnlyAccess · `PLAN_ONLY=1` · Zero spend budget). CD에 `DESTROY`·`PLAN_ONLY` 추가 |

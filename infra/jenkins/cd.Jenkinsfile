@@ -5,7 +5,8 @@
 // 온프레미스는 황지환 영역이라 아직 선택지에 없어요.
 //
 // 필요한 Jenkins Credentials: aws-deployer (Username/Password = 액세스 키 ID/시크릿), gcp-deployer (Secret file = SA JSON)
-// 선택 Jenkins 전역 환경변수: TF_STATE_BUCKET, EXPECTED_AWS_ACCOUNT, EXPECTED_GCP_PROJECT
+// 선택 Jenkins 전역 환경변수: TF_STATE_BUCKET, EXPECTED_AWS_ACCOUNT, EXPECTED_GCP_PROJECT,
+//   PLAN_ONLY=1 (plan까지만 하고 승인·apply를 건너뛰어요. 개인 계정 0원 모드, SPEC §12-5)
 // 러너에 1번 등록: $JENKINS_HOME/daisy-work/targets/<env>.json (예: {"project_id": "...", "region": "asia-northeast3"})
 pipeline {
   agent any
@@ -89,6 +90,7 @@ pipeline {
     }
 
     stage('Approve') {
+      when { expression { env.PLAN_ONLY != '1' } }
       steps {
         script {
           def summary = ''
@@ -107,6 +109,7 @@ pipeline {
     }
 
     stage('Apply') {
+      when { expression { env.PLAN_ONLY != '1' } }
       steps {
         script {
           forEachTarget('apply') { t ->
@@ -119,7 +122,7 @@ pipeline {
     }
 
     stage('Health check') {
-      when { expression { !params.DESTROY } }
+      when { expression { !params.DESTROY && env.PLAN_ONLY != '1' } }
       steps {
         script {
           forEachTarget('check') { t ->
@@ -146,7 +149,9 @@ pipeline {
   post {
     success {
       script {
-        if (params.DESTROY) {
+        if (env.PLAN_ONLY == '1') {
+          echo "PLAN_ONLY: plan까지만 했어요 (승인·apply 건너뜀). 리소스는 만들지 않았어요"
+        } else if (params.DESTROY) {
           echo "삭제 완료: ${targets().join(', ')}"
         } else {
           sh 'cat result-*.txt'
