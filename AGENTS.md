@@ -2,7 +2,7 @@
 
 You are a coding agent working for one member of Team Daisy at SoftBank Hackathon 2026 in Korea (Term 1 prelims). This file is the team-wide contract that every agent in every area follows. Read all of it at the start of a session, then read the `AGENTS.md` of the area you are about to change.
 
-- Status: v1.1 (2026-09-30, synced with the 9/29 meeting, server decisions, and the 9/30 wireframe changes). Owner: team lead (김도영). Change it only by PR with team review.
+- Status: v1.2 (2026-09-30 evening, synced with the 9/29 meeting, every area's decisions logs, PR answers, and Slack up to 20:35; source list: `ios/BOARD.md` on PR #8). Owner: team lead (김도영). Change it only by PR with team review.
 - This file is written in English for precision. **Everything you write for humans is in Korean** (see §11).
 - Some area folders may still have a `CLAUDE.md` instead of an `AGENTS.md`. Treat it as that area's `AGENTS.md`. Where it says "root `CLAUDE.md`", it means this file.
 
@@ -55,7 +55,7 @@ These exist because a mistake here costs money, leaks secrets, or breaks the dem
 3. **Never push to `main`, and never force-push a branch someone else uses.** Every change goes through a PR.
 4. **Never edit files in an area you do not own**, in this repo or the sample repos. Open an issue instead (§9). The only exception: the owner explicitly asks you to in that issue or PR.
 5. **Never change a team decision or shared contract on your own** (§5-2, §12). Propose it with `(가칭)` and take it to the team (§6).
-6. **Label every mock.** `// MOCK:` in code and a visible badge on screen. The presentation rules forbid hiding mocks. Areas decide whether they use mocks at all (`web/` uses them in `src/mocks/`, `ios/` does not); report every remaining mock to your human before the 10/3 submission.
+6. **Label every mock.** `// MOCK:` in code and a visible badge on screen. The presentation rules forbid hiding mocks. Areas decide whether they use mocks at all (`web/` keeps them in `src/mocks/`; `ios/` has one offline sample mode with a badge on every screen); report every remaining mock to your human before the 10/3 submission.
 7. **Never report work as done without verifying it** (§7 step 6). If a test fails or you skipped a step, say so.
 
 ## 5. Areas and owners
@@ -70,7 +70,7 @@ These exist because a mistake here costs money, leaks secrets, or breaks the dem
 | Server: API, deployment state machine, approvals, `terraform apply` execution, locks, SSE, CI webhook, history · rollback | `server/` | 하은현 (`gkdmsgus`) |
 | Server: `deploy.yaml` parsing, AI Terraform generation, validate/fix loop, common Terraform CLI runner, script reuse, AI cost | `server/` | 김승환 (`7SH7`) |
 | On-prem Terraform module, Docker runtime, tunnel | `infra/modules/onprem/` | 황지환 (`jihwan77`) |
-| Cloud Terraform modules (GCP, AWS), state backends, runner prototype | `infra/modules/gcp/`, `infra/modules/aws/`, `infra/bootstrap/` (가칭) | 임채준 (`dlacowns21`) |
+| Cloud Terraform modules (GCP, AWS), state backends, Jenkins runner prototype | `infra/modules/gcp/`, `infra/modules/aws/`, `infra/jenkins/`, `infra/scripts/` | 임채준 (`dlacowns21`) |
 | CI for this repo | `.github/workflows/` | 김도영 |
 | Sample monolith app (HelloCalc) and its image pipeline (N-01) | repo `sample-monolith` | 박승준 (app), 김도영 (Actions) |
 | Sample MSA app (HelloCalc MSA: one frontend + one backend container) | repo `sample-msa` | 박승준 |
@@ -193,7 +193,7 @@ End every task with a short report in Korean:
 - **Branches.** `{part}/{type}-{short-desc}`. part: `web`, `ios`, `server`, `infra`, `docs`, `ci`. type: `feat`, `fix`, `refactor`, `docs`, `chore`, `test`.
 - **Commits.** Conventional Commits with the part as scope: `feat(server): ...`. Add `Refs: N-03` when a PoC is involved.
 - **PRs.** Fill in the org PR template. Squash merge only; merged branches are deleted automatically. Aim for under 300 changed lines. Changes to a shared contract add the consumer owners as reviewers.
-- **Merging.** `daisy` needs one approval (plus the CODEOWNERS team for `server/` and `infra/`), and pushing a new commit dismisses earlier approvals. `sample-monolith` and `sample-msa` allow self-merge after a PR. On 10/3–10/4 self-merge is allowed everywhere.
+- **Merging.** `daisy` needs one approval (plus the CODEOWNERS team for `server/` and `infra/`), and pushing a new commit dismisses earlier approvals. The `protect-main` ruleset has no bypass; only 김도영 is an org owner. `sample-monolith` and `sample-msa` allow self-merge after a PR. On 10/3–10/4 self-merge is allowed everywhere.
 - Full details: `CONTRIBUTING.md`.
 
 ## 12. Project reference
@@ -241,15 +241,23 @@ The sample repos stand in for a user's app. Do not mix their code into `daisy`. 
 
 **Decided in the 9/29 meeting (Notion ADR entries pending):** backend is **Spring Boot**; public access uses a **purchased domain with HTTPS** (server owners); roles: web is 김도영, the Swift app is 박승준; build features first and add visualization (e.g. loading screens) afterwards; the presenter is chosen on 10/3; part meetings use Slack huddles (backend daily 18:00–19:00).
 
-**Decided by the owning area (server decisions log, PR #9 replies, 9/30 Slack):**
+**Decided by the owning area** (decisions logs, PR answers, Slack; one line each, details in the area files):
 
-- Auth: one **Bearer** token for REST and SSE. The web reads SSE with `fetch` streaming. GitHub is used only to connect repos, not to log in. Demo accounts (`viewer`) can read but get 403 on approve.
-- Deployment state, two layers. Whole deployment: `queued · running · awaiting_approval · succeeded · partially_succeeded · failed · cancelled`. Per environment: `waiting · generating · validating · awaiting_approval · applying · verifying · succeeded · failed · cancelled`. Steps: `generate · validate · plan · risk_check · apply · health_check`. Unknown values must not crash clients.
-- `attempt` counts per environment, 3 in total; a stale re-plan does not count and needs a new approval.
-- Starting a deployment: `POST /projects/{id}/deployments`; the image identity is `image_digest`, not only the tag.
-- Rollback is in scope: a new deployment (`kind: "rollback"`) that goes through plan approval.
-- Source upload (W-02b) is out of scope; the service never builds user code.
-- AI cost: USD summed per deployment, converted at a fixed rate, always shown as an estimate with the rate. Clients poll every 5 s until SSE is ready (D3).
+- **API and server** (하은현 · 김승환)
+  - One **Bearer** token for REST and SSE; GitHub only connects repos (no OAuth login). Demo accounts (`viewer`) can read but get 403 on approve.
+  - JSON is `snake_case`; times are ISO 8601 UTC; KRW amounts are integers; states and steps are strings and unknown values must not crash clients. Single source of the contract: the server's OpenAPI.
+  - Deployment state, two layers. Whole deployment: `queued · running · awaiting_approval · succeeded · partially_succeeded · failed · cancelled`. Per environment: `waiting · generating · validating · awaiting_approval · applying · verifying · succeeded · failed · cancelled`. Steps: `generate · validate · plan · risk_check · apply · health_check`.
+  - `attempt` counts per environment, 3 in total including the first generation; one environment failing does not stop the others; a stale re-plan does not count and needs a new approval. Cancel works before apply; after that it is a stop request.
+  - SSE: `id` = per-channel `seq` starting at 1, reconnect with `Last-Event-ID`, heartbeat every 15 s. Clients poll every 5 s until SSE ships (D3).
+  - Paths: start a deployment with `POST /projects/{id}/deployments`; environment picker `GET /projects/{id}/targets` is separate from `targets/status`; deleting a project only disconnects it. Image identity is `image_digest`, not only the tag.
+  - Rollback is in scope: a new deployment (`kind: "rollback"`) from an earlier successful commit and its validated script, per environment, with plan approval.
+  - Out of the v0.1 draft: source upload, analysis, IR editing, recommendations, observability, canary. Manifest errors use `MANIFEST_INVALID`.
+  - Stack: Spring Boot 3.5 · Java 21 · Postgres job queue · Flyway migrations. 김승환 produces the plan detail and the generated Terraform files; 하은현 exposes them.
+  - AI cost: USD summed per deployment, converted at a fixed rate, always shown as an estimate with the rate.
+- **Web** (김도영): React + Vite + TypeScript, `react-router`, CSS variable tokens (no UI kit); labeled MSW mocks in `src/mocks/`; SSE via `fetch` streaming. Wireframe changes 9/30: upload (W-02b) removed, W-05b "○○만 다시 시도" (no "skip and continue"), W-12 AI usage per deployment, W-14 Mac download.
+- **App** (박승준): one SwiftUI codebase for iOS 18 / macOS 15; TestFlight app "Daisy Deploy"; offline sample mode with a badge on every screen; Mac DMG (notarized) at the fixed URL `…/releases/download/mac-latest/Daisy.dmg` used by W-14.
+- **Infra** (황지환 · 임채준): Terraform plan file is `plan.tfplan`; AWS is ECS Fargate + ALB in public subnets without NAT; cloud order AWS → GCP; apply and destroy only after human approval (`TF_RUN_APPROVED`); low-cost defaults (3-day logs, no deletion protection); the personal AWS account only runs plan, apply happens on the team account.
+- **Sample repos**: image tags are commit hashes even locally (no `latest`); in `sample-msa` the Cloud Run backend allows unauthenticated calls but only through `internal` ingress.
 
 **Undecided `[미정]`:** `deploy.yaml` schema (flat vs `services:` map) and secret delivery, container registry (Docker Hub / GHCR; GHCR used for now), CI/CD tool scope (GitHub Actions for app images; Jenkins runner being prototyped in `infra/`), on-prem deploy method and its relation to Terraform (ADR-003), HTTPS exposure method (Cloudflare Tunnel proposed), LLM and the fixed exchange rate, Terraform state store, ADR-007 widening, automatic rollback on health-check failure (proposed by 하은현), demo account and auth scope, "왜 AI인가" sentence, cloud-specific features.
 
