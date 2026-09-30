@@ -8,7 +8,7 @@
 
 배포 흐름 **전체**를 돌리는 웹 대시보드예요 (ADR-007): 저장소 연결, 환경 선택, plan 확인 · 승인, 병렬 배포 진행, 결과 · 이력.
 
-- 화면: W-01 ~ W-13, 전환 로딩 L-01 ~ L-03 (`SPEC.md` §2)
+- 화면: W-00 ~ W-13 (W-02b는 범위 제외), 전환 로딩 L-01 ~ L-03 (`SPEC.md` §2)
 - 웹은 GitHub, 클라우드 API, Terraform에 직접 붙지 않아요. 모든 데이터는 Daisy 서버 API를 거쳐요
 - 화면은 Figma [와이어프레임 v1.0](https://www.figma.com/design/5nqU4xotMh5jcsaDqOcTST/Team-Daisy-%EC%98%88%EC%84%A0?node-id=0-1), 모양은 [디자인 시스템](https://www.figma.com/design/5nqU4xotMh5jcsaDqOcTST/Team-Daisy-%EC%98%88%EC%84%A0?node-id=2-4)을 따라요 (둘 다 9/30 확정)
 
@@ -21,8 +21,8 @@
 | REST API 경로 | `ios/SPEC.md` §6 (공용), `SPEC.md` §6-1 (웹 신규 `WR-xx`) | 공용은 9/29 서버 확정. `WR-xx`는 `(가칭)` |
 | 응답 필드 | `ios/SPEC.md` §6-7, `SPEC.md` §6-4 | 서버 OpenAPI가 나올 때까지 `(가칭)` |
 | SSE 채널 · 이벤트 | `ios/SPEC.md` §6-3, `SPEC.md` §6-2 | 이름 확정. 서버 SSE는 D3, 그전까지 5초 폴링 |
-| 인증 | `ios/SPEC.md` §6-1 | Bearer 하나 (REST · SSE). **브라우저 SSE 방식은 `WR-01`로 서버가 결정** |
-| 배포 상태 · 단계 이름 | 서버 | 서버 이름을 그대로 따라요. 모르는 값은 중립 상태로 표시하고 죽지 않아요 |
+| 인증 | `ios/SPEC.md` §6-1 | Bearer 하나 (REST · SSE). 브라우저 SSE는 **`fetch` 스트리밍**으로 헤더를 붙여요 (`WR-01`, 9/30 확정) |
+| 배포 상태 · 단계 이름 | `SPEC.md` §2-5 | 9/30 서버 확정. 모르는 값은 중립 상태로 표시하고 죽지 않아요 |
 | `deploy.yaml` 스키마 | 루트 §12-5 | `[미정]`: 팀 회의만 |
 
 전부 루트 §6의 3단계예요: 이름과 모양은 서버 담당자가 정해요.
@@ -141,7 +141,8 @@
 - 라우팅은 `react-router`. 화면마다 URL이 있어서 푸시 · 공유 링크로 바로 들어올 수 있어요
 - **Node 22 LTS**(`web/.nvmrc`), 패키지 매니저는 **pnpm 9**(`package.json`의 `packageManager`로 고정). `npm` · `yarn`은 쓰지 않아요. lock 파일은 `pnpm-lock.yaml` 하나만 커밋해요
 - 스타일은 일반 CSS. §5 토큰을 `src/styles/tokens.css`에 CSS 변수로 둬요. UI 키트 · CSS 프레임워크 · 차트 라이브러리는 쓰지 않아요
-- 서버 호출은 `fetch`, 실시간은 SSE이고 실패하면 5초 폴링. 긴 로그가 느려지면 TanStack Virtual을 추가해요
+- 서버 호출은 `fetch`. 실시간은 `EventSource` 대신 **`fetch` 스트림으로 SSE를 직접 파싱**하고(`Authorization` 헤더), 실패하면 5초 폴링. 긴 로그가 느려지면 TanStack Virtual을 추가해요
+- Vite 개발 서버 포트는 **5173** (서버 CORS 허용 Origin)
 
 ```
 web/
@@ -205,7 +206,8 @@ pnpm build
 | 9/30 | 화면 폴더는 `src/pages/` | Figma가 `src/pages/loading/captions.ts`로 지정 | 1 |
 | 9/30 | 목업 허용. `src/mocks/`에만, 항상 표시 | 서버 API가 D2~D3에 나와서 그전에 화면을 만들어야 해요 | 1 |
 | 9/29 | 서버 SSE 전(D3)까지 5초 폴링 | PR #1에서 서버와 합의 | 1 |
-| 9/30 | 브라우저 SSE 인증 방식 (`WR-01`) | `EventSource`는 헤더를 못 붙여요. 서버가 결정 | 3 (`(가칭)`) |
+| 9/30 | 브라우저 SSE는 `fetch` 스트리밍 + `Authorization` 헤더 (`WR-01`) | `EventSource`는 헤더를 못 붙여요. 서버 변경 없이 웹이 처리 | 3 (서버 확정) |
+| 9/30 | W-02b 업로드 범위 제외, W-00 로그인 추가, 롤백(W-09 · WR-14) 포함 | 와이어프레임 수정 · 서버 답변 (PR #9) | 3 (서버 · 팀) |
 | 9/30 | `react-router` 사용 | 화면 14개, 푸시 · 공유 링크로 W-06 같은 화면에 바로 들어와야 해요. ADR-006에 기록 | 1 |
 | 9/30 | Node 22 LTS 고정, 패키지 매니저 pnpm 9 | LTS로 데모 서버 · CI와 맞춰요. pnpm은 설치가 빠르고, `package.json`에 없는 패키지를 못 불러와서 몰래 늘어나는 의존성을 막아요 | 1 |
 | 9/30 | 날짜별 작업 로그 `web/docs/work-log/` | 과정 · 결정 · 막힌 것을 남겨 설계 문서와 심사 Q&A 근거로 써요. 결정은 이 표에도 같이 적어요 | 1 |
