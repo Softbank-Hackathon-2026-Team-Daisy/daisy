@@ -25,7 +25,13 @@ struct HistoryView: View {
     @State private var store = HistoryStore()
 
     var body: some View {
-        Group {
+        PageScaffold("커밋", subtitle: "main에 들어간 커밋과 파이프라인") {
+            Button { Task { await store.refresh(using: app) } } label: {
+                Label("새로 고침", systemImage: "arrow.clockwise")
+            }
+            .buttonStyle(.glassCircle)
+            .help("새로 고침")
+        } content: {
             if app.client == nil {
                 NotConnectedView()
             } else if app.selectedProjectID == nil {
@@ -38,11 +44,11 @@ struct HistoryView: View {
                                 ContentUnavailableView("빌드 기록이 없어요", systemImage: "hammer")
                             }
                         }
+                        .onContentSurface()
                         .refreshable { await store.refresh(using: app) }
                 }
             }
         }
-        .navigationTitle("커밋")
         .task(id: app.selectedProjectID) { await store.refresh(using: app) }
     }
 }

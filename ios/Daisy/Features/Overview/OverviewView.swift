@@ -6,7 +6,16 @@ struct OverviewView: View {
     @State private var store = OverviewStore()
 
     var body: some View {
-        Group {
+        PageScaffold("현황", subtitle: "환경마다 지금 떠 있는 버전") {
+            if app.client != nil {
+                projectMenu
+                Button { Task { await store.refreshStatuses(using: app) } } label: {
+                    Label("새로 고침", systemImage: "arrow.clockwise")
+                }
+                .buttonStyle(.glassCircle)
+                .help("새로 고침")
+            }
+        } content: {
             if app.client == nil {
                 NotConnectedView()
             } else {
@@ -15,8 +24,6 @@ struct OverviewView: View {
                 }
             }
         }
-        .navigationTitle("현황")
-        .toolbar { projectPicker }
         .task(id: app.client == nil) { await store.loadProjects(using: app) }
         .task(id: app.selectedProjectID) {
             store.reset()
@@ -76,17 +83,28 @@ struct OverviewView: View {
         }
     }
 
-    @ToolbarContentBuilder
-    private var projectPicker: some ToolbarContent {
+    /// Craft의 캡슐 버튼 모양으로 프로젝트를 골라요.
+    @ViewBuilder
+    private var projectMenu: some View {
         if let projects = store.projects.value, !projects.isEmpty {
-            ToolbarItem {
+            Menu {
                 Picker("프로젝트", selection: Binding(
                     get: { app.selectedProjectID ?? "" },
                     set: { app.selectedProjectID = $0 }
                 )) {
                     ForEach(projects) { Text($0.name).tag($0.id) }
                 }
+            } label: {
+                HStack(spacing: 6) {
+                    Image(systemName: "folder")
+                    Text(projects.first { $0.id == app.selectedProjectID }?.name ?? "프로젝트")
+                    Image(systemName: "chevron.down").font(.caption2.weight(.semibold))
+                }
             }
+            .menuStyle(.button)
+            .menuIndicator(.hidden)
+            .buttonStyle(.glassCapsule)
+            .fixedSize()
         }
     }
 }

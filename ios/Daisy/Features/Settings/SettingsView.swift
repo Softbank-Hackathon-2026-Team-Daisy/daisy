@@ -10,6 +10,7 @@ struct SettingsView: View {
 
     var body: some View {
         @Bindable var app = app
+        PageScaffold("설정") {
         Form {
             Section {
                 TextField("https://api.example.com", text: $app.serverURLString)
@@ -48,7 +49,9 @@ struct SettingsView: View {
                 LabeledContent("버전", value: Bundle.main.versionText)
             }
         }
-        .navigationTitle("설정")
+        .formStyle(.grouped)
+        .onContentSurface()
+        }
     }
 
     private func signIn() async {

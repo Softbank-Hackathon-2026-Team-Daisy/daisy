@@ -14,9 +14,15 @@ struct PlanApprovalView: View {
             Form {
                 ForEach(plan.targets) { target in
                     Section(target.targetId) {
-                        LabeledContent("생성 · 변경 · 삭제") {
-                            Text("\(target.counts.create) · \(target.counts.update) · \(target.counts.delete)")
-                                .monospacedDigit()
+                        // 웹 플랜 승인 화면과 같은 +/~/- 표기
+                        LabeledContent("리소스") {
+                            HStack(spacing: 10) {
+                                Text("+\(target.counts.create)").foregroundStyle(.green)
+                                Text("~\(target.counts.update)").foregroundStyle(.orange)
+                                Text("-\(target.counts.delete)").foregroundStyle(target.counts.delete > 0 ? .red : .secondary)
+                            }
+                            .font(.body.monospacedDigit().weight(.medium))
+                            .accessibilityLabel("생성 \(target.counts.create), 변경 \(target.counts.update), 삭제 \(target.counts.delete)")
                         }
                         if target.hasDelete {
                             Label("삭제되는 리소스가 있어요", systemImage: "trash")
@@ -41,6 +47,8 @@ struct PlanApprovalView: View {
                 }
                 decisionSection(plan)
             }
+            .formStyle(.grouped)
+            .onContentSurface()
         }
         .navigationTitle("plan 승인")
         .task { await store.load(using: app) }

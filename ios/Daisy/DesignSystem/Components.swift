@@ -131,10 +131,21 @@ struct AdaptiveGrid<Content: View>: View {
 }
 
 extension View {
-    /// 카드 모양 배경.
-    func cardStyle() -> some View {
-        padding(14)
+    /// 카드 (AfterPlan 카드 모양): 모서리 12, 옅은 면, 가는 선. 포인터가 올라가면 조금 진해져요.
+    func cardStyle() -> some View { modifier(CardStyle()) }
+}
+
+private struct CardStyle: ViewModifier {
+    @State private var hovered = false
+
+    func body(content: Content) -> some View {
+        content
+            .padding(14)
             .frame(maxWidth: .infinity, alignment: .leading)
-            .background(.fill.tertiary, in: .rect(cornerRadius: 12))
+            .background(hovered ? AnyShapeStyle(.fill.tertiary) : AnyShapeStyle(.fill.quaternary),
+                        in: .rect(cornerRadius: 12))
+            .overlay(RoundedRectangle(cornerRadius: 12).strokeBorder(.separator, lineWidth: 0.5))
+            .onHover { hovered = $0 }
+            .animation(.easeOut(duration: 0.12), value: hovered)
     }
 }

@@ -6,7 +6,13 @@ struct ApprovalsView: View {
     @State private var store = DeploymentsStore()
 
     var body: some View {
-        Group {
+        PageScaffold("승인", subtitle: "사람이 확인해야 배포돼요") {
+            Button { Task { await refresh() } } label: {
+                Label("새로 고침", systemImage: "arrow.clockwise")
+            }
+            .buttonStyle(.glassCircle)
+            .help("새로 고침")
+        } content: {
             if app.client == nil {
                 NotConnectedView()
             } else if app.selectedProjectID == nil {
@@ -21,11 +27,11 @@ struct ApprovalsView: View {
                             ContentUnavailableView("승인할 plan이 없어요", systemImage: "checkmark.seal")
                         }
                     }
+                    .onContentSurface()
                     .refreshable { await refresh() }
                 }
             }
         }
-        .navigationTitle("승인")
         .navigationDestination(for: String.self) { PlanApprovalView(deploymentID: $0) }
         .task(id: app.selectedProjectID) { await poll { await refresh() } }
     }
