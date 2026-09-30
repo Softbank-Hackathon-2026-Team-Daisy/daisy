@@ -22,6 +22,15 @@
   fill: var(--color-ink);
 }
 
+/* 3층이 다 쌓이면 200ms 페이드아웃 */
+.infra-block__blocks {
+  transition: opacity 200ms ease;
+}
+
+.infra-block__blocks--fading {
+  opacity: 0;
+}
+
 /* 24px 위에서 450ms로 내려앉아요 (살짝 튕김) */
 .infra-block__drop {
   animation: infra-drop 450ms cubic-bezier(0.34, 1.4, 0.64, 1) both;

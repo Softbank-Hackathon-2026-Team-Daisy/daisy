@@ -37,17 +37,21 @@ type InfraBlockProps = {
   stack: 0 | 1 | 2 | 3
   // 애니메이션 중이면 새로 쌓이는 블록에 떨어지는 모션을 줘요
   animated?: boolean
+  // 3층이 다 쌓인 뒤 블록들이 한꺼번에 사라질 때 (바닥은 그대로)
+  fading?: boolean
 }
 
-function InfraBlock({ stack, animated = false }: InfraBlockProps) {
+function InfraBlock({ stack, animated = false, fading = false }: InfraBlockProps) {
   return (
     <svg className="infra-block" viewBox="0 0 172 196" width="172" height="196" aria-hidden="true">
       <Shape faces={GROUND} />
-      {BLOCKS.slice(0, stack).map((faces, i) => (
-        <g key={i} className={animated && i === stack - 1 ? 'infra-block__drop' : undefined}>
-          <Shape faces={faces} />
-        </g>
-      ))}
+      <g className={fading ? 'infra-block__blocks infra-block__blocks--fading' : 'infra-block__blocks'}>
+        {BLOCKS.slice(0, stack).map((faces, i) => (
+          <g key={i} className={animated && i === stack - 1 ? 'infra-block__drop' : undefined}>
+            <Shape faces={faces} />
+          </g>
+        ))}
+      </g>
     </svg>
   )
 }

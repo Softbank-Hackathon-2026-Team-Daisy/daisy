@@ -20,6 +20,7 @@ class MockError extends Error {
 // ── 시간에 따라 진행하는 배포 (dep_live) ──
 let live: { startedAt: number; approvedAt: number | null } | null = null
 let buildStartedAt: number | null = null
+let connectedAt: number | null = null
 
 function liveDeployment(): Deployment {
   if (!live) throw new MockError(404, 'NOT_FOUND', '배포를 찾을 수 없어요')
@@ -30,12 +31,16 @@ function liveDeployment(): Deployment {
   base.pending_approval = null
 
   if (live.approvedAt === null) {
-    if (t < 4) {
+    if (t < 3) {
+      // L-02: 생성 시작 전 (작업 큐 대기)
+      base.state = 'queued'
+      base.targets.forEach((_, i) => set(i, { state: 'waiting', step: 'generate', attempt: 1, error_summary: null }))
+    } else if (t < 7) {
       base.state = 'running'
       set(0, { state: 'validating', step: 'plan', error_summary: null })
       set(1, { state: 'generating', step: 'generate', attempt: 1, error_summary: null })
       set(2, { state: 'generating', step: 'generate' })
-    } else if (t < 10) {
+    } else if (t < 13) {
       // W-05와 같은 모습: AWS 시도 2/3
     } else {
       base.state = 'awaiting_approval'
@@ -48,7 +53,15 @@ function liveDeployment(): Deployment {
   const a = (Date.now() - live.approvedAt) / 1000
   const result = clone(s.deployments.dep_result)
   result.id = 'dep_live'
-  if (a < 6) {
+  if (a < 3) {
+    // L-03: apply 준비 중 (승인 접수, 락 · 작업 디렉터리 준비)
+    const preparing = clone(s.deployments.dep_approve)
+    preparing.id = 'dep_live'
+    preparing.state = 'running'
+    preparing.pending_approval = null
+    return preparing
+  }
+  if (a < 9) {
     const apply = clone(s.deployments.dep_apply)
     apply.id = 'dep_live'
     return apply
@@ -128,6 +141,8 @@ export const mockApi = {
   // 처음 부른 뒤 6초가 지나면 빌드가 끝나요 (W-03 → W-04로 넘어가는 모습을 보려고)
   async listBuilds(_projectId: string) {
     await wait()
+    // L-01: 저장소를 막 연결했으면 첫 빌드가 4초 뒤에 나타나요
+    if (connectedAt && Date.now() - connectedAt < 4000) return { items: [], next_cursor: null }
     buildStartedAt ??= Date.now()
     const items = clone(s.builds)
     if (Date.now() - buildStartedAt > 6000) {
@@ -150,6 +165,8 @@ export const mockApi = {
   },
   async createProject(repository: string, branch: string) {
     await wait(600)
+    connectedAt = Date.now()
+    buildStartedAt = connectedAt + 4000
     return { project: { ...clone(s.projects[0]), repository, branch }, manifest: clone(s.manifest) }
   },
 }

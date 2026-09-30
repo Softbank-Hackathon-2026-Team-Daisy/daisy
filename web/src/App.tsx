@@ -3,6 +3,8 @@ import { MOCK_PROJECTS } from './mocks/workspace.ts'
 import AppLayout from './pages/AppLayout.tsx'
 import BuildPage from './pages/build/BuildPage.tsx'
 import ConnectPage from './pages/connect/ConnectPage.tsx'
+import ProgressPage from './pages/deploy/ProgressPage.tsx'
+import GeneratePage from './pages/generate/GeneratePage.tsx'
 import LoginPage from './pages/login/LoginPage.tsx'
 import OverviewPage from './pages/overview/OverviewPage.tsx'
 import TargetsPage from './pages/targets/TargetsPage.tsx'
@@ -29,9 +31,9 @@ function App() {
             element={<Placeholder id="배포" title="진행 중인 배포" note="진행 중인 배포의 현재 단계(W-05 ~ W-08)로 보내요. 서버 API A-03이 열리면 연결해요." />}
           />
           <Route path="deployments/:deploymentId">
-            <Route path="generate" element={<Placeholder id="W-05 · W-05b · STEP 4" title="인프라 코드 생성 · 검증" note="전환 로딩 L-02(W-04 → W-05)는 이 화면으로 들어올 때 띄워요." />} />
+            <Route path="generate" element={<GeneratePage />} />
             <Route path="approve" element={<Placeholder id="W-06 · STEP 5" title="변경 사항 확인 후 승인" />} />
-            <Route path="progress" element={<Placeholder id="W-07 · STEP 5" title="배포 중" note="전환 로딩 L-03(W-06 → W-07)은 이 화면으로 들어올 때 띄워요." />} />
+            <Route path="progress" element={<ProgressPage />} />
             <Route path="result" element={<Placeholder id="W-08 · STEP 6" title="배포 결과" />} />
           </Route>
           <Route path="history" element={<Placeholder id="W-09" title="배포 이력 · 롤백" />} />

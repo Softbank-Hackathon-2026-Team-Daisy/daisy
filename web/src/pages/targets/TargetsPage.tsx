@@ -50,7 +50,7 @@ function TargetsPage() {
     setError(null)
     try {
       const d = await api.createDeployment(projectId, commit, selected.map((t) => t.target_id))
-      navigate(paths.generate(projectId, d.id))
+      navigate(paths.generate(projectId, d.id), { state: { transition: 'l02' } })
     } catch (e) {
       setError(e instanceof ApiError ? e.message : '배포를 시작하지 못했어요')
       setPending(false)

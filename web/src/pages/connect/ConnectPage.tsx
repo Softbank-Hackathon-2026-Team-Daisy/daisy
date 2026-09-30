@@ -43,7 +43,7 @@ function ConnectPage() {
     try {
       const res = await api.createProject(url.trim(), branch)
       setManifest(res.manifest)
-      if (res.manifest.errors.length === 0) navigate(paths.build(res.project.id))
+      if (res.manifest.errors.length === 0) navigate(paths.build(res.project.id), { state: { transition: 'l01' } })
     } catch (e) {
       setError(e instanceof ApiError ? e.message : '연결하지 못했어요')
     } finally {
