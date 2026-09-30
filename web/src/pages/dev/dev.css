@@ -1,0 +1,85 @@
+/* 개발용 확인 페이지 전용 스타일 */
+
+.dev-page {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-12);
+  max-width: 1340px;
+  padding: var(--space-12);
+}
+
+.dev-page section {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+}
+
+.dev-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.dev-theme {
+  display: flex;
+  gap: var(--space-2);
+}
+
+.dev-theme button {
+  padding: var(--space-1) var(--space-3);
+  border: var(--border);
+  border-radius: var(--radius-md);
+  background: var(--color-bg);
+  cursor: pointer;
+}
+
+.dev-theme button[aria-pressed='true'] {
+  background: var(--color-surface-strong);
+}
+
+.dev-swatches {
+  display: grid;
+  grid-template-columns: repeat(6, 160px);
+  gap: var(--space-4) var(--space-3);
+}
+
+.dev-swatch {
+  height: 40px;
+  border: var(--border);
+  border-radius: var(--radius-sm);
+}
+
+.dev-type-row {
+  display: grid;
+  grid-template-columns: 220px 1fr;
+  align-items: baseline;
+}
+
+.dev-row {
+  flex-direction: row !important;
+  gap: var(--space-16) !important;
+}
+
+.dev-space {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+}
+
+.dev-space span {
+  height: 8px;
+  background: var(--color-ink);
+}
+
+.dev-radii {
+  display: flex;
+  gap: var(--space-4);
+}
+
+.dev-radius {
+  width: 56px;
+  height: 56px;
+  margin-bottom: var(--space-2);
+  border: var(--border);
+  background: var(--color-surface);
+}
