@@ -29,7 +29,7 @@ public class EventJournal {
       "processing_result", "create", "update", "delete", "has_delete", "expires_at", "request_id", "receipt_hash",
       "duration_ms", "started_at", "stage_occurrence_id");
   private static final Pattern SECRET = Pattern.compile(
-      "(?i)(-----BEGIN [A-Z ]*PRIVATE KEY|bearer\\s+\\S+|(?:password|secret|token|authorization|credential|access[_-]?key)\\s*[:=]\\s*\\S+|AKIA[A-Z0-9]{16}|gh[pousr]_[A-Za-z0-9]{20,})");
+      "(?i)(-----BEGIN [A-Z ]*PRIVATE KEY|bearer\\s+|(?:password|secret|token|authorization|credential|access[_-]?key)\\s*[:=]|AKIA[A-Z0-9]{16}|gh[pousr]_[A-Za-z0-9]{20,})");
   private final NamedParameterJdbcTemplate jdbc;
   private final ObjectMapper mapper;
   private final CanonicalJson json;
@@ -181,7 +181,7 @@ public class EventJournal {
     return json.hash(mapper.valueToTree(Map.of("deployment_id",deploymentId,"event",source)));
   }
 
-  void validate(DeploymentEvent e) {
+  public void validate(DeploymentEvent e) {
     require(e!=null,ErrorCode.VALIDATION_FAILED);
     text(e.source(),512,false); text(e.sourceEventId(),255,false); text(e.executionId(),64,true);
     text(e.deploymentTargetId(),64,true); text(e.stageOccurrenceId(),255,true); text(e.sourceStream(),512,true);
