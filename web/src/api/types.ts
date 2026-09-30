@@ -142,7 +142,8 @@ export type Plan = {
 export type PlanDetail = {
   target_id: string
   resources: { address: string; action: 'create' | 'update' | 'delete' | 'replace'; monthly_cost_krw?: number }[]
-  plan_text: string
+  // plan 원문 — 비밀값 처리 때문에 제공 여부 미정(승환 님, #9). 없으면 화면이 리소스 목록만 보여줘요
+  plan_text?: string
 }
 
 // A-06 GET /projects/{id}/builds

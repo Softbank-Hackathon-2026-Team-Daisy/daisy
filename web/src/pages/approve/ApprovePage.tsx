@@ -141,7 +141,7 @@ function ApproveView({ d, plan, detail, reload }: { d: Deployment; plan: Plan; d
                 validate · plan · 위험 설정 검사를 모두 통과했어요.
               </Alert>
             )}
-            <CodeBlock file={`${current.type} · terraform plan`} code={currentDetail.plan_text} />
+            {currentDetail.plan_text && <CodeBlock file={`${current.type} · terraform plan`} code={currentDetail.plan_text} />}
           </>
         ) : (
           <p className="t-muted">이 환경은 plan이 없어요.</p>
