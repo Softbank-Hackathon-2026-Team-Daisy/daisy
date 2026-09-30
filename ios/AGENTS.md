@@ -22,7 +22,7 @@ A native SwiftUI app that shows Daisy deployments on iPhone and Mac: **view, app
 | Response fields | `SPEC.md` §6-7 | `Plan` decided (server `PlanSummary`). Other fields `(가칭)` until server publishes OpenAPI |
 | SSE channels and events | `SPEC.md` §6-3 | Names decided. Server ships SSE on D3; poll every 5 s until then |
 | Auth, demo viewer account, dev server | `SPEC.md` §6-1 | Decided: Bearer only (no cookies). Ships D2 |
-| HTTPS public address | `SPEC.md` R-04 | `[미정]`: team meeting 9/29 |
+| HTTPS public address | `SPEC.md` R-04 | Decided 9/29: purchased domain + HTTPS, set up by server by 9/30 afternoon |
 | Push device registration and APNs sending | `SPEC.md` §6-5 | Paths decided; unregister is `DELETE /devices` with the token in the body. Server does APNs only if time allows; use local notifications until then |
 | CI event payload fields | `SPEC.md` §7 | `(가칭)`: server (하은현) forwards it to CI (김도영) as an issue |
 
@@ -73,6 +73,8 @@ ios/
 - Map the server error envelope to `APIError`. `401 UNAUTHENTICATED` → login screen. `409 STATE_CONFLICT` → reload the latest state. A viewer account gets `403` on approval; show it as "읽기 전용 계정".
 - `#if os(iOS)` / `#if os(macOS)` only in `App/` and `DesignSystem/`, never in feature logic.
 - User-facing strings are Korean, 해요체.
+- Show AI cost as an estimate: label it "추정" and show the exchange rate the server applied.
+- When `approval.required` arrives again for a deployment whose `attempt` did not change, the server re-ran a stale plan. Show the approval card again with the same "시도 n/3" and say the plan was refreshed.
 - Show `attempt` as "시도 n/3". It counts the first generation, so it starts at 1 and the AI fixes at most twice. Never label it as a retry count.
 
 ## 7. Commands
