@@ -138,6 +138,7 @@ Tier per root §6. Tier 1 entries are final for this area.
 | 9/30 | Custom sidebar at width ≥ 700 instead of `.sidebarAdaptable` | The system sidebar cannot take the HUD material, the no-divider boundary, or the tint animation from the AfterPlan design | 1 |
 | 9/30 | Design: AfterPlan materials, sidebar, and motion; Craft-style glass buttons; `PageScaffold` headers | Owner's design references (Design section above) | 1 |
 | 9/30 | Feature UX matches the web (flow, wording, `+/~/-` notation); check web branches and PRs before building a shared flow | Owner decision: one product on two clients | 1 |
+| 9/30 | App icon: the owner's daisy logo. iOS gets a full-bleed opaque 1024 square; macOS gets the logo inside Apple's rounded-rect grid (824 of 1024, radius 185.4, soft shadow) at 16–1024. The sidebar header uses the same logo (`AppLogo`) | Owner's asset. The source is 200×200, so replace it with a 1024+ original before release | 1 |
 | 9/30 | Tests use Swift Testing; sample JSON lives only in `DaisyTests` | No mock data in the app (§4) | 1 |
 | 9/29 | The app does not start deployments or change infrastructure | Keeps the app inside ADR-007 and keeps the server work small | 1 |
 | 9/29 | Widen ADR-007: add overview, commit history, macOS | Proposed in `SPEC.md` §1-2; needs the team meeting | 4 (`(가칭)`) |

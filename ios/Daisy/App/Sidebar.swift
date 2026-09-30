@@ -34,11 +34,12 @@ struct Sidebar: View {
     /// Craft의 공간 이름 자리: 앱 이름과 연결 상태.
     private var header: some View {
         HStack(spacing: 10) {
-            Image(systemName: "camera.macro")
-                .font(.system(size: 15, weight: .semibold))
-                .foregroundStyle(.white)
+            Image(.appLogo)
+                .resizable()
+                .interpolation(.high)
                 .frame(width: 26, height: 26)
-                .background(.tint, in: .rect(cornerRadius: 7))
+                .clipShape(.rect(cornerRadius: 7))
+                .accessibilityHidden(true)
             VStack(alignment: .leading, spacing: 1) {
                 Text("Daisy").font(.system(size: 15, weight: .semibold))
                 Text(app.client == nil ? "서버 연결 안 됨" : (app.isViewer ? "읽기 전용" : "연결됨"))
