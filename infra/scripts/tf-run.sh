@@ -1,13 +1,18 @@
 #!/usr/bin/env bash
 # infra/SPEC.md §3-4 러너 규약의 참고 구현이에요 (Jenkins 러너 · 사람이 직접 실행 공용).
-# 팀의 정식 러너가 정해지면(SPEC D-2) 그쪽이 같은 순서를 따르면 돼요.
 #
 #   tf-run.sh <aws|gcp> <plan|apply|destroy|output>
 #
-# - 작업 디렉터리는 레포 밖: $WORK_ROOT/$APP/$ENV/{src,state}. state·plan에 비밀값이 들어가요
-# - src/는 plan 때만 infra/modules/$ENV/에서 새로 복사하고, state/는 지우지 않아요
+# 작업 디렉터리는 레포 밖이에요. state·plan에 비밀값이 들어가요.
+#   $WORK_ROOT/$APP/$ENV/state/        로컬 backend의 state (고정, 지우지 않아요)
+#   $WORK_ROOT/$APP/$ENV/plans/<id>/   plan마다 분리: src/(모듈 복사본·plan.tfplan) · vars.json · meta.json
+#   $WORK_ROOT/$APP/$ENV/current       마지막으로 apply한 plan (output이 써요)
+#
+# - plan과 apply는 다른 실행이에요 (Jenkins daisy-cd-plan → 승인 → daisy-cd-apply, SPEC §12-7)
+# - 승인 대기 중인 plan은 새 plan이 덮어쓰지 않아요. apply는 PLAN_ID로 그 plan만 적용해요
+# - 같은 앱·환경에서는 한 번에 한 작업만 돌아요 (flock). state 잠금은 backend가 따로 걸어요
 # - 자격증명은 설정하지 않아요. 호출하는 쪽이 환경변수로 넣어요
-# - apply·destroy는 승인이 있어야 실행돼요: 터미널에서 환경 이름 입력, 또는 Jenkins input 승인 뒤 TF_RUN_APPROVED=$ENV
+# - apply·destroy는 승인이 있어야 실행돼요: 터미널에서 환경 이름 입력, 또는 승인된 실행에서 TF_RUN_APPROVED=$ENV
 set -euo pipefail
 umask 077
 
@@ -15,17 +20,23 @@ usage() {
   cat >&2 <<'EOF'
 사용법: tf-run.sh <aws|gcp> <plan|apply|destroy|output>
 
+  plan     plans/<PLAN_ID>/에 plan을 만들어요 (TF_DESTROY=1이면 삭제 plan)
+  apply    plans/<PLAN_ID>/의 plan을 적용해요. 승인 필요
+  destroy  삭제 plan을 만들고 바로 적용해요 (터미널용). 승인 필요
+  output   마지막으로 apply한 plan의 service_url
+
 환경변수
   APP                  앱 이름 (기본 hellocalc). state key와 작업 디렉터리에 써요
+  PLAN_ID              plan 식별자. Jenkins는 daisy-cd-plan-<빌드 번호>. plan에서 비우면 manual-<시각>
   IMAGE_TAG            커밋 해시 40자. plan·destroy에 필수 (latest 금지)
   WORK_ROOT            작업 루트, 레포 밖 (기본 ~/daisy-work)
-  VAR_FILE             비밀값 없는 변수 파일 (기본 $WORK_ROOT/$APP/$ENV.tfvars.json)
+  VAR_FILE             비밀값 없는 변수 파일 (기본 $WORK_ROOT/$APP/$ENV.tfvars.json). plan 때 plan 폴더로 복사해요
   TF_STATE_BUCKET      있으면 S3 backend (key $APP/$ENV/terraform.tfstate), 없으면 로컬 state
   TF_STATE_REGION      state 버킷 리전 (기본 ap-northeast-2)
   EXPECTED_AWS_ACCOUNT apply·destroy 전에 AWS 계정 ID 확인
-  EXPECTED_GCP_PROJECT apply·destroy 전에 VAR_FILE의 project_id 확인
-  TF_RUN_APPROVED      Jenkins input 승인 뒤에만 $ENV 값으로 설정
-  TF_DESTROY=1         plan을 삭제 plan으로 만들어요 (Jenkins CD의 DESTROY). apply가 그 plan으로 지워요
+  EXPECTED_GCP_PROJECT apply·destroy 전에 변수 파일의 project_id 확인
+  TF_RUN_APPROVED      승인된 실행(daisy-cd-apply)에서만 $ENV 값으로 설정
+  TF_DESTROY=1         plan을 삭제 plan으로 만들어요
   PLAN_ONLY=1          apply·destroy를 막아요 (개인 계정 0원 모드, SPEC §12-5)
 EOF
   exit 2
@@ -45,35 +56,40 @@ WORK_ROOT=${WORK_ROOT:-$HOME/daisy-work}
 [[ $WORK_ROOT == /* ]] || WORK_ROOT="$PWD/$WORK_ROOT"
 case "$WORK_ROOT/" in "$REPO_ROOT/"*) die "WORK_ROOT가 레포 안이에요: $WORK_ROOT" ;; esac
 WORK="$WORK_ROOT/$APP/$ENV"
-VAR_FILE=${VAR_FILE:-$WORK_ROOT/$APP/$ENV.tfvars.json}
 export TF_PLUGIN_CACHE_DIR=${TF_PLUGIN_CACHE_DIR:-$HOME/.terraform.d/plugin-cache}
 export TF_IN_AUTOMATION=1
-mkdir -p "$WORK/state" "$TF_PLUGIN_CACHE_DIR"
+mkdir -p "$WORK/state" "$WORK/plans" "$TF_PLUGIN_CACHE_DIR"
 
-tf() { terraform -chdir="$WORK/src" "$@"; }
+# 같은 앱·환경에서 plan·apply가 겹치지 않게 해요
+exec 9>"$WORK/.lock"
+flock -w "${TF_RUN_LOCK_WAIT:-600}" 9 || die "$APP/$ENV 에서 다른 작업이 끝나지 않았어요 (${TF_RUN_LOCK_WAIT:-600}초 대기). 끝난 뒤 다시 실행해요"
+
+PLAN_DIR="" # set_plan_dir에서 정해요
+tf() { terraform -chdir="$PLAN_DIR/src" "$@"; }
+
+set_plan_dir() {
+  [[ $PLAN_ID =~ ^[A-Za-z0-9._-]{1,80}$ ]] || die "PLAN_ID 형식이 맞지 않아요: '$PLAN_ID'"
+  PLAN_DIR="$WORK/plans/$PLAN_ID"
+}
 
 need_tag() {
   [[ ${IMAGE_TAG:-} =~ ^[0-9a-f]{40}$ ]] || die "IMAGE_TAG는 커밋 해시 40자여야 해요: '${IMAGE_TAG:-}'"
 }
 
-need_var_file() {
-  [[ -f $VAR_FILE ]] || die "변수 파일이 없어요: $VAR_FILE"
-}
-
 init() {
   local args=(-input=false -no-color)
   if [[ -n ${TF_STATE_BUCKET:-} ]]; then
-    printf 'terraform {\n  backend "s3" {}\n}\n' >"$WORK/src/backend.tf"
+    printf 'terraform {\n  backend "s3" {}\n}\n' >"$PLAN_DIR/src/backend.tf"
     args+=(-backend-config="bucket=$TF_STATE_BUCKET"
       -backend-config="key=$APP/$ENV/terraform.tfstate"
       -backend-config="region=${TF_STATE_REGION:-ap-northeast-2}"
       -backend-config="encrypt=true"
       -backend-config="use_lockfile=true")
   else
-    printf 'terraform {\n  backend "local" {}\n}\n' >"$WORK/src/backend.tf"
+    printf 'terraform {\n  backend "local" {}\n}\n' >"$PLAN_DIR/src/backend.tf"
     args+=(-backend-config="path=$WORK/state/terraform.tfstate")
   fi
-  [[ -f $WORK/src/.terraform.lock.hcl ]] && args+=(-lockfile=readonly)
+  [[ -f $PLAN_DIR/src/.terraform.lock.hcl ]] && args+=(-lockfile=readonly)
   tf init "${args[@]}"
 }
 
@@ -85,7 +101,7 @@ check_account() {
   fi
   if [[ $ENV == gcp && -n ${EXPECTED_GCP_PROJECT:-} ]]; then
     local actual
-    actual=$(jq -r '.project_id // empty' "$VAR_FILE")
+    actual=$(jq -r '.project_id // empty' "$PLAN_DIR/vars.json")
     [[ $actual == "$EXPECTED_GCP_PROJECT" ]] || die "GCP 프로젝트가 달라요: '$actual' (기대값 $EXPECTED_GCP_PROJECT)"
   fi
 }
@@ -93,64 +109,103 @@ check_account() {
 confirm() {
   [[ ${PLAN_ONLY:-} != 1 ]] || die "PLAN_ONLY=1이라 $CMD 을(를) 막았어요 (개인 계정 0원 모드)"
   if [[ ${TF_RUN_APPROVED:-} == "$ENV" ]]; then
-    echo "tf-run: 승인됨 (TF_RUN_APPROVED=$ENV)"
+    echo "tf-run: 승인됨 (TF_RUN_APPROVED=$ENV, PLAN_ID=$PLAN_ID)"
     return
   fi
   { : </dev/tty; } 2>/dev/null ||
-    die "승인이 필요해요. 터미널에서 실행하거나, Jenkins input 승인 뒤 TF_RUN_APPROVED=$ENV 로 실행해요"
-  printf '%s %s 을(를) 실행하려면 환경 이름(%s)을 입력하세요: ' "$ENV" "$CMD" "$ENV" >/dev/tty
+    die "승인이 필요해요. 터미널에서 실행하거나, 승인된 실행(daisy-cd-apply)에서 TF_RUN_APPROVED=$ENV 로 실행해요"
+  printf '%s %s (%s) 을(를) 실행하려면 환경 이름(%s)을 입력하세요: ' "$ENV" "$CMD" "$PLAN_ID" "$ENV" >/dev/tty
   local answer
   read -r answer </dev/tty
   [[ $answer == "$ENV" ]] || die "취소했어요"
 }
 
-summarize() { # plan JSON → "create=3 update=1" 한 줄 (Jenkins 승인 화면용)
-  tf show -json "$1" >"$WORK/src/plan.json"
+make_plan() { # $1 = 1이면 삭제 plan
+  need_tag
+  local var_file=${VAR_FILE:-$WORK_ROOT/$APP/$ENV.tfvars.json}
+  [[ -f $var_file ]] || die "변수 파일이 없어요: $var_file"
+  compgen -G "$MODULE_DIR/*.tf" >/dev/null || die "모듈이 아직 없어요: $MODULE_DIR"
+  [[ ! -e $PLAN_DIR ]] || die "같은 PLAN_ID의 plan이 이미 있어요: $PLAN_ID"
+  mkdir -p "$PLAN_DIR/src"
+  cp "$MODULE_DIR"/*.tf "$PLAN_DIR/src/"
+  [[ -f $MODULE_DIR/.terraform.lock.hcl ]] && cp "$MODULE_DIR/.terraform.lock.hcl" "$PLAN_DIR/src/"
+  cp "$var_file" "$PLAN_DIR/vars.json"
+  init
+  tf validate -no-color
+  local plan_args=()
+  [[ $1 == 1 ]] && plan_args+=(-destroy)
+  tf plan -input=false -no-color ${plan_args[@]+"${plan_args[@]}"} -out=plan.tfplan \
+    -var-file="$PLAN_DIR/vars.json" -var="image_tag=$IMAGE_TAG"
+  # 승인 화면용 요약 한 줄 ("create=3 update=1")
+  tf show -json plan.tfplan >"$PLAN_DIR/src/plan.json"
   jq -r '[.resource_changes[]?.change.actions | join("+")]
     | map(select(. != "no-op" and . != "read")) | group_by(.)
     | map("\(.[0])=\(length)") | join(" ")
-    | if . == "" then "변경 없음" else . end' "$WORK/src/plan.json" | tee "$WORK/src/summary.txt"
+    | if . == "" then "변경 없음" else . end' "$PLAN_DIR/src/plan.json" | tee "$PLAN_DIR/summary.txt"
+  jq -n --arg id "$PLAN_ID" --arg app "$APP" --arg env "$ENV" --arg tag "$IMAGE_TAG" \
+    --argjson destroy "$([[ $1 == 1 ]] && echo true || echo false)" \
+    --arg sha "$(sha256sum "$PLAN_DIR/src/plan.tfplan" | cut -d' ' -f1)" \
+    --arg summary "$(cat "$PLAN_DIR/summary.txt")" --arg at "$(date -u +%FT%TZ)" \
+    '{plan_id: $id, app: $app, env: $env, image_tag: $tag, destroy: $destroy,
+      plan_sha256: $sha, summary: $summary, created_at: $at, applied_at: null}' >"$PLAN_DIR/meta.json"
+  echo "tf-run: plan ID $PLAN_ID"
+}
+
+apply_plan() {
+  [[ -f $PLAN_DIR/meta.json ]] || die "plan이 없어요: $PLAN_ID"
+  [[ $(jq -r .applied_at "$PLAN_DIR/meta.json") == null ]] || die "이미 적용한 plan이에요: $PLAN_ID"
+  [[ -f $PLAN_DIR/src/plan.tfplan ]] || die "plan 파일이 없어요: $PLAN_ID"
+  [[ $(sha256sum "$PLAN_DIR/src/plan.tfplan" | cut -d' ' -f1) == $(jq -r .plan_sha256 "$PLAN_DIR/meta.json") ]] ||
+    die "plan 파일이 승인한 것과 달라요: $PLAN_ID (다시 plan · 승인해요)"
+  check_account
+  confirm
+  # 그사이 다른 apply로 state가 바뀌었으면 terraform이 "Saved plan is stale"로 거부해요
+  tf apply -input=false -no-color plan.tfplan
+  local tmp destroy
+  tmp=$(mktemp)
+  jq --arg at "$(date -u +%FT%TZ)" '.applied_at = $at' "$PLAN_DIR/meta.json" >"$tmp" && mv "$tmp" "$PLAN_DIR/meta.json"
+  rm -f "$PLAN_DIR/src/plan.tfplan" "$PLAN_DIR/src/plan.json" # 비밀값이 들어 있어요
+  destroy=$(jq -r .destroy "$PLAN_DIR/meta.json")
+  if [[ $destroy == true ]]; then
+    rm -f "$WORK/current"
+  else
+    ln -sfn "plans/$PLAN_ID" "$WORK/current"
+    tf output -raw service_url && echo
+  fi
+}
+
+prune_plans() { # 하루 지난 plan 폴더를 지워요. 마지막으로 apply한 plan은 남겨요
+  local keep
+  keep=$(readlink "$WORK/current" 2>/dev/null || true)
+  keep=${keep##*/}
+  find "$WORK/plans" -mindepth 1 -maxdepth 1 -type d -mtime +0 ! -name "${keep:-.}" -exec rm -rf {} +
 }
 
 case $CMD in
 plan)
-  need_tag
-  need_var_file
-  compgen -G "$MODULE_DIR/*.tf" >/dev/null || die "모듈이 아직 없어요: $MODULE_DIR"
-  rm -rf "$WORK/src"
-  mkdir -p "$WORK/src"
-  cp "$MODULE_DIR"/*.tf "$WORK/src/"
-  [[ -f $MODULE_DIR/.terraform.lock.hcl ]] && cp "$MODULE_DIR/.terraform.lock.hcl" "$WORK/src/"
-  init
-  tf validate -no-color
-  plan_args=()
-  [[ ${TF_DESTROY:-} == 1 ]] && plan_args+=(-destroy)
-  tf plan -input=false -no-color ${plan_args[@]+"${plan_args[@]}"} -out=plan.tfplan -var-file="$VAR_FILE" -var="image_tag=$IMAGE_TAG"
-  summarize plan.tfplan
+  PLAN_ID=${PLAN_ID:-manual-$(date +%Y%m%d-%H%M%S)}
+  set_plan_dir
+  prune_plans
+  make_plan "$([[ ${TF_DESTROY:-} == 1 ]] && echo 1 || echo 0)"
   ;;
 apply)
-  [[ -f $WORK/src/plan.tfplan ]] || die "plan이 없어요. 먼저 plan을 실행해요"
-  need_var_file
-  check_account
-  confirm
-  tf apply -input=false -no-color plan.tfplan
-  rm -f "$WORK/src/plan.tfplan"
-  tf output -raw service_url && echo
+  [[ -n ${PLAN_ID:-} ]] || die "PLAN_ID가 필요해요 (승인한 plan)"
+  set_plan_dir
+  apply_plan
   ;;
 destroy)
-  need_tag
-  need_var_file
-  [[ -d $WORK/src/.terraform ]] || die "작업 디렉터리가 없어요: $WORK/src (apply한 적이 없으면 지울 것도 없어요)"
-  init
-  tf plan -destroy -input=false -no-color -out=destroy.tfplan -var-file="$VAR_FILE" -var="image_tag=$IMAGE_TAG"
-  summarize destroy.tfplan
-  check_account
-  confirm
-  tf apply -input=false -no-color destroy.tfplan
-  rm -f "$WORK/src/destroy.tfplan"
+  [[ -e $WORK/current ]] || die "적용한 plan이 없어요 (apply한 적이 없으면 지울 것도 없어요)"
+  # 마지막으로 적용한 plan의 이미지 태그와 변수로 삭제 plan을 만들어요
+  IMAGE_TAG=${IMAGE_TAG:-$(jq -r .image_tag "$WORK/current/meta.json")}
+  VAR_FILE=${VAR_FILE:-$WORK/current/vars.json}
+  PLAN_ID=${PLAN_ID:-manual-destroy-$(date +%Y%m%d-%H%M%S)}
+  set_plan_dir
+  make_plan 1
+  apply_plan
   ;;
 output)
-  [[ -d $WORK/src/.terraform ]] || die "작업 디렉터리가 없어요: $WORK/src"
+  [[ -e $WORK/current ]] || die "적용한 plan이 없어요: $WORK/current"
+  PLAN_DIR="$WORK/current"
   tf output -raw service_url
   echo
   ;;
