@@ -628,7 +628,7 @@ daisy-cd-apply ◀── 서버가 buildWithParameters(PLAN_BUILD=N, APPROVAL_ID
 | 오류 | 429 · 5xx는 SDK가 재시도해요. 키 · 권한 · 네트워크 오류는 시도를 쓰지 않고 바로 멈춰요 |
 | provider 고정 | 생성 코드에 기준 모듈의 `.terraform.lock.hcl`을 그대로 붙여요 |
 | 키 | Jenkins Credentials `claude-api-key`(Secret text) → `ANTHROPIC_API_KEY` 환경변수. 코드 · 로그에 남기지 않아요 |
-| 비용 (추정) | 1회 약 $0.3~0.5 (입력 $4 · 출력 $20 / 1M 토큰, 캐시 읽기 $0.20). 환경당 최대 3회. 재사용이면 0원 |
+| 비용 (추정) | 1회 약 $0.2 (입력 $4 · 출력 $20 / 1M 토큰, 캐시 읽기 $0.20). 10/1 #9 실측 토큰으로 약 $0.16이에요 (출력 7,926 대부분이 생각 · 파일). 환경당 최대 3회. 재사용이면 0원 |
 
 ### 17-3. 위험 검사 (`infra/ai/risk_check.py`)
 
@@ -658,7 +658,17 @@ GCP 규칙은 GCP 모듈과 함께 추가해요 (지금은 구조 검사만).
 - `risk_check.py`: 일부러 위반 18가지를 넣은 plan에서 모두 검출, 기준 모듈 + 정상 plan은 통과
 - `daisy-cd-plan` #6 (`USE_AI=false`): `plan_with_ai.py` → tf-run 단계 표시 → `No changes` → 위험 검사 통과 → 요약에 `mode: reference`, AI 0회
 - 러너에 `anthropic` 1.11.0 (`/opt/daisy-ai/venv`), `beta.messages.stream`의 `fallbacks` · `output_config` 인자 확인
-- **아직 안 한 것**: 실제 Claude API 호출(키 등록 대기), 수정 루프가 오류를 고치는 장면, 재사용(AI 0회) 2회차 확인
+- **실제 Claude API로 처음부터 배포** (개인 AWS 계정, 앱 삭제 후, `USE_AI=true`):
+
+| 실행 | 결과 |
+|---|---|
+| `daisy-cd-plan` #8 | AI 응답은 받았지만 `message._request_id`(SDK에 없는 속성)에서 멈춤 → `stream.request_id`로 수정 |
+| `daisy-cd-plan` #9 | **AI 1회로 통과**. 메모 "unchanged", 받은 3파일이 기준 모듈과 같아요(diff 확인). `Plan: 15 to add` (고정 VPC 사용) → 위험 검사 통과 → 검증된 스크립트 저장. 86초 중 AI 약 60초. 토큰 입력 286 · 출력 7,926 · 캐시 읽기 8,801 |
+| `daisy-cd-apply` #3 (사람 승인) | `15 added`, 230초. 헬스체크 200, 스모크 테스트 12개 PASS (커밋 일치) |
+| `daisy-cd-plan` #10 (같은 입력) | **재사용, AI 0회**, `No changes`, 17초 |
+| `daisy-cd-plan` #11 (`DESTROY`) | `delete=15`, AI 0회 (마지막으로 적용한 코드로 삭제 plan) |
+
+- **아직 안 한 것**: 수정 루프가 실제 오류를 고치는 장면(기준 모듈로 충분한 앱은 첫 시도에 통과해요. DB가 필요한 앱 같은 입력으로 확인 예정)
 
 ## 15. 변경 기록
 
@@ -672,6 +682,9 @@ GCP 규칙은 GCP 모듈과 함께 추가해요 (지금은 구조 검사만).
 | 2026-10-01 | 온프레미스 명세(§16) 추가: 설치 현황, 데모 범위, 네트워크·HTTPS, Jenkins 실행·승인 합의, 미정 계약과 완료 기준 |
 | 2026-10-01 | §16 보완: CI/CD VM 사양과 Zone 대역, 인프라팀 CI/CD 담당, 빌드·이미지 전달 검증, 작업 폴더·state 및 AI 생성·저장 협의 항목 |
 | 2026-10-01 | state 저장소를 "환경마다 그 환경의 저장소 + 잠금"으로 변경(§7, D-4). "Pipeline: REST API" 플러그인 · 서버 연동 API 토큰(§12-3), 잠금 해제 방법(§12-6) 추가 |
+| 2026-10-01 | CD를 `daisy-cd-plan` · `daisy-cd-apply` 두 Job으로 분리(§12-7). plan마다 작업 폴더 분리, 승인한 plan만 적용, 앱·환경별 `flock` |
+| 2026-10-01 | 고정 네트워크 분리(§5-0, `infra/bootstrap/aws-network`, `daisy-bootstrap` §12-8). 앱 모듈은 VPC · 서브넷 ID를 받아요. 개인 AWS 계정을 실제 환경으로 변경(§12-5) |
+| 2026-10-01 | AI Terraform 생성 · 수정 루프 · 재사용 구현(§17, `infra/ai/`). 담당이 임채준으로 바뀐 것 기록. CD Plan 단계의 MOCK 위험 검사를 실제 검사로 대체(§12-4). 실제 Claude API로 생성 → 승인 → 배포 → 재사용(AI 0회) → 삭제 plan 검증(§17-5) |
 
 ---
 
@@ -872,6 +885,3 @@ Jenkins: Terraform 준비 → validate · plan · 위험 검사
 | §14 결정 기록 | AGENTS 변경은 별도 `infra/docs-update-agents` 브랜치의 `1561fa5`까지 기록. 병합 시 이 절과 일치시킬 것 |
 
 기존 클라우드 리소스·일정·미정인 공통 변수의 결정을 이 절이 임의로 바꾸지 않아요.
-| 2026-10-01 | CD를 `daisy-cd-plan` · `daisy-cd-apply` 두 Job으로 분리(§12-7). plan마다 작업 폴더 분리, 승인한 plan만 적용, 앱·환경별 `flock` |
-| 2026-10-01 | 고정 네트워크 분리(§5-0, `infra/bootstrap/aws-network`, `daisy-bootstrap` §12-8). 앱 모듈은 VPC · 서브넷 ID를 받아요. 개인 AWS 계정을 실제 환경으로 변경(§12-5) |
-| 2026-10-01 | AI Terraform 생성 · 수정 루프 · 재사용 구현(§17, `infra/ai/`). 담당이 임채준으로 바뀐 것 기록. CD Plan 단계의 MOCK 위험 검사를 실제 검사로 대체(§12-4) |

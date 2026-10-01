@@ -46,7 +46,8 @@ def main() -> int:
         current = work / "current" / "src"
         src = current if current.exists() else generate.reference_dir(env)
         ok, out = run_plan(env, src, plan_dir)
-        return finish(plan_dir, ai_dir, {"mode": "destroy", "source": str(src)}, ok, "" if ok else tail(out, 4000))
+        return finish(plan_dir, ai_dir, {"mode": "destroy", "source": str(src), "ai_calls": 0}, ok,
+                      "" if ok else tail(out, 4000))
 
     inputs = json.loads(var_file.read_text(encoding="utf-8"))
     fp = fingerprint(env, inputs)
