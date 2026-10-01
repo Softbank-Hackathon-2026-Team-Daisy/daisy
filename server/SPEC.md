@@ -177,6 +177,10 @@
 
 ### 배포 조회 서비스 연결 (승환 구현, 은현 API 연결 후속)
 
+- **#42 연결 보완 (10/2):** `projectIdOf(actorId, deploymentId)`로 배포 소속 프로젝트를 조회하고 `ExecutionAccess.requireRead`를 확인한 뒤 반환합니다. 없는 배포는 404, 접근 거절은 정책의 오류를 그대로 전달합니다. 조회 권한이 변경 권한을 대신하지 않으며 이후 실행 서비스의 `requireWrite`는 유지합니다. 공개 URL은 바꾸지 않습니다.
+- A-02는 새 `currentByTarget(actorId, projectId, pointers)`를 사용합니다. 모든 요청 대상에 `CurrentResult(status, deployment)`를 반환하며, 포인터 NULL은 `none`, 소속·성공·종료·이미지 구조가 확인된 포인터는 `confirmed`, 포인터 확인 실패는 `unverified`입니다. 권한 404/403/401·입력 오류·DB 장애는 대상 상태로 바꾸지 않습니다. 대상별 실패는 예외 없이 반환하므로 같은 읽기 트랜잭션 안에서도 rollback-only를 만들지 않습니다.
+- 기존 `current()`는 #42의 기존 호출을 깨지 않도록 유지하지만, 그 예외를 잡아 대상별 fallback으로 쓰지 않습니다. 은현님은 새 메서드로 전환하고 재호출 fallback을 제거하면 됩니다. 실제 #42 컨트롤러 변경·통합 검증은 별도입니다.
+- 검증 기준: 권한 있는 배포 소속 조회·없는 배포·철회 권한, 정상/NULL/없는/다른 소속/실패/종료 시각 없는/이미지 구조 오류 포인터가 섞인 배치, 동일 트랜잭션 커밋 성공을 확인합니다. `recordBuild`는 선택한 기존 성공 빌드 확인이며 신규 빌드 등록이 아니라는 주석도 맞춥니다.
 - `DeploymentQueryService.current(actorId, projectId, pointers)`는 관리 서비스가 읽은 `(targetId, currentDeploymentTargetId)`를 받아, 해당 프로젝트·대상의 성공 배포 정보를 일괄 조회합니다. 최근 성공을 임의로 현재 배포로 선택하지 않습니다. 포인터 NULL은 확인된 현재 배포 참조 없음이며 실제 인프라 부재를 보장하지 않습니다. NULL이 아닌 포인터의 소속 불일치는 404, 성공/종료 근거 부족은 409입니다.
 - `deployedTo(actorId, projectId, sourceVersionIds)`는 **정확한 빌드 ID별·대상별 마지막 성공 1건**을 반환합니다. 전체 배포가 부분 실패했어도 성공 대상은 포함하고, 실패·진행 중 대상은 제외합니다. 과거 성공 이력이지 현재 가동 여부가 아닙니다. 같은 완료 시각이면 배포 ID로 순서를 고정합니다.
 - 두 메서드는 매번 `ExecutionAccess.requireRead`를 호출하고 포트가 없으면 거절합니다. 최대 100개 ID의 배치·중복/빈 ID 검증, readOnly 트랜잭션, 파라미터 바인딩을 사용합니다. 관리 Repository·Entity 직접 접근, 새로운 API·테이블·관측값 갱신은 없습니다.

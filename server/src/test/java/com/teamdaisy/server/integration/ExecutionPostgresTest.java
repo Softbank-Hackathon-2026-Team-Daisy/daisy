@@ -230,6 +230,81 @@ class ExecutionPostgresTest {
   }
 
   @Test
+  void currentByTargetIsolatesPointerFailuresWithoutRollingBackTheReadTransaction() {
+    var query = context.getBean(DeploymentQueryService.class);
+    var at = Instant.parse("2026-10-02T00:00:00Z");
+    for (String suffix : List.of("failed", "unfinished", "malformed")) {
+      jdbc.update(
+          "insert into target(id,project_id,name,environment_type,state_identity,config) values(?,'prj_1',?,'aws',?,'{}')",
+          "tgt_" + suffix,
+          suffix,
+          "test:" + suffix);
+    }
+    readFixture("prj_1", "dep_ok", "dt_ok", "src_1", "tgt_1", "succeeded", at);
+    readFixture("prj_1", "dep_failed", "dt_failed", "src_1", "tgt_failed", "failed", at);
+    readFixture(
+        "prj_1", "dep_unfinished", "dt_unfinished", "src_1", "tgt_unfinished", "succeeded", null);
+    readFixture(
+        "prj_1", "dep_malformed", "dt_malformed", "src_1", "tgt_malformed", "succeeded", at);
+    jdbc.update("update deployment set image_refs='[]'::jsonb where id='dep_malformed'");
+    var pointers =
+        List.of(
+            new DeploymentQueryService.CurrentPointer("tgt_1", "dt_ok"),
+            new DeploymentQueryService.CurrentPointer("tgt_none", null),
+            new DeploymentQueryService.CurrentPointer("tgt_missing", "dt_missing"),
+            new DeploymentQueryService.CurrentPointer("tgt_wrong", "dt_ok"),
+            new DeploymentQueryService.CurrentPointer("tgt_failed", "dt_failed"),
+            new DeploymentQueryService.CurrentPointer("tgt_unfinished", "dt_unfinished"),
+            new DeploymentQueryService.CurrentPointer("tgt_malformed", "dt_malformed"));
+    var read = transaction();
+    read.setReadOnly(true);
+    // Through the Spring proxy, joined to the caller's transaction, including commit.
+    assertDoesNotThrow(
+        () ->
+            read.executeWithoutResult(
+                status -> {
+                  var result = query.currentByTarget("acct_1", "prj_1", pointers);
+                  assertEquals(7, result.size());
+                  assertEquals("confirmed", result.get("tgt_1").status());
+                  assertEquals("dep_ok", result.get("tgt_1").deployment().deploymentId());
+                  assertEquals("none", result.get("tgt_none").status());
+                  assertNull(result.get("tgt_none").deployment());
+                  for (String suffix :
+                      List.of("missing", "wrong", "failed", "unfinished", "malformed")) {
+                    assertEquals("unverified", result.get("tgt_" + suffix).status());
+                    assertNull(result.get("tgt_" + suffix).deployment());
+                  }
+                  assertThrows(UnsupportedOperationException.class, result::clear);
+                  assertFalse(status.isRollbackOnly());
+                  assertEquals(1, jdbc.queryForObject("select 1", Integer.class));
+                }));
+    assertEquals(0, count("deployment_log"));
+    assertEquals(0, count("jenkins_execution"));
+  }
+
+  @Test
+  void projectResolutionChecksMembershipAndMissingDeployment() {
+    var query = context.getBean(DeploymentQueryService.class);
+    readFixture("prj_1", "dep_one", "dt_one", "src_1", "tgt_1", "succeeded", Instant.now());
+    assertEquals("prj_1", query.projectIdOf("acct_1", "dep_one"));
+    assertEquals(
+        ErrorCode.NOT_FOUND,
+        assertThrows(DaisyException.class, () -> query.projectIdOf("acct_1", "dep_missing"))
+            .errorCode());
+    jdbc.update("update project_member set revoked_at=now() where project_id='prj_1'");
+    // MOCK policy uses 403; production policy's 404 is separately covered by the unit test.
+    assertEquals(
+        ErrorCode.FORBIDDEN,
+        assertThrows(DaisyException.class, () -> query.projectIdOf("acct_1", "dep_one"))
+            .errorCode());
+    assertEquals(
+        ErrorCode.FORBIDDEN,
+        assertThrows(
+                DaisyException.class, () -> query.currentByTarget("acct_1", "prj_1", List.of()))
+            .errorCode());
+  }
+
+  @Test
   void buildHistoryUsesExactBuildAndLatestSuccessfulTargetIncludingPartialSuccess() {
     var query = context.getBean(DeploymentQueryService.class);
     var at = Instant.parse("2026-10-01T10:00:00Z");
@@ -284,6 +359,15 @@ class ExecutionPostgresTest {
             .errorCode());
     assertTrue(
         query.deployedTo("acct_1", "prj_1", List.of("src_other")).get("src_other").isEmpty());
+    assertEquals(
+        "unverified",
+        query
+            .currentByTarget(
+                "acct_1",
+                "prj_1",
+                List.of(new DeploymentQueryService.CurrentPointer("tgt_1", "dt_other")))
+            .get("tgt_1")
+            .status());
     readFixture("prj_1", "dep_one", "dt_one", "src_1", "tgt_1", "succeeded", Instant.now());
     assertEquals(
         ErrorCode.NOT_FOUND,

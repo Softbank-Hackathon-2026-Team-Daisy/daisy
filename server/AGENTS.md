@@ -169,6 +169,7 @@ docker compose up -d postgres    # Postgres 17
 | 2026-10-01 | **#32 V1 통합, owner/viewer, prepare 유지** | 인증 담당 역할 확정. prepare는 daisy-cd-plan에 매핑. apply 중 stop 없이 요청을 기록하고 실제 결과를 기다리는 방향으로 #32 답변 | 1 |
 | 2026-10-01 | **#38 통합 경계 보완** | 저장 `digest` → 조회 `image_digest` 매핑, 인증 이전 CORS·OpenAPI Bearer 명시. 경로·인가·V1 유지, 사용자 승인. [통합 일지](docs/sh/2026-10-01-auth-merge.md) | 1 |
 | 2026-10-01 | **내부 배포 조회는 현재 포인터와 성공 이력을 분리** | current는 관리가 읽은 명시 포인터, deployed_to는 정확한 빌드·대상별 마지막 성공. 최근 성공을 현재 관측으로 추정하지 않음. 공개 DTO는 은현 연결 후속, [계약](docs/execution-service-contract.md) | 1 |
+| 2026-10-02 | **#42 조회 연결: 권한 확인 후 프로젝트 반환·대상별 current 결과** | `projectIdOf`는 requireRead 후 반환, 명령 requireWrite는 유지. `currentByTarget`은 포인터 실패만 none/confirmed/unverified로 구분하고 권한·DB 오류는 전파. 기존 current는 호환 유지, [계약](docs/execution-service-contract.md) | 2 (서버 내부 소비자 은현) |
 
 ## 11. 아직 정하지 못한 것
 

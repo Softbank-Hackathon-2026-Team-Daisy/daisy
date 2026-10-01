@@ -41,6 +41,10 @@ public interface ExecutionInputs {
 
   void verifyFrozen(String actorId, String projectId, FrozenInput input);
 
-  /** Must verify the selected source or exact PREPARE request/run before recording the build. */
+  /**
+   * Confirms the selected, already stored successful build and returns its persisted values. Does
+   * not register a new build or select another build for the same commit. The execution service
+   * verifies the PREPARE request/run and compares these values with its result.
+   */
   BuildInput recordBuild(DeploymentExecutionService.BuildResult result);
 }

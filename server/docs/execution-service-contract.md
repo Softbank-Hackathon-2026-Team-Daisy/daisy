@@ -20,7 +20,7 @@
 | cancel | actor와 요청 시각 보존. 명령 전체가 미제출임이 확인되면 직접 취소. 이미 제출됐거나 불명확한 apply는 요청만 기록하고 기존 실행·락 유지. plan STOP은 인프라 확인 설정이 있을 때만 전달 |
 | retry | 실패한 원본 대상만 선택. 고정 입력과 계보를 복사한 새 배포. 원본 성공 대상은 변경하지 않음 |
 | rollback | 전체 성공 원본에서 선택한 target_ids만 새 배포로 복원. 선택 대상·사용자 reason을 요청 hash에 포함하고 reason은 생성 이벤트에 저장. 원본·선택 대상은 lineage 행으로 보존. 새 plan·승인 필수, 원본 실행 입력에 사유를 섞지 않음 |
-| build result | project·commit·prepare 명령/run 연결을 확인한 뒤 이미지·최종 입력 hash를 한 번만 고정. 관리 도메인 빌드 기록은 소유 서비스 호출 |
+| build result | project·commit·prepare 명령/run 연결을 확인한 뒤 이미지·최종 입력 hash를 한 번만 고정. `recordBuild`는 선택한 기존 성공 빌드 확인이며 신규 빌드를 저장하지 않음 |
 | plan result | 실제 실행 범위의 원천 plan ID 중복 검사, 검증 script·input·digest·expiry 확인, 이전 plan/승인 결정은 보존하고 새 revision 채택 |
 | stage/result | 현재 command-target과 단조 원천 순번 검사. 역순/옛 명령 사건은 이력만 보존. 종료 대상을 늦은 진행 상태로 되돌리지 않음 |
 | usage/script | 인증된 실행·대상 소속과 원천 ID 검사. 같은 내용은 무변경, 다른 내용은 충돌. 늦은 사용량 수신은 상태를 바꾸지 않음 |
@@ -65,21 +65,35 @@ SSE 필터는 기존 채널 seq를 재사용한다. 제외된 행도 서버 조�
 
 `DeploymentQueryService`는 내부 읽기 서비스입니다. 공개 컨트롤러·DTO·새 OpenAPI 경로는 추가하지 않았습니다. `ExecutionAccess` 구현이 없으면 403으로 거절하고, 있으면 목록이 비어도 `requireRead(actorId, projectId)`를 호출합니다. 운영 접근 정책의 404/403을 그대로 전파합니다.
 
+### 배포 ID → 프로젝트 ID (#42 연결)
+
+```java
+String projectId = deploymentQueries.projectIdOf(principal.accountId(), deploymentId);
+// 기존 /deployments/{id}/... 경로에서 이 projectId로 실행 서비스/SSE를 호출합니다.
+```
+
+- 배포 테이블에서 소속을 찾고 `ExecutionAccess.requireRead(actorId, projectId)`가 통과한 뒤 반환합니다. 없는 배포는 404, 권한 오류는 정책의 401/404/403을 그대로 전파합니다. 정책 bean이 없으면 DB 조회 전 403입니다.
+- actor는 인증된 principal에서만 가져옵니다. 조회 권한은 변경 권한이 아니므로 승인·취소·재시도·롤백의 기존 `requireWrite`는 그대로 실행합니다. 조회 후 역할이 바뀌어도 이 메서드의 성공만 믿고 실행하지 않습니다.
+- 공개 경로나 입력 필드를 추가하지 않으며, 다른 모듈이 배포 Repository를 직접 읽을 필요가 없습니다.
+
 ### A-02 current — 현재 포인터가 가리키는 배포
 
 ```java
 var pointers = targets.stream()
     .map(t -> new DeploymentQueryService.CurrentPointer(t.id(), t.currentDeploymentTargetId()))
     .toList();
-var currentByTarget = deploymentQueries.current(actorId, projectId, pointers);
-// currentByTarget.get(target.id())를 공개 Current DTO로 변환합니다.
+var results = deploymentQueries.currentByTarget(actorId, projectId, pointers);
+var result = results.get(target.id());
+// result.status() → current_status, result.deployment() → 공개 Current DTO
 ```
 
 - `targets`는 은현의 관리 서비스가 해당 프로젝트에서 읽은 대상들입니다. 포인터를 사용자 요청 본문에서 받지 않습니다. 관리 목록 조회와 이 메서드 호출을 같은 읽기 트랜잭션에서 수행하고, 목록이 100개를 넘으면 배치로 나눕니다.
 - **최근 성공/완료 배포를 검색해서 current로 채우지 않습니다.** 현재 포인터가 더 오래된 성공을 가리키면 그 배포를 반환합니다. 실패한 최신 배포로 기존 현재 버전을 교체하지 않습니다.
-- 반환은 `Map<targetId, CurrentDeployment>`입니다. DTO 필드는 `deploymentId`, `sourceVersionId`, `commitSha`, `images`, `deployedAt`입니다. `images`는 `ServiceImage(service, imageRef, imageDigest)` 목록이며 서비스 이름 순으로 정렬합니다. 저장 이미지 자체가 없으면 null로 두고 추정하지 않습니다.
-- 포인터가 NULL인 대상은 map에 넣지 않습니다. 이는 **확인된 현재 참조 없음**이며 실제 배포가 전혀 없거나 인프라가 삭제됐다는 판정이 아닙니다. 외부 API의 미확인 표시를 함께 맞춰야 합니다.
-- NULL이 아닌 포인터가 없거나 다른 프로젝트·대상을 가리키면 404입니다. 포인터가 가리키는 대상 배포가 성공 상태가 아니거나 종료 시각이 없으면 409입니다. 실패 배포가 실제 일부 변경을 남긴 경우처럼 성공 이력만으로 현재 상태를 표현할 수 없는 상황은 이 메서드에서 성공으로 꾸미지 않고 인프라 관측 계약으로 별도 처리합니다.
+- 반환은 `Map<targetId, CurrentResult(status, deployment)>`이며 **요청한 모든 대상**을 포함합니다. `status`는 `none / confirmed / unverified`입니다. `deployment`는 confirmed일 때만 제공하며 필드는 `deploymentId`, `sourceVersionId`, `commitSha`, `images`, `deployedAt`입니다. `images`는 `ServiceImage(service, imageRef, imageDigest)` 목록이며 서비스 이름 순으로 정렬합니다. 저장 이미지 자체가 없으면 null로 두고 추정하지 않습니다.
+- 포인터 NULL은 `none`입니다. 이는 **확인된 현재 참조 없음**이며 실제 배포가 전혀 없거나 인프라가 삭제됐다는 판정이 아닙니다.
+- NULL이 아닌 포인터가 없거나 다른 프로젝트·대상을 가리키는 경우, 성공 상태·종료 시각이 확인되지 않는 경우, 저장 이미지 JSON 구조가 잘못된 경우는 해당 대상만 `unverified`입니다. 성공 이력만으로 현재 상태를 표현할 수 없는 상황을 성공으로 꾸미지 않습니다. 실제 상태 판정은 인프라 관측 계약으로 별도 처리합니다.
+- 권한 검사 401/404/403·잘못된 요청 400·DB 장애는 그대로 전파합니다. **404/409 예외를 잡아서 대상 실패로 바꾸는 fallback을 두지 않습니다.** 권한 검사와 SQL 바깥에서, 포인터·로컬 JSON 해석 결과만 대상별로 분류합니다.
+- 기존 `current()`는 호환성을 위해 유지합니다. NULL 포인터는 map에서 빠지고 소속 불일치는 404, 성공/종료/이미지 구조 부족은 409로 전체 실패하는 이전 계약입니다. #42의 A-02는 새 `currentByTarget()`으로 전환하고 일괄 실패 후 대상별 재호출을 제거해야 합니다. 새 메서드는 대상 실패로 예외를 던지지 않으므로 같은 읽기 트랜잭션 안에서도 rollback-only를 만들지 않습니다. 은현님의 `NOT_SUPPORTED` 해제·컨트롤러 연결은 해당 PR에서 검증합니다.
 - API `Current.commit`에는 `commitSha`, `Current.deployed_at`에는 기록된 대상 성공 완료 시각인 `deployedAt`을 사용합니다. 실제 트래픽 전환 시각을 측정한 값은 아닙니다.
 - 공개 scalar `image`·`image_digest`는 서비스가 정확히 하나일 때만 채웁니다. MSA는 대표 하나를 고르지 않습니다. A-02 서비스별 이미지 목록 추가 여부는 은현과 소비자가 공개 계약에서 결정합니다.
 - **현재 포인터를 갱신하는 기능은 구현하지 않았습니다.** target은 은현 관리 영역이므로 실제 결과·관측에 따라 포인터를 바꾸는 서비스 계약을 별도로 연결해야 합니다. 오래된 수신이나 단순 최근 시각만으로 포인터를 갱신하지 않는 원칙은 유지합니다. #35의 실제 결과 계약과 함께 확인할 후속입니다.
