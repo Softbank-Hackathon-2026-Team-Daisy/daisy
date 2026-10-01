@@ -70,7 +70,7 @@ export const builds: Build[] = [
         { name: 'Checkout', state: 'done', duration_ms: 4000 },
         { name: 'Test', state: 'done', duration_ms: 42000 },
         { name: 'Build & Push', state: 'running', duration_ms: 18000 },
-        { name: 'Trigger CD', state: 'waiting' },
+        { name: 'Trigger CD', state: 'skipped' },
       ],
     },
     image: IMAGE,

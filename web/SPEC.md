@@ -65,7 +65,7 @@ W-00 로그인 → W-01 개요 → W-02 저장소 연결 → L-01 → W-03 이�
 | W-01 | **개요** | 환경별 현재 버전(커밋 · 배포 시각 · 공개 URL · 헬스), "3/3 일치" 이식성 표시, 지금 할 일(승인 대기 → W-06, Secondary 버튼), 최근 실행 | M |
 | W-02 | **애플리케이션 연결** (STEP 1) | 저장소 URL, 배포 기준 브랜치, `deploy.yaml` 확인. 입력은 GitHub 저장소 연결 하나 (ADR-004). 데모 앱 sample-monolith 기준 (포트 8080, `/health`, DB 없음) | M |
 | ~~W-02b~~ | ~~연결 · 업로드~~ | **범위 제외 (9/30).** 소스 업로드 API가 빠졌어요. 와이어프레임에는 기록용으로 흐리게 남아 있고, 구현하지 않아요 | — |
-| W-03 | **이미지 빌드** (STEP 2) | main merge 감지, Jenkins 빌드 단계(`Checkout → Test → Build & Push → Trigger CD`), 이미지 태그(커밋 해시). Jenkins 화면은 외부 비공개라 로그 링크 없음 (#17) | M |
+| W-03 | **이미지 빌드** (STEP 2) | main merge 감지, Jenkins 빌드 단계(`Checkout → Test → Build & Push → Trigger CD`, Trigger CD는 운영에서 늘 "건너뜀"), 이미지 태그(커밋 해시). Jenkins 화면은 외부 비공개라 로그 링크 없음 (#17) | M |
 | W-04 | **배포할 환경 선택** (STEP 3) | 여러 환경 동시 선택, 카드에 재사용 / 새로 생성 미리 표시, 선택 요약 | M |
 | W-05 | **인프라 코드 생성 · 검증** (STEP 4) | 환경별 진행과 "시도 n/3", 검증 단계, 생성된 스크립트 보기. SSE로 실시간 갱신 | M |
 | W-05b | **AWS만 멈췄어요** | 한 환경이 3번 모두 실패하면 그 환경만 멈추고(`failed`) 나머지는 계속 진행해요. 시도 기록과 환경별 상태. "빼고 계속" 버튼 없음 | M |
@@ -308,7 +308,7 @@ Page ──▶ hook ──▶ api/client ──────────▶ Daisy
 
 | 필드 | 쓰는 곳 | 비고 |
 |---|---|---|
-| `Deployment.targets[].steps[] { name, state, duration_ms }` | W-05 · W-05b · W-07 단계 · 소요 시간 | #13 |
+| `Deployment.targets[].steps[] { name, state, duration_ms }` | W-05 · W-05b · W-07 단계 · 소요 시간 | #13. Jenkins 단계는 `daisy-cd-plan`: Prepare → Infra code → Plan → Summary, `daisy-cd-apply`: Verify → Apply → Health check (#17). 실행 안 한 단계(`NOT_EXECUTED`)는 `skipped`로 "건너뜀" 표시 — 값 이름은 은현 님과 확인 (가칭) |
 | `Deployment.targets[].title` · `health_summary` | W-07 레인 · W-08 결과 카드 | #13. 헬스는 1회 측정이라 `"200 OK · 120ms"` 형식, p95 없음 (#17 인프라) |
 | `PlanDetail.resources[].monthly_cost_krw` | W-06 리소스별 월 비용 | 🆕 새 요청 |
 | 동일성 검증 "앱 버전" · "환경변수 해시" (환경별) | W-01 · W-08 동일성 검증 표 | 🆕 새 요청. 지금은 digest · 커밋 · 배포 버전 · 헬스체크만 |

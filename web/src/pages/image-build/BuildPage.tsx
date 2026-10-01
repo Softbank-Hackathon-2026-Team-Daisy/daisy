@@ -18,7 +18,7 @@ import { ErrorBlock, LoadingBlock } from '../Loading.tsx'
 import '../page.css'
 
 // W-03 이미지 빌드 (STEP 2) — main merge를 감지하면 Jenkins 빌드 진행을 보여줘요 (9/30 회의). 서버 SSE 전까지 5초 폴링, 끝나면 멈춰요
-const STEP_STATE: Record<string, StepItemState> = { waiting: 'pending', running: 'running', done: 'done', failed: 'failed' }
+const STEP_STATE: Record<string, StepItemState> = { waiting: 'pending', running: 'running', done: 'done', failed: 'failed', skipped: 'skipped' }
 
 function BuildPage() {
   const { projectId = '' } = useParams()

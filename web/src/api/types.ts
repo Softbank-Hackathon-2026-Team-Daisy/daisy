@@ -81,7 +81,8 @@ export type DeploymentTarget = {
   error_summary: string | null
   // 아래는 앱 요청 #13의 선택 필드 (가칭). 없으면 화면이 단계 · 상태에서 추정해요
   title?: string // 예: "ap-northeast-2 · ECS Fargate"
-  steps?: { name: string; state: 'waiting' | 'running' | 'done' | 'failed'; duration_ms?: number }[]
+  // skipped = 실행하지 않은 단계 (Jenkins NOT_EXECUTED). 서버가 넘길 값 이름은 은현 님과 맞춰요 (가칭)
+  steps?: { name: string; state: 'waiting' | 'running' | 'done' | 'failed' | 'skipped'; duration_ms?: number }[]
   health_summary?: string // 예: "200 OK · 120ms" (1회 측정, #17)
 }
 
@@ -156,7 +157,8 @@ export type Build = {
   author: string
   committed_at: string
   // Jenkins 화면은 외부 비공개라 run_url은 화면에서 쓰지 않아요 (#17). 단계는 Checkout → Test → Build & Push → Trigger CD
-  pipeline: { status: 'running' | 'success' | 'failed'; run_url?: string; steps?: { name: string; state: 'running' | 'done' | 'failed' | 'waiting'; duration_ms?: number }[] }
+  // Trigger CD는 운영에서 늘 건너뜀(skipped) — 서버가 CI 결과를 받아 daisy-cd-plan을 직접 시작해요 (#25 채준 님)
+  pipeline: { status: 'running' | 'success' | 'failed'; run_url?: string; steps?: { name: string; state: 'running' | 'done' | 'failed' | 'waiting' | 'skipped'; duration_ms?: number }[] }
   image: string | null
   digest?: string
   deployed_to: { target_id: string; deployment_id: string; deployed_at: string }[]
