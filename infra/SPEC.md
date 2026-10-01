@@ -226,6 +226,7 @@ terraform output -raw service_url
 - 대역은 온프레미스(`172.16.1.0/24` · `172.16.2.0/24`, §16-2)와 겹치지 않아서 나중에 VPN을 붙일 수 있어요
 - NAT Gateway는 여전히 없어요. private 서브넷은 DB 전용이라 인터넷 경로가 없어요
 - 앱이 여러 개여도 VPC 하나를 같이 써요 (리전당 VPC 기본 5개 제한을 피해요)
+- **10/1 생성 완료** (개인 AWS 계정, `daisy-bootstrap` #2): `Apply complete! Resources: 13 added` (apply 9초). VPC · 서브넷 ID는 러너의 `targets/aws.json`에 등록됐어요 (계정별 값이라 레포에는 적지 않아요)
 
 ### 5-1. 구성
 
