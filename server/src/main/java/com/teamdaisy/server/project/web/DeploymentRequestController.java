@@ -75,8 +75,13 @@ public class DeploymentRequestController {
   public record CreateDeployment(
       String sourceVersionId, List<String> targetIds, String commit, String strategy) {}
 
-  /** 접수 결과예요. 배포 성공이 아니라 접수됐다는 뜻이에요. A-04 DTO 가 정해지면 그 요약으로 바꿔요. */
-  public record DeploymentAccepted(String deploymentId, String status) {}
+  /**
+   * 접수 결과예요. 배포 성공이 아니라 접수됐다는 뜻이에요.
+   *
+   * <p>필드 이름은 소비자 {@code Deployment} 모델({@code ios/SPEC.md} 326행)과 같아요 — 웹은 응답의 {@code id} 로 다음 화면에
+   * 가요. 나머지 필드는 A-04 를 만들 때 같은 모델로 채워요.
+   */
+  public record DeploymentAccepted(String id, String projectId, String state) {}
 
   /**
    * 배포를 접수해요 (WR-05).
@@ -111,7 +116,9 @@ public class DeploymentRequestController {
     return ResponseEntity.status(response.status())
         .body(
             new DeploymentAccepted(
-                body.path("deployment_id").asText(null), body.path("status").asText(null)));
+                body.path("deployment_id").asText(null),
+                projectId,
+                body.path("status").asText(null)));
   }
 
   /**

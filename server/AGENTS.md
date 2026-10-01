@@ -174,7 +174,8 @@ docker compose up -d postgres    # Postgres 17
 | 2026-10-02 | **A-02 `current_status`(none·confirmed·unverified), 대상별 격리** | `current: null` 은 "배포 없음"이 아니라 "확인된 참조 없음". 포인터 하나의 409 가 화면 전체를 깨지 않게 함 | 1 |
 | 2026-10-02 | **A-02 만 트랜잭션 `NOT_SUPPORTED`** | 조회 서비스가 `@Transactional(readOnly)` 라 같은 트랜잭션에서 예외를 잡으면 커밋에서 `UnexpectedRollbackException`(500). 실측으로 확인. [SPEC](SPEC.md) | 1 |
 | 2026-10-02 | **배포 입력 `strategy` 는 `recreate` 만, `hash_format_version` 은 서버가 1 로 고정** | 계약상 recreate 만 지원. 사용자가 해시 형식 번호를 바꾸지 못하게 함 | 1 |
-| 2026-10-02 | **(확인 대기) 재시도·롤백 때 대상 설정 revision·자격증명 버전이 바뀌면 409, `disconnected` 대상 생성 409** | 은현 제안. 승환 확인 전이라 각각 메서드 하나로 분리해 둠 | 1 |
+| 2026-10-02 | **재시도·롤백 때 대상 설정 revision·자격증명 버전이 바뀌면 409, `disconnected` 대상 생성 409 (`unknown` 은 허용하되 연결 성공으로 표시하지 않음)** | 은현 제안, #42 에서 승환 동의. 바뀐 설정으로 진행하려면 새 배포 | 1 |
+| 2026-10-02 | **배포 생성 응답은 소비자 `Deployment` 이름(`id`·`project_id`·`state`)** | 웹이 응답 `id` 로 다음 화면 이동. #42 리뷰 | 1 |
 
 ## 11. 아직 정하지 못한 것
 

@@ -16,6 +16,7 @@ import com.teamdaisy.server.common.error.ErrorCode;
 import com.teamdaisy.server.deployment.application.DeploymentQueryService;
 import com.teamdaisy.server.deployment.application.DeploymentQueryService.CurrentDeployment;
 import com.teamdaisy.server.deployment.application.DeploymentQueryService.ServiceImage;
+import com.teamdaisy.server.deployment.application.ExecutionAccess;
 import com.teamdaisy.server.project.application.DeploymentHistoryReader.CurrentView;
 import com.teamdaisy.server.project.domain.Target;
 import com.teamdaisy.server.project.web.TargetStatusResponse;
@@ -37,7 +38,8 @@ class DeploymentHistoryReaderTest {
   private static final Instant AT = Instant.parse("2026-10-02T00:00:00Z");
 
   private final DeploymentQueryService queries = mock(DeploymentQueryService.class);
-  private final DeploymentHistoryReader reader = new DeploymentHistoryReader(queries);
+  private final ExecutionAccess access = mock(ExecutionAccess.class);
+  private final DeploymentHistoryReader reader = new DeploymentHistoryReader(queries, access);
 
   private static Target target(String id, String pointer) {
     Target target =
@@ -104,6 +106,22 @@ class DeploymentHistoryReaderTest {
     assertThat(views.get("tgt_a").status()).isEqualTo("confirmed");
     assertThat(views.get("tgt_b").status()).isEqualTo("unverified");
     assertThat(views.get("tgt_b").deployment()).isNull();
+  }
+
+  @Test
+  @DisplayName("일괄 404 뒤 권한 재확인이 실패하면 unverified 로 숨기지 않고 404 를 그대로 올려요 (#42 리뷰)")
+  void revokedMembershipPropagates() {
+    when(queries.current(any(), any(), any())).thenThrow(new DaisyException(ErrorCode.NOT_FOUND));
+    org.mockito.Mockito.doThrow(new DaisyException(ErrorCode.NOT_FOUND))
+        .when(access)
+        .requireRead(ACTOR, PROJECT);
+
+    assertThatThrownBy(() -> reader.current(ACTOR, PROJECT, List.of(target("tgt_a", "dt_1"))))
+        .isInstanceOf(DaisyException.class)
+        .extracting(e -> ((DaisyException) e).errorCode())
+        .isEqualTo(ErrorCode.NOT_FOUND);
+    // 일괄 한 번만 부르고, 대상별로 다시 부르지 않아요.
+    verify(queries, org.mockito.Mockito.times(1)).current(any(), any(), any());
   }
 
   @Test

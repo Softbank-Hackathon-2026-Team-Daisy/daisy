@@ -13,6 +13,7 @@ import com.teamdaisy.server.common.error.DaisyException;
 import com.teamdaisy.server.common.error.ErrorCode;
 import com.teamdaisy.server.common.web.PageResponse;
 import com.teamdaisy.server.deployment.application.DeploymentQueryService;
+import com.teamdaisy.server.deployment.application.ExecutionAccess;
 import com.teamdaisy.server.identity.auth.AuthPrincipal;
 import com.teamdaisy.server.project.access.ProjectAccess;
 import com.teamdaisy.server.project.access.ProjectAccessService;
@@ -42,7 +43,11 @@ class TargetStatusTest {
   private final DeploymentQueryService queries = mock(DeploymentQueryService.class);
   private final ProjectController controller =
       new ProjectController(
-          projects, targets, versions, access, new DeploymentHistoryReader(queries));
+          projects,
+          targets,
+          versions,
+          access,
+          new DeploymentHistoryReader(queries, mock(ExecutionAccess.class)));
 
   private static Target target(String id, String name, String type, String connectionState) {
     return Target.create(

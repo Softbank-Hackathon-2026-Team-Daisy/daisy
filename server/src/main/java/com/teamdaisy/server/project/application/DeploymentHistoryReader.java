@@ -6,6 +6,7 @@ import com.teamdaisy.server.deployment.application.DeploymentQueryService;
 import com.teamdaisy.server.deployment.application.DeploymentQueryService.CurrentDeployment;
 import com.teamdaisy.server.deployment.application.DeploymentQueryService.CurrentPointer;
 import com.teamdaisy.server.deployment.application.DeploymentQueryService.SuccessfulDeployment;
+import com.teamdaisy.server.deployment.application.ExecutionAccess;
 import com.teamdaisy.server.project.domain.Target;
 import java.util.HashMap;
 import java.util.List;
@@ -38,9 +39,11 @@ public class DeploymentHistoryReader {
       Set.of(ErrorCode.NOT_FOUND, ErrorCode.STATE_CONFLICT);
 
   private final DeploymentQueryService queries;
+  private final ExecutionAccess access;
 
-  public DeploymentHistoryReader(DeploymentQueryService queries) {
+  public DeploymentHistoryReader(DeploymentQueryService queries, ExecutionAccess access) {
     this.queries = queries;
+    this.access = access;
   }
 
   /**
@@ -58,7 +61,7 @@ public class DeploymentHistoryReader {
     }
   }
 
-  /** 호출하는 쪽이 이미 이 프로젝트의 조회 권한을 확인했다고 봐요. 그래서 대상별로 다시 부를 때 나는 404 는 권한이 아니라 대상의 문제로 읽어요. */
+  /** 일괄 조회가 대상 문제(404·409)로 실패하면 권한을 다시 확인한 뒤 대상별로 나눠요. 권한 실패는 격리하지 않고 그대로 올려요 (#42 승환 리뷰). */
   public Map<String, CurrentView> current(String actorId, String projectId, List<Target> targets) {
     Map<String, CurrentView> views = new HashMap<>();
     List<Target> pointed =
@@ -87,6 +90,9 @@ public class DeploymentHistoryReader {
         if (!TARGET_FAULTS.contains(batchFailure.errorCode())) {
           throw batchFailure;
         }
+        // 조회 서비스의 권한 검사도 같은 404 를 내요. 그 사이 멤버십이 철회됐으면 대상 문제가 아니라 권한 실패라서, 대상별로 나누기 전에
+        // 권한을 다시 확인하고 실패하면 그대로 올려요. 승환이 조회 서비스에서 권한 오류와 대상별 결과를 나눠 주면 이 확인은 빠져요.
+        access.requireRead(actorId, projectId);
         for (Target target : chunk) {
           views.put(target.id(), single(actorId, projectId, target));
         }
