@@ -1,0 +1,49 @@
+/* 겹치는 요소라 그림자 대신 1px ink 테두리 */
+.dialog {
+  width: 440px;
+  max-width: calc(100vw - var(--space-8));
+  padding: var(--space-6);
+  border: var(--border-overlay);
+  border-radius: var(--radius-md);
+  background: var(--color-card);
+  color: var(--color-card-foreground);
+}
+
+.dialog[open] {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+}
+
+.dialog::backdrop {
+  background: var(--color-backdrop);
+}
+
+.dialog__header {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.dialog__title {
+  flex: 1;
+}
+
+.dialog__close {
+  display: inline-flex;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--color-ink-muted);
+  cursor: pointer;
+}
+
+.dialog__desc {
+  color: var(--color-ink-muted);
+}
+
+.dialog__footer {
+  display: flex;
+  justify-content: flex-end;
+  gap: var(--space-2);
+}

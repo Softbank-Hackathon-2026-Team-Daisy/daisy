@@ -1,0 +1,77 @@
+.parity {
+  border: var(--border);
+  border-radius: var(--radius-md);
+  background: var(--color-card);
+  overflow: hidden;
+}
+
+.parity__title {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding: var(--space-4) var(--space-6);
+}
+
+.parity__summary {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  margin-left: auto;
+  padding: var(--space-1) var(--space-2);
+  border-radius: var(--radius-sm);
+  background: var(--color-status-bg);
+  color: var(--color-status-success);
+  font-size: 13px;
+  line-height: 18px;
+  font-weight: 500;
+}
+
+.parity__summary--partial {
+  color: var(--color-status-warning);
+}
+
+.parity__table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.parity__table th,
+.parity__table td {
+  padding: var(--space-3) var(--space-6);
+  border-top: var(--border);
+  text-align: left;
+  vertical-align: middle;
+}
+
+.parity__table thead th {
+  background: var(--color-surface);
+  font-size: 13px;
+  line-height: 18px;
+  font-weight: 500;
+}
+
+.parity__table tbody th {
+  width: 200px;
+  font-weight: 400;
+}
+
+.parity__table td {
+  white-space: nowrap;
+}
+
+.parity__table td > svg {
+  margin-right: var(--space-1);
+  vertical-align: -2px;
+}
+
+.parity__bad {
+  color: var(--color-status-failed);
+}
+
+.parity__env {
+  display: inline-block;
+  width: 8px;
+  height: 8px;
+  margin-right: var(--space-1);
+  border-radius: var(--radius-sm);
+}

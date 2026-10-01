@@ -1,0 +1,54 @@
+/* 화면 공통 레이아웃 — 와이어프레임 Body: 세로 24px 간격 */
+.page {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-6);
+  max-width: 1376px;
+}
+
+.page__row {
+  display: grid;
+  gap: var(--space-6);
+}
+
+.page__row--2 {
+  grid-template-columns: 1fr 1fr;
+}
+
+.page__row--main-side {
+  grid-template-columns: minmax(0, 732fr) minmax(0, 380fr);
+}
+
+.page__row--3 {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.page__actions {
+  display: flex;
+  gap: var(--space-2);
+}
+
+.page__list {
+  display: flex;
+  flex-direction: column;
+}
+
+.page__center {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 240px;
+}
+
+@media (max-width: 1000px) {
+  .page__row--2,
+  .page__row--main-side {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 860px) {
+  .page__row--3 {
+    grid-template-columns: 1fr;
+  }
+}
