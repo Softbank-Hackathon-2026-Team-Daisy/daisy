@@ -16,6 +16,7 @@
 | 임채준 | GCP 기준 모듈 (Cloud Run) | N-03 |
 | 임채준 | AWS 기준 모듈 (ECS Fargate · ALB · RDS) | N-06 |
 | 임채준 | state 백엔드 (환경별 분리 · 잠금), Jenkins 러너 프로토타입 | N-07 |
+| 임채준 | **AI Terraform 생성 · 수정 루프 · 재사용** (`infra/ai/`, 9/30 회의에서 담당 변경) | N-02 · N-05 · N-08 |
 | 황지환 · 임채준 | Jenkins의 온프레미스 배포 연결: SSH 접근, Terraform 실행 환경, 배포 결과·헬스체크 연동. 서버와 승인된 plan·로그·중단 요청 계약 협의 | N-04 · N-07 |
 
 Proxmox VM 자동 생성은 후속 목표예요. 데모에서는 사전 준비한 VM에 Terraform으로 컨테이너를 배포해요. Jenkins 설치·운영의 세부 분담은 두 인프라 담당자가 협의해요. 위 표는 담당 범위이며, 구성·검증 완료를 뜻하지 않아요. 실제 설정과 검증 결과는 `SPEC.md`에 기록해요.
@@ -65,6 +66,7 @@ infra/
 │  ├─ aws/            ← 임채준
 │  └─ gcp/            ← 임채준
 ├─ bootstrap/ (가칭)  state 버킷 · 클라우드 계정 1회 준비 ← 임채준
+├─ ai/                AI Terraform 생성 · 수정 루프 · 재사용 ← 임채준
 ├─ jenkins/   (가칭)  러너 설치 · CI/CD 파이프라인 ← 임채준 (프로토타입)
 └─ scripts/   (가칭)  tf-run.sh 등 러너 보조 ← 임채준
 ```
@@ -197,6 +199,8 @@ APP=hellocalc IMAGE_TAG=<커밋 해시 40자> infra/scripts/tf-run.sh aws plan
 | 2026-10-01 | CD를 `daisy-cd-plan`(plan · 위험 검사 · 요약)과 `daisy-cd-apply`(승인한 plan 적용 · 헬스체크) 두 Job으로 분리. 서버가 승인 후 `daisy-cd-apply`를 `PLAN_BUILD` · `APPROVAL_ID`로 시작해요 | Jenkins `input` 대기 없이 승인을 서버 승인 API 하나로 받고(§16-6), plan마다 작업 폴더를 분리해 승인 대기 plan을 덮어쓰지 않아요(§16-7). 승인 대기 중 executor를 잡지 않아요 | 2 (서버가 쓰는 계약, 하은현에게 공유) |
 | 2026-10-01 | `[클라우드]` AWS 네트워크(VPC · 서브넷)는 `infra/bootstrap/aws-network`로 1번 만들어 두고, 앱 모듈은 `vpc_id` · `public_subnet_ids` · `private_subnet_ids`를 받아요 | 배포마다 VPC를 만들고 지우는 건 불필요한 반복이에요. 네트워크는 무료이고, 대역이 고정돼야 VPN · 여러 앱 공유가 돼요 | 2 (모듈 입력 변수 변경, 김승환에게 공유) |
 | 2026-10-01 | `[클라우드]` 개인 AWS 계정을 실제 환경으로 써요 (비용 정산 예정). 9/30의 "개인 계정은 plan까지만" 결정을 대체해요 | 팀 계정이 없어요. 생성 권한 · `PLAN_ONLY` 해제는 사람이 확인하고 바꿔요 | 1 |
+| 2026-10-01 | AI Terraform 생성 · 수정 루프 · 재사용 담당을 김승환 → **임채준**으로 (9/30 회의 합의). 코드는 `infra/ai/`, Jenkins `daisy-cd-plan`에서 실행해요 | Terraform 실행이 CI · CD 모두 Jenkins로 모였어요. 루트 `AGENTS.md` §5-1 · `server/AGENTS.md` 갱신 필요 (김도영 · 김승환) | 팀 합의 (임채준 전달) |
+| 2026-10-01 | `[클라우드]` AI 생성은 `claude-opus-5-5` + 구조화 출력(파일 3개 JSON) + 프롬프트 캐시. 재사용은 입력 지문(vars.json · 기준 모듈 · 규칙) 비교, 시도는 환경당 총 3번 | 바뀌었는지는 규칙으로 판단하고 AI는 고치는 방법만 정해요. Opus 5.5는 도구 호출 강제를 지원하지 않아요 | 1 |
 | 2026-10-01 | `[온프레미스]` 데모는 기존 VM의 Docker 컨테이너를 Terraform으로 관리 | VM 생성 시간을 제외하면서 팀의 plan·승인·apply 흐름 유지. 이전 VM 생성 우선 방향을 대체 | 1 |
 | 2026-10-01 | `[온프레미스]` Proxmox 템플릿 복제·cloud-init 기반 VM 자동 생성은 후속 목표 | 데모의 컨테이너 배포와 VM 준비 자동화를 단계적으로 분리 | 1 |
 | 2026-10-01 | `[온프레미스]` Route 53 → 공인 IP, 외부 80·443으로 앱 공개 | 터널 대신 공인 IP 기반 서비스 공개 방향 | 1 |

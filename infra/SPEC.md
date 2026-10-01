@@ -410,6 +410,11 @@ infra/
 │  ├─ aws-network/                 고정 VPC · 서브넷 (§5-0)
 │  ├─ aws-state/
 │  └─ gcp-project/
+├─ ai/                            AI Terraform 생성 · 수정 루프 · 재사용 (§17)
+│  ├─ rules.md                     시스템 프롬프트 (작성 규칙 · 보안 정책 · 비용 제약)
+│  ├─ generate.py                  Claude API 1회 호출 → 파일 3개
+│  ├─ risk_check.py                plan JSON 위험 검사 (R-1~R-6 · 비용 · 고정 네트워크)
+│  └─ plan_with_ai.py              환경별 루프 (재사용 → 생성 → 검증, 최대 3번)
 ├─ jenkins/    (가칭)              Jenkins 러너 (§12)
 │  ├─ setup-runner.sh              Ubuntu 24.04 러너 설치 (VM · 팀원 서버 공용)
 │  ├─ ci.Jenkinsfile               빌드 · 테스트 · 멀티 아키텍처 푸시
@@ -485,9 +490,8 @@ PR은 300줄 이하로 나눠요: ① 이 명세 ② bootstrap ③ AWS 모듈 �
 
 | 단계 | 상태 | 진짜 담당 |
 |---|---|---|
-| CD "Infra code" | `MOCK`: AI 생성 대신 기준 모듈을 그대로 써요 (재사용 경로와 같아요) | 김승환 (N-02) |
-| CD "Risk check" | `MOCK`: 통과로 처리. AI 수정·재시도도 없어요 | 김승환 (N-05) |
-| `render-tfvars.py` | 최소 변환. `env` 값과 `secrets`는 넘기지 않아요 | 김승환 (`server/manifest`) |
+| CD Plan 단계의 AI 생성 · 수정 · 위험 검사 | **10/1부터 실제 구현** (§17). `USE_AI=false`일 때만 기준 모듈 그대로 (`MOCK` 대안 경로) | 임채준 (N-02 · N-05 · N-08, 9/30 회의에서 담당 변경) |
+| `render-tfvars.py` | 최소 변환. `env` 값과 `secrets`는 넘기지 않아요 | `deploy.yaml` 파싱 담당과 맞춰요 (서버 `manifest`) |
 | 온프레미스 | 선택지 없음 | 황지환 |
 | 웹 화면 연동 | 없음. "Build with Parameters"로 수동 실행해요 | 하은현 (D-2) |
 
@@ -590,6 +594,71 @@ daisy-cd-apply ◀── 서버가 buildWithParameters(PLAN_BUILD=N, APPROVAL_ID
 결정 기록은 루트 §6에 따라 **[`infra/AGENTS.md`](./AGENTS.md) §9**에 모아요 (#10). 온프레미스와 같은 표를 쓰고, 클라우드 혼자 정한 줄은 `[클라우드]`로 표시해요.
 
 ---
+
+## 17. AI Terraform 생성 · 수정 루프 · 재사용 (N-02 · N-05 · N-08)
+
+**담당: 임채준** (9/30 회의 합의 — Terraform이 CI · CD 모두 Jenkins에서 돌아서 AI 생성도 인프라가 맡아요). 루트 `AGENTS.md` §5-1과 `server/AGENTS.md`에는 아직 김승환 담당으로 남아 있어서 갱신이 필요해요 (김도영 · 김승환).
+
+### 17-1. 흐름 (환경마다, `daisy-cd-plan`의 Plan 단계)
+
+```
+입력 지문 = vars.json(deploy.yaml 값 + 대상 환경 등록값, 이미지 태그 제외) + 기준 모듈 + rules.md
+ ├─ 같은 지문의 검증된 스크립트가 있으면 → 재사용 → validate · plan → 위험 검사          (AI 0회)
+ │                                        └ 실패하면(외부 변화) 그 오류로 AI가 고쳐요
+ └─ 없으면 → AI 생성 → validate · plan → 위험 검사
+               실패 → 실패 단계 + 오류 로그 + 이전 파일로 AI가 그 부분만 고쳐요 → 다시 검증
+               AI 호출은 환경마다 총 3번(첫 생성 포함). 넘으면 그 환경만 실패, 다른 환경은 계속
+ → 통과: 검증된 스크립트로 저장, plan 폴더에 ai.json → 승인 대기
+```
+
+- **바뀌었는지는 AI가 아니라 입력 지문 비교로** 판단해요 (§16-7 재사용 기준과 같아요). AI는 "어떻게 고칠지"만 정해요
+- AI는 apply하지 않아요. 승인 · apply는 §12-7 그대로예요
+- 삭제 plan(`DESTROY`)은 AI를 부르지 않고 마지막으로 적용한 코드로 만들어요
+- `USE_AI=false`면 기준 모듈을 그대로 써요 (`MOCK` 대안 경로 = "N-02 실패 시 대안")
+
+### 17-2. AI 호출 (`infra/ai/generate.py`)
+
+| 항목 | 값 |
+|---|---|
+| 모델 | `claude-opus-5-5`, adaptive thinking, effort `high` |
+| 시스템 프롬프트 | `rules.md`(작성 규칙 · R-1~R-6 · 비용 제약 · 고정 네트워크) + 기준 모듈 3파일. 매번 같아서 **프롬프트 캐시**로 재사용해요 |
+| 사용자 메시지 | 환경, 입력값(JSON). 재시도면 실패 단계 · 오류 로그 · 이전 파일 |
+| 출력 | **구조화 출력(JSON 스키마)**: `files[{path, content}]`(정확히 `main.tf` · `variables.tf` · `outputs.tf`) + `notes`. Claude Opus 5.5는 도구 호출 강제(`tool_choice` any/tool)를 지원하지 않아서 구조화 출력을 써요 |
+| 거절 대비 | 서버 대체 모델 `fallbacks: "default"` (beta `server-side-fallback-2026-07-01`). `stop_reason`이 `refusal` · `max_tokens`면 그 시도는 실패로 세요 |
+| 오류 | 429 · 5xx는 SDK가 재시도해요. 키 · 권한 · 네트워크 오류는 시도를 쓰지 않고 바로 멈춰요 |
+| provider 고정 | 생성 코드에 기준 모듈의 `.terraform.lock.hcl`을 그대로 붙여요 |
+| 키 | Jenkins Credentials `claude-api-key`(Secret text) → `ANTHROPIC_API_KEY` 환경변수. 코드 · 로그에 남기지 않아요 |
+| 비용 (추정) | 1회 약 $0.3~0.5 (입력 $4 · 출력 $20 / 1M 토큰, 캐시 읽기 $0.20). 환경당 최대 3회. 재사용이면 0원 |
+
+### 17-3. 위험 검사 (`infra/ai/risk_check.py`)
+
+plan JSON(만들거나 바꾸는 리소스)과 생성 코드 텍스트로 검사해요. 위반이 있으면 그 줄들이 AI 수정 루프의 오류 로그가 돼요.
+
+| 규칙 | 검사 |
+|---|---|
+| 고정 네트워크 · 비용 | `aws_vpc` · `aws_subnet` · IGW · 라우팅 · NAT · EIP 생성 금지 |
+| R-1 | `0.0.0.0/0` · `::/0` 인바운드는 80 · 443만 (규칙 리소스 · 인라인 ingress 모두) |
+| R-3 · R-5 | DB `publicly_accessible = false`, `storage_encrypted = true` |
+| R-4 | `password` · `secret_string` 문자열 리터럴, 개인 키 금지 |
+| R-6 | `AdministratorAccess` · `PowerUserAccess` · `IAMFullAccess` 연결, `Action "*"` 정책 금지 |
+| 비용 | DB Multi-AZ · 큰 클래스, ECS 태스크 1 vCPU / 2048 MiB 초과 · 3개 이상, Container Insights, 로그 보존 3일 아님 |
+| 구조 | `backend` 블록 · provider 자격증명 금지, 필수 변수 `image_tag`(기본값 없음) · 필수 출력 `service_url` |
+
+GCP 규칙은 GCP 모듈과 함께 추가해요 (지금은 구조 검사만).
+
+### 17-4. 기록 (서버 `ai_usage` · 승인 화면용)
+
+- `$WORK_ROOT/$APP/$ENV/ai/<PLAN_ID>/ai.json`: 방식(`reused` · `generated` · `reference` · `destroy`), AI 호출 수, 시도별 결과(성공 여부 · 실패 단계 · 오류 요약 · AI 메모 · 사용량), 합계 토큰
+- 시도별 사용량: 모델(대체 모델이 답하면 그 모델), request ID, 입력 · 출력 · 캐시 쓰기 · 캐시 읽기 토큰
+- `plan-summary.json`의 환경별 `ai`: `mode`, `ai_calls`, `usage_total`, 실패 메시지. 원화 환산은 서버 결정(고정 환율)을 따라요
+- 검증된 스크립트: `$WORK_ROOT/$APP/$ENV/verified/<지문>/` (러너 로컬 프로토타입. 최종 저장소는 서버 DB 제안 — §16-9 · D-8)
+
+### 17-5. 검증 (10/1)
+
+- `risk_check.py`: 일부러 위반 18가지를 넣은 plan에서 모두 검출, 기준 모듈 + 정상 plan은 통과
+- `daisy-cd-plan` #6 (`USE_AI=false`): `plan_with_ai.py` → tf-run 단계 표시 → `No changes` → 위험 검사 통과 → 요약에 `mode: reference`, AI 0회
+- 러너에 `anthropic` 1.11.0 (`/opt/daisy-ai/venv`), `beta.messages.stream`의 `fallbacks` · `output_config` 인자 확인
+- **아직 안 한 것**: 실제 Claude API 호출(키 등록 대기), 수정 루프가 오류를 고치는 장면, 재사용(AI 0회) 2회차 확인
 
 ## 15. 변경 기록
 
@@ -805,3 +874,4 @@ Jenkins: Terraform 준비 → validate · plan · 위험 검사
 기존 클라우드 리소스·일정·미정인 공통 변수의 결정을 이 절이 임의로 바꾸지 않아요.
 | 2026-10-01 | CD를 `daisy-cd-plan` · `daisy-cd-apply` 두 Job으로 분리(§12-7). plan마다 작업 폴더 분리, 승인한 plan만 적용, 앱·환경별 `flock` |
 | 2026-10-01 | 고정 네트워크 분리(§5-0, `infra/bootstrap/aws-network`, `daisy-bootstrap` §12-8). 앱 모듈은 VPC · 서브넷 ID를 받아요. 개인 AWS 계정을 실제 환경으로 변경(§12-5) |
+| 2026-10-01 | AI Terraform 생성 · 수정 루프 · 재사용 구현(§17, `infra/ai/`). 담당이 임채준으로 바뀐 것 기록. CD Plan 단계의 MOCK 위험 검사를 실제 검사로 대체(§12-4) |
