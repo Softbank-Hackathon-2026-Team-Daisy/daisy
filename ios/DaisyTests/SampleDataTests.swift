@@ -55,7 +55,9 @@ struct SampleDataTests {
         let detail = try decode(ProjectDetail.self, "projects/prj_monolith")
         #expect(detail.build?.hasPrefix("Jenkins") == true)
         let builds = try decode(Page<Build>.self, "projects/prj_monolith/builds").items
-        #expect(builds.allSatisfy { $0.pipeline.runUrl?.host == "jenkins.example.com" })
+        // Jenkins 화면은 외부에 공개하지 않아서 링크 없이, 단계는 daisy-ci 이름 그대로 (10/1 임채준 답)
+        #expect(builds.allSatisfy { $0.pipeline.runUrl == nil })
+        #expect(builds.first?.steps?.map(\.name) == ["Checkout", "Test", "Build & Push", "Trigger CD"])
     }
 
     /// 커밋은 실제 GitHub sample 레포에서 가져와요 (40자 SHA)

@@ -45,6 +45,8 @@ struct TargetStatus: Decodable, Identifiable, Hashable, Sendable {
     let checkedAt: Date?
     /// WR-09: 떠 있는 이미지의 digest. 동일성 검증("3/3 일치")의 근거예요 (9/30 서버 수락).
     let imageDigest: String?
+    /// 헬스 한 줄 "200 OK · 120ms" (헬스체크 1회 측정, 10/1 임채준 답). 없으면 "정상" · "실패"
+    let healthSummary: String?
 
     var id: String { targetId }
 }
