@@ -113,7 +113,9 @@ struct HistoryView: View {
     /// 웹: 롤백 배포는 "롤백 · 성공"처럼 앞에 붙여요
     private func statusBadge(_ deployment: Deployment) -> StatusBadge {
         let badge = deployment.badge
-        return deployment.isRollback ? StatusBadge(text: "롤백 · \(badge.text)", color: badge.color) : badge
+        // 성공한 롤백은 이미 "롤백됨"이라 앞에 붙이지 않아요 ("롤백 · 롤백됨" 방지)
+        guard deployment.isRollback, badge.text != "롤백됨" else { return badge }
+        return StatusBadge(text: "롤백 · \(badge.text)", color: badge.color)
     }
 
     /// 웹: "10:12 · 12분 전" (만든 시각 기준)

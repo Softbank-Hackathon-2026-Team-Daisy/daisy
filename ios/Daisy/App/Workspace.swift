@@ -29,10 +29,10 @@ enum AppTab: String, CaseIterable, Identifiable, Hashable {
         switch self {
         case .overview: "cloud"
         case .deployments: "play"
-        case .environments: "server.rack"
+        case .environments: "square.stack.3d.up"
         case .history: "clock"
         case .scripts: "apple.terminal"
-        case .aiUsage: "cellularbars"
+        case .aiUsage: "chart.bar"
         case .settings: "gearshape"
         }
     }

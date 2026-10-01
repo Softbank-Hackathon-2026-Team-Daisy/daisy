@@ -136,6 +136,8 @@ struct FlowStepper: View {
             }
             .padding(.vertical, 2)
         }
+        // 가로 스크롤은 iPhone 탭 바용 아래 여백(contentMargins)을 받지 않아요
+        .contentMargins(.vertical, 0, for: .scrollContent)
         .onAppear { proxy.scrollTo(current, anchor: .center) }
         }
         .accessibilityElement(children: .ignore)
@@ -370,6 +372,9 @@ struct CodeBlock: View {
                     .textSelection(.enabled)
                     .padding(12)
             }
+            .contentMargins(.vertical, 0, for: .scrollContent)
+            // 가로 ScrollView는 세로로 늘어나요. 그리드 안에서 화면보다 길게 늘어나 빈 공간이 생겨서 코드 높이로 고정해요 (W-05)
+            .fixedSize(horizontal: false, vertical: true)
         }
         .background(.fill.quaternary, in: .rect(cornerRadius: 10))
         .task(id: copied) {

@@ -29,7 +29,7 @@ struct AIUsageView: View {
             if app.selectedProjectID == nil {
                 NoProjectView()
             } else if deployments.isEmpty && detail.value == nil {
-                ContentUnavailableView("아직 배포가 없어요", systemImage: "cellularbars",
+                ContentUnavailableView("아직 배포가 없어요", systemImage: "chart.bar",
                                        description: Text("배포하면 AI를 몇 번, 얼마나 썼는지 여기서 봐요"))
             } else {
                 LoadStateView(state: detail, retry: { await loadDetail() }) { detail in
@@ -157,7 +157,7 @@ struct AIUsageView: View {
         switch result {
         case .passed: StatusBadge(text: result.text, color: .green)
         case .failed: StatusBadge(text: result.text, color: .red)
-        case .noCall: StatusBadge(text: result.text, color: .gray)
+        case .noCall, .unknown: StatusBadge(text: result.text, color: .gray)
         }
     }
 
