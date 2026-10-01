@@ -132,8 +132,27 @@ public class Target {
     return connectionCheckedAt;
   }
 
+  /** 대상 설정이에요. 받는 쪽이 고쳐도 엔티티가 바뀌지 않게 복사본을 돌려줘요. */
+  public JsonNode config() {
+    return config == null ? null : config.deepCopy();
+  }
+
+  public long configRevision() {
+    return configRevision;
+  }
+
+  /** 자격증명 참조예요. 실제 비밀값이 아니에요. */
+  public String credentialRef() {
+    return credentialRef;
+  }
+
+  public String credentialVersion() {
+    return credentialVersion;
+  }
+
   /**
-   * 현재 배포 대상 ID 예요. 이 값을 갱신하는 것은 실행 서비스(deployment 모듈) 책임이고, 이 모듈은 읽기만 해요.
+   * 현재 배포 대상 ID 예요. 대상은 이 모듈 소유라 실제 결과에 따라 갱신하는 서비스도 이 모듈이 열어야 하지만, 근거가 될 결과 계약(#35)이 정해지기 전이라 아직
+   * 갱신하는 곳이 없어요 (server/SPEC.md ⑤). 그 전까지 이 값은 항상 null 이에요.
    *
    * <p>ID 로 가리키는 {@code deployment_target} 행을 읽으려면 deployment 모듈의 조회 서비스가 필요해요. 설계 2장의 소유 경계대로 그쪽
    * Repository 를 직접 쓰지 않아요.
