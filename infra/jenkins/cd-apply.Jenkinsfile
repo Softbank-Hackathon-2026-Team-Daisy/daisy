@@ -129,7 +129,7 @@ def forEachTarget(String label, Closure body) {
 // 자격증명은 이 블록 안에서만 환경변수로 주입해요 (daisy-cd-plan과 같아요)
 def withCloud(String target, Closure body) {
   def creds = []
-  if (target == 'aws' || env.TF_STATE_BUCKET?.trim()) {
+  if (target == 'aws') {
     creds << usernamePassword(credentialsId: 'aws-deployer', usernameVariable: 'AWS_ACCESS_KEY_ID', passwordVariable: 'AWS_SECRET_ACCESS_KEY')
   }
   if (target == 'gcp') {

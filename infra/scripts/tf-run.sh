@@ -1,13 +1,15 @@
 #!/usr/bin/env bash
 # infra/SPEC.md §3-4 러너 규약의 참고 구현이에요 (Jenkins 러너 · 사람이 직접 실행 공용).
 #
-#   tf-run.sh <aws|gcp|aws-network> <plan|apply|destroy|output>
+#   tf-run.sh <aws|gcp|aws-network|aws-state> <plan|apply|destroy|output|migrate-state>
 #
-#   aws · gcp     앱 모듈 (infra/modules/<env>). 매 배포
-#   aws-network   고정 리소스 bootstrap (infra/bootstrap/<stack>). 1번만, $WORK_ROOT/_bootstrap/<stack>/
+#   aws · gcp                 앱 모듈 (infra/modules/<env>). 매 배포
+#   aws-network · aws-state   고정 리소스 bootstrap (infra/bootstrap/<stack>). 1번만, $WORK_ROOT/_bootstrap/<stack>/
+#
+# state는 환경마다 그 환경의 저장소예요 (SPEC §7-1). AWS 스택은 TF_STATE_BUCKET_AWS가 있으면 S3, 없으면 로컬
 #
 # 작업 디렉터리는 레포 밖이에요. state·plan에 비밀값이 들어가요.
-#   $WORK_ROOT/$APP/$ENV/state/        로컬 backend의 state (고정, 지우지 않아요)
+#   $WORK_ROOT/$APP/$ENV/state/        로컬 backend의 state (고정, 지우지 않아요. S3로 옮기면 MIGRATED 표시가 남아요)
 #   $WORK_ROOT/$APP/$ENV/plans/<id>/   plan마다 분리: src/(모듈 복사본·plan.tfplan) · vars.json · meta.json
 #   $WORK_ROOT/$APP/$ENV/current       마지막으로 apply한 plan (output이 써요)
 #
@@ -21,15 +23,16 @@ umask 077
 
 usage() {
   cat >&2 <<'EOF'
-사용법: tf-run.sh <aws|gcp|aws-network> <plan|apply|destroy|output>
+사용법: tf-run.sh <aws|gcp|aws-network|aws-state> <plan|apply|destroy|output|migrate-state>
 
-  aws · gcp      앱 모듈 (infra/modules/<env>). IMAGE_TAG 필요
-  aws-network    고정 리소스 bootstrap (infra/bootstrap/<stack>). IMAGE_TAG 필요 없음
+  aws · gcp                 앱 모듈 (infra/modules/<env>). IMAGE_TAG 필요
+  aws-network · aws-state   고정 리소스 bootstrap (infra/bootstrap/<stack>). IMAGE_TAG 필요 없음
 
-  plan     plans/<PLAN_ID>/에 plan을 만들어요 (TF_DESTROY=1이면 삭제 plan)
-  apply    plans/<PLAN_ID>/의 plan을 적용해요. 승인 필요
-  destroy  삭제 plan을 만들고 바로 적용해요 (터미널용). 승인 필요
-  output   마지막으로 apply한 plan의 service_url (bootstrap은 전체 출력 JSON)
+  plan           plans/<PLAN_ID>/에 plan을 만들어요 (TF_DESTROY=1이면 삭제 plan)
+  apply          plans/<PLAN_ID>/의 plan을 적용해요. 승인 필요
+  destroy        삭제 plan을 만들고 바로 적용해요 (터미널용). 승인 필요
+  output         마지막으로 apply한 plan의 service_url (bootstrap은 전체 출력 JSON)
+  migrate-state  로컬 state를 TF_STATE_BUCKET_AWS로 옮겨요 (S3가 비어 있을 때만). 승인 필요
 
 환경변수
   APP                  앱 이름 (기본 hellocalc). state key와 작업 디렉터리에 써요
@@ -37,7 +40,7 @@ usage() {
   IMAGE_TAG            커밋 해시 40자. plan·destroy에 필수 (latest 금지)
   WORK_ROOT            작업 루트, 레포 밖 (기본 ~/daisy-work)
   VAR_FILE             비밀값 없는 변수 파일 (기본 $WORK_ROOT/$APP/$ENV.tfvars.json). plan 때 plan 폴더로 복사해요
-  TF_STATE_BUCKET      있으면 S3 backend (key $APP/$ENV/terraform.tfstate), 없으면 로컬 state
+  TF_STATE_BUCKET_AWS  AWS 스택의 S3 state 버킷 (key $APP/$ENV/terraform.tfstate, 잠금 use_lockfile). 없으면 로컬 state
   TF_STATE_REGION      state 버킷 리전 (기본 ap-northeast-2)
   EXPECTED_AWS_ACCOUNT apply·destroy 전에 AWS 계정 ID 확인
   EXPECTED_GCP_PROJECT apply·destroy 전에 변수 파일의 project_id 확인
@@ -55,10 +58,10 @@ die() { echo "tf-run: $*" >&2; exit 1; }
 ENV=$1 CMD=$2
 case $ENV in
 aws | gcp) KIND=app ;;
-aws-network) KIND=bootstrap ;;
+aws-network | aws-state) KIND=bootstrap ;;
 *) usage ;;
 esac
-case $CMD in plan | apply | destroy | output) ;; *) usage ;; esac
+case $CMD in plan | apply | destroy | output | migrate-state) ;; *) usage ;; esac
 
 REPO_ROOT=$(cd "$(git -C "$(dirname "$0")" rev-parse --show-toplevel)" && pwd -P)
 APP=${APP:-hellocalc}
@@ -84,6 +87,14 @@ mkdir -p "$WORK/state" "$WORK/plans" "$TF_PLUGIN_CACHE_DIR"
 exec 9>"$WORK/.lock"
 flock -w "${TF_RUN_LOCK_WAIT:-600}" 9 || die "${WORK#"$WORK_ROOT"/} 에서 다른 작업이 끝나지 않았어요 (${TF_RUN_LOCK_WAIT:-600}초 대기). 끝난 뒤 다시 실행해요"
 
+# state 저장소: 환경마다 그 환경의 저장소 (SPEC §7-1). 지금은 AWS(S3)만, GCP(GCS)는 GCP 모듈과 함께 넣어요
+case $ENV in
+aws*) BUCKET=${TF_STATE_BUCKET_AWS:-} ;;
+*) BUCKET="" ;;
+esac
+BACKEND=$([[ -n $BUCKET ]] && echo "s3:$BUCKET" || echo local)
+MIGRATED="$WORK/state/MIGRATED" # migrate-state가 남기는 표시. 내용은 옮긴 곳(s3://…)
+
 PLAN_DIR="" # set_plan_dir에서 정해요
 tf() { terraform -chdir="$PLAN_DIR/src" "$@"; }
 
@@ -96,21 +107,24 @@ need_tag() {
   [[ ${IMAGE_TAG:-} =~ ^[0-9a-f]{40}$ ]] || die "IMAGE_TAG는 커밋 해시 40자여야 해요: '${IMAGE_TAG:-}'"
 }
 
-init() {
-  local args=(-input=false -no-color)
-  if [[ -n ${TF_STATE_BUCKET:-} ]]; then
-    printf 'terraform {\n  backend "s3" {}\n}\n' >"$PLAN_DIR/src/backend.tf"
-    args+=(-backend-config="bucket=$TF_STATE_BUCKET"
+init() { # $1 = 디렉터리 (기본 plan 폴더의 src). -reconfigure: 예전 plan 폴더도 지금 backend를 보게 해요
+  local dir=${1:-$PLAN_DIR/src}
+  local args=(-input=false -no-color -reconfigure)
+  if [[ -n $BUCKET ]]; then
+    printf 'terraform {\n  backend "s3" {}\n}\n' >"$dir/backend.tf"
+    args+=(-backend-config="bucket=$BUCKET"
       -backend-config="key=$STATE_KEY"
       -backend-config="region=${TF_STATE_REGION:-ap-northeast-2}"
       -backend-config="encrypt=true"
       -backend-config="use_lockfile=true")
   else
-    printf 'terraform {\n  backend "local" {}\n}\n' >"$PLAN_DIR/src/backend.tf"
+    # S3로 옮긴 뒤 버킷 설정 없이 돌리면 빈 로컬 state로 전부 새로 만들려고 해요. 그 전에 멈춰요
+    [[ ! -f $MIGRATED ]] || die "이 스택의 state는 $(cat "$MIGRATED")로 옮겼어요. TF_STATE_BUCKET_AWS를 설정하고 다시 실행해요"
+    printf 'terraform {\n  backend "local" {}\n}\n' >"$dir/backend.tf"
     args+=(-backend-config="path=$WORK/state/terraform.tfstate")
   fi
-  [[ -f $PLAN_DIR/src/.terraform.lock.hcl ]] && args+=(-lockfile=readonly)
-  tf init "${args[@]}"
+  [[ -f $dir/.terraform.lock.hcl ]] && args+=(-lockfile=readonly)
+  terraform -chdir="$dir" init "${args[@]}"
 }
 
 check_account() {
@@ -172,8 +186,8 @@ make_plan() { # $1 = 1이면 삭제 plan
   jq -n --arg id "$PLAN_ID" --arg app "$APP" --arg env "$ENV" --arg tag "${IMAGE_TAG:-}" \
     --argjson destroy "$([[ $1 == 1 ]] && echo true || echo false)" \
     --arg sha "$(sha256sum "$PLAN_DIR/src/plan.tfplan" | cut -d' ' -f1)" \
-    --arg summary "$(cat "$PLAN_DIR/summary.txt")" --arg at "$(date -u +%FT%TZ)" \
-    '{plan_id: $id, app: $app, env: $env, image_tag: $tag, destroy: $destroy,
+    --arg summary "$(cat "$PLAN_DIR/summary.txt")" --arg at "$(date -u +%FT%TZ)" --arg backend "$BACKEND" \
+    '{plan_id: $id, app: $app, env: $env, image_tag: $tag, destroy: $destroy, backend: $backend,
       plan_sha256: $sha, summary: $summary, created_at: $at, applied_at: null}' >"$PLAN_DIR/meta.json"
   echo "tf-run: plan ID $PLAN_ID"
 }
@@ -184,6 +198,11 @@ apply_plan() {
   [[ -f $PLAN_DIR/src/plan.tfplan ]] || die "plan 파일이 없어요: $PLAN_ID"
   [[ $(sha256sum "$PLAN_DIR/src/plan.tfplan" | cut -d' ' -f1) == $(jq -r .plan_sha256 "$PLAN_DIR/meta.json") ]] ||
     die "plan 파일이 승인한 것과 달라요: $PLAN_ID (다시 plan · 승인해요)"
+  # plan을 만든 뒤 state를 S3로 옮겼으면, 그 plan은 옛 state(로컬)에 적용돼요. 다시 plan해야 해요
+  local planned_backend
+  planned_backend=$(jq -r '.backend // "local"' "$PLAN_DIR/meta.json")
+  [[ $planned_backend == "$BACKEND" ]] ||
+    die "plan을 만든 뒤 state 위치가 바뀌었어요 (plan: $planned_backend, 지금: $BACKEND). 다시 plan · 승인해요"
   check_account
   confirm
   # 그사이 다른 apply로 state가 바뀌었으면 terraform이 "Saved plan is stale"로 거부해요
@@ -208,6 +227,39 @@ show_output() { # 앱은 service_url, bootstrap은 전체 출력 JSON
   else
     tf output -json
   fi
+}
+
+migrate_state() { # 로컬 state를 S3로 옮겨요. S3에 리소스가 있으면 덮어쓰지 않아요
+  [[ -n $BUCKET ]] || die "TF_STATE_BUCKET_AWS가 필요해요 (옮길 S3 버킷)"
+  local src="$WORK/state/terraform.tfstate"
+  if [[ -f $MIGRATED ]]; then
+    echo "tf-run: 이미 옮겼어요 ($ENV → $(cat "$MIGRATED"))"
+    return
+  fi
+  if [[ ! -f $src ]]; then
+    echo "tf-run: 옮길 로컬 state가 없어요 ($ENV, 건너뛰어요)"
+    return
+  fi
+  PLAN_ID=migrate-state # confirm 메시지용
+  confirm
+  local dir
+  dir="$WORK/migrate-$(date +%Y%m%d-%H%M%S)"
+  mkdir -p "$dir"
+  init "$dir" # backend.tf만 있는 빈 설정으로 S3 state에 붙어요
+  local remote
+  remote=$(terraform -chdir="$dir" state pull)
+  if [[ -n $remote && $(jq '.resources | length' <<<"$remote") != 0 ]]; then
+    die "S3에 이미 리소스가 있는 state가 있어요: s3://$BUCKET/$STATE_KEY (덮어쓰지 않아요)"
+  fi
+  terraform -chdir="$dir" state push "$src"
+  # lineage와 리소스 주소가 같아야 같은 state예요
+  local q='{lineage, resources: ([.resources[] | "\(.module // "")\(.mode).\(.type).\(.name)"] | sort)}'
+  [[ $(jq -c "$q" "$src") == $(terraform -chdir="$dir" state pull | jq -c "$q") ]] ||
+    die "S3에 올린 state가 로컬과 달라요. 로컬 state는 그대로 뒀어요: $src"
+  mv "$src" "$src.migrated" # 백업으로 남겨요. MIGRATED 표시가 있으면 로컬 backend로는 돌지 않아요
+  echo "s3://$BUCKET/$STATE_KEY" >"$MIGRATED"
+  rm -rf "$dir"
+  echo "tf-run: state 이전 완료 $ENV → s3://$BUCKET/$STATE_KEY (리소스 $(jq '.resources | length' "$src.migrated")개)"
 }
 
 prune_plans() { # 하루 지난 plan 폴더를 지워요. 마지막으로 apply한 plan은 남겨요
@@ -242,6 +294,10 @@ destroy)
 output)
   [[ -e $WORK/current ]] || die "적용한 plan이 없어요: $WORK/current"
   PLAN_DIR="$WORK/current"
+  init >&2 # state를 옮겼어도 지금 backend에서 읽어요. stdout은 출력값만
   show_output
+  ;;
+migrate-state)
+  migrate_state
   ;;
 esac

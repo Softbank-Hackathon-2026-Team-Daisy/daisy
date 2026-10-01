@@ -8,7 +8,7 @@
 //
 // 필요한 Jenkins Credentials: aws-deployer (Username/Password = 액세스 키 ID/시크릿), gcp-deployer (Secret file = SA JSON),
 //   claude-api-key (Secret text = Anthropic API 키, USE_AI일 때)
-// 선택 Jenkins 전역 환경변수: TF_STATE_BUCKET, EXPECTED_AWS_ACCOUNT, EXPECTED_GCP_PROJECT
+// Jenkins 전역 환경변수: TF_STATE_BUCKET_AWS (AWS state S3 버킷, 없으면 러너 로컬), 선택 EXPECTED_AWS_ACCOUNT, EXPECTED_GCP_PROJECT
 // 러너에 1번 등록: $JENKINS_HOME/daisy-work/targets/<env>.json (예: {"project_id": "...", "region": "asia-northeast3"})
 pipeline {
   agent any
@@ -156,11 +156,11 @@ def forEachTarget(String label, Closure body) {
 }
 
 // 자격증명은 이 블록 안에서만 환경변수로 주입해요.
-// state 버킷(S3)을 쓰면 GCP 배포도 AWS 자격증명(버킷 권한)이 필요해요. 환경별 state 저장소(SPEC §7)로 바뀌면 지워요.
+// state는 환경마다 그 환경의 저장소라(SPEC §7-1) 각 배포는 자기 환경 키만 받아요.
 // AI를 쓸 때만 Anthropic API 키를 넣어요 (삭제 plan은 AI를 부르지 않아요)
 def withCloud(String target, Closure body) {
   def creds = []
-  if (target == 'aws' || env.TF_STATE_BUCKET?.trim()) {
+  if (target == 'aws') {
     creds << usernamePassword(credentialsId: 'aws-deployer', usernameVariable: 'AWS_ACCESS_KEY_ID', passwordVariable: 'AWS_SECRET_ACCESS_KEY')
   }
   if (target == 'gcp') {
