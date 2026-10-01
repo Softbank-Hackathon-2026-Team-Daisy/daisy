@@ -1,10 +1,10 @@
 #!/usr/bin/env bash
 # infra/SPEC.md §3-4 러너 규약의 참고 구현이에요 (Jenkins 러너 · 사람이 직접 실행 공용).
 #
-#   tf-run.sh <aws|gcp|onprem|aws-network|aws-state> <plan|apply|destroy|output|migrate-state>
+#   tf-run.sh <aws|gcp|onprem|aws-network|aws-state|aws-domain|aws-server> <plan|apply|destroy|output|migrate-state>
 #
 #   aws · gcp · onprem        앱 모듈 (infra/modules/<env>). 매 배포
-#   aws-network · aws-state   고정 리소스 bootstrap (infra/bootstrap/<stack>). 1번만, $WORK_ROOT/_bootstrap/<stack>/
+#   aws-network · aws-state · aws-domain · aws-server   고정 리소스 bootstrap (infra/bootstrap/<stack>). $WORK_ROOT/_bootstrap/<stack>/
 #
 # state는 환경마다 그 환경의 저장소예요 (SPEC §7-1). AWS 스택은 TF_STATE_BUCKET_AWS가 있으면 S3, 없으면 로컬
 #   onprem은 러너 로컬 (온프레미스 저장소 [미정])
@@ -24,10 +24,10 @@ umask 077
 
 usage() {
   cat >&2 <<'EOF'
-사용법: tf-run.sh <aws|gcp|onprem|aws-network|aws-state> <plan|apply|destroy|output|migrate-state>
+사용법: tf-run.sh <aws|gcp|onprem|aws-network|aws-state|aws-domain|aws-server> <plan|apply|destroy|output|migrate-state>
 
   aws · gcp · onprem        앱 모듈 (infra/modules/<env>). IMAGE_TAG 필요
-  aws-network · aws-state   고정 리소스 bootstrap (infra/bootstrap/<stack>). IMAGE_TAG 필요 없음
+  aws-network · aws-state · aws-domain · aws-server   고정 리소스 bootstrap (infra/bootstrap/<stack>). IMAGE_TAG 필요 없음
 
   plan           plans/<PLAN_ID>/에 plan을 만들어요 (TF_DESTROY=1이면 삭제 plan)
   apply          plans/<PLAN_ID>/의 plan을 적용해요. 승인 필요
@@ -59,7 +59,7 @@ die() { echo "tf-run: $*" >&2; exit 1; }
 ENV=$1 CMD=$2
 case $ENV in
 aws | gcp | onprem) KIND=app ;;
-aws-network | aws-state) KIND=bootstrap ;;
+aws-network | aws-state | aws-domain | aws-server) KIND=bootstrap ;;
 *) usage ;;
 esac
 case $CMD in plan | apply | destroy | output | migrate-state) ;; *) usage ;; esac
