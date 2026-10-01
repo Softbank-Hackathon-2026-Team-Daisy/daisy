@@ -8,7 +8,6 @@ struct BuildStage: View {
     @Environment(AppModel.self) private var app
     @Environment(Router.self) private var router
     @Environment(Workspace.self) private var workspace
-    @Environment(\.openURL) private var openURL
     @State private var build: Build?
 
     var body: some View {
@@ -28,12 +27,8 @@ struct BuildStage: View {
                     if steps.isEmpty {
                         Text("단계 정보를 기다리고 있어요").foregroundStyle(.secondary)
                     }
+                    // Jenkins 화면은 배포 키가 있어서 외부에 공개하지 않아요 → 로그 열기 버튼 없음 (10/1 임채준 답, PR #17)
                     ForEach(steps, id: \.self) { StepItemRow($0) }
-                    Button("Jenkins 로그 열기") {
-                        if let url = build?.pipeline.runUrl { openURL(url) }
-                    }
-                    .buttonStyle(.glassCapsule)
-                    .disabled(build?.pipeline.runUrl == nil)
                 }
                 SectionCard("이미지") {
                     InfoRow("커밋", current.map { String($0.prefix(7)) }, monospaced: true)
@@ -44,10 +39,11 @@ struct BuildStage: View {
                 }
             }
             if build?.pipeline.status == .failed {
-                InlineAlert(.danger, "빌드 · 테스트가 실패했어요", "Jenkins 로그에서 원인을 확인해 주세요. 실패한 이미지는 배포하지 않아요.")
+                InlineAlert(.danger, "빌드 · 테스트가 실패했어요", "빌드 단계에서 원인을 확인해 주세요. 실패한 이미지는 배포하지 않아요.")
             }
         }
-        .task(id: commit) { await poll(every: 5) { await loadBuild() } }
+        // 빌드가 끝나면(성공 · 실패) 멈춰요
+        .task(id: commit) { await poll(until: { [.success, .failed].contains(build?.pipeline.status) }) { await loadBuild() } }
     }
 
     /// 보여줄 커밋: 넘겨받은 커밋, 없으면 가장 최근 빌드

@@ -160,13 +160,13 @@ def monolith():
                                         call("aws", "fix", 3, 1880, 49, "failed", 169), call("gcp", "generate", 1, 2900, 75, "failed", 174)]),
         # 성공 (W-08) — 지금 떠 있는 버전
         deployment(pid, "dep_m3", "v3", c[3], "succeeded",
-                   [tgt(e, "health_check", "done", reused=(e == "onprem"), steps=APPLIED, u=u(e), health="200 OK · p95 120ms") for e in T],
+                   [tgt(e, "health_check", "done", reused=(e == "onprem"), steps=APPLIED, u=u(e), health="200 OK · 120ms") for e in T],
                    ago(hours=20), ago(hours=19, minutes=54),
                    calls=[call("aws", "generate", 1, 3100, 81, "succeeded", 1195), call("gcp", "generate", 1, 2950, 76, "succeeded", 1195)]),
         # 일부 성공 (W-08 "일부 성공")
         deployment(pid, "dep_m2", "v2", c[4], "partially_succeeded",
-                   [tgt("onprem", "health_check", "done", steps=APPLIED, u=u("onprem"), health="200 OK · p95 98ms"),
-                    tgt("aws", "health_check", "done", steps=APPLIED, u=u("aws"), health="200 OK · p95 131ms"),
+                   [tgt("onprem", "health_check", "done", steps=APPLIED, u=u("onprem"), health="200 OK · 98ms"),
+                    tgt("aws", "health_check", "done", steps=APPLIED, u=u("aws"), health="200 OK · 131ms"),
                     tgt("gcp", "health_check", "failed", steps=[step("apply", "done", 58000), step("health_check", "failed", 30000)], u=u("gcp"),
                         err="헬스체크 30초 안에 응답 없음 (/health)")],
                    ago(days=1, hours=2), ago(days=1, hours=1, minutes=52),
@@ -175,7 +175,7 @@ def monolith():
     current = deps[3]
     statuses = [{"target_id": T[e], "type": e, "name": {"onprem": "온프레미스", "aws": "AWS", "gcp": "GCP"}[e],
                  "current": {"commit": current["commit"], "image": current["image"], "deployment_id": current["id"], "deployed_at": current["finished_at"]},
-                 "url": u(e), "health": "healthy", "checked_at": ago(seconds=40), "image_digest": digest(current["commit"])} for e in T]
+                 "url": u(e), "health": "healthy", "health_summary": "200 OK · 120ms", "checked_at": ago(seconds=40), "image_digest": digest(current["commit"])} for e in T]
     return pid, name, cs, deps, statuses, file_text(name, "deploy.yaml"), "deploy.yaml"
 
 
@@ -192,14 +192,14 @@ def msa():
                     tgt("gcp", "generate", "running", steps=[step("generate", "running")])], ago(minutes=4),
                    calls=[call("aws", "generate", 1, 3400, 88, "failed", 3), call("aws", "fix", 2, 2010, 52, "succeeded", 2, "backend 내부 ingress 규칙 추가")]),
         deployment(pid, "dep_s1", "v1", c[1], "succeeded",
-                   [tgt(e, "health_check", "done", steps=APPLIED, u=u(e), health="200 OK · p95 140ms") for e in T],
+                   [tgt(e, "health_check", "done", steps=APPLIED, u=u(e), health="200 OK · 140ms") for e in T],
                    ago(hours=6), ago(hours=5, minutes=50),
                    calls=[call(e, "generate", 1, 3300, 85, "succeeded", 358) for e in ("onprem", "aws", "gcp")]),
     ]
     current = deps[1]
     statuses = [{"target_id": T[e], "type": e, "name": {"onprem": "온프레미스", "aws": "AWS", "gcp": "GCP"}[e],
                  "current": {"commit": current["commit"], "image": current["image"], "deployment_id": current["id"], "deployed_at": current["finished_at"]},
-                 "url": u(e), "health": "healthy", "checked_at": ago(seconds=40), "image_digest": digest(current["commit"])} for e in T]
+                 "url": u(e), "health": "healthy", "health_summary": "200 OK · 120ms", "checked_at": ago(seconds=40), "image_digest": digest(current["commit"])} for e in T]
     return pid, name, cs, deps, statuses, file_text(name, "services/frontend/deploy.yaml"), "services/frontend/deploy.yaml"
 
 
@@ -215,11 +215,11 @@ TARGETS = [
      "reuse": {"available": True, "script_id": "scr_onprem_s1", "reason": "home-lab Proxmox VM · 사설망 · 검증된 스크립트 있음 → 태그만 교체"},
      "connection": {"state": "ok", "checked_at": ago(minutes=1)}},
     {"target_id": T["aws"], "type": "aws", "name": "AWS", "title": "AWS · ECS + ALB", "runtime": "ECS Fargate + ALB",
-     "location": "ap-northeast-2", "location_label": "리전", "access_method": "IAM 역할", "exposure": "ALB HTTPS", "state_backend": None,
+     "location": "ap-northeast-2", "location_label": "리전", "access_method": "IAM 역할", "exposure": "ALB HTTPS", "state_backend": "S3 (잠금)",
      "reuse": {"available": True, "script_id": "scr_aws_s2", "reason": "ap-northeast-2 · 검증된 스크립트 있음 → 태그만 교체"},
      "connection": {"state": "ok", "checked_at": ago(minutes=1)}},
     {"target_id": T["gcp"], "type": "gcp", "name": "GCP", "title": "GCP · Cloud Run", "runtime": "Cloud Run",
-     "location": "asia-northeast3", "location_label": "리전", "access_method": "서비스 계정", "exposure": "Cloud Run URL", "state_backend": None,
+     "location": "asia-northeast3", "location_label": "리전", "access_method": "서비스 계정", "exposure": "Cloud Run URL", "state_backend": "GCS (잠금)",
      "reuse": {"available": False, "reason": "asia-northeast3 · 처음 배포 → AI가 Terraform 생성"}, "connection": {"state": "ok", "checked_at": ago(minutes=1)}},
 ]
 
@@ -263,9 +263,10 @@ def main():
         responses[f"projects/{pid}/targets"] = page(TARGETS)
         responses[f"projects/{pid}/builds"] = page([{
             "commit": c["sha"], "message": subject(c), "author": c["commit"]["author"]["name"], "committed_at": c["commit"]["author"]["date"],
-            "pipeline": {"status": "success", "run_url": f"https://jenkins.example.com/job/daisy-ci/{len(cs) - i}/"}, "image": f"ghcr.io/team-daisy/{name}:{c['sha'][:7]}",
+            "pipeline": {"status": "success", "run_url": None}, "image": f"ghcr.io/team-daisy/{name}:{c['sha'][:7]}",
             "deployed_to": [], "branch": "main", "digest": None,
-            "steps": [step("checkout", "done", 2000), step("test", "done", 21000), step("docker build", "done", 64000), step("push", "done", 9000)]} for i, c in enumerate(cs)])
+            # Jenkins daisy-ci 단계 (10/1 임채준 답). Jenkins 화면은 외부에 공개하지 않아서 링크는 없어요
+            "steps": [step("Checkout", "done", 2000), step("Test", "done", 21000), step("Build & Push", "done", 73000), step("Trigger CD", "done", 1000)]} for i, c in enumerate(cs)])
         responses[f"projects/{pid}/manifest"] = {"port": 8080, "healthcheck": "/health", "env": ["LOG_LEVEL", "SHUTDOWN_TIMEOUT"], "secrets": [],
                                                  "database": False, "errors": [], "raw": yaml_text, "ref": f"{yaml_path} · main@{cs[0]['sha'][:7]}"}
         responses[f"projects/{pid}/scripts"] = page([

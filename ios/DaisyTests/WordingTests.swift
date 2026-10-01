@@ -107,7 +107,8 @@ struct WordingTests {
         #expect(parity.total == 3)
         #expect(parity.matching == 2)
         #expect(parity.rows.first { $0.key == "digest" }?.cells.map(\.failed) == [false, false, true])
-        #expect(parity.rows.first { $0.key == "health" }?.cells.map(\.value) == ["200 OK", "200 OK", "실패"])
+        // 헬스 요약이 없으면 "정상" · "실패" (웹 개요와 같아요)
+        #expect(parity.rows.first { $0.key == "health" }?.cells.map(\.value) == ["정상", "정상", "실패"])
         #expect(statuses.parityMatching == 2)
     }
 
@@ -122,7 +123,8 @@ struct WordingTests {
         #expect(parity.matching == 2 && parity.total == 3)
         #expect(parity.rows.map(\.key) == ["digest", "commit", "version", "health"])
         #expect(parity.rows[2].cells.map(\.value) == ["v7", "v7", "v7"])
-        #expect(parity.rows[3].cells.map(\.value) == ["200 OK", "200 OK", "503"])
+        // 성공은 헬스 요약 그대로(없으면 "—"), 실패는 요약 · "실패" (웹 결과 화면과 같아요)
+        #expect(parity.rows[3].cells.map(\.value) == ["—", "—", "503"])
         #expect(parity.rows[3].cells.map(\.failed) == [false, false, true])
     }
 
