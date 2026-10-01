@@ -54,4 +54,4 @@ plan의 summary/resources는 실행 도메인의 승인용 안전한 구조만 �
 
 명령 연결·결과 채택·중복 수신 기록은 같은 DB 트랜잭션이다. project → deployment → 모든 deployment_target(ID 정렬) → jenkins_execution 순서로 잠근다. 서비스 커밋 이후 `{"execution_id":"job_...","external_event_id":"...","receipt_id":"..."}`로 ACK한다. receipt_id는 내부 script/usage ID, 로그/단계 DB ID 또는 원천 사건 ID이며 공개 SSE cursor가 아니다. 같은 원천 ID의 다른 내용/연결은 409이고 원본을 보존한다.
 
-새 소스 테스트는 작성했으며 사용자 요청에 따라 일괄 검증 전 실행하지 않았다. 인증 구현·실제 파이프라인·프록시·PostgreSQL 연동 검증은 이 문서만으로 완료되지 않는다.
+2026-10-01 일괄 검증에서 발신 인증 미연결·과대 본문·JSON 형식·Job/대상 범위 검사와 저장된 실행 연결 테스트를 통과했다. 실제 Boot jar에서도 기본 비활성 경로는 404, 활성화 후 인증 bean이 없는 요청은 안전한 403 응답임을 확인했다. DB 상태·멱등 수신은 별도 PostgreSQL 통합 테스트로 검증했다. 전체 91개 테스트·빌드가 성공했지만, 실제 발신 인증·파이프라인·프록시와의 통합은 아직 하지 않았다.

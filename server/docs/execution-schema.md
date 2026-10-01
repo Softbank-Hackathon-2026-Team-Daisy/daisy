@@ -14,4 +14,6 @@ DB가 검사할 수 없는 조건은 서비스 책임이다: current plan active
 
 추가 검증 항목은 승인 후 APPLY 소유자로 바뀐 대상에 원래 plan 사건을 재전송해 seq·승인을 유지하는 것, 아직 전송하지 않은 APPLY 취소의 command-target 실제 종료 기록·증거·락 해제, 미적용/실행 종료가 확인된 stale 결과의 새 REPLAN 생성·회차 유지·원래 승인 결정 보존이다. stale 결과 재전송으로 명령과 seq가 늘지 않는 것도 검사한다.
 
-현재 단계에서는 SQL·테스트 소스만 작성한다. 사용자 요청대로 PostgreSQL 실행·빌드·테스트·포맷은 기능 취합 후 별도로 수행하며, 위 사례는 **작성된 검증 항목이며 아직 실행하지 않았다**. DB 적용 성공이나 전체 실행 흐름 검증 완료를 주장하지 않는다.
+2026-10-01 기능 취합 후 독립 PostgreSQL 17.11에서 위 사례를 실행했다. console 소유권·UTF-8 EOF·커서 갱신 실패 시 이벤트/seq rollback, 확정 큐 취소의 락 해제, 재시도·롤백의 고정 입력/계보, 중단된 제출 복구까지 **DB 통합 테스트 12개 통과**했다. 전체 테스트는 91개, skipped/failure/error 모두 0이다. `spotlessApply check build --no-daemon --offline`도 성공했다.
+
+별도 시험 schema에서 실제 Boot jar의 JPA 검증·기동·health UP을 확인했다. 관리 fixture를 사용하고 Flyway를 끈 시험이므로 운영 Flyway 적용이나 은현의 실제 인증·관리 코드 통합 성공을 의미하지 않는다. 실제 Jenkins·클라우드는 호출하지 않았다.

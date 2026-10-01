@@ -40,6 +40,25 @@ Job 이름·파라미터·콜백 주소·인증 수단·plan 기한·원천 ID �
 
 운영 Flyway 번호는 은현과 조율한다. 기존 테이블을 자동 생성/수정하도록 ddl-auto를 바꾸지 않는다. 시험용 스키마는 운영 마이그레이션 완료의 증거가 아니다.
 
+## 은현 API에서 연결할 최소 호출
+
+아래는 현재 Java 서비스 연결 기준이며 공개 HTTP 응답 DTO를 확정하는 내용은 아니다. 모든 actor ID는 요청 본문이 아니라 인증된 principal에서 가져온다.
+
+| 사용자 API 동작 | 호출과 주의점 |
+|---|---|
+| 배포 생성 | `create(new CreateRequest(actorId, projectId, commitSha, targetIds, input, idempotencyKey))`. `targetIds`는 공개 `tgt_` ID다. 현재 전략은 recreate만 지원하며 API가 다른 전략을 수용하지 않아야 한다. |
+| 승인·거절 | `decide(new DecisionRequest(actorId, projectId, deploymentId, decisions, idempotencyKey))`. decisions는 `tgt_` ID → `Decision(approvalId, approved, confirmationText)` 맵이다. 선택 항목 전체를 한 트랜잭션에서 처리한다. |
+| 취소·재시도 | 각각 `cancel(ControlRequest)`·`retry(ControlRequest)`. actor/project/deployment/선택 `tgt_` 목록/멱등 키를 넘긴다. 취소 응답은 실제 실행 종료 보장이 아니다. |
+| 롤백 | `rollback(new RollbackRequest(actorId, projectId, sourceDeploymentId, triggerDeploymentId, idempotencyKey))`. source는 성공한 원본이며 trigger는 선택 계보 정보다. 새 배포·새 승인으로 진행한다. |
+| 배포 SSE | `openDeployment(actorId, projectId, deploymentId, lastEventId)`의 emitter를 반환한다. `Last-Event-ID` 헤더 값을 그대로 전달한다. |
+| 프로젝트 SSE | `openProject(actorId, projectId, lastEventId)`. HTTP 계층에서 `text/event-stream`, `Cache-Control: no-cache`와 필요한 CORS를 적용한다. |
+
+명령 서비스 응답은 `IdempotencyService.Response(status, body)`다. 최초 성공 시 status/body를 저장하므로 재전송에서는 당시 응답이 반환된다. 최신 상태는 조회 API로 다시 확인한다. 현재 반환 status는 생성·재시도·롤백 201, 승인·취소 202다. body는 실행용 최소 응답이며 사용자 DTO로의 변환은 API 소유자가 담당한다. `DaisyException`은 기존 전역 예외 처리기로 보낸다.
+
+필수 연결 bean은 `ExecutionAccess`와 `ExecutionInputs`다. `capture`는 프로젝트·대상 소속과 실행 입력을 검증하고, `verifyFrozen`은 재시도·롤백 시 저장된 입력을 현재 접근 권한·대상과 대조한다. `recordBuild`는 확인된 커밋·이미지만 소스 이력에 연결한다. 실제 비밀값 대신 자격증명 참조를 전달한다. 서비스 메서드 내부에서 호출되므로 같은 DB 트랜잭션·잠금 순서를 따르고 외부 HTTP를 실행하지 않는다.
+
+내부 콜백에는 별도 `ExecutionCallbackAccess` 인증 bean이 필요하다. 사용자 인증과 서비스 발신 인증을 혼동하지 않는다. 연결 전에는 누락된 bean을 가짜 허용 구현으로 대체하지 않는다. 실행 가능한 테스트 대역은 `ExecutionPostgresTest.TestConfig`에 `MOCK`으로 표시되어 있으며 운영 bean으로 복사할 대상이 아니다.
+
 ## 결과 수신 어댑터 구현 기준
 
 이 절은 백엔드 구현·테스트용 제안이며 인프라가 이미 이 형식을 보낸다는 뜻이 아니다.

@@ -12,7 +12,7 @@ request_id 복구는 queue와 최근 최대 100 build의 parameter 관측이다.
 
 build `result=SUCCESS`와 stop/cancel ACK는 배포 성공·실제 종료를 뜻하지 않는다. 실제 target 결과와 사용 이미지/승인 plan 대조·실행 종료 확인은 실행 서비스가 담당한다. progressive log transport는 byte[]와 Jenkins `X-Text-Size` byte cursor를 반환한다. byte cursor를 Java 문자열 길이로 계산하지 않는다. 응답은 전부 bounded body이며 원문·credentials를 예외/로그로 출력하지 않는다.
 
-구조화 로그 콜백과 progressive console 수집 코드를 작성했다. console은 별도 활성화가 필요하며, 단일 run 소유자·부분 UTF-8/줄 처리·이벤트와 cursor의 원자 저장 규칙은 [console 계약](jenkins-console.md)을 따른다. 인프라의 UTF-8·비밀값 제거 출력 계약 확인 전에는 활성화하지 않는다. 현재 테스트 소스 작성 단계이며 실제 Jenkins 연결 검증은 완료하지 않았다.
+구조화 로그 콜백과 progressive console 수집을 구현·로컬 검증했다. console은 별도 활성화가 필요하며, 단일 run 소유자·부분 UTF-8/줄 처리·이벤트와 cursor의 원자 저장 규칙은 [console 계약](jenkins-console.md)을 따른다. 인프라의 UTF-8·비밀값 제거 출력 계약 확인 전에는 활성화하지 않는다. 가짜 HTTP 서버와 PostgreSQL 검증을 통과했지만 실제 Jenkins 연결 검증은 완료하지 않았다.
 
 ## 명령 워커
 

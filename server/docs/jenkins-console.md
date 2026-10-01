@@ -12,4 +12,4 @@ HTTP는 트랜잭션 밖에서 한다. 저장 시 project → deployment → own
 
 console은 deployment 전체에 속한다. 텍스트를 읽어 target·단계·성공 여부를 추정하지 않는다. EOF와 `log_complete`는 console 읽기 완료만 뜻하며 deployment/target 상태·state lock을 변경하지 않는다. 구조화 callback logs는 별도 source_stream을 사용해야 같은 bytes가 이중 수집되지 않는다.
 
-UTF-8 경계·줄 경계·range·재처리·필터·EOF 테스트 소스를 작성했으며, 사용자 요청에 따라 build/test/formatter와 실제 Jenkins 호출은 아직 실행하지 않았다.
+2026-10-01 일괄 검증에서 UTF-8 경계·줄 경계·range·재처리·필터·EOF 단위 테스트와 실제 PostgreSQL의 소유권·커서/event/seq 원자 rollback·재전송 테스트를 통과했다. 전체 91개 테스트와 빌드가 성공했다. 실제 Jenkins 출력·offset 계약은 아직 검증하지 않았다.
