@@ -421,3 +421,187 @@ V10 이 핵심이었습니다. 나머지가 다 맞아도 여기서 새면 다�
 - `deployed_to[]` 가 채워진 응답은 확인하지 못했습니다. `deployment` 모듈 조회 계약이 없습니다.
 - 빌드가 수천 건일 때의 커서 성능은 보지 않았습니다. 설계 5.5 의 `INDEX(project_id, received_at DESC, id)` 를 쓰는 질의라는 것만 확인했습니다.
 - 실행 도메인에서 수용한 `image_refs`의 digest가 조회 projection까지 보존되는 회귀 테스트를 추가했습니다. 실제 Jenkins 수신부터 조회까지의 연결은 아직 검증하지 않았습니다.
+
+## 실행 서비스 연결 — 어댑터와 공개 배포 API (10/2, 하은현) · 스펙, 구현 전
+
+> **리뷰를 먼저 받습니다.** 아래 「확인이 필요한 것」에서 갈리면 코드는 쓰지 않습니다.
+> 기준: #40 (`server/feat-backend-integration`, `8a3c1a0`) 의 `ExecutionAccess`·`ExecutionInputs`·`DeploymentExecutionService`·`EventSseService`, `docs/execution-service-contract.md`.
+
+### 범위
+
+#40 이 요청한 연결 작업 네 가지입니다.
+
+| | 무엇 | 이 절의 깊이 |
+|---|---|---|
+| ① | `ExecutionAccess` 어댑터 | 구현할 수준까지 |
+| ② | `ExecutionInputs` 어댑터 | 구현할 수준까지 |
+| ③ | 공개 REST·SSE 연결 (생성·승인·취소·재시도·롤백·이벤트) | 경로·요청·검증까지. 응답 DTO 는 조회 API(A-04)와 함께 정합니다 |
+| ④ | 승인 요청 변환 | 구현할 수준까지 |
+
+이번 범위가 아닌 것: 조회 API A-03·A-04·A-05·A-07, A-02 `current`, A-06 `deployed_to`. 전부 `deployment` 모듈의 조회 계약이 필요하고, #40 에서 승환이 정리하기로 했습니다.
+
+### ① `ExecutionAccess` 어댑터
+
+`project/access/ExecutionAccessAdapter` 가 `deployment.application.ExecutionAccess` 를 구현합니다. 의존 방향은 `project → deployment` 의 인터페이스 하나뿐이고, `deployment` 는 제 인증 타입을 모릅니다.
+
+| 메서드 | 동작 |
+|---|---|
+| `requireRead(actorId, projectId)` | `actorId` 로 계정을 읽습니다. 없거나 비활성이면 **401 `UNAUTHENTICATED`**. 있으면 `AuthPrincipal` 을 만들어 `ProjectAccessService.requireRead` 로 위임합니다 |
+| `requireWrite(actorId, projectId)` | 같은 방식으로 `ProjectAccessService.requireWrite` 로 위임합니다 |
+
+- 판정은 기존 그대로입니다. **없는 프로젝트·비멤버·철회된 멤버십은 모두 404, 접근은 되는데 `viewer` 면 403.**
+- 역할은 `actorId` 로 **DB 에서 다시 읽습니다.** 필터가 인증한 뒤 같은 요청 안에서 계정이 비활성화돼도 막힙니다.
+- 호출한 쪽의 트랜잭션에 참여하고 읽기만 합니다. 잠금을 걸지 않고 외부 HTTP 도 부르지 않습니다.
+- `actorId` 는 컨트롤러가 인증된 principal 에서만 꺼냅니다. 요청 본문에서 받지 않습니다.
+
+### ② `ExecutionInputs` 어댑터
+
+`project/execution/ExecutionInputsAdapter` 가 구현합니다. 네 메서드 모두 **호출한 쪽의 트랜잭션 안에서 읽기만** 합니다. 새 트랜잭션을 열지 않고, 추가 잠금을 걸지 않고, 외부 HTTP 를 부르지 않습니다. 잠금 순서(`project → deployment → target(ID 정렬) → state identity`)는 실행 서비스가 쥡니다.
+
+#### `capture(actorId, projectId, sourceVersionId, targetIds, input)`
+
+| 검사 | 실패하면 |
+|---|---|
+| `sourceVersionId` 가 있고 이 프로젝트의 빌드다 | 404 `NOT_FOUND` — 다른 프로젝트 빌드와 없는 빌드를 구분하지 않습니다 |
+| 그 빌드가 `succeeded` 다 | 409 `STATE_CONFLICT` |
+| `image_refs` 가 계약 모양이고, 모든 서비스의 `commit_sha` 가 빌드의 `commit_sha` 와 같다 | 409 `STATE_CONFLICT` |
+| 각 `targetIds` 가 이 프로젝트의 보관되지 않은 대상이다 | 404 `NOT_FOUND` — 다른 프로젝트 대상과 없는 대상을 구분하지 않습니다 |
+| `input` 이 허용 키만 가진다 (아래) | 400 `VALIDATION_FAILED` |
+
+**commit 으로 다른 빌드를 고르지 않습니다.** 받은 `sourceVersionId` 하나만 봅니다.
+
+돌려주는 값 (키는 `snake_case`):
+
+| 필드 | 내용 | 근거 |
+|---|---|---|
+| `repository` | `repository_id`, `repository_url`, `default_branch`, `manifest_path`, `repository_credential_ref` | 설계 338·664행 |
+| `commonInput` | `{ "hash_format_version": 1, "strategy": "recreate" }` | 설계 339행, `Deployment.java` 가 `1` 만 받음 |
+| `targets[].snapshot` | `name`, `environment_type`, `config`, `config_revision`, `credential_ref`, `credential_version` | 설계 364·665행 |
+| `targets[].stateIdentity` | `target.state_identity` | 설계 665행 |
+| `source` | `BuildInput(id, commit_sha, image_refs)` — **DB 에 저장된 값** | 계약 「ExecutionInputs JSON 저장 형태」 |
+
+- **자격증명은 참조만 넘깁니다.** `credential_ref`·`credential_version`·`repository_credential_ref` 를 그대로 넘기고 복호화하지 않습니다.
+- `input` 은 지금 `strategy` 하나만 받습니다. 값은 `recreate` 만 허용합니다 (계약: *"현재 전략은 recreate만 지원"*). 다른 키나 `hash_format_version` 을 사용자가 보내면 400 입니다. 사용자가 해시 형식 번호를 바꾸지 못하게 하려는 것입니다.
+
+#### `projectName(projectId)`
+
+`project.name` 을 돌려줍니다. 없으면 404. 승인 대기 생성 때 실행 서비스가 `approval.confirmation_text` 에 고정합니다.
+
+#### `verifyFrozen(actorId, projectId, frozen)`
+
+재시도·롤백 때 저장된 입력이 지금도 유효한지 봅니다. 권한은 실행 서비스가 앞에서 `requireWrite` 로 이미 확인했으므로 다시 보지 않습니다.
+
+| 검사 | 실패하면 |
+|---|---|
+| `frozen.projectId` 가 `projectId` 와 같다 | 409 `STATE_CONFLICT` |
+| 각 대상이 아직 이 프로젝트에 있고 보관되지 않았다 | 409 `STATE_CONFLICT` |
+| 각 대상의 `state_identity` 가 고정 값과 같다 | 409 `STATE_CONFLICT` — 다른 state 에 apply 하게 되는 것을 막습니다 |
+| `source` 가 있으면 그 빌드가 같은 프로젝트·같은 commit·`succeeded` 다 | 409 `STATE_CONFLICT` |
+
+`config_revision`·`credential_version` 이 바뀐 경우는 아래 「확인이 필요한 것」 ② 입니다.
+
+#### `recordBuild(result)`
+
+| 검사 | 실패하면 |
+|---|---|
+| `result.sourceVersionId` 가 있다 | 409 `STATE_CONFLICT` |
+| 그 빌드가 `result.projectId` 의 것이고 `commit_sha` 가 같다 | 409 `STATE_CONFLICT` |
+| 그 빌드가 `succeeded` 이고 `image_refs` 가 계약 모양이다 | 409 `STATE_CONFLICT` |
+
+통과하면 **DB 에 저장된** `BuildInput` 을 돌려줍니다. `result` 의 값을 그대로 되돌려주지 않습니다. 실행 서비스가 둘을 비교해 다르면 거절하게 하려는 것입니다. `source_version` 에 쓰지는 않습니다 — 이 부분이 「확인이 필요한 것」 ③ 입니다.
+
+### ③ 공개 REST·SSE
+
+| ID | 경로 | 요청 | 실행 서비스 호출 | 성공 |
+|---|---|---|---|---|
+| WR-05 | `POST /projects/{id}/deployments` | `{ source_version_id, target_ids[], commit?, strategy? }` | `create` | 201 |
+| W-01 | `POST /deployments/{id}/approvals` | ④ 참고 | `decide` | 202 |
+| WR-08 | `POST /deployments/{id}/cancel` | `{ target_ids[] }` | `cancel` | 202 |
+| (제안) | `POST /deployments/{id}/retry` | `{ target_ids[] }` | `retry` | 201 |
+| WR-14 | `POST /deployments/{id}/rollback` | `{ target_ids[], reason, trigger_deployment_id? }` | `rollback` | 201 |
+| E-01 | `GET /deployments/{id}/events` | `Last-Event-ID` 헤더, `?event_type=` | `openDeployment` | SSE |
+| E-02 | `GET /projects/{id}/events` | `Last-Event-ID` 헤더, `?event_type=` | `openProject` | SSE |
+
+- **모든 POST 는 `Idempotency-Key` 헤더가 필수**입니다 (R-05). 없으면 400.
+- `actorId` 는 `@CurrentAccount` 에서만 꺼냅니다.
+- 입력 검증은 컨트롤러에서 길이·형식만 보고, 업무 규칙은 실행 서비스와 ② 에 맡깁니다. 같은 검사를 두 곳에 두지 않습니다.
+- `DaisyException` 은 기존 전역 처리기로 보냅니다. 상태 코드는 실행 서비스가 정한 것(생성·재시도·롤백 201, 승인·취소 202)을 그대로 씁니다.
+- WR-05 는 웹·앱 명세에 아직 `{ commit, target_ids }` 로 남아 있습니다. S1 대로 **전환 기간에는 둘 다 받습니다.** `source_version_id` 는 필수이고, `commit` 이 함께 오면 그 빌드의 `commit_sha` 와 같은지 봅니다 (다르면 400). `commit` 만으로 빌드를 고르지는 않습니다. `strategy` 는 생략하면 `recreate`, 다른 값은 400 입니다.
+- SSE 는 `text/event-stream`·`Cache-Control: no-cache` 를 붙이고, 인증은 REST 와 같은 Bearer 헤더입니다.
+- 응답 본문은 지금 실행 서비스의 최소 응답을 그대로 내보내지 않고, A-04 `Deployment` 요약 DTO 로 바꿉니다. 그 DTO 는 A-04 와 함께 정합니다. **그 전까지는 `{ deployment_id, status }` 만** 돌려줍니다.
+- 모두 OpenAPI 에 나오게 하고, `principal` 이 쿼리 파라미터로 새지 않는지 확인합니다 (#38 에서 한 번 샜습니다).
+
+### ④ 승인 요청 변환
+
+```jsonc
+POST /deployments/{id}/approvals
+Idempotency-Key: <키>
+{
+  "kind": "plan",
+  "decision": "approve",            // approve | reject
+  "confirm_text": "sample-monolith", // 삭제가 있는 plan 이면 필수 (검증은 실행 서비스)
+  "comment": "...",                  // 선택
+  "items": [ { "target_id": "tgt_aws", "approval_id": "apv_7" } ]
+}
+```
+
+| 규칙 | 실패하면 |
+|---|---|
+| `kind` 는 `plan` 만 | 400 |
+| `decision` 은 공개 값 **`approve`·`reject`** 만. 내부로는 `approved=true/false`. 저장 상태 `approved`·`rejected` 는 받지 않습니다 | 400 |
+| `items` 가 비어 있지 않다 | 400 |
+| **`target_id` 가 중복되지 않는다 — Map 으로 바꾸기 전에 검사합니다.** 중복을 Map 에 넣으면 앞 항목이 조용히 덮입니다 | 400 |
+| 각 항목에 `target_id`·`approval_id` 가 있다 | 400 |
+
+통과하면 `Map<target_id, Decision(approval_id, approved, confirm_text)>` 으로 바꿉니다. **모든 항목에 같은 `decision`·`confirm_text` 를 넣습니다** (계약: *"공개 요청의 단일 decision·confirm_text를 API에서 각 항목에 동일하게 전달"*). 승인 대기 대상 전체와 맞는지, 옛 승인인지는 실행 서비스가 판정합니다 (하나라도 어긋나면 전체 409).
+
+`comment` 는 실행 서비스에 넘길 자리가 없어서 지금은 저장하지 않습니다. OpenAPI 설명에 그렇게 적습니다.
+
+### 확인이 필요한 것 (승환)
+
+**① `/deployments/{id}/...` 경로에서 `projectId` 를 어떻게 얻을까요.** 실행 서비스는 모든 요청에 `projectId` 를 받는데, 공개 경로에는 배포 ID 만 있습니다. 배포 → 프로젝트 조회는 `deployment` 모듈 소유라 제가 직접 읽지 않으려고 합니다. `EventJournal.requireDeploymentProject(projectId, deploymentId)` 는 둘 다 알 때 맞는지만 봅니다. **`deployment` 쪽에 `projectIdOf(deploymentId)` 같은 조회를 하나 열어 주실 수 있을까요.** 없는 배포는 404 로 하면 됩니다. 이게 없으면 경로를 `/projects/{pid}/deployments/{id}/...` 로 바꿔야 해서 웹·앱 계약이 바뀝니다.
+
+**② 재시도·롤백 때 대상 설정이 바뀌었으면 막을까요.** `verifyFrozen` 에서 `config_revision`·`credential_version` 이 고정 값과 다를 때 두 길이 있습니다.
+
+| | 동작 | 결과 |
+|---|---|---|
+| 가 | 409 로 막는다 | 옛 설정으로 apply 하지 않는다. 사용자는 새 배포를 만들어야 한다 |
+| 나 | 허용한다 | 재시도는 "같은 입력 그대로" 라는 계약과 맞다. 대신 지금 설정과 다른 것이 적용된다 |
+
+저는 **가** 쪽이 안전하다고 봅니다. 고정 입력을 재사용하는 게 재시도의 정의라면, 그 입력이 이미 낡았을 때 조용히 쓰는 것보다 막는 게 낫다고 생각합니다. 어느 쪽이 맞을까요.
+
+**③ `recordBuild` 가 `source_version` 에 무언가를 써야 할까요.** 인터페이스 주석은 *"before recording the build"* 인데, `capture` 가 이미 성공 빌드만 받기 때문에 `bindBuildResult` 시점에는 그 빌드가 DB 에 있다고 봤습니다. 그래서 위 스펙은 **확인만 하고 쓰지 않습니다.** PREPARE 가 새 빌드를 만들어 그 결과를 여기서 기록해야 하는 흐름이 있다면 알려 주세요.
+
+**④ Jenkins 빌드 결과를 `source_version` 에 넣는 쪽은 누구일까요.** A-06 빌드 목록과 ② 의 `capture` 가 모두 이 행을 전제로 합니다. #40 의 결과 수신 기준에 들어가는지, 제가 수신 경로를 따로 만들어야 하는지 정해야 합니다.
+
+**⑤ `disconnected` 대상을 생성에서 막을까요.** W-04 가 *"연결 안 되는 환경은 고를 수 없어요"* 인데, 지금은 연결 확인 기능이 없어서 모든 대상이 `unknown` 입니다. `unknown` 까지 막으면 아무것도 배포할 수 없습니다. **`disconnected` 만 409 로 막고 `unknown` 은 허용**하는 쪽을 제안합니다.
+
+**⑥ 재시도를 어느 경로로 받을까요 (웹·앱과 함께).** 9/30 결정은 *"재시도는 같은 커밋의 새 배포"* 이고 웹·앱 명세는 WR-05(새 배포 생성)를 그대로 씁니다. 실행 서비스에는 원본 배포에서 실패 대상만 복사하는 `retry` 가 따로 있습니다. 계보(lineage)가 남는 `retry` 를 쓰려면 `POST /deployments/{id}/retry` 를 새로 열어야 하고 웹·앱 호출도 바뀝니다. **저는 `retry` 경로를 여는 쪽을 제안합니다** — 실패 대상만 고르고 원본 성공 대상을 건드리지 않는 규칙을 서버가 보장할 수 있어서입니다.
+
+### 다른 파트와 닿는 지점
+
+| 누구 | 무엇 |
+|---|---|
+| 승환 | 위 ①~⑤. ① 이 정해져야 ③ 의 경로가 확정됩니다 |
+| 웹·앱 | WR-05 에 `source_version_id` 가 필수로 더해집니다 (S1, A-06 이 이미 내보냄). 승인 요청에 `items[]` 가 더해집니다 (S4). 재시도 경로는 ⑥ 에서 함께 정합니다 |
+| 인프라 | 없음. Jenkins 연결은 #35 에서 승환이 맞춥니다 |
+
+### 검증 계획 (구현 뒤)
+
+검사 항목을 먼저 적고 그대로 돌립니다.
+
+| | 검사 | 기대 |
+|---|---|---|
+| V1 | `ExecutionAccess` — 없는 프로젝트·비멤버·철회 멤버십·`viewer` 쓰기·비활성 계정 | 404·404·404·403·401 |
+| V2 | `capture` — 다른 프로젝트 빌드·`running` 빌드·`image_refs` commit 불일치·다른 프로젝트 대상·보관 대상·`input` 에 `hash_format_version` | 404·409·409·404·404·400 |
+| V3 | `capture` 반환값에 비밀값이 없다 — `credential_*` 는 참조 문자열 그대로 | 통과 |
+| V4 | `verifyFrozen` — 대상 보관·`state_identity` 변경·빌드 상태 변경 | 409 |
+| V5 | `recordBuild` — `sourceVersionId` 없음·commit 불일치·`image_refs` 없음 | 409, NPE 없음 |
+| V6 | 승인 변환 — `decision: "approved"`·중복 `target_id`·빈 `items`·`kind: "deploy"` | 400 |
+| V7 | `Idempotency-Key` 없는 POST | 400 |
+| V8 | 같은 키로 같은 요청 두 번 | 첫 응답 그대로 재생 |
+| V9 | 실제 기동 — 로그인 → 생성 → 승인 → SSE 연결·`Last-Event-ID` 재연결 | 각 단계 상태 코드와 이벤트 seq |
+| V10 | OpenAPI — 새 경로 전부 Bearer 요구, `principal` 쿼리 노출 0건 | 통과 |
+| V11 | `./gradlew --no-daemon spotlessCheck check build` | 성공 |
+
+V9 의 실제 Jenkins 실행은 하지 않습니다. 기본 비활성 설정 그대로 명령이 저장되는 데까지만 봅니다.
