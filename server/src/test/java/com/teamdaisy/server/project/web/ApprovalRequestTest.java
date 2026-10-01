@@ -1,4 +1,4 @@
-package com.teamdaisy.server.deployment.web;
+package com.teamdaisy.server.project.web;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -6,7 +6,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import com.teamdaisy.server.common.error.DaisyException;
 import com.teamdaisy.server.common.error.ErrorCode;
 import com.teamdaisy.server.deployment.application.DeploymentExecutionService.Decision;
-import com.teamdaisy.server.deployment.web.ApprovalRequest.Item;
+import com.teamdaisy.server.project.web.ApprovalRequest.Item;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;

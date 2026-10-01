@@ -1,4 +1,4 @@
-package com.teamdaisy.server.deployment.web;
+package com.teamdaisy.server.project.web;
 
 import com.teamdaisy.server.common.error.DaisyException;
 import com.teamdaisy.server.common.error.ErrorCode;
