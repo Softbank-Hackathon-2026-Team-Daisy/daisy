@@ -1,0 +1,48 @@
+/* Checkbox 라벨을 카드 모양으로 — 체크박스는 헤더 줄 맨 앞에 와요 */
+.env-card {
+  position: relative;
+  display: grid;
+  grid-template-columns: 18px 1fr;
+  column-gap: var(--space-2);
+  row-gap: var(--space-3);
+  align-items: center;
+  padding: var(--space-4);
+  border: var(--border);
+  border-radius: var(--radius-md);
+  background: var(--color-card);
+}
+
+.env-card--selected {
+  padding: 15px; /* 2px 테두리에서도 크기가 같게 */
+  border: 2px solid var(--color-focus);
+  background: var(--color-surface-strong);
+}
+
+.env-card__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  min-height: 28px;
+}
+
+.env-card__title,
+.env-card__desc {
+  grid-column: 1 / -1;
+}
+
+.env-card__title {
+  color: var(--color-card-foreground);
+  font-size: 13px;
+  line-height: 18px;
+  font-weight: 500;
+}
+
+.env-card__recommend {
+  padding: var(--space-1) var(--space-2);
+  border-radius: var(--radius-sm);
+  background: var(--color-accent);
+  color: var(--color-accent-foreground);
+  font-size: 13px;
+  line-height: 18px;
+  font-weight: 500;
+}

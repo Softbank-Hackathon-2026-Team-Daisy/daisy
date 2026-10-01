@@ -1,0 +1,14 @@
+.mock-badge {
+  display: inline-flex;
+  align-items: center;
+  padding: var(--space-1) var(--space-2);
+  border: 1px dashed var(--color-warning);
+  border-radius: var(--radius-sm);
+  background: var(--color-status-bg);
+  color: var(--color-warning);
+  font-family: var(--font-mono);
+  font-size: 11px;
+  line-height: 16px;
+  font-weight: 500;
+  letter-spacing: 0.08em;
+}
