@@ -132,7 +132,10 @@ struct TargetSelectView: View {
         starting = true
         defer { starting = false }
         do {
-            let started = try await client.send(.startDeployment(projectID: projectID, commit: commit, targetIDs: chosen.map(\.id)))
+            // 고른 빌드 ID로 시작해요 (#36). 빌드 목록에서 같은 커밋을 찾았을 때만 붙여요
+            let build = latestBuild?.commit == commit ? latestBuild?.sourceVersionId : nil
+            let started = try await client.send(.startDeployment(projectID: projectID, commit: commit,
+                                                                 sourceVersionID: build, targetIDs: chosen.map(\.id)))
             errorMessage = nil
             router.replaceTop(with: .started(started.id))
             await workspace.refresh(using: app)

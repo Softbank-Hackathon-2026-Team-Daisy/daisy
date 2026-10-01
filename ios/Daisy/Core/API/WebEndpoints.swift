@@ -36,9 +36,10 @@ extension Endpoint {
     }
 
     /// WR-05 · W-04 "인프라 코드 생성 · 검증 시작". W-05b "○○만 다시 시도", W-08 "다시 시도"도 같은 커밋으로 새 배포를 만들어요
-    static func startDeployment(projectID: String, commit: String, targetIDs: [String]) -> Endpoint<Deployment> {
+    /// 빌드는 `source_version_id`로 골라요 (서버 #36 계약: 같은 커밋을 다시 빌드해도 고른 빌드로). 서버가 둘 다 받는 동안 `commit`도 같이 보내요
+    static func startDeployment(projectID: String, commit: String, sourceVersionID: String? = nil, targetIDs: [String]) -> Endpoint<Deployment> {
         .init(method: "POST", path: "projects/\(projectID)/deployments",
-              body: jsonBody(StartDeploymentBody(commit: commit, targetIds: targetIDs)),
+              body: jsonBody(StartDeploymentBody(sourceVersionId: sourceVersionID, commit: commit, targetIds: targetIDs)),
               idempotencyKey: UUID().uuidString)
     }
 
@@ -85,5 +86,6 @@ extension Endpoint {
 }
 
 private struct ConnectProjectBody: Encodable, Sendable { let repository: String; let branch: String }
-private struct StartDeploymentBody: Encodable, Sendable { let commit: String; let targetIds: [String] }
+/// `source_version_id`가 없으면(예전 응답) 키를 빼고 보내요
+private struct StartDeploymentBody: Encodable, Sendable { let sourceVersionId: String?; let commit: String; let targetIds: [String] }
 private struct RollbackBody: Encodable, Sendable { let targetIds: [String]; let reason: String }

@@ -24,6 +24,16 @@ struct EndpointContractTests {
         #expect(body["commit"] as? String == "a1b2c3d")
         #expect(body["target_ids"] as? [String] == ["tgt_aws", "tgt_gcp"])
         #expect(body["project_id"] == nil)
+        #expect(body["source_version_id"] == nil)   // 빌드 ID를 모르면 키를 빼요
+    }
+
+    /// #36: 빌드는 `source_version_id`로 골라요 (같은 커밋을 다시 빌드해도 고른 빌드로)
+    @Test func startDeploymentWithBuildID() throws {
+        let endpoint = Endpoint<Deployment>.startDeployment(projectID: "prj_1", commit: "a1b2c3d", sourceVersionID: "sv_7", targetIDs: ["tgt_aws"])
+        let body = try json(endpoint)
+        #expect(body["source_version_id"] as? String == "sv_7")
+        #expect(body["commit"] as? String == "a1b2c3d")
+        #expect(body["target_ids"] as? [String] == ["tgt_aws"])
     }
 
     /// WR-14: 롤백 = 환경을 골라 새 배포, reason 포함, Idempotency-Key 필수

@@ -133,6 +133,8 @@ struct Deployment: Decodable, Identifiable, Hashable, Sendable {
     let id: String
     let projectId: String
     let commit: String
+    /// 이 배포가 쓴 빌드 (서버 #36). "다시 시도"가 같은 빌드로 새 배포를 만들 때 써요
+    let sourceVersionId: String?
     let image: String?
     /// 웹 W-09 "버전" 열 (가칭): "v7"
     let version: String?
@@ -275,6 +277,8 @@ struct Build: Decodable, Identifiable, Hashable, Sendable {
         let deployedAt: Date?
     }
 
+    /// 빌드 한 건의 ID (#38). 같은 커밋을 다시 빌드하면 ID가 달라요. 배포 시작은 이 ID로 골라요 (#36)
+    let sourceVersionId: String?
     let commit: String
     /// 커밋 메시지 · 작성자 · 시각은 서버가 아직 주지 않아요 (#38 "미제공") → 화면은 "—"
     let message: String?
@@ -289,7 +293,7 @@ struct Build: Decodable, Identifiable, Hashable, Sendable {
     let imageDigest: String?
     let steps: [StepItem]?
 
-    var id: String { commit }
+    var id: String { sourceVersionId ?? commit }
 }
 
 // MARK: - 인증 (R-02)

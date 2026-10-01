@@ -382,6 +382,7 @@ API 모양보다 **이 정보가 어딘가에 저장되어 있는지**가 더 �
 
 // Build — A-06, 커밋·파이프라인 화면
 {
+  "source_version_id": "sv_…",               // 빌드 한 건의 ID (#38). 같은 커밋 재빌드도 ID가 달라요 → 배포 시작에 써요 (#36)
   "commit": "2311c0b…",
   "message": "feat(ci): Daisy 앱 연결 요구사항 추가" | 없음,   // #38: 메시지 · 작성자 · 시각은 아직 미제공 → "—"
   "author": "Seungjun1127" | 없음,
@@ -406,7 +407,7 @@ API 모양보다 **이 정보가 어딘가에 저장되어 있는지**가 더 �
 | WR-02 | `POST /projects` `{ repository, branch }` | W-02 연결하기 | 좋아요, 응답에 deploy.yaml 검증 결과 · D2 |
 | WR-03 | `GET /projects/{id}/manifest` | W-02 배포 명세 확인 · W-13 | 좋아요, 모양은 `deploy.yaml` 스키마 결정 뒤 · D3 |
 | WR-04 | `GET /projects/{id}/targets` → `target_id, type, name, reuse{ available, script_id?, reason? }, connection{ state: ok·failed·unknown, checked_at }` | W-04 · W-10 · 사이드바 | 별도 엔드포인트로 · D2 |
-| WR-05 | `POST /projects/{id}/deployments` `{ commit, target_ids[] }` + `Idempotency-Key` | W-04 시작, **W-05b "○○만 다시 시도"(실패한 환경 전부) · W-08 "다시 시도"도 같은 커밋 · 그 환경만으로 새 배포** | 이 경로로 확정 · D2. 재시도 = 새 배포, 시도는 1/3부터 ✅ (10/1 #13). 요청 필드는 OpenAPI 대기 |
+| WR-05 | `POST /projects/{id}/deployments` `{ source_version_id, commit, target_ids[] }` + `Idempotency-Key` (빌드는 `source_version_id`로 골라요, #36 · 서버가 둘 다 받는 동안 `commit`도 같이) | W-04 시작, **W-05b "○○만 다시 시도"(실패한 환경 전부) · W-08 "다시 시도"도 같은 커밋 · 그 환경만으로 새 배포** | 이 경로로 확정 · D2. 재시도 = 새 배포, 시도는 1/3부터 ✅ (10/1 #13). 요청 필드는 OpenAPI 대기 |
 | WR-06 | `GET /deployments/{id}/plan?detail=resources` | W-06 리소스 행 (`action`에 `replace` 포함) | 좋아요 · D3 |
 | WR-07 | `GET /deployments/{id}/targets/{target_id}/script` → `files[{ path, content }]` | W-05 생성된 스크립트 | 18시 백엔드 회의에서 확인 |
 | WR-08 | `POST /deployments/{id}/cancel` | (앱은 아직 버튼 없음) | 좋아요 · D3. **apply 도중에는 중단하지 않고 서버가 결과를 기다려요** (10/1 17:23, #17) — 앱도 apply 시작 뒤에는 취소를 보여주지 않아요 |
@@ -510,6 +511,7 @@ API 모양보다 **이 정보가 어딘가에 저장되어 있는지**가 더 �
 
 | 날짜 | 변경 | 작성 |
 |---|---|---|
+| 10/1 | 서버 #36 계약: 배포 시작 · 다시 시도에 빌드 ID `source_version_id`를 실어 보내요 (빌드 목록 · 배포에서 받아요, 없으면 키를 빼고 `commit`만) | 박승준 |
 | 10/1 | **서비스 이름 Unibloom** (10/1 회의 · 슬랙 21:38): 앱 표시 이름 · 워드마크 `unibloom` · 제품 `Unibloom.app` · `Unibloom.dmg`, 레포 주소 `unibloom`. 결정 보드를 루트 `BOARD.md`로 옮김. Mac은 화면 머리줄의 재질 띠를 없앰(iOS만 반투명). 서버 #38 조회 응답에 맞춤: 빌드 `queued` "대기 중" · 메시지 · 작성자 없음 "—" · `image_digest`, 프로젝트 `default_branch` | 박승준 |
 | 10/1 | 단계 상태 `skipped` "건너뜀" 추가 (W-03 Trigger CD는 운영에서 늘 건너뜀, 웹 #25와 같게), 예시 데이터 반영. 10/1 역할 재분담(#33): plan 요약은 인프라가 만들고 서버가 보관 · 조회, AI 사용량은 김승환 기록 · 하은현 조회, §4 CI 열을 인프라로 | 박승준 |
 | 10/1 | **ADR-007 확정 반영** (앱도 웹과 같은 전체 흐름, #33): §1-1 · §1-2 · §8. 서버 역할 `owner` · `viewer`, `ai_usage.attempt` = 생성 · 수정 회차(1–3)는 앱의 기존 처리와 같아요 (PR #32) | 박승준 |

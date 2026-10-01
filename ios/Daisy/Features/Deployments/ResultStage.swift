@@ -92,7 +92,8 @@ struct ResultStage: View {
         guard let client = app.client else { return }
         do {
             let retry = RetryRequest.only(target.targetId, of: deployment)
-            let next = try await client.send(.startDeployment(projectID: retry.projectID, commit: retry.commit, targetIDs: retry.targetIDs))
+            let next = try await client.send(.startDeployment(projectID: retry.projectID, commit: retry.commit,
+                                                              sourceVersionID: retry.sourceVersionID, targetIDs: retry.targetIDs))
             router.push(.started(next.id))
         } catch {
             app.handle(error)

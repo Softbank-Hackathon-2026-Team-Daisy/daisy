@@ -68,6 +68,7 @@ struct StoppedStage: View {
         let request = RetryRequest.failed(of: deployment)
         do {
             let next = try await client.send(.startDeployment(projectID: request.projectID, commit: request.commit,
+                                                              sourceVersionID: request.sourceVersionID,
                                                               targetIDs: request.targetIDs))
             router.push(.started(next.id))
         } catch {
