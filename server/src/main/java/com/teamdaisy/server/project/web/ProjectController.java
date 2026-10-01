@@ -6,14 +6,19 @@ import com.teamdaisy.server.common.web.PageResponse;
 import com.teamdaisy.server.identity.auth.AuthPrincipal;
 import com.teamdaisy.server.identity.web.CurrentAccount;
 import com.teamdaisy.server.project.access.ProjectAccessService;
+import com.teamdaisy.server.project.application.DeploymentHistoryReader;
+import com.teamdaisy.server.project.application.DeploymentHistoryReader.CurrentView;
 import com.teamdaisy.server.project.domain.Project;
 import com.teamdaisy.server.project.domain.ProjectRepository;
 import com.teamdaisy.server.project.domain.SourceVersion;
 import com.teamdaisy.server.project.domain.SourceVersionRepository;
+import com.teamdaisy.server.project.domain.Target;
 import com.teamdaisy.server.project.domain.TargetRepository;
 import io.swagger.v3.oas.annotations.security.SecurityRequirement;
 import java.util.List;
+import java.util.Map;
 import org.springframework.data.domain.Limit;
+import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -34,16 +39,19 @@ public class ProjectController {
   private final TargetRepository targets;
   private final SourceVersionRepository versions;
   private final ProjectAccessService access;
+  private final DeploymentHistoryReader history;
 
   public ProjectController(
       ProjectRepository projects,
       TargetRepository targets,
       SourceVersionRepository versions,
-      ProjectAccessService access) {
+      ProjectAccessService access,
+      DeploymentHistoryReader history) {
     this.projects = projects;
     this.targets = targets;
     this.versions = versions;
     this.access = access;
+    this.history = history;
   }
 
   @GetMapping
@@ -71,13 +79,21 @@ public class ProjectController {
    * <p>집계하지 않아요. 배포 전체 상태 집계는 설계 2장대로 실행 서비스 소유라서, 여기서는 대상별 현재 값만 읽어 내보내요.
    *
    * <p>대상이 하나도 없으면 오류가 아니라 빈 목록이에요. 프로젝트에 환경을 아직 연결하지 않은 정상 상태예요.
+   *
+   * <p><b>이 메서드만 트랜잭션을 끄고 돌려요.</b> 현재 배포 조회가 대상 하나 때문에 실패하면 그 대상만 격리하는데, 바깥 트랜잭션 안이면 그 실패가 바깥을 롤백
+   * 전용으로 만들어 500 이 나요 ({@link DeploymentHistoryReader} 참고).
    */
   @GetMapping("/{projectId}/targets/status")
+  @Transactional(propagation = Propagation.NOT_SUPPORTED)
   public PageResponse<TargetStatusResponse> targetStatus(
       @CurrentAccount AuthPrincipal principal, @PathVariable String projectId) {
     access.requireRead(principal, projectId);
+    List<Target> active = targets.findActiveByProject(projectId);
+    Map<String, CurrentView> current = history.current(principal.accountId(), projectId, active);
     List<TargetStatusResponse> items =
-        targets.findActiveByProject(projectId).stream().map(TargetStatusResponse::of).toList();
+        active.stream()
+            .map(target -> TargetStatusResponse.of(target, current.get(target.id())))
+            .toList();
     return PageResponse.of(items);
   }
 
@@ -111,7 +127,14 @@ public class ProjectController {
       SourceVersion last = page.get(page.size() - 1);
       nextCursor = new BuildCursor(last.receivedAt(), last.id()).encode();
     }
-    return new PageResponse<>(page.stream().map(BuildResponse::of).toList(), nextCursor);
+    var deployed =
+        history.deployedTo(
+            principal.accountId(), projectId, page.stream().map(SourceVersion::id).toList());
+    return new PageResponse<>(
+        page.stream()
+            .map(version -> BuildResponse.of(version, deployed.get(version.id())))
+            .toList(),
+        nextCursor);
   }
 
   private List<SourceVersion> fetchAfter(String projectId, String cursor, Limit limit) {
