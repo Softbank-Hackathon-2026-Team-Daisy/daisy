@@ -254,7 +254,7 @@ Page ──▶ hook ──▶ api/client ──────────▶ Unibl
 ## 6. 백엔드 요구사항
 
 - 앱과 같이 쓰는 API는 `ios/SPEC.md` §6의 ID · 이름을 그대로 써요 (9/29 서버 확정). 여기서 다시 적지 않아요
-- 웹 때문에 **새로 필요한 건 `WR-xx` 🆕**로 적었어요. **9/30 은현 님 답변([PR #9](https://github.com/Softbank-Hackathon-2026-Team-Daisy/daisy/pull/9))**을 반영했어요. 서버가 확정한 건 `(가칭)`을 뗐고, 필드는 OpenAPI가 나오면 맞춰요 (루트 §6 3단계)
+- 웹 때문에 **새로 필요한 건 `WR-xx` 🆕**로 적었어요. **9/30 은현 님 답변([PR #9](https://github.com/Softbank-Hackathon-2026-Team-Daisy/unibloom/pull/9))**을 반영했어요. 서버가 확정한 건 `(가칭)`을 뗐고, 필드는 OpenAPI가 나오면 맞춰요 (루트 §6 3단계)
 - 서버의 단일 원천은 OpenAPI 문서(springdoc)예요. 노션 「Backend API Endpoint」는 은현 님이 확정본으로 이어서 고쳐요
 
 ### 6-0. 앱과 같이 쓰는 것 (`ios/SPEC.md` §6)
@@ -291,7 +291,7 @@ Page ──▶ hook ──▶ api/client ──────────▶ Unibl
 | WR-13 🆕 | `DELETE /projects/{id}` | W-13 | 프로젝트 연결 해제. 인프라는 지우지 않아요 | S | ✅ 그대로. 확인 Dialog에서 환경 이름 입력 |
 | WR-14 🆕 | `POST /deployments/{id}/rollback` | W-09 | `{ target_ids[], reason }` + `Idempotency-Key` → `Deployment` (`kind: "rollback"`, `rolled_back_from`) | M | ✅ **범위에 넣어요** (은현 님 담당). 이전 성공 배포의 커밋 + 그때 검증된 스크립트로 재배포, 환경 선택 가능, plan · 승인을 거쳐요 |
 
-### 6-1-1. 앱 요청 중 웹도 쓰는 것 ([#13](https://github.com/Softbank-Hackathon-2026-Team-Daisy/daisy/issues/13))
+### 6-1-1. 앱 요청 중 웹도 쓰는 것 ([#13](https://github.com/Softbank-Hackathon-2026-Team-Daisy/unibloom/issues/13))
 
 승준 님이 앱 화면용으로 서버에 요청한 것 중 웹 화면에도 같은 버튼 · 칸이 있는 것이에요. ID는 `ios/SPEC.md` §6-8 그대로 쓰고, 받을지 · 이름 · 모양은 서버가 정해요. 전부 S이고, 없으면 웹도 버튼 비활성 · "—"로 보여줘요.
 

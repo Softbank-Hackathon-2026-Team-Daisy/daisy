@@ -193,14 +193,14 @@ End every task with a short report in Korean:
 - **Branches.** `{part}/{type}-{short-desc}`. part: `web`, `ios`, `server`, `infra`, `docs`, `ci`. type: `feat`, `fix`, `refactor`, `docs`, `chore`, `test`.
 - **Commits.** Conventional Commits with the part as scope: `feat(server): ...`. Add `Refs: N-03` when a PoC is involved.
 - **PRs.** Fill in the org PR template. Squash merge only; merged branches are deleted automatically. Aim for under 300 changed lines. Changes to a shared contract add the consumer owners as reviewers.
-- **Merging.** `daisy` needs one approval (plus the CODEOWNERS team for `server/` and `infra/`), and pushing a new commit dismisses earlier approvals. The `protect-main` ruleset has no bypass; only 김도영 is an org owner. `sample-monolith` and `sample-msa` allow self-merge after a PR. On 10/3–10/4 self-merge is allowed everywhere.
+- **Merging.** `unibloom` needs one approval (plus the CODEOWNERS team for `server/` and `infra/`), and pushing a new commit dismisses earlier approvals. The `protect-main` ruleset has no bypass; only 김도영 is an org owner. `sample-monolith` and `sample-msa` allow self-merge after a PR. On 10/3–10/4 self-merge is allowed everywhere.
 - Full details: `CONTRIBUTING.md`.
 
 ## 12. Project reference
 
 ### 12-1. What we are building
 
-**AI 기반 온프레미스·퍼블릭 클라우드 원터치 배포 시스템** ("One Action, Infinite Clouds"). The user picks target environments, and AI generates and validates Terraform per environment so the same image deploys to on-prem and public clouds at the same time.
+**Unibloom** — **AI 기반 온프레미스·퍼블릭 클라우드 원터치 배포 시스템** ("One Action, Infinite Clouds"). The service was renamed from Daisy on 10/1; the team is still Team Daisy. The user picks target environments, and AI generates and validates Terraform per environment so the same image deploys to on-prem and public clouds at the same time.
 
 - Core idea: **portability**, the same image in the same state everywhere.
 - Say "퍼블릭 클라우드", not "하이퍼스케일러" (the target includes small cloud providers).
@@ -220,12 +220,12 @@ End every task with a short report in Korean:
 
 | Repo | Purpose |
 |---|---|
-| `daisy` (this repo) | Our deployment system: `web/`, `ios/`, `server/`, `infra/modules/{onprem,gcp,aws}/`, `docs/`, `.github/workflows/` |
+| `unibloom` (this repo; renamed from `daisy` on 10/1, old URLs redirect) | Our deployment system: `web/`, `ios/`, `server/`, `infra/modules/{onprem,gcp,aws}/`, `docs/`, `.github/workflows/` |
 | `sample-monolith` | Deployment target that mimics a user's repo: HelloCalc (Go) + N-01 image pipeline |
 | `sample-msa` | Deployment target: two-service MSA |
 | `.github` | Org-wide issue and PR templates, org profile |
 
-The sample repos stand in for a user's app. Do not mix their code into `daisy`. Clone and work in `daisy` for all system work; clone a sample repo only when working on it.
+The sample repos stand in for a user's app. Do not mix their code into `unibloom`. Clone and work in `unibloom` for all system work; clone a sample repo only when working on it.
 
 ### 12-4. Decided (ADR summary; full records in Notion)
 
