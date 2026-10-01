@@ -280,3 +280,104 @@
 V10 이 핵심이었습니다. 나머지가 다 맞아도 여기서 새면 다른 팀의 환경 이름이 보입니다.
 
 **확인하지 않은 것** — `current` 가 채워진 응답은 확인하지 못했습니다. 실행 서비스와 조회 계약이 없어 채울 경로가 없습니다. 커서 페이지네이션, 대상이 많을 때의 성능, SSE 로 같은 정보를 밀어 주는 경로도 이번 범위가 아닙니다.
+
+## 빌드 목록 조회 A-06 (10/1, 하은현)
+
+### 범위와 동작
+
+- `GET /projects/{id}/builds?cursor=&limit=` 로 프로젝트가 받은 빌드 결과를 최근 순으로 돌려줍니다. 소비자 모델은 `ios/SPEC.md` §6-7 의 `Build` 입니다.
+- `ProjectAccessService.requireRead` 를 먼저 호출합니다. 없는 프로젝트와 권한 없는 프로젝트를 모두 404 로 응답합니다.
+- 봉투는 `{ items, next_cursor }` 입니다. **A-02 와 달리 실제 커서를 넣었습니다.** 빌드는 커밋마다 쌓여서 목록이 자라고, 설계 5.5 가 이미 `INDEX(project_id, received_at DESC, id)` 를 그 용도로 두었습니다.
+- 정렬은 `received_at DESC, id DESC` 입니다. `received_at` 이 같은 행이 있을 수 있어 `id` 를 동반 키로 씁니다.
+- `limit` 기본값 20, 최대 100 입니다. 범위를 넘으면 400 이 아니라 최대값으로 깎습니다 — 목록 조회가 한도 때문에 실패하지 않는 쪽이 낫습니다.
+- `cursor` 는 **불투명한 문자열**입니다. 소비자가 파싱하지 않도록 base64url 로 감쌉니다. 해독할 수 없거나 형식이 깨진 커서는 400 입니다.
+- 마지막 페이지의 `next_cursor` 는 null 입니다.
+- `source_version_id` 를 내보냅니다. 승환 S1 의 *"빌드 목록에 `source_version_id` 를 내보내고 `POST /projects/{id}/deployments` 는 그 ID 와 `target_ids` 로 선택하게 한다"* 를 따릅니다.
+
+### 응답 필드와 출처
+
+| 계약 필드 | 출처 | 이번 PR |
+|---|---|---|
+| `source_version_id` | `source_version.id` | 제공 (S1 요청) |
+| `commit` | `source_version.commit_sha` | 제공 |
+| `branch` | `source_version.branch` | 제공 (없으면 null) |
+| `pipeline.status` | `source_version.status` 를 변환 | 제공 — 아래 상태 대조 참고 |
+| `pipeline.run_url` | `source_version.run_url` | 제공 (없으면 null) |
+| `image` | `source_version.image_refs` 평탄화 | 서비스가 하나면 제공, 여러 개면 null + `images[]` |
+| `images[]` | 같은 곳 | 서비스가 둘 이상일 때만 |
+| `started_at`·`finished_at` | 같은 이름 | 제공 (없으면 null) |
+| `error_summary` | 같은 이름 | 제공 (없으면 null) |
+| `received_at` | 같은 이름 | 제공 — 커서 기준이라 소비자도 순서를 알 수 있게 내보냅니다 |
+| `message`·`author`·`committed_at` | 없음 | **미제공** — 승환 S1 이 *"원천 없는 커밋 설명·작성자·시각은 후순위"* 로 두었습니다. GitHub 을 따로 호출해 채우지 않습니다 |
+| `deployed_to[]` | `deployment` 모듈 | **미제공 (null)** — 소유 경계입니다. A-02 의 `current` 와 같은 이유입니다 |
+
+### 상태 대조 — 소비자 enum 에 `pending` 자리가 없습니다
+
+승환 S1 이 *"나머지 상태도 기존 소비자 enum 을 대조하고, DB enum 을 API 에 그대로 노출하지 않는다"* 로 두어서 대조했습니다.
+
+| DB (`ck_sv_status`) | 소비자 계약 (`ios/SPEC.md` §6-7) |
+|---|---|
+| `succeeded` | `success` |
+| `running` | `running` |
+| `failed` | `failed` |
+| **`pending`** | **대응 값 없음** |
+
+`pending` 은 "빌드 결과를 받았지만 아직 시작 전" 입니다. **`running` 으로 보내지 않습니다** — 시작하지 않은 것을 진행 중으로 표시하는 건 없는 사실을 만드는 일입니다. 목록에서 빼는 것도 아닙니다. 사용자는 빌드가 접수된 것을 봐야 합니다.
+
+**그래서 `queued` 를 네 번째 값으로 내보냅니다.** 소비자 계약에 없는 값이라 웹·앱에 알려야 합니다. 받기 어렵다면 `pending` 행을 목록에 포함한 채 `pipeline.status` 만 null 로 두는 쪽으로 바꾸겠습니다.
+
+### `image_refs` 모양 — 가정을 적어 둡니다
+
+설계 5.5 는 `image_refs` 를 *"성공 시 확정한 service별 이미지 객체"* 로만 적고 정확한 모양을 정하지 않았습니다. 이 값을 쓰는 쪽이 저이고 채우는 쪽은 승환 수신 서비스라, **제가 가정한 모양을 적어 두고 확인을 받겠습니다.**
+
+```jsonc
+{ "<서비스명>": { "image_ref": "ghcr.io/org/app:2311c0b", "image_digest": "sha256:..." } }
+```
+
+- 서비스가 **하나**면 `image` 에 그 `image_ref`, `image_digest` 에 그 digest 를 담습니다.
+- 서비스가 **둘 이상**이면 `image`·`image_digest` 를 null 로 두고 `images: [{service, image_ref, image_digest}]` 를 채웁니다. 승환 S5 의 제안 그대로입니다.
+- **임의의 첫 서비스를 고르거나 digest 를 합쳐 하나로 만들지 않습니다.**
+- 모양이 다르거나 해독할 수 없으면 `image`·`images` 를 **null 로 두고 오류를 내지 않습니다.** 조회가 깨지는 것보다 그 필드만 비는 게 낫습니다.
+
+모양이 확정되면 평탄화 함수 하나만 바뀝니다.
+
+### 후속 범위
+
+- `deployed_to[]` 는 `deployment` 모듈 조회 계약이 생긴 뒤 채웁니다.
+- `message`·`author`·`committed_at` 은 원천이 생긴 뒤입니다. 후순위입니다.
+- `#13` 의 `Build.steps[]`(W-03 GitHub Actions 단계)는 넣지 않습니다. Jenkins `daisy-ci` 가 단계별 결과를 보내기 전에는 만들 수 없고, 승환 S2 가 *"Job 단계를 대상 단계로 꾸미지 않는다"* 로 두었습니다.
+- 빌드 수신 경로(`POST`)는 승환 소유입니다. 이 PR 은 조회만입니다.
+
+### 검증 결과 (2026-10-01)
+
+검사 항목을 먼저 적고 그대로 돌렸습니다. 빈 PostgreSQL 17 에 띄워 빌드 6건(수신 시각이 같은 두 건 포함)과 다른 프로젝트의 빌드 1건을 넣고 실제 요청으로 확인했습니다.
+
+| | 검사 | 결과 |
+|---|---|---|
+| B1 | 토큰 없이 호출 | 401 |
+| B2 | 없는 프로젝트 | 404 |
+| B3 | 멤버가 아닌 프로젝트 | **404**. 403 이 아닙니다 |
+| B4 | 빌드가 없는 프로젝트 | `{"items":[],"next_cursor":null}` |
+| B5 | 정렬 | `received_at DESC, id DESC`. 수신 시각이 같은 두 건이 `id` 로 갈립니다 |
+| B6 | 상태 변환 | `succeeded→success`, `pending→queued`, `running`·`failed` 그대로 |
+| B7 | `limit` 경계 | `0`·`-1` 은 400, `101` 은 100 으로 깎여 200 |
+| B8 | 커서 왕복 | `limit=2` 로 3페이지를 받아 **6건이 중복·누락 없이** 전체 목록과 같았습니다 |
+| B9 | 마지막 페이지 | `next_cursor` 가 null |
+| B10 | 깨진 커서 | 400 |
+| B11 | `received_at` 이 같은 행 | 같은 시각의 두 건이 서로 다른 페이지에 걸쳐도 건너뛰지 않았습니다 |
+| B12 | 단일 서비스 `image_refs` | `image`·`image_digest` 채워짐, `images` 는 null |
+| B13 | 다중 서비스 `image_refs` | `image`·`image_digest` null, `images[api, web]` |
+| B14 | 모양이 다른 `image_refs` | 오류 없이 `image`·`images` 모두 null |
+| B15 | **다른 프로젝트의 빌드** | 섞이지 않습니다 |
+| B16 | OpenAPI | 경로와 `PageResponseBuildResponse`·`BuildResponse`·`Pipeline`·`ServiceImage` 스키마 노출 |
+
+- 단위 테스트 10개를 더했습니다. 상태 변환 4개(`pending` 이 `running` 이 되지 않는 것 포함), `image_refs` 평탄화 4개, 커서 왕복·깨진 커서 2개입니다. 전부 순수 함수라 DB 없이 돕니다.
+- `./gradlew --no-daemon spotlessApply spotlessCheck check build` 성공.
+
+**B16 에서 결함을 하나 찾아 고쳤습니다.** OpenAPI 가 `principal` 을 쿼리 파라미터로 노출하고 있었습니다. `@CurrentAccount AuthPrincipal` 은 인증 필터가 넣어 둔 주체를 argument resolver 가 채우는 값인데, springdoc 이 알려진 애너테이션이 아닌 인자를 쿼리로 보기 때문입니다. 보호 경로 **5개 전부**가 그랬습니다 (`/auth/me`, `/projects`, `/projects/{id}`, `targets/status`, `builds`). 소비자에게 `?principal=...` 을 보내라고 알려주는 문서였습니다. `SpringDocUtils.addAnnotationsToIgnore(CurrentAccount.class)` 로 숨겼습니다. 이슈 #13 의 완료 기준이 *"받은 건 OpenAPI 에 나와 있어요"* 라서, 문서가 틀리면 계약이 틀린 것과 같습니다.
+
+**확인하지 않은 것**
+
+- `deployed_to[]` 가 채워진 응답은 확인하지 못했습니다. `deployment` 모듈 조회 계약이 없습니다.
+- 빌드가 수천 건일 때의 커서 성능은 보지 않았습니다. 설계 5.5 의 `INDEX(project_id, received_at DESC, id)` 를 쓰는 질의라는 것만 확인했습니다.
+- `image_refs` 의 실제 모양은 승환 빌드 수신 서비스가 채우기 시작한 뒤에 다시 봐야 합니다. 지금은 가정한 모양과 다를 때 비는 것만 확인했습니다.

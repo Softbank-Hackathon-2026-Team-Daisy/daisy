@@ -16,6 +16,7 @@ import com.teamdaisy.server.identity.auth.AuthPrincipal;
 import com.teamdaisy.server.project.access.ProjectAccess;
 import com.teamdaisy.server.project.access.ProjectAccessService;
 import com.teamdaisy.server.project.domain.ProjectRepository;
+import com.teamdaisy.server.project.domain.SourceVersionRepository;
 import com.teamdaisy.server.project.domain.Target;
 import com.teamdaisy.server.project.domain.TargetRepository;
 import java.time.Instant;
@@ -34,8 +35,10 @@ class TargetStatusTest {
 
   private final ProjectRepository projects = mock(ProjectRepository.class);
   private final TargetRepository targets = mock(TargetRepository.class);
+  private final SourceVersionRepository versions = mock(SourceVersionRepository.class);
   private final ProjectAccessService access = mock(ProjectAccessService.class);
-  private final ProjectController controller = new ProjectController(projects, targets, access);
+  private final ProjectController controller =
+      new ProjectController(projects, targets, versions, access);
 
   private static Target target(String id, String name, String type, String connectionState) {
     return Target.create(
