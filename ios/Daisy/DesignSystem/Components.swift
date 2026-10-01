@@ -56,7 +56,7 @@ struct NoProjectView: View {
         ContentUnavailableView(
             "프로젝트를 골라 주세요",
             systemImage: "folder",
-            description: Text("현황 탭 위쪽에서 프로젝트를 선택해요.")
+            description: Text("개요 탭 위쪽에서 프로젝트를 선택해요.")
         )
     }
 }

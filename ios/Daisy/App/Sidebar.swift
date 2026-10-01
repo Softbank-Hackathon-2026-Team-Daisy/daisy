@@ -209,7 +209,7 @@ struct Sidebar: View {
         switch health {
         case .healthy: "정상"
         case .unhealthy: "이상"
-        case .unknown: "확인 안 됨"
+        case .unknown: "확인 전"
         }
     }
 

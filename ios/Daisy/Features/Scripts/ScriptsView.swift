@@ -23,7 +23,8 @@ struct ScriptsView: View {
                         VStack(alignment: .leading, spacing: 16) {
                             SectionCard("검증된 스크립트") {
                                 if scripts.isEmpty {
-                                    Text("아직 검증된 스크립트가 없어요").foregroundStyle(.secondary)
+                                    ContentUnavailableView("아직 검증된 스크립트가 없어요", systemImage: "apple.terminal",
+                                                           description: Text("첫 배포에서 AI가 만든 Terraform이 검증을 통과하면 여기에 쌓여요"))
                                 } else {
                                     ViewThatFits(in: .horizontal) {
                                         table(scripts).frame(minWidth: 720)
@@ -69,7 +70,7 @@ struct ScriptsView: View {
                     Text(script.version).font(.subheadline.monospaced())
                     Text(origin(script)).font(.subheadline)
                     Text(checks(script)).font(.caption).foregroundStyle(script.status == .discarded ? .red : .secondary)
-                    Text(script.reuseCount.map { "\($0)회" } ?? "—").font(.subheadline.monospacedDigit())
+                    Text(reuseText(script)).font(.subheadline.monospacedDigit())
                     lastUsed(script).font(.caption).foregroundStyle(.secondary)
                 }
                 .contentShape(.rect)
@@ -86,7 +87,7 @@ struct ScriptsView: View {
                     VStack(alignment: .leading, spacing: 4) {
                         HStack { EnvTag(type: workspace.type(of: script.targetId)); Text(script.version).font(.subheadline.monospaced()); Spacer(); lastUsed(script).font(.caption).foregroundStyle(.secondary) }
                         Text(origin(script)).font(.subheadline)
-                        Text([checks(script), script.reuseCount.map { "재사용 \($0)회" }].compactMap { $0 }.joined(separator: " · "))
+                        Text([checks(script), script.status == .verified ? script.reuseCount.map { "재사용 \($0)회" } : nil].compactMap { $0 }.joined(separator: " · "))
                             .font(.caption).foregroundStyle(.secondary)
                     }
                     .padding(.vertical, 8)
@@ -98,14 +99,18 @@ struct ScriptsView: View {
         }
     }
 
-    /// 웹: "AI 생성 · 시도 2/3 통과 (보안 그룹 수정)" / "AI 생성 · 3회 실패 → 폐기"
+    /// 웹: "AI 생성 · 시도 2/3 통과 (보안 그룹 수정)" / "재사용 · 시도 1/3 통과" / "AI 생성 · 3회 실패 → 폐기"
     private func origin(_ script: Script) -> String {
-        let base = switch (script.status, script.origin) {
-        case (.discarded, _): "AI 생성 · \(script.attempt)회 실패 → 폐기"
-        case (_, .reused): "재사용 · 이미지 태그만 교체"
-        default: "AI 생성 · 시도 \(script.attempt)/3 통과"
-        }
+        if script.status == .discarded { return "AI 생성 · \(script.attempt)회 실패 → 폐기" }
+        let base = "\(howMade(script)) · 시도 \(script.attempt)/3 통과"
         return script.note.map { "\(base) (\($0))" } ?? base
+    }
+
+    private func howMade(_ script: Script) -> String { script.origin == .reused ? "재사용" : "AI 생성" }
+
+    /// 웹: 검증된 스크립트만 재사용 횟수, 나머지는 "—"
+    private func reuseText(_ script: Script) -> String {
+        script.status == .verified ? script.reuseCount.map { "\($0)회" } ?? "—" : "—"
     }
 
     /// 웹: "validate · plan · 위험 0" / "plan 실패" (WR-10 `validation`)
@@ -135,10 +140,10 @@ struct ScriptsView: View {
                                })
             }
             if let file {
-                CodeBlock(header: "\(file.path) · AI 생성 · 시도 \(script.attempt)/3",
-                          aiGenerated: script.origin == .aiGenerated, code: file.content)
+                CodeBlock(header: "\(file.path) · \(howMade(script)) · 시도 \(script.attempt)/3",
+                          aiGenerated: script.origin != .reused, code: file.content)
             } else {
-                Text("스크립트 내용은 배포 화면(W-05)에서 볼 수 있어요").font(.subheadline).foregroundStyle(.secondary)
+                Text("폐기된 스크립트는 내용을 보관하지 않아요.").font(.subheadline).foregroundStyle(.secondary)
             }
         }
     }
@@ -148,8 +153,8 @@ struct ScriptsView: View {
             InfoRow("기준 이미지", script.baseCommit.map { String($0.prefix(7)) }, monospaced: true)
             InfoRow("입력", script.input)
             InfoRow("AI 토큰", script.aiTokens.map { $0.formatted() })
-            InfoRow("저장 위치", script.storage)
-            InfoRow("만든 시각", script.createdAt.map { $0.formatted(date: .numeric, time: .shortened) })
+            InfoRow("저장 위치", script.storage ?? "[미정]")
+            InfoRow("만든 시각", script.createdAt.map { TimeText.dayClock($0) })
             if script.status == .verified {
                 InlineAlert(.info, "다음 배포는 재사용", "이미지 태그만 바꿔서 AI 호출 0회로 배포해요.")
             }

@@ -106,6 +106,8 @@ struct Deployment: Decodable, Identifiable, Hashable, Sendable {
         let steps: [StepItem]?
         /// W-08 헬스 요약 (가칭): "200 OK · p95 120ms"
         let healthSummary: String?
+        /// W-08 동일성 검증: 이 환경에 올라간 이미지 digest (웹 A-04 `image_digest`)
+        let imageDigest: String?
 
         var id: String { targetId }
     }
@@ -170,6 +172,10 @@ struct Plan: Decodable, Sendable {
         let reusedScript: Bool?
         /// W-06 리소스 변경 행 (가칭)
         let resources: [PlanResource]?
+        /// W-06 환경별 요약 끝말 (웹 `summary`): "이미지 태그만 교체". 없으면 "위험 설정 n건"
+        let summary: String?
+        /// W-06 plan 원문 (웹 `plan_text`). 없으면 리소스 목록만 보여줘요
+        let planText: String?
 
         var id: String { targetId }
     }
@@ -182,7 +188,8 @@ struct Plan: Decodable, Sendable {
 }
 
 /// AI 사용량 합계. 원화는 고정 환율로 환산한 추정치예요.
-/// plan(A-05)과 배포(A-04)에 같은 모양으로 와요. `calls` · `items`는 W-12 호출 기록용 (가칭).
+/// 합계는 plan(A-05)에 와요 (10/1 서버). 호출별 기록은 `GET /projects/{id}/ai-usage?deployment_id=`의 `Call` 목록이에요.
+/// `items`는 서버가 배포(A-04)에 같이 줄 때만 쓰는 예비 칸이에요.
 struct AIUsage: Decodable, Hashable, Sendable {
     /// 실제 LLM 호출 한 번. 재사용으로 AI를 안 부른 환경은 기록이 없어요.
     struct Call: Decodable, Identifiable, Hashable, Sendable {
@@ -197,14 +204,19 @@ struct AIUsage: Decodable, Hashable, Sendable {
         }
 
         let at: Date?
+        let deploymentId: String?
         let targetId: String
         let step: Step
         let attempt: Int?
+        /// 확인하지 못한 토큰 · 비용은 서버가 0으로 채우지 않고 비워 둬요 → 화면에 "—"
         let tokens: Int?
         let costKrw: Int?
+        /// LLM 호출 성공 · 실패 (Terraform 검증 결과와 별개, 10/1 서버)
         let status: Status
-        /// "보안 그룹 0.0.0.0/0 수정" 같은 한 줄 (가칭)
+        /// "보안 그룹 0.0.0.0/0 수정" 같은 한 줄 (가칭). 서버가 필수로 약속하지 않았어요 (10/1)
         let note: String?
+        /// 웹 목업 이름 (`title`). `note`가 없을 때 대신 써요
+        let title: String?
 
         var id: String { "\(at?.timeIntervalSince1970 ?? 0)-\(targetId)-\(step.rawValue)-\(attempt ?? 0)" }
     }

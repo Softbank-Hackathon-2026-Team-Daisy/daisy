@@ -43,11 +43,14 @@ enum SampleData {
         guard var body = responses[path] else {
             return (404, error("NOT_FOUND", "예시 데이터에 없는 화면이에요."))
         }
-        // 배포 목록의 상태 필터 (승인 대기 배지)
-        if let state = query.first(where: { $0.name == "state" })?.value,
+        // 목록 필터: 배포 목록의 `state`(승인 대기 배지), AI 사용량의 `deployment_id`
+        let filters = query.compactMap { item in
+            item.value.flatMap { ["state", "deployment_id"].contains(item.name) ? (item.name, $0) : nil }
+        }
+        if !filters.isEmpty,
            var page = try? JSONSerialization.jsonObject(with: body) as? [String: Any],
            let items = page["items"] as? [[String: Any]] {
-            page["items"] = items.filter { $0["state"] as? String == state }
+            page["items"] = items.filter { row in filters.allSatisfy { row[$0.0] as? String == $0.1 } }
             body = (try? JSONSerialization.data(withJSONObject: page)) ?? body
         }
         return (200, body)

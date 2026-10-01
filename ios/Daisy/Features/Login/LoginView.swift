@@ -95,7 +95,7 @@ struct LoginView: View {
             Button {
                 Task { await signIn() }
             } label: {
-                if working { ProgressView().controlSize(.small) } else { Text("로그인") }
+                Text(working ? "로그인하는 중…" : "로그인")
             }
             .buttonStyle(.glassCapsule(prominent: true, fullWidth: true, height: 38))
             .disabled(working || username.isEmpty || password.isEmpty || app.serverURL == nil)
@@ -131,12 +131,12 @@ struct LoginView: View {
         case .wrongCredentials:
             InlineAlert(.danger, "로그인하지 못했어요", "아이디 또는 비밀번호가 맞지 않아요. 다시 확인해 주세요.")
         case .network:
-            InlineAlert(.danger, "로그인하지 못했어요", "서버에 연결하지 못했어요. 잠시 후 다시 시도해 주세요.")
+            InlineAlert(.danger, "서버에 연결하지 못했어요", "서버에 연결하지 못했어요. 잠시 후 다시 시도해 주세요.")
         case .other(let message):
             InlineAlert(.danger, "로그인하지 못했어요", message)
         case nil:
             if app.sessionExpired {
-                InlineAlert(.info, "다시 로그인해 주세요.")
+                InlineAlert(.info, "다시 로그인해 주세요", "로그인이 만료됐어요.")
             }
         }
     }
@@ -164,8 +164,8 @@ struct LoginView: View {
             try await app.signIn(username: username, password: password)
         } catch {
             show(error)
-            // W-00b NOTE: 아이디는 그대로 두고 비밀번호만 비워요.
-            password = ""
+            // W-00b NOTE: 아이디가 틀렸을 때(401)만 아이디는 그대로 두고 비밀번호를 비워요 (웹과 같아요)
+            if problem == .wrongCredentials { password = "" }
         }
     }
 
