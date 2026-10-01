@@ -1,5 +1,8 @@
 # AWS 기준 모듈: ECS Fargate + ALB (+ database = true면 RDS PostgreSQL)
 #
+# - 네트워크(VPC · 서브넷)는 만들지 않아요. 고정 네트워크(infra/bootstrap/aws-network)의 ID를 받아요.
+#   그래서 앱을 지워도 네트워크는 남고, 배포는 ALB · ECS · 보안 그룹만 다뤄요 (infra/SPEC.md §5-0)
+#
 # - AI 생성의 참고 템플릿이자 N-02 실패 시 대안이에요 (infra/SPEC.md §5)
 # - backend 블록은 쓰지 않아요. 러너가 backend.tf를 주입해요 (SPEC §3-4)
 # - 자격증명은 러너 환경변수로만 받아요. provider에 profile·키를 쓰지 않아요
@@ -32,7 +35,6 @@ provider "aws" {
 locals {
   prefix       = "daisy-${var.name}"
   image        = "${var.image}:${var.image_tag}"
-  azs          = slice(data.aws_availability_zones.available.names, 0, 2)
   secret_names = nonsensitive(toset(keys(var.secrets)))
   db_port      = 5432
 
@@ -51,72 +53,12 @@ locals {
   secret_arns = [for s in local.container_secrets : split(":password::", s.valueFrom)[0]]
 }
 
-data "aws_availability_zones" "available" {
-  state = "available"
-}
-
-# ---------------------------------------------------------------- 네트워크
-
-resource "aws_vpc" "this" {
-  cidr_block           = "10.20.0.0/16"
-  enable_dns_support   = true
-  enable_dns_hostnames = true
-
-  tags = { Name = local.prefix }
-}
-
-resource "aws_internet_gateway" "this" {
-  vpc_id = aws_vpc.this.id
-
-  tags = { Name = local.prefix }
-}
-
-# ALB는 서로 다른 AZ의 서브넷 2개가 필수예요 (금지된 "Multi-AZ"는 DB 이중화 얘기)
-resource "aws_subnet" "public" {
-  count = 2
-
-  vpc_id            = aws_vpc.this.id
-  cidr_block        = cidrsubnet(aws_vpc.this.cidr_block, 8, count.index)
-  availability_zone = local.azs[count.index]
-
-  tags = { Name = "${local.prefix}-public-${count.index}" }
-}
-
-resource "aws_route_table" "public" {
-  vpc_id = aws_vpc.this.id
-
-  route {
-    cidr_block = "0.0.0.0/0"
-    gateway_id = aws_internet_gateway.this.id
-  }
-
-  tags = { Name = "${local.prefix}-public" }
-}
-
-resource "aws_route_table_association" "public" {
-  count = 2
-
-  subnet_id      = aws_subnet.public[count.index].id
-  route_table_id = aws_route_table.public.id
-}
-
-# DB 전용. 인터넷 경로가 없는 기본 라우팅 테이블을 써요 (R-3)
-resource "aws_subnet" "private" {
-  count = var.database ? 2 : 0
-
-  vpc_id            = aws_vpc.this.id
-  cidr_block        = cidrsubnet(aws_vpc.this.cidr_block, 8, 10 + count.index)
-  availability_zone = local.azs[count.index]
-
-  tags = { Name = "${local.prefix}-private-${count.index}" }
-}
-
 # ---------------------------------------------------------------- 보안 그룹
 
 resource "aws_security_group" "alb" {
   name        = "${local.prefix}-alb"
   description = "ALB: HTTP from the internet"
-  vpc_id      = aws_vpc.this.id
+  vpc_id      = var.vpc_id
 }
 
 # R-1: 인터넷 인바운드는 공개 LB의 80(·443)만
@@ -141,7 +83,7 @@ resource "aws_vpc_security_group_egress_rule" "alb_to_app" {
 resource "aws_security_group" "app" {
   name        = "${local.prefix}-app"
   description = "App tasks: only from the ALB"
-  vpc_id      = aws_vpc.this.id
+  vpc_id      = var.vpc_id
 }
 
 # R-2: 앱은 ALB에서만 받아요
@@ -167,7 +109,7 @@ resource "aws_security_group" "db" {
 
   name        = "${local.prefix}-db"
   description = "DB: only from app tasks"
-  vpc_id      = aws_vpc.this.id
+  vpc_id      = var.vpc_id
 }
 
 # R-3: DB는 앱 보안 그룹에서만
@@ -188,7 +130,7 @@ resource "aws_lb" "this" {
   name                       = "${local.prefix}-alb"
   load_balancer_type         = "application"
   security_groups            = [aws_security_group.alb.id]
-  subnets                    = aws_subnet.public[*].id
+  subnets                    = var.public_subnet_ids
   drop_invalid_header_fields = true
 }
 
@@ -197,7 +139,7 @@ resource "aws_lb_target_group" "app" {
   port        = var.port
   protocol    = "HTTP"
   target_type = "ip"
-  vpc_id      = aws_vpc.this.id
+  vpc_id      = var.vpc_id
 
   # 기본 300초면 교체 배포가 5분 넘게 걸려요
   deregistration_delay = 30
@@ -346,7 +288,7 @@ resource "aws_ecs_service" "app" {
   }
 
   network_configuration {
-    subnets          = aws_subnet.public[*].id
+    subnets          = var.public_subnet_ids
     security_groups  = [aws_security_group.app.id]
     assign_public_ip = true # NAT 없이 이미지를 받으려면 필요해요
   }
@@ -366,7 +308,7 @@ resource "aws_db_subnet_group" "this" {
   count = var.database ? 1 : 0
 
   name       = local.prefix
-  subnet_ids = aws_subnet.private[*].id
+  subnet_ids = var.private_subnet_ids
 }
 
 resource "aws_db_instance" "this" {

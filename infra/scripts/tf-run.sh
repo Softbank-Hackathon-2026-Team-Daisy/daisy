@@ -1,7 +1,10 @@
 #!/usr/bin/env bash
 # infra/SPEC.md §3-4 러너 규약의 참고 구현이에요 (Jenkins 러너 · 사람이 직접 실행 공용).
 #
-#   tf-run.sh <aws|gcp> <plan|apply|destroy|output>
+#   tf-run.sh <aws|gcp|aws-network> <plan|apply|destroy|output>
+#
+#   aws · gcp     앱 모듈 (infra/modules/<env>). 매 배포
+#   aws-network   고정 리소스 bootstrap (infra/bootstrap/<stack>). 1번만, $WORK_ROOT/_bootstrap/<stack>/
 #
 # 작업 디렉터리는 레포 밖이에요. state·plan에 비밀값이 들어가요.
 #   $WORK_ROOT/$APP/$ENV/state/        로컬 backend의 state (고정, 지우지 않아요)
@@ -18,12 +21,15 @@ umask 077
 
 usage() {
   cat >&2 <<'EOF'
-사용법: tf-run.sh <aws|gcp> <plan|apply|destroy|output>
+사용법: tf-run.sh <aws|gcp|aws-network> <plan|apply|destroy|output>
+
+  aws · gcp      앱 모듈 (infra/modules/<env>). IMAGE_TAG 필요
+  aws-network    고정 리소스 bootstrap (infra/bootstrap/<stack>). IMAGE_TAG 필요 없음
 
   plan     plans/<PLAN_ID>/에 plan을 만들어요 (TF_DESTROY=1이면 삭제 plan)
   apply    plans/<PLAN_ID>/의 plan을 적용해요. 승인 필요
   destroy  삭제 plan을 만들고 바로 적용해요 (터미널용). 승인 필요
-  output   마지막으로 apply한 plan의 service_url
+  output   마지막으로 apply한 plan의 service_url (bootstrap은 전체 출력 JSON)
 
 환경변수
   APP                  앱 이름 (기본 hellocalc). state key와 작업 디렉터리에 써요
@@ -46,23 +52,36 @@ die() { echo "tf-run: $*" >&2; exit 1; }
 
 [[ $# -eq 2 ]] || usage
 ENV=$1 CMD=$2
-case $ENV in aws | gcp) ;; *) usage ;; esac
+case $ENV in
+aws | gcp) KIND=app ;;
+aws-network) KIND=bootstrap ;;
+*) usage ;;
+esac
 case $CMD in plan | apply | destroy | output) ;; *) usage ;; esac
 
 REPO_ROOT=$(cd "$(git -C "$(dirname "$0")" rev-parse --show-toplevel)" && pwd -P)
-MODULE_DIR="$REPO_ROOT/infra/modules/$ENV"
 APP=${APP:-hellocalc}
 WORK_ROOT=${WORK_ROOT:-$HOME/daisy-work}
 [[ $WORK_ROOT == /* ]] || WORK_ROOT="$PWD/$WORK_ROOT"
 case "$WORK_ROOT/" in "$REPO_ROOT/"*) die "WORK_ROOT가 레포 안이에요: $WORK_ROOT" ;; esac
-WORK="$WORK_ROOT/$APP/$ENV"
+if [[ $KIND == app ]]; then
+  MODULE_DIR="$REPO_ROOT/infra/modules/$ENV"
+  WORK="$WORK_ROOT/$APP/$ENV"
+  STATE_KEY="$APP/$ENV/terraform.tfstate"
+  DEFAULT_VAR_FILE="$WORK_ROOT/$APP/$ENV.tfvars.json"
+else
+  MODULE_DIR="$REPO_ROOT/infra/bootstrap/$ENV"
+  WORK="$WORK_ROOT/_bootstrap/$ENV"
+  STATE_KEY="_bootstrap/$ENV/terraform.tfstate"
+  DEFAULT_VAR_FILE="$WORK_ROOT/_bootstrap/$ENV.tfvars.json"
+fi
 export TF_PLUGIN_CACHE_DIR=${TF_PLUGIN_CACHE_DIR:-$HOME/.terraform.d/plugin-cache}
 export TF_IN_AUTOMATION=1
 mkdir -p "$WORK/state" "$WORK/plans" "$TF_PLUGIN_CACHE_DIR"
 
 # 같은 앱·환경에서 plan·apply가 겹치지 않게 해요
 exec 9>"$WORK/.lock"
-flock -w "${TF_RUN_LOCK_WAIT:-600}" 9 || die "$APP/$ENV 에서 다른 작업이 끝나지 않았어요 (${TF_RUN_LOCK_WAIT:-600}초 대기). 끝난 뒤 다시 실행해요"
+flock -w "${TF_RUN_LOCK_WAIT:-600}" 9 || die "${WORK#"$WORK_ROOT"/} 에서 다른 작업이 끝나지 않았어요 (${TF_RUN_LOCK_WAIT:-600}초 대기). 끝난 뒤 다시 실행해요"
 
 PLAN_DIR="" # set_plan_dir에서 정해요
 tf() { terraform -chdir="$PLAN_DIR/src" "$@"; }
@@ -81,7 +100,7 @@ init() {
   if [[ -n ${TF_STATE_BUCKET:-} ]]; then
     printf 'terraform {\n  backend "s3" {}\n}\n' >"$PLAN_DIR/src/backend.tf"
     args+=(-backend-config="bucket=$TF_STATE_BUCKET"
-      -backend-config="key=$APP/$ENV/terraform.tfstate"
+      -backend-config="key=$STATE_KEY"
       -backend-config="region=${TF_STATE_REGION:-ap-northeast-2}"
       -backend-config="encrypt=true"
       -backend-config="use_lockfile=true")
@@ -94,7 +113,7 @@ init() {
 }
 
 check_account() {
-  if [[ $ENV == aws && -n ${EXPECTED_AWS_ACCOUNT:-} ]]; then
+  if [[ $ENV == aws* && -n ${EXPECTED_AWS_ACCOUNT:-} ]]; then
     local actual
     actual=$(aws sts get-caller-identity --query Account --output text)
     [[ $actual == "$EXPECTED_AWS_ACCOUNT" ]] || die "AWS 계정이 달라요: $actual (기대값 $EXPECTED_AWS_ACCOUNT)"
@@ -121,28 +140,32 @@ confirm() {
 }
 
 make_plan() { # $1 = 1이면 삭제 plan
-  need_tag
-  local var_file=${VAR_FILE:-$WORK_ROOT/$APP/$ENV.tfvars.json}
-  [[ -f $var_file ]] || die "변수 파일이 없어요: $var_file"
+  local var_file=${VAR_FILE:-$DEFAULT_VAR_FILE}
+  if [[ $KIND == app ]]; then
+    need_tag
+    [[ -f $var_file ]] || die "변수 파일이 없어요: $var_file"
+  elif [[ ! -f $var_file ]]; then
+    var_file=/dev/null # bootstrap은 변수 파일이 없으면 기본값을 써요
+  fi
   compgen -G "$MODULE_DIR/*.tf" >/dev/null || die "모듈이 아직 없어요: $MODULE_DIR"
   [[ ! -e $PLAN_DIR ]] || die "같은 PLAN_ID의 plan이 이미 있어요: $PLAN_ID"
   mkdir -p "$PLAN_DIR/src"
   cp "$MODULE_DIR"/*.tf "$PLAN_DIR/src/"
   [[ -f $MODULE_DIR/.terraform.lock.hcl ]] && cp "$MODULE_DIR/.terraform.lock.hcl" "$PLAN_DIR/src/"
-  cp "$var_file" "$PLAN_DIR/vars.json"
+  if [[ $var_file == /dev/null ]]; then echo '{}' >"$PLAN_DIR/vars.json"; else cp "$var_file" "$PLAN_DIR/vars.json"; fi
   init
   tf validate -no-color
   local plan_args=()
   [[ $1 == 1 ]] && plan_args+=(-destroy)
-  tf plan -input=false -no-color ${plan_args[@]+"${plan_args[@]}"} -out=plan.tfplan \
-    -var-file="$PLAN_DIR/vars.json" -var="image_tag=$IMAGE_TAG"
+  [[ $KIND == app ]] && plan_args+=(-var="image_tag=$IMAGE_TAG")
+  tf plan -input=false -no-color ${plan_args[@]+"${plan_args[@]}"} -out=plan.tfplan -var-file="$PLAN_DIR/vars.json"
   # 승인 화면용 요약 한 줄 ("create=3 update=1")
   tf show -json plan.tfplan >"$PLAN_DIR/src/plan.json"
   jq -r '[.resource_changes[]?.change.actions | join("+")]
     | map(select(. != "no-op" and . != "read")) | group_by(.)
     | map("\(.[0])=\(length)") | join(" ")
     | if . == "" then "변경 없음" else . end' "$PLAN_DIR/src/plan.json" | tee "$PLAN_DIR/summary.txt"
-  jq -n --arg id "$PLAN_ID" --arg app "$APP" --arg env "$ENV" --arg tag "$IMAGE_TAG" \
+  jq -n --arg id "$PLAN_ID" --arg app "$APP" --arg env "$ENV" --arg tag "${IMAGE_TAG:-}" \
     --argjson destroy "$([[ $1 == 1 ]] && echo true || echo false)" \
     --arg sha "$(sha256sum "$PLAN_DIR/src/plan.tfplan" | cut -d' ' -f1)" \
     --arg summary "$(cat "$PLAN_DIR/summary.txt")" --arg at "$(date -u +%FT%TZ)" \
@@ -170,7 +193,16 @@ apply_plan() {
     rm -f "$WORK/current"
   else
     ln -sfn "plans/$PLAN_ID" "$WORK/current"
-    tf output -raw service_url && echo
+    show_output
+  fi
+}
+
+show_output() { # 앱은 service_url, bootstrap은 전체 출력 JSON
+  if [[ $KIND == app ]]; then
+    tf output -raw service_url
+    echo
+  else
+    tf output -json
   fi
 }
 
@@ -196,7 +228,7 @@ apply)
 destroy)
   [[ -e $WORK/current ]] || die "적용한 plan이 없어요 (apply한 적이 없으면 지울 것도 없어요)"
   # 마지막으로 적용한 plan의 이미지 태그와 변수로 삭제 plan을 만들어요
-  IMAGE_TAG=${IMAGE_TAG:-$(jq -r .image_tag "$WORK/current/meta.json")}
+  [[ $KIND == app ]] && IMAGE_TAG=${IMAGE_TAG:-$(jq -r .image_tag "$WORK/current/meta.json")}
   VAR_FILE=${VAR_FILE:-$WORK/current/vars.json}
   PLAN_ID=${PLAN_ID:-manual-destroy-$(date +%Y%m%d-%H%M%S)}
   set_plan_dir
@@ -206,7 +238,6 @@ destroy)
 output)
   [[ -e $WORK/current ]] || die "적용한 plan이 없어요: $WORK/current"
   PLAN_DIR="$WORK/current"
-  tf output -raw service_url
-  echo
+  show_output
   ;;
 esac
