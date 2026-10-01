@@ -1,0 +1,35 @@
+.source-card {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--space-3);
+  width: 320px;
+  padding: var(--space-6);
+  border: var(--border);
+  border-radius: var(--radius-md);
+  background: var(--color-card);
+  color: var(--color-card-foreground);
+  text-align: left;
+  cursor: pointer;
+}
+
+.source-card[aria-pressed='true'] {
+  padding: 23px;
+  border: 2px solid var(--color-focus);
+  background: var(--color-surface-strong);
+}
+
+.source-card__icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 40px;
+  height: 40px;
+  border-radius: var(--radius-md);
+  background: var(--color-surface);
+}
+
+.source-card[aria-pressed='true'] .source-card__icon {
+  background: var(--color-ink);
+  color: var(--color-bg);
+}

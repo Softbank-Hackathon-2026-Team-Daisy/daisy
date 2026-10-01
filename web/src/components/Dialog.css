@@ -15,9 +15,8 @@
   gap: var(--space-4);
 }
 
-/* navy/950 40% — 테마와 상관없이 화면을 어둡게 */
 .dialog::backdrop {
-  background: rgb(11 16 38 / 0.4);
+  background: var(--color-backdrop);
 }
 
 .dialog__header {
@@ -45,5 +44,6 @@
 
 .dialog__footer {
   display: flex;
+  justify-content: flex-end;
   gap: var(--space-2);
 }

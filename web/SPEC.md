@@ -67,7 +67,7 @@ W-00 로그인 → W-01 개요 → W-02 저장소 연결 → L-01 → W-03 이�
 | W-01 | **개요** | 환경별 현재 버전(커밋 · 배포 시각 · 공개 URL · 헬스), "3/3 일치" 이식성 표시, 지금 할 일(승인 대기 → W-06, Secondary 버튼), 최근 실행 | M |
 | W-02 | **애플리케이션 연결** (STEP 1) | 저장소 URL, 배포 기준 브랜치, `deploy.yaml` 확인. 입력은 GitHub 저장소 연결 하나 (ADR-004). 데모 앱 sample-monolith 기준 (포트 8080, `/health`, DB 없음) | M |
 | ~~W-02b~~ | ~~연결 · 업로드~~ | **범위 제외 (9/30).** 소스 업로드 API가 빠졌어요. 와이어프레임에는 기록용으로 흐리게 남아 있고, 구현하지 않아요 | — |
-| W-03 | **이미지 빌드** (STEP 2) | main merge 감지, GitHub Actions 진행, 이미지 태그(커밋 해시) | M |
+| W-03 | **이미지 빌드** (STEP 2) | main merge 감지, Jenkins 빌드 진행, 이미지 태그(커밋 해시) | M |
 | W-04 | **배포할 환경 선택** (STEP 3) | 여러 환경 동시 선택, 카드에 재사용 / 새로 생성 미리 표시, 선택 요약 | M |
 | W-05 | **인프라 코드 생성 · 검증** (STEP 4) | 환경별 진행과 "시도 n/3", 검증 단계, 생성된 스크립트 보기. SSE로 실시간 갱신 | M |
 | W-05b | **AWS만 멈췄어요** | 한 환경이 3번 모두 실패하면 그 환경만 멈추고(`failed`) 나머지는 계속 진행해요. 시도 기록과 환경별 상태. "빼고 계속" 버튼 없음 | M |
@@ -97,7 +97,7 @@ W-00 로그인 → W-01 개요 → W-02 저장소 연결 → L-01 → W-03 이�
 | W-11 | 스크립트 | 검증된 스크립트 목록(환경 · 버전 · 만든 방식 · 검증 · 재사용 횟수 · 마지막 사용), 폐기된 스크립트도 표시, 스크립트 내용 보기 | S (데모 효과 큼) |
 | W-12 | AI 사용량 | **배포를 골라서** 그 배포의 AI 호출 수 · 토큰 · 비용(추정) · 재사용한 환경(AI 호출 0회), 호출 기록 표. 여러 배포 합계는 예선 범위에서 하지 않아요. 차트 없음 | S (데모 효과 큼) |
 | W-13 | 설정 | 저장소, `deploy.yaml`(읽기 전용), 비밀값(이름만, 값은 다시 볼 수 없음), 알림, 프로젝트 연결 해제(환경 이름 입력 확인) | S |
-| W-14 | Mac 앱 다운로드 (Dialog) | 사이드바 하단 "Mac 앱 받기"와 W-00 폼 아래 링크에서 열어요. 로그인 전 · 데모 계정도 받을 수 있어요. **Mac: GitHub Releases `.dmg`** (v0.1.0 · 빌드 2609301801 · 2.6 MB · macOS 15 이상, Developer ID 서명 + 공증 완료라 Gatekeeper 안내 없음). **iPhone: TestFlight 공개 링크** (베타 심사 뒤 열림). 새 빌드가 나오면 승준 님이 알려 주는 값으로 `MacAppDialog.tsx`의 상수만 바꿔요 (9/30 확정) | S |
+| W-14 | Mac 앱 다운로드 (Dialog) | 사이드바 하단 "Mac 앱 받기"와 W-00 폼 아래 링크에서 열어요. 로그인 전 · 데모 계정도 받을 수 있어요. **Mac: GitHub Releases 고정 주소 `releases/download/mac-latest/Daisy.dmg`** (늘 최신 빌드, macOS 15 이상, Developer ID 서명 + 공증 완료라 Gatekeeper 안내 없음 — 9/30 20:32 승준 님). **iPhone: TestFlight 공개 링크** (베타 심사 뒤 열림). 새 빌드가 나와도 웹은 바꿀 게 없어요 | S |
 
 ### 2-4. 사이드바 (9/30 결정)
 
@@ -180,7 +180,7 @@ web/
    │  ├─ login/             W-00 · W-00b
    │  ├─ overview/          W-01
    │  ├─ connect/           W-02
-   │  ├─ build/             W-03
+   │  ├─ image-build/       W-03 (루트 .gitignore의 build/ 규칙을 피하려고 이 이름)
    │  ├─ targets/           W-04
    │  ├─ generate/          W-05 · W-05b
    │  ├─ approve/           W-06
@@ -218,10 +218,10 @@ Page ──▶ hook ──▶ api/client ──────────▶ Daisy
 
 ## 4. 경계: 누가 무엇을 하나요
 
-| 영역 | 웹 (김도영) | 백엔드 (하은현 · 김승환) | CI (담당 `[미정]`, Actions · Jenkins 결정 대기) |
+| 영역 | 웹 (김도영) | 백엔드 (하은현 · 김승환) | 빌드 (Jenkins, 9/30 회의) |
 |---|---|---|---|
 | 저장소 연결 | 입력 · 결과 표시 | 프로젝트 저장, `deploy.yaml` 파싱 · 검증 | — |
-| 이미지 빌드 | 진행 표시 | webhook 수신 · 저장 · 조회 API | Actions 빌드, 이벤트 전송 |
+| 이미지 빌드 | 진행 표시 | webhook 수신 · 저장 · 조회 API | Jenkins 빌드, 이벤트 전송 |
 | 환경 선택 · 배포 시작 | 선택 UI, 배포 생성 요청 | 재사용 / 새로 생성 판단, 작업 큐 | — |
 | 생성 · 검증 | 진행 · 스크립트 표시 | AI 생성 · 수정 루프, validate · plan · 위험 검사 | — |
 | 승인 | 버튼 · 확인 문구 입력 | 권한 · 상태 검증 · 멱등 처리, stale 재 plan | — |
@@ -286,7 +286,7 @@ Page ──▶ hook ──▶ api/client ──────────▶ Daisy
 | WR-08 🆕 | `POST /deployments/{id}/cancel` | W-05 · W-07 | apply 전에는 취소, 이후는 중단 요청 | S | ✅ 그대로. 중단 요청은 즉시 종료를 보장하지 않아요. **D3** |
 | WR-09 🆕 | A-02 · 결과에 **이미지 digest** 필드 | W-01 · W-08 | 환경별 `image_digest` | M | ✅ 넣어요. 웹훅 수신 때 같이 받고 A-02에 필드 추가(앱 영향 없음). **D2** |
 | WR-10 🆕 | `GET /projects/{id}/scripts` (가칭) | W-11 | 검증된 스크립트 목록 (환경 · 버전 · 만든 방식 · 시도 · 검증 결과 · 재사용 횟수 · 마지막 사용 · 폐기 여부) | S | 승환 님 영역. 이 필드 목록이 #7의 "검증된 코드 · 재사용 조건 저장 구조"의 답이 돼요. **D3~** |
-| WR-11 🆕 | ~~`GET /projects/{id}/ai-usage`~~ → **API A-04의 `ai_usage`** | W-12 | 배포 한 건의 호출 · 토큰 · 비용 · 호출 기록 | S | ⚠️ 서버 답변이 둘이에요. PR 코멘트는 "`ai_usage` 테이블 그대로 D3", 와이어프레임 W-12 NOTE는 "합계 API 없음, A-04의 `ai_usage`로만". **와이어프레임을 따르고 은현 님께 확인** |
+| WR-11 🆕 | 합계: **A-05 plan 응답의 `ai_usage`** · 호출별: **`GET /projects/{id}/ai-usage?deployment_id=`** | W-12 · W-06 | 배포 한 건의 호출 · 토큰 · 비용 · 호출 기록 | S | ✅ 10/1 서버 결정(#13). `status`는 **LLM 호출 성공 · 실패**(화면 "호출 성공 · 호출 실패"). 확인 못 한 토큰 · 비용은 0 대신 `null`, `note`(수정 이유)는 제공 약속 없음. 경로 · 필드는 OpenAPI로 맞춰요 |
 | WR-12 🆕 | `PUT /projects/{id}/secrets/{name}` (가칭) | W-13 | 값 쓰기만. 읽기 API 없음 | S | 맞아요. 전달 방식이 팀 결정 대기 `[미정]` |
 | WR-13 🆕 | `DELETE /projects/{id}` | W-13 | 프로젝트 연결 해제. 인프라는 지우지 않아요 | S | ✅ 그대로. 확인 Dialog에서 환경 이름 입력 |
 | WR-14 🆕 | `POST /deployments/{id}/rollback` | W-09 | `{ target_ids[], reason }` + `Idempotency-Key` → `Deployment` (`kind: "rollback"`, `rolled_back_from`) | M | ✅ **범위에 넣어요** (은현 님 담당). 이전 성공 배포의 커밋 + 그때 검증된 스크립트로 재배포, 환경 선택 가능, plan · 승인을 거쳐요 |
@@ -320,7 +320,7 @@ Page ──▶ hook ──▶ api/client ──────────▶ Daisy
 | `Manifest.raw` (deploy.yaml 원문) | W-13 | #13 |
 | `Project`의 `build` · `registry` · `webhook_last_at` | W-13 | #13 (A-12) |
 
-승환 님 확인 대기(#9 코멘트): WR-06 **plan 원문**은 비밀값 처리 때문에 제공 여부 미정 → 웹은 원문이 없으면 리소스 목록만 보여줘요. `reuse.available` 판단 기준, `ai_usage` 합계를 어느 응답에 둘지, 롤백 때 manifest를 어디까지 복원할지도 서버끼리 정해요.
+승환 님 확인 대기(#9 코멘트): WR-06 **plan 원문**은 비밀값 처리 때문에 제공 여부 미정 → 웹은 원문이 없으면 리소스 목록만 보여줘요. `reuse.available` 판단 기준, 롤백 때 manifest를 어디까지 복원할지도 서버끼리 정해요.
 
 ### 6-2. 실시간 (SSE)
 
@@ -382,13 +382,14 @@ Page ──▶ hook ──▶ api/client ──────────▶ Daisy
   "files": [ { "path": "main.tf", "content": "…" } ]   // WR-07에서만
 }
 
-// AiUsage — API A-04 응답의 ai_usage, W-12 (배포 한 건 기준, 확인 필요)
-{
-  "summary": { "calls": 5, "tokens": 7920, "cost_krw": 206, "reused_targets": 1,
-               "exchange_rate": 1400, "estimated": true },
-  "items": [ { "at": "…", "target_id": "tgt_aws", "step": "generate" | "fix", "attempt": 2,
-               "tokens": 1860, "cost_krw": 48, "status": "succeeded" | "failed" } ]
-}
+// AiUsage 합계 — API A-05 plan 응답의 ai_usage (W-06 · W-12). 확인 못 한 값은 null
+{ "calls": 3, "tokens": 7920, "cost_krw": 206, "exchange_rate": 1380, "estimated": true }
+
+// AiUsage 호출별 — GET /projects/{id}/ai-usage?deployment_id= (W-12, 10/1 서버 결정 · 필드는 가칭)
+{ "items": [ { "at": "…", "target_id": "tgt_aws", "step": "generate" | "fix", "attempt": 2,
+               "tokens": 1860 | null, "cost_krw": 48 | null,
+               "status": "succeeded" | "failed" } ],   // LLM 호출 성공 · 실패
+  "next_cursor": null }
 ```
 
 ---
@@ -410,16 +411,18 @@ Page ──▶ hook ──▶ api/client ──────────▶ Daisy
 - [ ] **Q8 AI가 Dockerfile도 고치나** — 고치면 W-05 · W-11에 Dockerfile 탭 추가 — 서버(김승환)
 - [x] ~~Q9 한 환경만 apply 실패 시~~ → **나머지는 유지하고 `partially_succeeded`로 표시.** 되돌리려면 W-09에서 그 환경만 골라 롤백 (9/30 서버 · 와이어프레임)
 - [x] ~~Q10 배포 이후 단계(헬스체크 · URL · 롤백)를 흐름에 넣나~~ → **넣어요.** `health_check` 단계 + W-08 결과 + W-09 롤백(WR-14) (9/30 서버)
-- [x] ~~업로드 입력(W-02b)을 유지하나~~ → **범위 제외.** 소스 업로드 API가 빠졌고, 빌드는 GitHub Actions가 해요 (노션 ADR "샌드박스 방식 제외", 9/30 서버)
+- [x] ~~업로드 입력(W-02b)을 유지하나~~ → **범위 제외.** 소스 업로드 API가 빠졌고, 빌드는 Jenkins가 해요 (9/30 회의) (노션 ADR "샌드박스 방식 제외", 9/30 서버)
 - [ ] **환경 추가(W-10)를 예선 범위에 넣나** — "왜 AI인가" 후보 (b) — 팀
 - [x] ~~`react-router` 추가~~ → 사용 (9/30, 김도영). ADR-006에 기록
 - [x] ~~로그인 화면~~ → **W-00 · W-00b 추가** (9/30 와이어프레임)
 - [ ] **웹도 앱과 같은 토큰으로 로그인하나, 토큰 만료 처리** — 가정: 같은 `POST /auth/token`, `401` → W-00 — 서버 답변 대기
 - [x] ~~배포 상태 · 단계 값~~ → §2-5 (9/30 서버)
 - [x] ~~상태 배지 색 매핑~~ → 와이어프레임 기준 (§2-5, 9/30)
-- [x] ~~W-14 Mac 앱 호스팅 · 버전~~ → GitHub Releases `.dmg` + iPhone TestFlight (§2-3, 9/30 승준 님)
+- [x] ~~W-14 Mac 앱 호스팅 · 버전~~ → GitHub Releases 고정 주소 `mac-latest/Daisy.dmg` + iPhone TestFlight (§2-3, 9/30 승준 님)
 - [x] ~~롤백 · 연결 해제 확인 문구~~ → 환경이 여러 개라 환경 이름 대신 **프로젝트 이름**을 입력해요 (9/30, 웹)
-- [ ] **W-12 AI 사용량 API** — 합계 API(WR-11)인지 A-04의 `ai_usage`인지 서버 답변이 둘 — 은현 님 확인
+- [x] ~~W-12 AI 사용량 API~~ → 합계는 A-05 plan 응답, 호출별은 `GET /projects/{id}/ai-usage?deployment_id=` (10/1 서버, #13). LLM은 Claude (9/30 21:27)
+- [x] ~~실패한 환경 다시 시도~~ → 실패한 환경만 고른 **새 배포**, 시도 1/3부터 (9/30 서버, #13)
+- [ ] **목록 응답 봉투** — 웹은 A-01 · A-03 · A-06만 `{ items, next_cursor }`, 나머지(A-02 · WR-04 · WR-07 · WR-10 · A-07)는 배열로 받아요. 앱은 전부 봉투. 노션 계약 v0.2는 "OpenAPI에서 명시" — 서버 확인 후 웹 · 앱을 한쪽으로 맞춰요
 - [x] ~~인증 방식 · 브라우저 SSE~~ → Bearer 하나 (9/29), 브라우저는 `fetch` 스트리밍 (WR-01, 9/30)
 - [x] ~~HTTPS 공개 주소~~ → 팀 도메인 HTTPS (9/29 회의, 서버 담당)
 
@@ -436,4 +439,5 @@ Page ──▶ hook ──▶ api/client ──────────▶ Daisy
 | 9/30 | 와이어프레임 수정 · 서버 답변 반영: W-00 로그인 추가, W-02b 범위 제외, W-05b 한 환경만 중단, 상태 값(§2-5), 롤백(WR-14) 범위 포함, WR-01 `fetch` 스트리밍, WR-04 · WR-05 모양 확정, W-12 배포별 보기, Q7 · Q9 · Q10 해결 | 김도영 |
 | 9/30 | 승준 님 코멘트 반영: §1-1 앱 범위는 회의 안건으로 표시(ADR-007 기준 유지), §6-1-1 앱 요청(#13) 중 웹도 쓰는 R-09 · A-10 ~ A-12 연결 | 김도영 |
 | 9/30 | W-14 Mac 앱 다운로드(Dialog) 추가 (와이어프레임 갱신) | 김도영 |
+| 10/1 | 리뷰 · 결정 반영(#18): W-12 데이터 출처(A-05 + ai-usage), 호출 성공 · 실패, 빌드 Jenkins, W-14 고정 주소, 다시 시도 = 새 배포, 목록 봉투 질문, `pages/image-build` | 김도영 |
 | 9/30 | 화면 구현 반영(#15 · #18): 화면 경로 §2-6, 배지 색 확정, 전환 로딩 끝 신호 정정, 선택 필드 요청 §6-1-2, W-14 값 확정, 롤백 범위 `[미정]` 표시, 웹 담당 김도영(루트 §5-1), 일정 갱신 | 김도영 |

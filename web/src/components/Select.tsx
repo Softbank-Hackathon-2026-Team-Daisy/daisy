@@ -61,6 +61,7 @@ function Select({ value, options, onChange, label, leading, disabled }: SelectPr
       <button
         type="button"
         className="select__trigger"
+        role="combobox"
         aria-label={label}
         aria-haspopup="listbox"
         aria-expanded={open}

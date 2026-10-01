@@ -1,0 +1,35 @@
+.data-table__wrap {
+  overflow-x: auto;
+}
+
+.data-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+  line-height: 20px;
+}
+
+.data-table th {
+  padding: var(--space-2) var(--space-3);
+  border-bottom: var(--border);
+  background: var(--color-surface);
+  color: var(--color-ink-muted);
+  font-weight: 500;
+  text-align: left;
+  white-space: nowrap;
+}
+
+.data-table td {
+  padding: var(--space-3);
+  border-bottom: var(--border);
+  vertical-align: middle;
+}
+
+.data-table__row--clickable {
+  cursor: pointer;
+}
+
+.data-table__row--clickable:hover,
+.data-table__row--selected {
+  background: var(--color-surface);
+}

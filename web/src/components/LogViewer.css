@@ -1,0 +1,41 @@
+/* ink 배경 · bg 글자 — 테마를 바꾸면 명암이 뒤집혀요 */
+.log-viewer {
+  border-radius: var(--radius-md);
+  background: var(--color-ink);
+  color: var(--color-bg);
+  overflow: hidden;
+}
+
+.log-viewer__header {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding: var(--space-2) var(--space-4);
+}
+
+.log-viewer__follow {
+  margin-left: auto;
+  color: var(--color-ink-muted);
+}
+
+.log-viewer__body {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  max-height: 320px;
+  padding: var(--space-3) var(--space-4);
+  overflow-y: auto;
+  font-family: var(--font-mono);
+  font-size: 12px;
+  line-height: 18px;
+}
+
+.log-viewer__line {
+  display: flex;
+  gap: var(--space-3);
+  white-space: pre;
+}
+
+.log-viewer__muted {
+  color: var(--color-ink-muted);
+}
