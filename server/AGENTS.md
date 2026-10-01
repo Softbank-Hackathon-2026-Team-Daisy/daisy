@@ -85,6 +85,7 @@ Redis 대신 Postgres 를 쓰는 이유는 **어차피 DB 에 다 적어야 하�
 - `attempt`는 미생성·AI 미호출에서 0, 실제 최초 생성부터 1..3이에요. 재사용 여부·AI 호출 실패와 별도로 기록하고 API의 0 표시 방식은 미결이에요.
 - 승인 행은 대상의 특정 plan에 연결해요. 다중 대상 승인 ID·삭제 `confirm_text`는 은현·소비자와 확인해요.
 - `ai_usage`는 실제 호출당 1행, 재사용으로 호출이 없으면 0행이에요. LLM 결과와 Terraform 검증 결과를 구분하고 미확인은 NULL이에요. Jenkins 토큰 합계로 가짜 호출 행을 만들지 않아요.
+- #32의 V1을 합쳤고 계정 역할은 은현이 확정한 `owner/viewer`예요. 후속 DB 변경은 기존 V1 수정 대신 새 마이그레이션으로 해요. API 매핑은 [#19 처리표](docs/sh/2026-10-01-pr19-feedback.md#통합-후-피드백-처리표)에서 서버끼리 먼저 맞추며, 실제 인프라 연동만 #35로 분리해요.
 - `target_lock.state_identity`는 실제 같은 state 충돌 범위예요. unknown에서는 유지하며 실제 실행 종료·해제 근거를 기록한 뒤 소유 ID로 해제해요.
 
 기존 API ID 접두사는 유지해요. 새 내부 ID 접두사를 소비자 계약으로 확정하지 않아요.
@@ -165,6 +166,7 @@ docker compose up -d postgres    # Postgres 17
 | 2026-09-29 | **`ai_usage.status` 추가.** 실패해서 토큰·비용을 확인 못 하면 0 이 아니라 NULL | 실패한 호출도 입력 토큰은 과금됨. 0 으로 두면 "비용 없음"과 구분이 안 됨 | 1 |
 | 2026-09-30 | **kind normal/retry/rollback·attempt 0·image_refs map** | 입력·재빌드·MSA를 보존하는 내부 ERD 표현. API 매핑은 DB와 구분 | 1 |
 | 2026-10-01 | **결과는 폴링, prepare/apply 분리** | 인프라 #19·#17 답변. 5초는 제안, request_id 검색·상세 산출물은 연동 확인 대기 | 1 |
+| 2026-10-01 | **#32 V1 통합, owner/viewer, prepare 유지** | 인증 담당 역할 확정. prepare는 daisy-cd-plan에 매핑. apply 중 stop 없이 요청을 기록하고 실제 결과를 기다리는 방향으로 #32 답변 | 1 |
 
 ## 11. 아직 정하지 못한 것
 

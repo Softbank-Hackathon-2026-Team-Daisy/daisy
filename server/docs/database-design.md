@@ -1,6 +1,6 @@
 # 백엔드 DB 설계 — Jenkins 실행·승인·이력
 
-기준일: 2026-10-01 (#19·#17·#13 피드백 반영). **DB 설계 검토안이다. JPA 엔티티·공통 기반 범위는 [SPEC](../SPEC.md)에 따르며, 마이그레이션·업무 동작·DB 적용은 별도 작업이다.**
+기준일: 2026-10-01 (#19·#17·#13 피드백 및 #32 통합 반영). **17개 테이블의 V1 마이그레이션은 #32에서 합쳐졌다. JPA 엔티티·공통 기반 범위는 [SPEC](../SPEC.md)에 따르며, 업무 동작·실제 Jenkins 연동은 별도 작업이다.** API 매핑의 미결과 현재 제안은 [피드백 처리표](sh/2026-10-01-pr19-feedback.md#통합-후-피드백-처리표)에서 추적한다.
 
 사용자 저장소 빌드, 이미지 게시, Claude 호출, Terraform 생성·검증·실행은 인프라 Jenkins가 담당한다. 백엔드는 사용자가 요청한 입력, Jenkins 명령, 승인한 정확한 plan, 실제 결과의 연결을 보존한다. 백엔드가 Terraform이나 AI 실행기를 다시 만들지 않는다.
 
@@ -229,12 +229,12 @@ erDiagram
 | username | varchar(128) | NN / — | 로그인명, 정규화 후 UNIQUE |
 | password_hash | text | NN / — | 검증된 비밀번호 해시. 원문 저장 금지 |
 | display_name | varchar(128) | NN / — | 표시 이름 |
-| role | varchar(32) | NN / — | 기존 역할 계약 유지. 최소 viewer와 승인 가능 역할 구분, 최종 값은 은현 정의 |
+| role | varchar(32) | NN / — | owner/viewer, #32에서 인증 담당 은현 확정 |
 | created_at | timestamptz | NN / now() | 생성 |
 | updated_at | timestamptz | NN / now() | 계정 변경 시 갱신 |
 | disabled_at | timestamptz | NULL / NULL | 비활성화. 과거 요청·승인 FK는 유지 |
 
-PK(id), UNIQUE(username). role CHECK는 은현이 확정한 기존 역할 목록에 맞춘다. 로그인명 변경이 과거 actor ID를 바꾸지 않는다. 별도 토큰 테이블은 기본 범위가 아니며 발급/검증 방식은 은현 소유다.
+PK(id), UNIQUE(username), CHECK(role IN ('owner','viewer')). owner는 승인·변경, viewer는 조회 역할이며 프로젝트 접근 검사는 별도로 필요하다. 로그인명 변경이 과거 actor ID를 바꾸지 않는다. 별도 토큰 테이블은 기본 범위가 아니며 발급/검증 방식은 은현 소유다.
 
 ### 5.2 project — 은현
 
@@ -383,7 +383,7 @@ resolved_input_hash는 성공 빌드의 project·commit·image_refs를 대조한
 
 PK(id), UNIQUE(deployment_id,target_id), UNIQUE(id,deployment_id), UNIQUE(id,target_id,project_id), UNIQUE(id,project_id), UNIQUE(deployment_id,state_identity). 마지막 제약은 동일 state target을 한 요청에 중복 선택하지 못하게 한다.
 
-(deployment_id,project_id)→deployment(id,project_id), (target_id,project_id)→target(id,project_id), (script_id,project_id,target_id)→script(id,project_id,target_id). (current_plan_id,id)→plan_revision(id,deployment_target_id). (current_execution_id,id)→execution_target(execution_id,deployment_target_id). cancel_requested_by→account. CHECK(attempt BETWEEN 0 AND 3, version≥0), 취소 요청자·시각은 함께 NULL 또는 함께 존재. INDEX(deployment_id), INDEX(target_id,finished_at DESC).
+(deployment_id,project_id)→deployment(id,project_id), (target_id,project_id)→target(id,project_id), (script_id,project_id,target_id)→script(id,project_id,target_id). (current_plan_id,id)→plan_revision(id,deployment_target_id). (current_execution_id,id)→execution_target(execution_id,deployment_target_id). cancel_requested_by→account. CHECK(attempt BETWEEN 0 AND 3, version≥0), 취소 요청자·시각은 함께 NULL 또는 함께 존재. deployment_id 조회는 UNIQUE(deployment_id,target_id)의 선두 인덱스를 재사용하고 중복 인덱스를 만들지 않는다. INDEX(target_id,finished_at DESC).
 
 두 대상 lineage FK는 각각 (원본 대상 ID,target_id,project_id)→deployment_target(id,target_id,project_id)로 연결하고 자기 참조·동시 지정은 금지한다. 부모 kind가 retry면 retry 대상 FK, rollback이면 restored 대상 FK가 필수이며 원본 대상의 deployment가 부모의 원본 배포 FK와 같은지 서비스에서 검사한다. 원본 대상이 각각 failed/succeeded인지도 생성 시 확인한다.
 
@@ -812,7 +812,7 @@ APNs 채택 시에만 `device`를 추가한다. 제안 컬럼은 id(ID PK NN), a
 
 ### 12.2 Flyway 인계 시 대조 목록
 
-은현이 작성·검증했다고 공유한 17개 테이블 `V1__init.sql`은 #19 브랜치를 base로 별도 PR을 받는다. 이 PR에서 대신 작성·덮어쓰기하지 않는다. 실제 migration PR 도착 후 다음을 SQL·PostgreSQL에서 대조한다.
+은현의 17개 테이블 `V1__init.sql`은 #32에서 #19 브랜치로 머지됐다. 승인 NULL 우회·누락 CHECK·중복 인덱스·기본값 수정까지 포함하며 이를 다시 작성하거나 덮어쓰지 않는다. SQL 직접 적용 검사 27건과 별도 빈 DB의 Flyway·JPA 기동은 확인했다. 다음 중 실제 저장/조회·경합·부분 실패는 실행 기능 검증 범위이며 단순 기동 통과와 구분한다.
 
 - 17개 테이블·252개 컬럼의 타입/NULL/PK/일반 UNIQUE, 2개 복합 PK, 상태 소문자·CHECK와 숫자 범위.
 - 프로젝트/대상/plan 소속 복합 FK, 순환 current 포인터의 생성 순서, 부분 UNIQUE(active plan/pending approval/log owner), 원천 이벤트·호출·빌드·멱등 중복 제약.
