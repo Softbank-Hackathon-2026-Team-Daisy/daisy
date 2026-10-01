@@ -21,6 +21,10 @@ button.connection {
   --connection-fg: var(--color-status-success);
 }
 
+.connection--polling {
+  --connection-fg: var(--color-ink-muted);
+}
+
 .connection--reconnecting {
   --connection-fg: var(--color-status-warning);
 }

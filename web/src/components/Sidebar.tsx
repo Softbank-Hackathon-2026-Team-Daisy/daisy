@@ -118,7 +118,9 @@ function Sidebar({ projectId, collapsed, canToggle, onToggle, onOpenMacApp }: Si
       </div>
 
       <div className="sidebar__envs">
-        {!collapsed && (
+        {collapsed ? (
+          <MockBadge compact />
+        ) : (
           <p className="sidebar__envs-title t-overline t-muted">
             Environments <MockBadge />
           </p>
@@ -149,8 +151,8 @@ function Sidebar({ projectId, collapsed, canToggle, onToggle, onOpenMacApp }: Si
       </div>
 
       <hr className="sidebar__divider" />
-      {/* MOCK: SSE 연결 상태는 api/realtime을 붙이면 실제 값으로 바꿔요 */}
-      <ConnectionIndicator state="connected" compact={collapsed} />
+      {/* SSE를 붙이기 전까지는 5초 폴링이라 "실시간 연결됨"으로 보이지 않게 해요. api/realtime을 붙이면 실제 값으로 */}
+      <ConnectionIndicator state="polling" compact={collapsed} />
 
       <div className="sidebar__user">
         {/* Figma처럼 성을 뺀 이름 첫 글자 */}

@@ -12,3 +12,9 @@
   font-weight: 500;
   letter-spacing: 0.08em;
 }
+
+.mock-badge--compact {
+  padding: 0 var(--space-1);
+  font-size: 10px;
+  letter-spacing: 0;
+}

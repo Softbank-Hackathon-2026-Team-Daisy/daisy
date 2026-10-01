@@ -66,6 +66,7 @@
   /* Border */
   --border: 1px solid var(--color-line);
   --border-overlay: 1px solid var(--color-ink); /* 그림자 대신: 메뉴 · Dialog · Toast */
+  --color-backdrop: rgb(11 16 38 / 0.4); /* navy/950 40% — Dialog 뒤 화면, 테마와 상관없이 같아요 */
   --border-focus: 2px solid var(--color-focus);
 }
 
