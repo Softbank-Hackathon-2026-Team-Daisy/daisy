@@ -230,7 +230,21 @@ show_output() { # 앱은 service_url, bootstrap은 전체 출력 JSON
   fi
 }
 
-migrate_state() { # 로컬 state를 S3로 옮겨요. S3에 리소스가 있으면 덮어쓰지 않아요
+state_summary() { # stdin의 state → {lineage, managed: [실제 리소스 주소]}. 비어 있으면 lineage null
+  # data source는 plan마다 다시 읽는 값이라 비교에서 빼요
+  jq -cs '(.[0] // {}) | {lineage: (.lineage // null),
+    managed: ([.resources[]? | select(.mode == "managed") | "\(.module // "")\(.type).\(.name)"] | sort)}'
+}
+
+state_diff() { # $1 로컬 요약, $2 S3 요약 → 사람이 읽는 차이 (주소 · lineage만, 값은 없어요)
+  jq -rn --argjson a "$1" --argjson b "$2" '
+    "  로컬: lineage \(($a.lineage // "없음")[0:8]) · 리소스 \($a.managed | length)개",
+    "  S3  : lineage \(($b.lineage // "없음")[0:8]) · 리소스 \($b.managed | length)개",
+    "  로컬에만: \(($a.managed - $b.managed) | join(", "))",
+    "  S3에만  : \(($b.managed - $a.managed) | join(", "))"'
+}
+
+migrate_state() { # 로컬 state를 S3로 옮겨요. S3에 다른 state가 있으면 덮어쓰지 않고, 멈췄다 다시 돌리면 이어가요
   [[ -n $BUCKET ]] || die "TF_STATE_BUCKET_AWS가 필요해요 (옮길 S3 버킷)"
   local src="$WORK/state/terraform.tfstate"
   if [[ -f $MIGRATED ]]; then
@@ -243,24 +257,29 @@ migrate_state() { # 로컬 state를 S3로 옮겨요. S3에 리소스가 있으�
   fi
   PLAN_ID=migrate-state # confirm 메시지용
   confirm
-  local dir
+  local dir want got
   dir="$WORK/migrate-$(date +%Y%m%d-%H%M%S)"
   mkdir -p "$dir"
   init "$dir" # backend.tf만 있는 빈 설정으로 S3 state에 붙어요
-  local remote
-  remote=$(terraform -chdir="$dir" state pull)
-  if [[ -n $remote && $(jq '.resources | length' <<<"$remote") != 0 ]]; then
-    die "S3에 이미 리소스가 있는 state가 있어요: s3://$BUCKET/$STATE_KEY (덮어쓰지 않아요)"
+  want=$(state_summary <"$src")
+  got=$(terraform -chdir="$dir" state pull | state_summary)
+  if [[ $got == "$want" ]]; then
+    echo "tf-run: S3에 같은 state가 이미 있어요 (앞서 올린 것). 그대로 써요"
+  elif [[ $(jq '.managed | length' <<<"$got") != 0 ]]; then
+    state_diff "$want" "$got"
+    die "S3에 다른 state가 있어요: s3://$BUCKET/$STATE_KEY (덮어쓰지 않아요)"
+  else
+    terraform -chdir="$dir" state push "$src"
+    got=$(terraform -chdir="$dir" state pull | state_summary)
+    if [[ $got != "$want" ]]; then
+      state_diff "$want" "$got"
+      die "S3에 올린 state가 로컬과 달라요. 로컬 state는 그대로 뒀어요: $src"
+    fi
   fi
-  terraform -chdir="$dir" state push "$src"
-  # lineage와 리소스 주소가 같아야 같은 state예요
-  local q='{lineage, resources: ([.resources[] | "\(.module // "")\(.mode).\(.type).\(.name)"] | sort)}'
-  [[ $(jq -c "$q" "$src") == $(terraform -chdir="$dir" state pull | jq -c "$q") ]] ||
-    die "S3에 올린 state가 로컬과 달라요. 로컬 state는 그대로 뒀어요: $src"
   mv "$src" "$src.migrated" # 백업으로 남겨요. MIGRATED 표시가 있으면 로컬 backend로는 돌지 않아요
   echo "s3://$BUCKET/$STATE_KEY" >"$MIGRATED"
   rm -rf "$dir"
-  echo "tf-run: state 이전 완료 $ENV → s3://$BUCKET/$STATE_KEY (리소스 $(jq '.resources | length' "$src.migrated")개)"
+  echo "tf-run: state 이전 완료 $ENV → s3://$BUCKET/$STATE_KEY (리소스 $(jq '.managed | length' <<<"$want")개)"
 }
 
 prune_plans() { # 하루 지난 plan 폴더를 지워요. 마지막으로 apply한 plan은 남겨요

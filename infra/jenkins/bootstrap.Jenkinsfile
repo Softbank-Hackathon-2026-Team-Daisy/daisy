@@ -23,6 +23,7 @@ pipeline {
     TF_PLUGIN_CACHE_DIR = "${env.JENKINS_HOME}/.terraform.d/plugin-cache"
     TF_DESTROY = "${params.DESTROY ? '1' : ''}"
     PLAN_ID = "${env.JOB_NAME}-${env.BUILD_NUMBER}"
+    STACK = "${params.STACK}"   // 파라미터 없이 처음 실행할 때도 셸에 기본값이 보이게 해요
   }
   stages {
     stage('Plan') {
