@@ -17,10 +17,10 @@
 
 | 질문 | 앱이 답하는 화면 |
 |---|---|
-| 지금 어느 환경에 뭐가 떠 있지? 전부 같은 버전이야? | 현황 |
-| 방금 시작한 배포, 어디까지 갔어? AI가 몇 번 고쳤어? | 배포 상세 |
-| 내가 승인해야 할 plan이 있어? 삭제되는 리소스는? | 승인 |
-| 이 커밋은 빌드됐어? 어느 환경까지 나갔어? | 커밋·파이프라인 |
+| 지금 어느 환경에 뭐가 떠 있지? 전부 같은 버전이야? | 개요 (W-01) |
+| 방금 시작한 배포, 어디까지 갔어? AI가 몇 번 고쳤어? | 배포 (W-05 ~ W-08) |
+| 내가 승인해야 할 plan이 있어? 삭제되는 리소스는? | 배포 › 변경 사항 확인 후 승인 (W-06) |
+| 이 커밋은 빌드됐어? 어디까지 나갔어? 되돌릴 수 있어? | 새 배포 › 이미지 빌드 (W-03), 이력 (W-09) |
 
 ### 1-1. 웹과의 역할 분리
 
@@ -51,7 +51,7 @@
   - 핵심 키워드 **이식성**("같은 이미지가 모든 환경에 같은 상태로")을 가장 직접 보여주는 화면이 현황이에요
   - 읽기 전용이라 백엔드 추가 부담은 조회 API 2개(§6-2의 `A-02`, `A-06`)예요
   - SwiftUI 멀티플랫폼 한 타깃이라 macOS 추가 비용이 작아요
-- 범위를 지키는 장치: 앱에서 배포 시작·설정 변경은 하지 않아요 (1-1 표)
+- ~~범위를 지키는 장치: 앱에서 배포 시작·설정 변경은 하지 않아요~~ → 9/30에 앱도 웹 화면 전체를 가져가기로 바꿨어요 (1-1 ⚠️, 팀 확정 대기)
 
 ### 1-3. 데모 목표
 
@@ -83,10 +83,10 @@
 | W-03 이미지 빌드 (Jenkins `daisy-ci`) | `BuildStage` | **사이드바 새 배포**(최근 빌드), L-01 뒤. 빌드가 끝나면 W-04로. Jenkins 화면은 외부 비공개라 로그 링크 없음 | A-06 | S |
 | W-04 배포할 환경 선택 → L-02 | `TargetSelectView` | W-03 다음 (연결 안 되는 환경은 고를 수 없어요) | WR-04, WR-05 | M |
 | W-05 인프라 코드 생성 · 검증 | `RunView` › `GenerateStage` | 배포 한 건 (apply 전) | A-04, WR-07 | M |
-| W-05b ○○만 멈췄어요 | `RunView` › `StoppedStage` | 배포 한 건 (한 환경이 apply 전에 3회 실패, 나머지는 계속) | A-04, A-07, WR-05("○○만 다시 시도") | S |
+| W-05b ○○만 멈췄어요 | `RunView` › `StoppedStage` | 배포 한 건 (한 환경이 apply 전에 3회 실패, 나머지는 계속). "오류 로그 보기"는 웹과 같이 W-11 스크립트로 가요 | A-04, WR-05("○○만 다시 시도") | S |
 | W-06 변경 사항 확인 후 승인 → L-03 | `PlanApprovalView` | 배포 한 건 (승인 대기), 개요 › 지금 할 일 | A-05 + WR-06, W-01 | M |
 | W-07 배포 중 | `RunView` › `ApplyStage` | 배포 한 건 (배포 중) | A-04, A-07 | M |
-| W-08 배포 결과 | `RunView` › `ResultStage` | 배포 한 건 (끝, `partially_succeeded`면 "일부 성공" 배지 · 성공한 환경끼리 동일성 비교: digest · 커밋 · 앱 버전 · 헬스) | A-04(환경별 `image_digest` · `health_summary`), WR-05(다시 시도) | M |
+| W-08 배포 결과 | `RunView` › `ResultStage` | 배포 한 건 (끝, `partially_succeeded`면 "일부 성공" 배지 · 성공한 환경끼리 동일성 비교: digest · 커밋 · 앱 버전 · 헬스) | A-04(환경별 `image_digest` · `health_summary`), A-07("원인 보기" 로그), WR-05(다시 시도) | M |
 | W-09 배포 이력 | `HistoryView` | 메뉴 이력 (행 동작: 승인 대기 → 승인하기, 지난 성공 → 롤백, 나머지 → 결과) | A-03, WR-14 | M |
 | W-10 환경 | `EnvironmentsView` | 메뉴 환경 | WR-04, A-10 · A-11 (가칭) | S |
 | W-11 스크립트 | `ScriptsView` | 메뉴 스크립트 | WR-10 | S |
@@ -103,7 +103,7 @@ M = 예선 데모 필수, S = 선택
 | 항목 | 선택 | 이유 |
 |---|---|---|
 | UI | **SwiftUI 멀티플랫폼 단일 타깃** (iPhone · iPad · Mac, 네이티브 macOS) | 코드 하나로 모든 화면. 레이아웃은 화면 폭 기준(탭 ↔ 사이드바, 적응형 그리드), `#if os(...)`는 플랫폼 전용 기능에만 |
-| 최소 OS | iOS 18 · macOS 15 | iOS 18의 `Tab` API. 2026년 9월 기준 심사위원 기기는 대부분 이보다 최신이에요 |
+| 최소 OS | iOS 18 · macOS 15 | `@Observable` · SwiftUI 최신 레이아웃 API. 2026년 9월 기준 심사위원 기기는 대부분 이보다 최신이에요 (아래 탭 바는 시스템 탭 대신 직접 그린 `SlimTabBar`) |
 | 언어 · 도구 | Swift 6 (strict concurrency), Xcode 27 | |
 | 외부 라이브러리 | **없음** (SPM 의존성 0개로 시작) | 웹 ADR-006과 같은 "최소 스택, 막힐 때만 추가" 원칙. 추가하면 이유를 ADR에 기록 |
 | 네트워크 | `URLSession` + `async/await` + `Codable` | |
@@ -122,23 +122,27 @@ ios/
 ├─ SPEC.md                  이 문서
 ├─ Daisy.xcodeproj          앱 이름 Daisy, 번들 ID com.teamdaisy.daisy. 폴더 동기화 방식이라 파일을 추가해도 프로젝트 파일을 고칠 필요가 없어요
 ├─ Daisy/
-│  ├─ App/                  진입점, 루트 화면 (폭 700 이상 사이드바 · 미만 탭), 사이드바, 의존성 조립
+│  ├─ App/                  진입점, 루트 화면 (폭 700 이상 사이드바 · 미만 아이콘 탭 바), 사이드바, 메뉴 · 경로(Workspace)
 │  ├─ Features/             화면 단위 폴더. 각 폴더에 View + Store
-│  │  ├─ Overview/          1 현황
-│  │  ├─ Deployments/       2 배포 목록 · 3 배포 상세
-│  │  ├─ Approvals/         4 승인
-│  │  ├─ History/           5 커밋 · 파이프라인
-│  │  └─ Settings/          6 설정
+│  │  ├─ Login/             W-00 로그인 · 데모 · 예시 데이터
+│  │  ├─ Overview/          W-01 개요
+│  │  ├─ Connect/           W-02 애플리케이션 연결 (L-01)
+│  │  ├─ Deployments/       W-03 ~ W-08 배포 흐름 (RunView가 단계를 골라요), L-02 · L-03
+│  │  ├─ Approvals/         W-06 변경 사항 확인 후 승인
+│  │  ├─ History/           W-09 배포 이력 · 롤백
+│  │  ├─ Environments/      W-10 환경
+│  │  ├─ Scripts/           W-11 스크립트
+│  │  ├─ AIUsage/           W-12 AI 사용량
+│  │  └─ Settings/          W-13 설정 + 앱 설정
 │  ├─ Core/
-│  │  ├─ API/               APIClient 프로토콜, LiveAPIClient, 엔드포인트 정의, APIError
-│  │  ├─ Models/            서버 응답 Codable 모델 (§6-7과 1:1)
-│  │  ├─ Realtime/          SSE 클라이언트, 이벤트 디코딩, 폴링 폴백
-│  │  ├─ Auth/              토큰 저장 (Keychain)
-│  │  └─ Push/              APNs 등록, 알림 탭 → 화면 이동
-│  ├─ DesignSystem/         재질, 글래스 버튼 · 세그먼트, 머리줄, 카드, 상태 배지, 환경 아이콘
-│  └─ Resources/            에셋, 한국어 문자열
-├─ DaisyTests/              모델 디코딩 · SSE 파서 · 스토어 테스트 (Swift Testing)
-└─ DaisyWidgets/            (S) 위젯 · Live Activity
+│  │  ├─ API/               APIClient, 엔드포인트(Endpoint · WebEndpoints), APIError, 예시 데이터(SampleData)
+│  │  ├─ Models/            서버 응답 Codable 모델 (§6-7 · §6-8과 1:1)
+│  │  └─ Auth/              토큰 저장 (Keychain)
+│  │                        (Realtime/ SSE · Push/ APNs는 아직 없어요. 지금은 5초 폴링, D3에 추가)
+│  ├─ DesignSystem/         재질, 글래스 버튼 · 세그먼트, 머리줄(PageScaffold · FlowPage), 카드, 상태 배지, 환경 아이콘, 시간 표기
+│  └─ Resources/            에셋, SampleData/sample.json
+├─ DaisyTests/              모델 디코딩 · 계약 · 문구 · 흐름 규칙 · 예시 데이터 테스트 (Swift Testing)
+└─ scripts/                 testflight.sh · mac-dmg.sh · sample-data/generate.py
 ```
 
 ### 3-2. 데이터 흐름
@@ -166,7 +170,7 @@ View ──▶ Store(@Observable) ──▶ APIClient ────────�
 | APNs 키 · Apple 계정 | 발급 · 관리 | 키를 받아 서버 비밀값으로 보관 | — |
 | TestFlight | 빌드 · 제출 · 공개 링크 | 심사용 데모 계정 제공 (§6-1) | — |
 
-**앱이 하지 않는 것:** GitHub API 직접 호출, 클라우드 API 직접 호출, Terraform 실행, 배포 시작, 대상 환경 등록·삭제.
+**앱이 하지 않는 것:** GitHub API 직접 호출, 클라우드 API 직접 호출, Terraform 실행, 대상 환경 등록·삭제. (배포 시작 · 롤백 · 연결 해제는 9/30부터 앱도 서버 API로 해요, §1-1)
 
 ---
 
@@ -181,12 +185,12 @@ View ──▶ Store(@Observable) ──▶ APIClient ────────�
 
 - **TestFlight 외부 테스트는 첫 빌드에 Beta App Review가 필요해요.** 보통 하루 안팎이지만 보장되지 않아서 **10/1에 제출**하는 게 목표예요. 이후 빌드는 심사가 짧거나 생략되는 경우가 많지만 이것도 보장되지 않아요
 - **업로드 준비 (9/30 완료):** App Store Connect 앱 **"Daisy Deploy"** 등록 (번들 ID `com.teamdaisy.daisy`, "Daisy"는 다른 계정이 써서 등록 이름만 달라요. 홈 화면 이름은 Daisy), 서명 팀 `X5F5WM2H6M`, 개인정보 매니페스트, **첫 빌드 0.1.0 (1) 업로드 완료**. 다음 빌드부터는 `ios/scripts/testflight.sh` 한 번이면 돼요
-- **Mac 직접 다운로드 (9/30):** Developer ID 서명 · Apple 공증 · 스테이플한 DMG를 GitHub Releases에 올려요 (웹 W-14 "Mac 앱 받기"). 웹은 **고정 주소** https://github.com/Softbank-Hackathon-2026-Team-Daisy/daisy/releases/download/mac-latest/Daisy.dmg 를 써요 (새 빌드 때 파일만 바꿔요). 지금 0.1.0 (2609302029, 예시 데이터 포함), macOS 15 이상. 만들기는 `scripts/mac-dmg.sh`
+- **Mac 직접 다운로드 (9/30):** Developer ID 서명 · Apple 공증 · 스테이플한 DMG를 GitHub Releases에 올려요 (웹 W-14 "Mac 앱 받기"). 웹은 **고정 주소** https://github.com/Softbank-Hackathon-2026-Team-Daisy/daisy/releases/download/mac-latest/Daisy.dmg 를 써요 (새 빌드 때 파일만 바꿔요). 지금 0.1.0 (2610011659, 예시 데이터 포함, `mac-v0.1.0-2610011659`), macOS 15 이상. 앱이 바뀔 때마다 새 릴리스 + 고정 주소 파일을 바꿔요 (10/1). 만들기는 `scripts/mac-dmg.sh`
 - **TestFlight 그룹 (9/30):** 내부 `Team Daisy`(자동 배포, 심사 없음) · 외부 `Public Link` → **https://testflight.apple.com/join/wF5sjQPG** (Beta App Review 통과 뒤 열려요). macOS 플랫폼 추가, macOS 빌드 0.1.0 (2609301801) 업로드 · 처리 완료
 - **남은 것:** 외부 테스트 공개 링크는 Beta App Review용 서버 HTTPS 주소 · 데모 계정(R-03)이 필요해요. 앱 아이콘 원본이 200×200이라 1024에서 조금 흐려서 **1024 이상 원본(또는 SVG)으로 바꿔야 해요**
 - 앱은 로그인이 필요해서 심사 때 **Apple 심사자용 계정**을 적어 내야 해요. 그래서 데모 계정(§6-1 `R-03`)과 HTTPS 서버(`R-04`)가 **D2까지 꼭 필요해요.** 데모 계정은 D2 약속을 받았고, HTTPS는 9/29 회의에서 도메인을 사서 적용하기로 했어요 (서버 담당, 9/30 오후 전)
 - 승인 · 커밋 이력은 서버 API가 D3에 나와서, 첫 심사 빌드에는 레이아웃만 들어가요. 심사를 통과한 뒤 올리는 빌드는 다시 심사받지 않는 경우가 많지만 보장되지 않아서, D3 빌드를 오전에 올려요
-- 앱에 목업이 없어서 **앱 진행 속도가 백엔드 API 일정에 직접 묶여요.** API가 늦어지면 그 화면은 레이아웃만 먼저 만들고 기다려요
+- 실서버 연결은 **백엔드 API 일정에 직접 묶여요.** 그동안은 예시 데이터 모드(9/30)로 모든 화면을 확인 · 시연해요
 
 ---
 
@@ -236,7 +240,7 @@ View ──▶ Store(@Observable) ──▶ APIClient ────────�
 | A-04 | `GET /deployments/{id}` | 배포 상세 | `Deployment` 스냅샷 | M | v0.1과 같음. 환경별 `attempt`와 현재 단계 포함. 한 환경이 3회 실패해도 다른 환경은 계속 진행해요. **`attempt`는 첫 생성을 포함한 총 시도 횟수**예요: `1/3`부터 시작하고 AI 수정은 최대 2번. 화면 문구는 "시도 n/3" |
 | A-05 | `GET /deployments/{id}/plan` | 승인 | `Plan` (환경별 개수 · 삭제 여부 · 위험 설정) + `ai_usage` | M | 서버의 `PlanSummary`(김승환) 그대로. AI 토큰 · 비용은 plan 안이 아니라 응답의 `ai_usage` 합계로 같이 와요. 원화 비용은 **고정 환율로 환산한 추정치**라, 앱은 "추정"과 적용 환율을 같이 보여줘요. 앱은 **요약 필드만** 써요 (리소스 전체 목록은 웹) |
 | A-06 🆕 | `GET /projects/{id}/builds?cursor=` | **W-03 이미지 빌드** | `Build[]` (§6-7) | M | Jenkins `daisy-ci`가 보낸 빌드 결과(9/30 회의: GitHub Actions 대신 Jenkins)를 저장해 두고 돌려주면 돼요. 커밋별 **배포된 환경 목록**까지 |
-| A-07 🆕 | `GET /deployments/{id}/logs?target_id=&tail=100` | 배포 상세 | 최근 로그 N줄 | S | SSE가 끊겼다 들어왔을 때 최근 로그 채우기용 |
+| A-07 🆕 | `GET /deployments/{id}/logs?target_id=&tail=200` | W-07 로그 (200줄), W-08 "원인 보기" 로그 화면 (500줄) | 최근 로그 N줄 | S | SSE가 끊겼다 들어왔을 때 최근 로그 채우기용 |
 | A-08 | `GET /approvals?state=pending` | 승인 탭 배지 | 대기 중 승인 목록 | S | 만들지 않아요. A-03의 `awaiting_approval` 필터로 대신해요 (9/29 합의) |
 
 ### 6-3. 실시간 (SSE)
@@ -300,7 +304,8 @@ API 모양보다 **이 정보가 어딘가에 저장되어 있는지**가 더 �
 
 ```jsonc
 // Project
-{ "id": "prj_1", "name": "hellocalc", "repository": "Softbank-Hackathon-2026-Team-Daisy/sample-monolith" }
+{ "id": "prj_1", "name": "sample-monolith", "repository": "https://github.com/Softbank-Hackathon-2026-Team-Daisy/sample-monolith", "branch": "main" }
+// repository는 W-02에서 입력한 전체 URL 그대로 (웹과 같아요)
 
 // TargetStatus — A-02, 현황 화면
 {
@@ -315,7 +320,9 @@ API 모양보다 **이 정보가 어딘가에 저장되어 있는지**가 더 �
   },
   "url": "https://hellocalc-xxxx.a.run.app",
   "health": "healthy" | "unhealthy" | "unknown",
-  "checked_at": "2026-10-03T10:13:00Z"
+  "checked_at": "2026-10-03T10:13:00Z",
+  "image_digest": "sha256:…" | null,        // WR-09 동일성 검증 (W-01)
+  "health_summary": "200 OK · 120ms" | null  // 없으면 "정상" · "실패"
 }
 
 // Deployment — A-03 목록(요약), A-04 스냅샷(전체)
@@ -340,7 +347,7 @@ API 모양보다 **이 정보가 어딘가에 저장되어 있는지**가 더 �
       "url": null,
       "error_summary": null,
       "image_digest": "sha256:…" | null,     // W-08 동일성 검증 (apply가 끝난 환경) — 웹 A-04와 같아요
-      "health_summary": "200 OK · p95 120ms" | null
+      "health_summary": "200 OK · 120ms" | null   // 헬스체크 1회 측정 (10/1 인프라)
     }
   ],
   "pending_approval": { "approval_id": "apv_7", "kind": "plan" } | null,
@@ -404,7 +411,7 @@ API 모양보다 **이 정보가 어딘가에 저장되어 있는지**가 더 �
 | WR-05 | `POST /projects/{id}/deployments` `{ commit, target_ids[] }` + `Idempotency-Key` | W-04 시작, **W-05b "○○만 다시 시도"(실패한 환경 전부) · W-08 "다시 시도"도 같은 커밋 · 그 환경만으로 새 배포** | 이 경로로 확정 · D2. 재시도 = 새 배포, 시도는 1/3부터 ✅ (10/1 #13). 요청 필드는 OpenAPI 대기 |
 | WR-06 | `GET /deployments/{id}/plan?detail=resources` | W-06 리소스 행 (`action`에 `replace` 포함) | 좋아요 · D3 |
 | WR-07 | `GET /deployments/{id}/targets/{target_id}/script` → `files[{ path, content }]` | W-05 생성된 스크립트 | 18시 백엔드 회의에서 확인 |
-| WR-08 | `POST /deployments/{id}/cancel` | (앱은 아직 버튼 없음) | 좋아요 · D3 |
+| WR-08 | `POST /deployments/{id}/cancel` | (앱은 아직 버튼 없음) | 좋아요 · D3. **apply 도중에는 중단하지 않고 서버가 결과를 기다려요** (10/1 17:23, #17) — 앱도 apply 시작 뒤에는 취소를 보여주지 않아요 |
 | WR-09 | A-02에 `image_digest` (+ A-04 환경별 `image_digest`) | W-01 동일성(A-02, 배포된 첫 환경 기준) · W-08 동일성(A-04, 성공한 첫 환경 기준) — 웹과 같은 규칙 | A-02 넣을게요 · D2. A-04 환경별 값은 §6-9 확인 대기 |
 | WR-10 | `GET /projects/{id}/scripts` | W-11 | 승환 님 영역, D3~ |
 | WR-11 | W-12 AI 사용량: **합계는 A-05 `ai_usage`, 호출별 기록은 `GET /projects/{id}/ai-usage?deployment_id=`** | W-12 (배포 단위) | ✅ 10/1 00:29 서버 결정 (#13). 앱 반영 완료. 목록 봉투 · 필드 이름은 OpenAPI 대기 (§6-9). plan이 아직 없으면 배포에 온 합계, 기록이 없으면 합계 · 재사용 줄만 보여줘요 |
@@ -418,14 +425,14 @@ API 모양보다 **이 정보가 어딘가에 저장되어 있는지**가 더 �
 |---|---|---|---|
 | R-09 | `POST /auth/demo` → `AuthToken(role: "viewer")` | W-00 "데모 계정으로 둘러보기 (읽기 전용)" | 심사위원이 비밀번호 없이 들어오는 버튼. **인증 범위는 9/30 회의 안건**이라 결정 뒤 맞춰요. `/auth/token` + 공개 데모 계정으로 대신해도 돼요 |
 | A-10 | `POST /targets/{id}/test` → `{ connected, message }` | W-10 "연결 테스트" | WR-04 `connection`을 지금 다시 확인 |
-| A-11 | `GET /targets/{id}/resources` → `[{ address, type }]` | W-10 "리소스 보기" | 이 환경 state에 있는 리소스 |
+| A-11 | `GET /targets/{id}/resources` → `{ items: [{ address, type }], next_cursor }` (목록 봉투, §6-9 S-1) | W-10 "리소스 보기" | 이 환경 state에 있는 리소스 |
 | A-12 | `GET /projects/{id}` → `id, name, repository, branch, build?, registry?, webhook_last_at?` | W-13 저장소 카드 | 노션 계약 v0.2 §3-2 제안과 같아요 |
 
 **기존 모델에 더한 필드 (가칭) 🆕** — 없으면 화면이 "—"나 기본 문구로 보여줘요. 필수는 아니에요.
 
 - `Deployment`: `version`("v7"), `commit_message`
 - AI 호출 기록 (W-12): §6-7 "AI 호출 한 번" 모양. 재사용 환경은 기록이 없어서 앱이 `reused_script`로 "— 검증된 스크립트 재사용" 줄을 만들어요
-- `Deployment.targets[]`: `title`("home-lab · Docker"), `steps[]`(`{ name, state, duration_ms, started_at }`, W-05 검증 단계 · W-07 레인. **없으면 웹처럼 추정**: W-05 "Terraform 생성 (AI) · terraform validate · terraform plan · 위험 설정 검사", W-07 "이미지 pull · terraform apply · state 저장 · 헬스체크"), `health_summary`("200 OK · p95 120ms"), `image_digest`
+- `Deployment.targets[]`: `title`("home-lab · Docker"), `steps[]`(`{ name, state, duration_ms, started_at }`, W-05 검증 단계 · W-07 레인. **없으면 웹처럼 추정**: W-05 "Terraform 생성 (AI) · terraform validate · terraform plan · 위험 설정 검사", W-07 "이미지 pull · terraform apply · state 저장 · 헬스체크"), `health_summary`("200 OK · 120ms", 1회 측정), `image_digest`
 - `Plan.targets[]`: `reused_script`, `summary`, `plan_text`
 - `Build`: `branch`, `digest`, `steps[]` (W-03 Jenkins 단계)
 - `Project`: `branch`
@@ -444,13 +451,13 @@ API 모양보다 **이 정보가 어딘가에 저장되어 있는지**가 더 �
 | # | 담당 | 미정 항목 | 앱이 지금 가정하는 것 | 결정 안 나면 앱은 |
 |---|---|---|---|---|
 | S-1 | 서버 (하은현) | 목록 응답 봉투: 모든 목록(A-02 · WR-04 · 새 `ai-usage`)이 `{ items, next_cursor }`인지 | 모두 봉투 | 배열이 오면 디코딩 실패 → 한 줄 수정 |
-| S-2 | 서버 (김승환) | `ai-usage` 호출 한 줄 필드: 작업 설명 이름(`note` / `title`), `calls`를 A-05 합계에 넣는지 | `note` 또는 `title`, `calls` 있으면 씀 | 설명이 없으면 "Terraform 생성 · 수정"으로 대신 |
+| S-2 | 서버 (김승환) | `ai-usage` 호출 한 줄 필드: 작업 설명 이름(`note` / `title`), `calls`를 A-05 합계에 넣는지 | `note` 또는 `title`, `calls` 있으면 씀 | 설명이 없으면 "Terraform 생성 (deploy.yaml)" · "Terraform 수정"으로 대신, 모르는 `status`는 "—" |
 | S-3 | 서버 (하은현 · 김승환) | A-04 환경별 `image_digest` · `health_summary` · `steps[]` 제공 여부 (10/1 "제공 · 후순위 · 미제공으로 안내" 약속) | 오면 쓰고, 없으면 "—" · 웹처럼 단계 추정 | W-08 동일성 digest 줄이 "—" |
 | S-4 | 서버 (하은현) | 승인 `confirm_text` 검증 값 = 프로젝트 이름인지, 승인 대기 환경만 적용되는지 | 프로젝트 이름, 승인 대기 환경 전부 한 번에 | 서버가 다른 값을 요구하면 입력 안내만 바꿔요 |
 | S-5 | 서버 (하은현) | `POST /projects` 응답: `Project`만 / `{ project, manifest }` (웹 목업) | `Project` → `GET manifest` 따로 | 둘 다 받게 한 줄 수정 |
 | S-6 | 서버 (하은현) | 로그 줄 필드(`ts · text` / `seq · at · message`), `Manifest.errors` 모양 | 둘 다 받아요 | 영향 없음 |
 | S-7 | 서버 (하은현) | 로그인 없이 읽기 전용 둘러보기(9/30 회의) 방식: `POST /auth/demo` 같은 viewer 토큰 발급인지, 심사위원 테스트 계정 전달 방식 | R-09 `POST /auth/demo` (가칭) | 버튼만 두고 오류 표시. **TestFlight 외부 심사에 계정이 필요**해요 |
-| S-8 | 서버 (하은현) | 앱 추가 요청 A-10 연결 테스트 · A-11 리소스 보기 · A-12 프로젝트 상세를 받을지 | 경로 (가칭) | 버튼 비활성 |
+| S-8 | 서버 (하은현) | 앱 추가 요청 A-10 연결 테스트 · A-11 리소스 보기 · A-12 프로젝트 상세를 받을지 | 경로 (가칭) | 버튼은 켜 두고(웹도 같은 버튼이 있어요), 서버가 없다고 하면 "연결 테스트를 하지 못했어요" 같은 안내 |
 | S-9 | 서버 (하은현) | 개발 서버 주소 · 열리는 시각 (R-08) | — | 예시 데이터 모드로만 확인 |
 | I-1 | 인프라 (황지환) | **API 서버의 HTTPS 주소** (`daisydeploy.dev` 하위 이름 · 공인 인증서). iOS는 HTTPS가 아니면 연결을 막아요(ATS) | — | TestFlight 외부 링크 심사 제출 불가 |
 | I-2 | 인프라 (황지환 · 임채준) | Terraform state 저장소 (W-10 "state" 줄) | ✅ 일부 답 (10/1 임채준, #17): 환경이 제공하는 저장소 + 잠금 — AWS "S3 (잠금)", GCP "GCS (잠금)". **온프레미스는 황지환 님과 정하는 중**, key는 `{project_id}/{target_id}` 방향(은현 님과 확정) | 서버가 준 이름, 없으면 `[미정]` |
@@ -506,6 +513,7 @@ API 모양보다 **이 정보가 어딘가에 저장되어 있는지**가 더 �
 
 | 날짜 | 변경 | 작성 |
 |---|---|---|
+| 10/1 | 스펙 · 구현 대조로 오래된 문장 정리 (§1 화면 이름, §3 폴더 구조 · 최소 OS 이유, §4 앱이 하는 일, §5 DMG 버전, A-07 줄 수, A-11 봉투, Project.repository 전체 URL, TargetStatus `image_digest` · `health_summary`, 헬스 "200 OK · 120ms", W-05b 오류 로그 → 스크립트, WR-08 apply 도중 중단 없음(17:23 결정)). 코드: 이력 "롤백 · 롤백됨" 중복, 모르는 AI 호출 상태 "—", iPhone 배포 화면 "새 배포" 버튼 | 박승준 |
 | 10/1 | iPhone 아래 탭을 얇은 글래스 캡슐 아이콘 바로 (글씨 없음, "더 보기" 없음, 선택한 탭은 채운 아이콘, 환경 아이콘 `square.stack.3d.up`, AI 사용량 `chart.bar`). 화면 머리줄(루트 · 흐름 화면)을 뒤가 비치는 반투명 재질로, 모든 화면 끝까지 스크롤(탭 바 위 여백), W-05 아래 빈 공간 수정 | 박승준 |
 | 10/1 | 인프라 답(#17 임채준) 반영: W-03 "Jenkins 로그 열기" 숨김(외부 비공개), CI 단계 이름, 헬스 "200 OK · 120ms"(1회 측정), state "S3 (잠금)" · "GCS (잠금)", ECS 실패 시 이전 컨테이너 유지 → 실패로 표시. §7 담당을 인프라팀으로(10:42 결정). 웹 결정(12:11) 반영: 끝난 배포 · 빌드는 폴링 멈춤, 동일성 헬스 줄은 `health_summary` 그대로 | 박승준 |
 | 10/1 | **보드 · 웹 최신화 맞춤**: Jenkins(W-03 · 연결 안내 · 예시 데이터), W-12 합계 A-05 + `ai-usage?deployment_id=` · "호출 성공 · 호출 실패" · 확인 못 한 토큰 "—", 상태 라벨 "취소됨 · 확인 중 · 롤백됨 · 확인 전". 웹 PR #18 화면 흐름 · 문구: 메뉴 "배포"=최근 배포 지금 단계, "새 배포"=W-03, W-02 업로드 제거 · URL 형식 검사, W-04 연결 안 되는 환경 선택 불가, W-05 · W-05b 한 줄 · 단계 추정(`flow.ts`) · "○○만 다시 시도"(실패 환경 전부) · "변경 사항 확인하기", W-06 승인 대기 환경만 · 프로젝트 이름 확인 · 승인 바 문구 · 거절 뒤 개요, W-07 단계 · 배지, W-08 동일성(A-04 기준, 앱 버전 줄), W-09 행 동작 · 롤백 창(환경 고르기 · 프로젝트 이름), W-10 · W-11 · W-13 문구 · 연결 해제 창, 24시간제 · 상대 시각. §6-9 미정 표 추가. 테스트 55 → 64개 | 박승준 |

@@ -106,7 +106,7 @@ struct Deployment: Decodable, Identifiable, Hashable, Sendable {
         let title: String?
         /// 단계 줄 (가칭): W-05 검증 단계, W-07 배포 단계
         let steps: [StepItem]?
-        /// W-08 헬스 요약 (가칭): "200 OK · p95 120ms"
+        /// W-08 헬스 요약 (가칭): "200 OK · 120ms" (헬스체크 1회 측정)
         let healthSummary: String?
         /// W-08 동일성 검증: 이 환경에 올라간 이미지 digest (웹 A-04 `image_digest`)
         let imageDigest: String?
@@ -136,7 +136,7 @@ struct Deployment: Decodable, Identifiable, Hashable, Sendable {
     /// 롤백도 배포 한 건이에요: `kind: "rollback"`, `rolled_back_from` (WR-14)
     let kind: String?
     let rolledBackFrom: String?
-    /// W-12: 이 배포의 AI 사용량 (9/30 서버: GET /deployments/{id}의 ai_usage)
+    /// 이 배포의 AI 사용량 합계 (예비). 10/1 서버 결정으로 W-12 합계는 plan(A-05), 호출 기록은 ai-usage 목록이 기준이고, 이 값은 그게 없을 때만 써요
     let aiUsage: AIUsage?
 
     /// 롤백도 배포 한 건이에요. 목록 · 알림에서는 일반 배포처럼 보여줘요 (9/30 도영 님).

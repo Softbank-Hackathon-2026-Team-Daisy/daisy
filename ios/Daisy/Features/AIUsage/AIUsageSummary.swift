@@ -17,13 +17,22 @@ struct AIUsageSummary: Equatable {
         let result: Result
     }
 
-    /// LLM 호출 결과예요. Terraform 검증 통과 여부와 달라요 (10/1 서버: 화면에 "호출 성공 · 실패")
+    /// LLM 호출 결과예요. 모르는 값이면 성공으로 보이지 않게 "—" Terraform 검증 통과 여부와 달라요 (10/1 서버: 화면에 "호출 성공 · 실패")
     enum Result: Equatable {
-        case passed, failed, noCall
+        case passed, failed, noCall, unknown
+        init(_ status: AIUsage.Call.Status) {
+            switch status {
+            case .succeeded: self = .passed
+            case .failed: self = .failed
+            case .unknown: self = .unknown
+            }
+        }
+
         var text: String {
             switch self {
             case .passed: "호출 성공"
             case .failed: "호출 실패"
+            case .unknown: "—"
             case .noCall: "AI 호출 없음"
             }
         }
@@ -53,7 +62,7 @@ struct AIUsageSummary: Equatable {
                 task: call.note ?? call.title ?? (call.step == .fix ? "Terraform 수정" : "Terraform 생성 (deploy.yaml)"),
                 attempt: call.attempt.map { "\($0)/3" } ?? "—",
                 tokens: call.tokens, costKrw: call.costKrw,
-                result: call.status == .failed ? .failed : .passed)
+                result: Result(call.status))
         }
         // 재사용한 환경은 호출 기록이 없어서 한 줄을 따로 보여줘요 (웹 "— 검증된 스크립트 재사용")
         let reuseRows = reused.map { id in

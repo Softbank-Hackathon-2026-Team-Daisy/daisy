@@ -58,13 +58,13 @@ ios/
 ├─ SPEC.md
 ├─ Daisy.xcodeproj
 ├─ Daisy/
-│  ├─ App/            entry point, root layout (sidebar at width ≥ 700, tabs below), Sidebar, dependency wiring
+│  ├─ App/            entry point, root layout (sidebar at width ≥ 700, slim icon tab bar below), Sidebar, menu and routes (Workspace)
 │  ├─ Features/       one folder per menu: Login, Overview, Deployments (run flow W-03 – W-08), Connect (W-02), Approvals (W-06), History, Environments, Scripts, AIUsage, Settings
-│  ├─ Core/           API, Models, Realtime, Auth, Push
-│  ├─ DesignSystem/   materials, glass buttons and segmented control, PageHeader/PageScaffold, cards, badges
-│  └─ Resources/
-├─ DaisyTests/        model decoding, SSE parser, store state transitions
-└─ DaisyWidgets/      (S) widgets and Live Activity
+│  ├─ Core/           API (incl. SampleData), Models, Auth   (Realtime/SSE and Push are not built yet: 5 s polling until D3)
+│  ├─ DesignSystem/   materials, glass buttons and segmented control, PageHeader/PageScaffold, FlowPage helpers, cards, badges, time text
+│  └─ Resources/      assets, SampleData/sample.json
+├─ DaisyTests/        model decoding, contracts, wording, run-flow rules, sample data
+└─ scripts/           testflight.sh, mac-dmg.sh, sample-data/generate.py
 ```
 
 ## 6. Conventions
@@ -82,7 +82,7 @@ ios/
 Materials, the sidebar, and motion copy the owner's AfterPlan Mac app (`~/Github/AfterPlan/docs/design/macos-design.md`); buttons follow the owner's Craft reference. Keep to these; change them only when your human asks.
 
 - **Layers.** Sidebar: `SidebarBackground()` (Mac: `NSVisualEffectView` `.hudWindow`, behind-window blending, follows window active state, no tint). Content: `.contentSurface()` (Mac: `.underWindowBackground`, translucent; Reduce Transparency makes it opaque). Lists and forms use `.onContentSurface()` so they do not paint their own background. No line between sidebar and content; the change of material is the boundary.
-- **Window (Mac).** Unified toolbar without a title, toolbar background hidden, only the sidebar button on the left (⌃⌘S). The settings gear sits alone at the bottom left of the sidebar.
+- **Window (Mac).** Unified toolbar without a title, toolbar background hidden, only the sidebar button on the left (⌃⌘S). AI 사용량 and 설정 are ordinary rows at the bottom of the sidebar.
 - **Sidebar rows.** 15 pt text, 16 pt icon in a 22 pt frame, 36 pt high, 10 pt inset. Selected: `.fill.tertiary` rounded 8 plus semibold; hover: `.fill.quinary`. No accent color. The tint moves with `.spring(response: 0.32, dampingFraction: 0.86)` via `matchedGeometryEffect`; weight changes at once; Reduce Motion drops the spring. Width 240 by default, 190–420 by dragging the edge, remembered.
 - **Screens.** Every root screen uses `PageScaffold(title, subtitle:, trailing:)`: a `title2` semibold title on the left and the screen's controls on the right. Flow screens (W-03 – W-08) use `FlowPage` with the stepper, title, and description in the same header. Both headers sit in a top `safeAreaInset` on `.ultraThinMaterial`, so content scrolls behind them (10/1). Pushed detail screens keep the system navigation title.
 - **Buttons (owner: "this design is 100 points").** Every button uses this family and nothing else. Icon-only: `.glassCircle`. Text and menus: `.glassCapsule` (`fullWidth:` for forms, `height:` 44 for the approval bar). The one core action on a screen (승인하고 배포, 로그인, 인프라 코드 생성 · 검증 시작, 연결하기): `.glassProminent` / `.glassCapsule(prominent: true)`. Choices: `GlassSegmented`. Destructive: `role: .destructive` (red text). Liquid Glass on iOS 26 / macOS 26, a material with a hairline below that. Web variants (Primary/Secondary/Outline/Ghost) all map onto these; do not recreate them.
@@ -154,8 +154,8 @@ Tier per root §6. Tier 1 entries are final for this area.
 | 9/30 | Mac direct download: Developer ID-signed, notarized, stapled DMG on **GitHub Releases** of `daisy` (tag `mac-v<version>-<build>`, pre-release). First release `mac-v0.1.0-2609301801`. Web W-14 links to the fixed URL `releases/download/mac-latest/Daisy.dmg`; each new DMG replaces that asset (`gh release upload mac-latest … --clobber`) | Repo is public so anyone can download; notarization avoids Gatekeeper warnings; the first notarization took ~40 min | 1 (hosting agreed for W-14 with the owner) |
 | 9/30 | App icon: the owner's daisy logo. iOS gets a full-bleed opaque 1024 square; macOS gets the logo inside Apple's rounded-rect grid (824 of 1024, radius 185.4, soft shadow) at 16–1024. The sidebar header uses the same logo (`AppLogo`) | Owner's asset. The source is 200×200, so replace it with a 1024+ original before release | 1 |
 | 9/30 | From Figma, take wording only; keep this app's colors and shapes; icons are the nearest SF Symbols | Owner decision. 도영's memo asked for web shapes (radius ≤ 4, no pills) and the owner chose the app's own look | 1 |
-| 9/30 | Menu and wording follow the web: 개요 · 배포 · 승인 · 이력 · 설정; status labels 대기 중 · 배포 중 · 성공 · 실패 · 주의 · 롤백됨; `리소스 +6 ~0 −0`; W-00 login and error messages | Same product on two clients | 1 |
-| 9/30 | Tests use Swift Testing; sample JSON lives only in `DaisyTests` | No mock data in the app (§4) | 1 |
+| 9/30 | Menu and wording follow the web: 개요 · 배포 · 환경 · 이력 · 스크립트 · AI 사용량 · 설정 (approval lives inside 배포); status labels from web `api/status.ts` (대기 중 · 진행 중 · 승인 대기 · 성공 · 일부 성공 · 실패 · 취소됨 · 롤백됨); `리소스 +6 ~0 −0`; W-00 login and error messages (updated 10/1) | Same product on two clients | 1 |
+| 9/30 | Tests use Swift Testing; test-only JSON lives in `DaisyTests`, and the only app-side sample data is the labeled bundle `Resources/SampleData/sample.json` (§4, updated 10/1) | No hidden mock data in the app | 1 |
 | 9/29 | ~~The app does not start deployments or change infrastructure~~ (replaced 9/30) | Kept the app inside ADR-007 | 1 |
 | 9/30 | The app carries every wireframe screen, text, and button (W-00 – W-13, L-01 – L-03) with the web sidebar's menu; new server requests are `SPEC.md` §6-8 `(가칭)` | Owner decision: feature UX identical to the web. Conflicts with ADR-007 and 도영's memo, so the team must confirm it | 4 (`(가칭)`) |
 | 9/30 | For shared screens the app uses the web's `WR-xx` requests exactly as the server answered them (PR #9), plus the server's two-layer states. It asks the server only for what the web does not need (`SPEC.md` §6-8 R-09, A-10 – A-12). Retry = new deployment with the same commit; rollback = new deployment that needs approval | One contract for web and app; less server work | 1 (own code) · 3 (`(가칭)` requests via issue) |

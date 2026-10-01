@@ -157,7 +157,7 @@ struct AIUsageView: View {
         switch result {
         case .passed: StatusBadge(text: result.text, color: .green)
         case .failed: StatusBadge(text: result.text, color: .red)
-        case .noCall: StatusBadge(text: result.text, color: .gray)
+        case .noCall, .unknown: StatusBadge(text: result.text, color: .gray)
         }
     }
 
