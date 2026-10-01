@@ -66,9 +66,14 @@ struct StoppedStage: View {
         working = true
         defer { working = false }
         let request = RetryRequest.failed(of: deployment)
+        // 서버는 빌드 ID가 필수예요 (#42). 커밋으로 다른 빌드를 고르지 않아요
+        guard let build = request.sourceVersionID else {
+            errorMessage = "이 배포의 빌드 정보를 받지 못해 다시 시도할 수 없어요. 새 배포로 시작해 주세요."
+            return
+        }
         do {
             let next = try await client.send(.startDeployment(projectID: request.projectID, commit: request.commit,
-                                                              sourceVersionID: request.sourceVersionID,
+                                                              sourceVersionID: build,
                                                               targetIDs: request.targetIDs))
             router.push(.started(next.id))
         } catch {

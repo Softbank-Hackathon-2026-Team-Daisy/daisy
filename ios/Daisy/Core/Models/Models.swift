@@ -38,6 +38,12 @@ enum Health: String, ServerEnum {
     static let unknownCase = Health.unknown
 }
 
+/// A-02 현재 배포 확인 결과. `none` = 확인된 참조 없음(배포가 없다는 뜻은 아니에요), `unverified` = 참조는 있지만 확인 실패
+enum CurrentStatus: String, ServerEnum {
+    case none, confirmed, unverified, unknown
+    static let unknownCase = CurrentStatus.unknown
+}
+
 struct TargetStatus: Decodable, Identifiable, Hashable, Sendable {
     struct Release: Decodable, Hashable, Sendable {
         let commit: String
@@ -49,6 +55,8 @@ struct TargetStatus: Decodable, Identifiable, Hashable, Sendable {
     let targetId: String
     let type: TargetType
     let name: String
+    /// `current`를 확인했는지 (10/2 01:10 서버 #42): `confirmed`일 때만 `current`가 와요
+    let currentStatus: CurrentStatus?
     let current: Release?
     let url: URL?
     let health: Health
@@ -121,8 +129,6 @@ struct Deployment: Decodable, Identifiable, Hashable, Sendable {
         let healthSummary: String?
         /// W-08 동일성 검증: 이 환경에 올라간 이미지 digest (웹 A-04 `image_digest`)
         let imageDigest: String?
-        /// 이 환경의 승인 대기 ID (가칭, 서버가 대상별 approval_id를 주면). 승인 요청 `items`에 써요
-        let approvalId: String?
 
         var id: String { targetId }
     }
@@ -151,7 +157,7 @@ struct Deployment: Decodable, Identifiable, Hashable, Sendable {
     let state: DeploymentState
     let targets: [Target]?
     let pendingApproval: PendingApproval?
-    /// 대상별 승인 대기 목록 (가칭 `pending_approvals`, 서버 #19 피드백 제안 이름)
+    /// 환경별 승인 대기 ID `[{ target_id, approval_id }]` (10/2 00:40 서버 확정, A-04). 승인 요청 `items`에 그대로 담아요
     let pendingApprovals: [ApprovalItem]?
     let createdBy: String?
     let createdAt: Date?
@@ -319,17 +325,15 @@ struct AuthToken: Decodable, Sendable {
 
 extension Deployment {
     /// 승인 요청에 실을 항목: 화면에서 승인 대기로 보여준 환경마다 `approval_id`.
-    /// 서버가 주는 순서: `pending_approvals` → 환경별 `approval_id` → 배포 하나의 `pending_approval` (환경이 하나일 때만)
+    /// 서버는 A-04 `pending_approvals`로만 줘요 (10/2 00:40 #40 답). 못 찾은 환경은 빼고, 비면 화면이 요청을 막아요 (빈 `items`는 400)
     func approvalItems(for targetIDs: [String]) -> [ApprovalItem] {
-        targetIDs.compactMap { id in
-            if let item = pendingApprovals?.first(where: { $0.targetId == id }) { return item }
-            if let approvalId = targets?.first(where: { $0.targetId == id })?.approvalId {
-                return ApprovalItem(targetId: id, approvalId: approvalId)
-            }
-            if targetIDs.count == 1, let approvalId = pendingApproval?.approvalId {
-                return ApprovalItem(targetId: id, approvalId: approvalId)
-            }
-            return nil
-        }
+        targetIDs.compactMap { id in pendingApprovals?.first { $0.targetId == id } }
     }
+}
+
+/// 배포를 만든 응답 (배포 시작 · 다시 시도 · 롤백): `{ id, project_id, state }` (10/2 01:07 서버 #42). 나머지는 A-04로 다시 읽어요
+struct CreatedDeployment: Decodable, Sendable {
+    let id: String
+    let projectId: String?
+    let state: DeploymentState?
 }

@@ -265,7 +265,7 @@ v0.1의 SSE 채널·봉투·재연결 규칙을 **그대로** 써요. 앱에 필
 
 | ID | 메서드 · 경로 | 요청 | 우선 | 비고 |
 |---|---|---|---|---|
-| W-01 | `POST /deployments/{id}/approvals` | `{ kind: "plan", decision: "approve" \| "reject", confirm_text?, items: [{ target_id, approval_id }] }` + `Idempotency-Key` | M | ✅ 10/1 22:39 서버 확정(#36 · #40): `items`는 화면에 보인 승인 대기 환경 전부, 하나라도 오래되면 전체 409. `approval_id`는 배포의 `pending_approvals`(가칭) · 환경별 `approval_id`(가칭)에서 가져와요. 모르면 `items`를 빼요 |
+| W-01 | `POST /deployments/{id}/approvals` | `{ kind: "plan", decision: "approve" \| "reject", confirm_text?, items: [{ target_id, approval_id }] }` + `Idempotency-Key` | M | ✅ 서버 확정(10/1 22:39 · 10/2 00:40, #40 · #42): `items`는 화면에 보인 승인 대기 환경 전부, `approval_id`는 A-04 `pending_approvals`에서만 받아요. 빈 `items` · 중복 대상은 400, 하나라도 오래되면 전체 409 → 앱은 `items`가 비면 보내지 않고 다시 불러와요 |
 
 - 웹에서 먼저 승인했으면 **409 `STATE_CONFLICT`**를 주세요. 앱은 최신 상태를 다시 불러와요
 - 삭제가 포함된 plan은 `confirm_text`를 서버에서도 검증해 주세요 (v0.1과 같음)
@@ -309,7 +309,8 @@ API 모양보다 **이 정보가 어딘가에 저장되어 있는지**가 더 �
   "target_id": "tgt_gcp",
   "type": "onprem" | "aws" | "gcp",
   "name": "gcp-prod",
-  "current": {                              // 한 번도 배포 안 됐으면 null
+  "current_status": "none" | "confirmed" | "unverified",  // 10/2 01:10 #42. current는 confirmed일 때만
+  "current": {                              // null = "확인된 현재 배포 없음"(배포가 없다는 뜻은 아니에요) → 화면 "확인된 배포 없음", unverified면 "현재 배포를 확인하지 못했어요"
     "commit": "2311c0b683ec0f46d0be1c640591245ae8d1c093",
     "image": "ghcr.io/softbank-hackathon-2026-team-daisy/sample-monolith:2311c0b…",
     "deployment_id": "dep_42",
@@ -407,7 +408,7 @@ API 모양보다 **이 정보가 어딘가에 저장되어 있는지**가 더 �
 | WR-02 | `POST /projects` `{ repository, branch }` | W-02 연결하기 | 좋아요, 응답에 deploy.yaml 검증 결과 · D2 |
 | WR-03 | `GET /projects/{id}/manifest` | W-02 배포 명세 확인 · W-13 | 좋아요, 모양은 `deploy.yaml` 스키마 결정 뒤 · D3 |
 | WR-04 | `GET /projects/{id}/targets` → `target_id, type, name, reuse{ available, script_id?, reason? }, connection{ state: ok·failed·unknown, checked_at }` | W-04 · W-10 · 사이드바 | 별도 엔드포인트로 · D2 |
-| WR-05 | `POST /projects/{id}/deployments` `{ source_version_id, commit, target_ids[] }` + `Idempotency-Key` (빌드는 `source_version_id`로 골라요, #36 · 서버가 둘 다 받는 동안 `commit`도 같이) | W-04 시작, **W-05b "○○만 다시 시도"(실패한 환경 전부) · W-08 "다시 시도"도 같은 커밋 · 그 환경만으로 새 배포** | 이 경로로 확정 · D2. 재시도 = 새 배포, 시도는 1/3부터 ✅ (10/1 #13). 요청 필드는 OpenAPI 대기 |
+| WR-05 | `POST /projects/{id}/deployments` `{ source_version_id, commit, target_ids[] }` + `Idempotency-Key` → 응답 `{ id, project_id, state }` | W-04 시작, **W-05b "○○만 다시 시도"(실패한 환경 전부) · W-08 "다시 시도"도 같은 빌드 · 그 환경만으로 새 배포** | ✅ `source_version_id` 필수(#36 · #42, 커밋으로 빌드를 추정하지 않아요), 생성 응답은 `id` · `project_id` · `state`만(10/2 01:07). 빌드 ID가 없으면 앱은 시작 · 다시 시도를 막아요. 재시도 전용 `POST /deployments/{id}/retry`는 서버 제안(#42 ⑥, 웹 · 앱 의견 대기) |
 | WR-06 | `GET /deployments/{id}/plan?detail=resources` | W-06 리소스 행 (`action`에 `replace` 포함) | 좋아요 · D3 |
 | WR-07 | `GET /deployments/{id}/targets/{target_id}/script` → `files[{ path, content }]` | W-05 생성된 스크립트 | 18시 백엔드 회의에서 확인 |
 | WR-08 | `POST /deployments/{id}/cancel` | (앱은 아직 버튼 없음) | 좋아요 · D3. **apply 도중에는 중단하지 않고 서버가 결과를 기다려요** (10/1 17:23, #17) — 앱도 apply 시작 뒤에는 취소를 보여주지 않아요 |
@@ -451,7 +452,7 @@ API 모양보다 **이 정보가 어딘가에 저장되어 있는지**가 더 �
 | S-1 | 서버 (하은현) | 목록 응답 봉투: 모든 목록(A-02 · WR-04 · 새 `ai-usage`)이 `{ items, next_cursor }`인지 | 모두 봉투 | 배열이 오면 디코딩 실패 → 한 줄 수정 |
 | S-2 | 서버 (하은현 조회 · 김승환 기록) | `ai-usage` 호출 한 줄 필드 (10/1 #32: 호출 1건당 1행, 상세가 없으면 미확인 — 0원 아님): 작업 설명 이름(`note` / `title`), `calls`를 A-05 합계에 넣는지 | `note` 또는 `title`, `calls` 있으면 씀 | 설명이 없으면 "Terraform 생성 (deploy.yaml)" · "Terraform 수정"으로 대신, 모르는 `status`는 "—" |
 | S-3 | 서버 (하은현 · 김승환) | A-04 환경별 `image_digest` · `health_summary` · `steps[]` 제공 여부 (10/1 "제공 · 후순위 · 미제공으로 안내" 약속) | 오면 쓰고, 없으면 "—" · 웹처럼 단계 추정 | W-08 동일성 digest 줄이 "—" |
-| ~~S-4~~ | 서버 | ~~승인 `confirm_text` 검증 값~~ → ✅ 프로젝트 이름 · 승인 대기 환경 전부 `items`로 한 번에 (10/1 22:39, #40). 남은 것: 응답에서 `approval_id`를 주는 필드 이름 | `pending_approvals` 또는 환경별 `approval_id` | 못 받으면 `items` 없이 보내요 |
+| ~~S-4~~ | 서버 | ~~승인 `confirm_text` 검증 값 · 승인 ID 필드~~ → ✅ 프로젝트 이름, 승인 대기 환경 전부 `items`, 승인 ID는 A-04 `pending_approvals` (10/1 22:39 · 10/2 00:40, #40 · #42) | — | — |
 | S-5 | 서버 (하은현) | `POST /projects` 응답: `Project`만 / `{ project, manifest }` (웹 목업) | `Project` → `GET manifest` 따로 | 둘 다 받게 한 줄 수정 |
 | S-6 | 서버 (하은현) | 로그 줄 필드(`ts · text` / `seq · at · message`), `Manifest.errors` 모양 | 둘 다 받아요 | 영향 없음 |
 | S-7 | 서버 (하은현) | 로그인 없이 읽기 전용 둘러보기(9/30 회의) 방식: `POST /auth/demo` 같은 viewer 토큰 발급인지, 심사위원 테스트 계정 전달 방식 | R-09 `POST /auth/demo` (가칭) | 버튼만 두고 오류 표시. **TestFlight 외부 심사에 계정이 필요**해요 |
@@ -511,6 +512,7 @@ API 모양보다 **이 정보가 어딘가에 저장되어 있는지**가 더 �
 
 | 날짜 | 변경 | 작성 |
 |---|---|---|
+| 10/2 | 서버 #42 결정 반영: 배포 시작 · 다시 시도에 `source_version_id` 필수(없으면 막음), 생성 · 롤백 응답은 `{ id, project_id, state }`, 승인 ID는 `pending_approvals`에서만 · 빈 `items`는 보내지 않음, A-02 `current_status`와 "확인된 배포 없음" 문구. 예시 데이터에 `source_version_id` · `pending_approvals` | 박승준 |
 | 10/2 | 서버 주소 기본값을 앱 심사용 서버 `https://ios.unibloom.cloud`로 (처음 켤 때만 채워요, 로그인 · 설정에서 바꿀 수 있어요. 10/1 임채준 심사 서버 작업 · 박승준 답 23:52) | 박승준 |
 | 10/1 | 승인 요청에 `items: [{ target_id, approval_id }]` (화면에 보인 승인 대기 환경 전부, 서버 22:39 확정). §6-9 S-4 해결 | 박승준 |
 | 10/1 | 서버 #36 계약: 배포 시작 · 다시 시도에 빌드 ID `source_version_id`를 실어 보내요 (빌드 목록 · 배포에서 받아요, 없으면 키를 빼고 `commit`만) | 박승준 |

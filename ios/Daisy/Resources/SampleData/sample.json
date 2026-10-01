@@ -19,8 +19,10 @@
    "image": "ghcr.io/team-daisy/sample-monolith:2311c0b",
    "kind": null,
    "pending_approval": null,
+   "pending_approvals": null,
    "project_id": "prj_monolith",
    "rolled_back_from": null,
+   "source_version_id": "sv_2311c0b",
    "state": "partially_succeeded",
    "targets": [
     {
@@ -331,8 +333,10 @@
    "image": "ghcr.io/team-daisy/sample-monolith:7b1578b",
    "kind": null,
    "pending_approval": null,
+   "pending_approvals": null,
    "project_id": "prj_monolith",
    "rolled_back_from": null,
+   "source_version_id": "sv_7b1578b",
    "state": "succeeded",
    "targets": [
     {
@@ -643,8 +647,10 @@
    "image": "ghcr.io/team-daisy/sample-monolith:85ef7c5",
    "kind": null,
    "pending_approval": null,
+   "pending_approvals": null,
    "project_id": "prj_monolith",
    "rolled_back_from": null,
+   "source_version_id": "sv_85ef7c5",
    "state": "running",
    "targets": [
     {
@@ -973,8 +979,10 @@
    "image": "ghcr.io/team-daisy/sample-monolith:574acd9",
    "kind": null,
    "pending_approval": null,
+   "pending_approvals": null,
    "project_id": "prj_monolith",
    "rolled_back_from": null,
+   "source_version_id": "sv_574acd9",
    "state": "running",
    "targets": [
     {
@@ -1288,8 +1296,23 @@
     "approval_id": "apv_dep_m6",
     "kind": "plan"
    },
+   "pending_approvals": [
+    {
+     "approval_id": "apv_dep_m6_tgt_onprem",
+     "target_id": "tgt_onprem"
+    },
+    {
+     "approval_id": "apv_dep_m6_tgt_aws",
+     "target_id": "tgt_aws"
+    },
+    {
+     "approval_id": "apv_dep_m6_tgt_gcp",
+     "target_id": "tgt_gcp"
+    }
+   ],
    "project_id": "prj_monolith",
    "rolled_back_from": null,
+   "source_version_id": "sv_5139b93",
    "state": "awaiting_approval",
    "targets": [
     {
@@ -1636,8 +1659,10 @@
    "image": "ghcr.io/team-daisy/sample-msa:5e250c0",
    "kind": null,
    "pending_approval": null,
+   "pending_approvals": null,
    "project_id": "prj_msa",
    "rolled_back_from": null,
+   "source_version_id": "sv_5e250c0",
    "state": "succeeded",
    "targets": [
     {
@@ -1948,8 +1973,10 @@
    "image": "ghcr.io/team-daisy/sample-msa:5a21c63",
    "kind": null,
    "pending_approval": null,
+   "pending_approvals": null,
    "project_id": "prj_msa",
    "rolled_back_from": null,
+   "source_version_id": "sv_5a21c63",
    "state": "running",
    "targets": [
     {
@@ -2679,8 +2706,23 @@
       "approval_id": "apv_dep_m6",
       "kind": "plan"
      },
+     "pending_approvals": [
+      {
+       "approval_id": "apv_dep_m6_tgt_onprem",
+       "target_id": "tgt_onprem"
+      },
+      {
+       "approval_id": "apv_dep_m6_tgt_aws",
+       "target_id": "tgt_aws"
+      },
+      {
+       "approval_id": "apv_dep_m6_tgt_gcp",
+       "target_id": "tgt_gcp"
+      }
+     ],
      "project_id": "prj_monolith",
      "rolled_back_from": null,
+     "source_version_id": "sv_5139b93",
      "state": "awaiting_approval",
      "targets": [
       {
@@ -2820,8 +2862,10 @@
      "image": "ghcr.io/team-daisy/sample-monolith:574acd9",
      "kind": null,
      "pending_approval": null,
+     "pending_approvals": null,
      "project_id": "prj_monolith",
      "rolled_back_from": null,
+     "source_version_id": "sv_574acd9",
      "state": "running",
      "targets": [
       {
@@ -2925,8 +2969,10 @@
      "image": "ghcr.io/team-daisy/sample-monolith:85ef7c5",
      "kind": null,
      "pending_approval": null,
+     "pending_approvals": null,
      "project_id": "prj_monolith",
      "rolled_back_from": null,
+     "source_version_id": "sv_85ef7c5",
      "state": "running",
      "targets": [
       {
@@ -3048,8 +3094,10 @@
      "image": "ghcr.io/team-daisy/sample-monolith:7b1578b",
      "kind": null,
      "pending_approval": null,
+     "pending_approvals": null,
      "project_id": "prj_monolith",
      "rolled_back_from": null,
+     "source_version_id": "sv_7b1578b",
      "state": "succeeded",
      "targets": [
       {
@@ -3153,8 +3201,10 @@
      "image": "ghcr.io/team-daisy/sample-monolith:2311c0b",
      "kind": null,
      "pending_approval": null,
+     "pending_approvals": null,
      "project_id": "prj_monolith",
      "rolled_back_from": null,
+     "source_version_id": "sv_2311c0b",
      "state": "partially_succeeded",
      "targets": [
       {
@@ -3638,8 +3688,10 @@
      "image": "ghcr.io/team-daisy/sample-msa:5a21c63",
      "kind": null,
      "pending_approval": null,
+     "pending_approvals": null,
      "project_id": "prj_msa",
      "rolled_back_from": null,
+     "source_version_id": "sv_5a21c63",
      "state": "running",
      "targets": [
       {
@@ -3743,8 +3795,10 @@
      "image": "ghcr.io/team-daisy/sample-msa:5e250c0",
      "kind": null,
      "pending_approval": null,
+     "pending_approvals": null,
      "project_id": "prj_msa",
      "rolled_back_from": null,
+     "source_version_id": "sv_5e250c0",
      "state": "succeeded",
      "targets": [
       {

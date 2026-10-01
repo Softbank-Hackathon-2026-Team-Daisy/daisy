@@ -90,10 +90,15 @@ struct ResultStage: View {
     /// 실패한 환경만 같은 커밋으로 새 배포를 만들어요 (WR-05)
     private func retry(_ target: Deployment.Target) async {
         guard let client = app.client else { return }
+        let retry = RetryRequest.only(target.targetId, of: deployment)
+        // 서버는 빌드 ID가 필수예요 (#42). 커밋으로 다른 빌드를 고르지 않아요
+        guard let build = retry.sourceVersionID else {
+            toast = ToastMessage(kind: .danger, title: "다시 시도하지 못했어요", message: "이 배포의 빌드 정보를 받지 못해 다시 시도할 수 없어요. 새 배포로 시작해 주세요.")
+            return
+        }
         do {
-            let retry = RetryRequest.only(target.targetId, of: deployment)
             let next = try await client.send(.startDeployment(projectID: retry.projectID, commit: retry.commit,
-                                                              sourceVersionID: retry.sourceVersionID, targetIDs: retry.targetIDs))
+                                                              sourceVersionID: build, targetIDs: retry.targetIDs))
             router.push(.started(next.id))
         } catch {
             app.handle(error)

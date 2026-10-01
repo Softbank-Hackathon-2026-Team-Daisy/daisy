@@ -124,7 +124,11 @@ def deployment(pid, did, ver, c, state, targets, created, finished=None, pending
     CALLS.setdefault(pid, []).extend(calls or [])
     return {"id": did, "project_id": pid, "commit": c["sha"], "image": f"ghcr.io/team-daisy/{repo}:{c['sha'][:7]}",
             "version": ver, "commit_message": subject(c), "state": state, "targets": targets,
+            "source_version_id": f"sv_{c['sha'][:7]}",
+            # 승인 ID는 환경별 pending_approvals로만 줘요 (10/2 00:40 서버). 단건 pending_approval은 예전 모양이라 그대로 둬요
             "pending_approval": {"approval_id": f"apv_{did}", "kind": "plan"} if pending else None,
+            "pending_approvals": [{"target_id": t["target_id"], "approval_id": f"apv_{did}_{t['target_id']}"}
+                                  for t in targets if t["state"] == "awaiting_approval"] if pending else None,
             "created_by": c["commit"]["author"]["name"], "created_at": created, "finished_at": finished,
             "kind": None, "rolled_back_from": None, "ai_usage": usage(calls or [])}
 

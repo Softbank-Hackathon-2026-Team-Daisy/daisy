@@ -37,7 +37,7 @@ struct RetryRequest: Equatable {
     let projectID: String
     let commit: String
     let targetIDs: [String]
-    /// 원래 배포가 쓴 빌드 (#36). 없으면 서버가 커밋으로 찾아요
+    /// 원래 배포가 쓴 빌드 (#36). 서버는 필수로 받아요 — 없으면 화면이 "다시 시도"를 막아요
     var sourceVersionID: String? = nil
 
     /// W-05b "AWS만 다시 시도", W-08 실패 카드 "다시 시도"

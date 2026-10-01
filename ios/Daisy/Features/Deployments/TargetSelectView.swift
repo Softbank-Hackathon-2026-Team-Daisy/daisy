@@ -129,11 +129,14 @@ struct TargetSelectView: View {
 
     private func start(_ chosen: [DeployTarget]) async {
         guard let client = app.client, let projectID = app.selectedProjectID, let commit else { return }
+        // 고른 빌드 ID로 시작해요 (필수, #42). 빌드 목록에서 같은 커밋의 빌드를 찾았을 때만 시작할 수 있어요
+        guard latestBuild?.commit == commit, let build = latestBuild?.sourceVersionId else {
+            errorMessage = "빌드 정보를 아직 받지 못했어요. 이미지 빌드가 끝난 뒤 다시 시도해 주세요."
+            return
+        }
         starting = true
         defer { starting = false }
         do {
-            // 고른 빌드 ID로 시작해요 (#36). 빌드 목록에서 같은 커밋을 찾았을 때만 붙여요
-            let build = latestBuild?.commit == commit ? latestBuild?.sourceVersionId : nil
             let started = try await client.send(.startDeployment(projectID: projectID, commit: commit,
                                                                  sourceVersionID: build, targetIDs: chosen.map(\.id)))
             errorMessage = nil

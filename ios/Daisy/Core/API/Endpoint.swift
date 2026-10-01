@@ -83,6 +83,6 @@ struct ApprovalRequest: Encodable, Sendable {
     var kind = "plan"
     let decision: ApprovalDecision
     let confirmText: String?
-    /// 사용자가 본 승인 대기 환경 전부 `[{ target_id, approval_id }]` (10/1 22:39 서버 확정). 서버가 ID를 아직 안 주면 빼요
+    /// 사용자가 본 승인 대기 환경 전부 `[{ target_id, approval_id }]` (10/1 22:39 서버 확정). 비면 400이라 화면이 보내기 전에 막아요
     let items: [Deployment.ApprovalItem]?
 }
