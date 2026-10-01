@@ -1,6 +1,6 @@
 # 백엔드 DB 설계 — Jenkins 실행·승인·이력
 
-기준일: 2026-09-30. **DB 설계 검토안이다. 후속 JPA 엔티티 매핑 범위는 [SPEC](../SPEC.md)에 따르며, 마이그레이션·업무 동작·DB 적용은 별도 작업이다.**
+기준일: 2026-10-01 (#19·#17·#13 피드백 반영). **DB 설계 검토안이다. JPA 엔티티·공통 기반 범위는 [SPEC](../SPEC.md)에 따르며, 마이그레이션·업무 동작·DB 적용은 별도 작업이다.**
 
 사용자 저장소 빌드, 이미지 게시, Claude 호출, Terraform 생성·검증·실행은 인프라 Jenkins가 담당한다. 백엔드는 사용자가 요청한 입력, Jenkins 명령, 승인한 정확한 plan, 실제 결과의 연결을 보존한다. 백엔드가 Terraform이나 AI 실행기를 다시 만들지 않는다.
 
@@ -213,6 +213,7 @@ erDiagram
 - `digest`는 `varchar(128)`이며 알고리즘 접두사를 포함한 전체 값, `commit_sha`는 `varchar(64)`이며 전체 Git commit 식별자다. UI의 축약 문자열을 FK·동일성 검사에 사용하지 않는다.
 - JSONB는 문서 형태·필수 키·크기 상한을 수신 경계에서 검사한다. payload당 256 KiB, 단일 로그 message 16 KiB를 1차 제안값으로 둔다. 원문 secret·인증 토큰·tfstate·raw plan을 포함하지 않는다. 참조 URI에 서명 토큰을 영구 저장하지 않는다.
 - image_refs는 MSA를 지원하는 **service 이름→이미지 객체** JSONB다. 각 객체에 `image_ref`, 전체 `digest`(제공된 경우), `commit_sha`를 보존한다. 단일 서비스도 같은 구조를 쓰며 scalar image 컬럼과 이중 관리하지 않는다. 실행에 사용할 불변 이미지 식별은 digest 우선, 없으면 변경 불가 정책이 적용된 commit 태그의 전체 참조를 요구한다.
+- A-02/A-04의 환경별 scalar `image_digest` 요구는 API projection으로 맞춘다. 단일 서비스는 그 digest를 사용할 수 있으나 MSA에서 임의의 첫 서비스를 대표로 고르지 않는다. 여러 서비스의 응답 방식은 은현·web/ios와 확인하며 DB map을 유지한다.
 - PK/FK는 삭제 CASCADE 없이 기본 RESTRICT/NO ACTION. 계정 비활성화·프로젝트/대상 보관 처리로 이력을 유지한다. 순환 FK는 생성 순서상 nullable 포인터를 마지막에 연결한다.
 - PK·UNIQUE 제약이 만드는 인덱스와 동일하거나 선두 컬럼으로 충족되는 조회 인덱스는 중복 생성하지 않는다. 아래 INDEX 표기는 필요한 조회 경로이며 실제 DDL에서 기존 제약 인덱스와 대조한다.
 - enum은 PostgreSQL enum 타입 대신 `varchar(32/64)` + CHECK로 관리한다. 배포·대상·step 값은 확인한 기존 iOS SPEC을 유지한다(6장). 새 명령·수신 처리 상태는 **백엔드 제안**이다. DB kind normal/retry/rollback은 내부 표현이며 기존 API의 `kind=rollback|null`, `rolled_back_from`을 임의 변경하지 않는다.
@@ -291,7 +292,7 @@ PK(project_id,account_id), INDEX(account_id,project_id). 프로젝트 접근 여
 
 PK(id), UNIQUE(id,project_id), FK(project_id)→project, CHECK(config_revision≥1), INDEX(project_id,archived_at,id), INDEX(state_identity). state_identity는 target명으로 만들지 않고 프로젝트 간에도 충돌을 포착하는 전역 값이다. 같은 state를 가리키는 별도 target 등록은 허용하지만 한 배포에 함께 선택하지 않는다.
 
-current_deployment_target_id는 (current_deployment_target_id,id,project_id)→deployment_target(id,target_id,project_id) 복합 FK다. 현재 상태는 운영 관측값이므로 배포 당시의 성공 사실과 다를 수 있다. 오래된 run의 성공 콜백만 보고 더 최신 current 포인터를 덮지 않고 현재 적용 run 또는 인프라의 새 관측을 확인한다.
+current_deployment_target_id는 (current_deployment_target_id,id,project_id)→deployment_target(id,target_id,project_id) 복합 FK다. 현재 상태는 운영 관측값이므로 배포 당시의 성공 사실과 다를 수 있다. 오래된 run의 성공 결과만 보고 더 최신 current 포인터를 덮지 않고 현재 적용 run 또는 인프라의 새 관측을 확인한다.
 
 변경 가능한 `latest` 같은 credential 참조에 버전이 없으면 실행 입력이 고정되지 않으므로 plan 채택·승인·apply를 허용하지 않는다. 이 규칙은 target뿐 아니라 repository/input snapshot에 든 실행용 secret 참조에도 적용한다. 실제 비밀값이 아닌 불변 참조를 전달할 수 있는지는 인프라 계약에서 확인한다.
 
@@ -318,6 +319,8 @@ current_deployment_target_id는 (current_deployment_target_id,id,project_id)→d
 | received_at | timestamptz | NN / now() | 첫 수신 시각 |
 
 PK(id), UNIQUE(id,project_id), UNIQUE(source,external_build_id), FK(project_id)→project. INDEX(project_id,received_at DESC,id), INDEX(project_id,commit_sha). **(project_id,commit_sha)는 UNIQUE가 아니다.** 동일 commit 재빌드가 다른 digest를 만들면 새 행으로 보존한다. 성공 image_refs는 불변이고 다른 digest 수신을 기존 값으로 덮지 않는다. 성공에는 비어 있지 않은 image_refs가 필요하다. 입력 manifest를 못 받았다면 NULL로 두며 임의 스키마를 만들어 채우지 않는다.
+
+#19의 은현·web 동의에 따라 A-06 빌드 목록에 `source_version_id`를 제공하고 배포 시작을 해당 ID로 연결하는 방향이다. commit은 표시·그룹 기준이며 재빌드 선택 키가 아니다. DB status=succeeded와 API pipeline.status=success의 변환은 조회 DTO 책임이다. commit 메시지·작성자·시각은 현재 저장 필드가 없으며 조회에서 임의 값으로 채우거나 API 요청만으로 컬럼을 늘리지 않는다.
 
 ### 5.6 deployment — 승환
 
@@ -481,7 +484,7 @@ PK(id), UNIQUE(id,deployment_target_id), UNIQUE(deployment_target_id,revision), 
 | decision | varchar(32) | NULL / NULL | 원래 approved/rejected 결정, 무효화해도 유지 |
 | decided_by | ID | NULL / NULL | account FK |
 | decided_at | timestamptz | NULL / NULL | 원래 결정 시각 |
-| confirmation_text | varchar(128) | NULL / NULL | 삭제가 있는 plan 승인 시 사용자가 제출한 대상 이름 |
+| confirmation_text | varchar(128) | NULL / NULL | 삭제 plan 승인 시 제출한 확인 문자열. 검증 대상은 소비자와 협의 |
 | created_at | timestamptz | NN / now() | 승인 대기 생성 |
 | expires_at | timestamptz | NN / — | plan 기한 이하로 고정 |
 | invalidated_at | timestamptz | NULL / NULL | 무효화 시각 |
@@ -491,7 +494,7 @@ PK(id), UNIQUE(plan_id), (plan_id,deployment_target_id)→plan_revision(id,deplo
 
 superseded/expired 이후 원래 decision·결정자를 지우지 않는다. 승인 row를 새 plan으로 옮기거나 같은 plan의 새 pending을 만들지 않는다. 거절 시 해당 target은 실행하지 않으며 최종 결과/이벤트에 거절 사유를 남긴다.
 
-삭제/교체로 `has_delete=true`인 plan 승인은 confirmation_text가 해당 deployment_target.target_snapshot.name과 정확히 같아야 한다. 다중 대상 승인은 대상 ID별 확인 문자열 map을 받는 내부 계약을 제안하고 기존 단일 confirm_text API와의 매핑은 은현과 맞춘다. 현재 target 이름이 바뀌어도 승인 당시 snapshot 이름을 사용한다.
+삭제/교체로 `has_delete=true`인 plan 승인은 확인 문자열 검증이 필요하다. 기존 대상 snapshot 이름·대상별 map 제안에 대해 web/ios는 **승인 대기 대상 전부를 한 번에 승인하고 단일 `confirm_text=프로젝트명`**을 요청했다. 어느 값을 고정·검증하고 단일 pending_approval ID를 대상별 행에 연결할지는 은현·소비자와 확인한다. 여기서 대상명 또는 프로젝트명 정책을 임의 확정하지 않는다. 각 승인 행이 특정 대상의 plan에 묶이는 불변 조건은 유지한다.
 
 ### 5.12 script — 승환 수집, 은현 조회
 
@@ -545,6 +548,8 @@ PK(id), UNIQUE(source,external_call_id), (execution_id,deployment_target_id)→e
 호출 종료 후 최종 기록 1회가 v1 계약이다. 동일 ID·동일 hash 재수신은 무변경, 상충 payload는 충돌로 기록·거절하고 자동 덮어쓰지 않는다. **배포 종료 후 늦게 도착한 첫 사용량은 소속 검증 후 저장한다.** NULL 비용의 사후 보완은 별도 correction 계약이 생기기 전에는 지원하지 않는다. 인프라는 확정 기록을 내거나 당시 미확인을 보고해야 하며 BE가 0을 만들어 넣지 않는다.
 
 실제 AI 호출이 없으면 0행이다. Terraform 검증 실패가 LLM status를 바꾸지 않는다. 합계는 USD를 먼저 더한 뒤 설정된 고정 환율로 KRW 정수 환산하며 응답에 환율·추정 여부·미확인 호출 수를 제공한다. 환율·반올림은 은현 조회 계약에서 한 번 정하고 DB에 별도 환율 테이블을 만들지 않는다.
+
+현재 plan-summary.json은 ai_calls와 usage_total **합계만** 제공한다. 이를 나누어 external_call_id·시각·성공 여부·회차를 꾸며 ai_usage 행으로 만들지 않는다. 실제 호출별 원본 계약이 오기 전에는 상세 미제공과 미확인을 구분한다. #13 확정 방향은 **A-05 승인 plan의 사용량 합계 + `GET /projects/{id}/ai-usage?deployment_id=` 상세 조회**이며 응답 DTO·calls·note/title은 은현과 확인한다. note는 실제 원본이 없으면 만들지 않는다.
 
 ### 5.14 deployment_log — 승환 기록·재생, 은현 조회
 
@@ -633,6 +638,8 @@ PK(state_identity), UNIQUE(execution_id,deployment_target_id), 복합 FK(executi
 
 이 락은 백엔드의 동시 승인·실행 조정이며 Terraform state lock을 대체하지 않는다. Jenkins 외부 실행도 인프라가 state 수준에서 직렬화해야 한다. unknown은 락을 유지한다. 영구 장애 시에도 시간이 지났다는 이유만으로 자동 해제하지 않으며 request_id/run 확인 결과에 따라 운영 조치한다. 한 명령의 여러 state 락은 state_identity 정렬 순서로 전부 확보하거나 전부 롤백한다.
 
+운영 해제는 **인프라가 실제 Jenkins/Terraform 종료·적용 여부를 확인 → 서버 운영 절차에서 작업자·확인 근거·소유 execution/target을 이벤트로 기록 → 해당 소유 락만 해제**하는 방향이다. 운영 경로·권한·증빙 형식은 은현·인프라와 확인하며 공개 무조건 해제 API를 추가하지 않는다. Terraform backend 잠금 복구는 인프라 운영 절차와 별개다.
+
 ## 6. 상태·불변 이력·현재 관측
 
 ### 6.1 상태 제안과 집계
@@ -647,6 +654,8 @@ PK(state_identity), UNIQUE(execution_id,deployment_target_id), 복합 FK(executi
 4. waiting과 terminal만 남아 있다면 실행 대기 중인 비종료 target이 있으므로 running으로 유지한다. 통신 unknown은 대상의 마지막 확인 상태를 유지하며 전체를 terminal로 만들지 않는다.
 
 step은 **generate/validate/plan/risk_check/apply/health_check**, step state는 **running/done/failed/waiting**을 유지한다. build 사건은 별도 event_type으로 표현한다. 거절·승인 만료는 해당 target을 cancelled로 끝내고 이벤트의 reason으로 rejected/expired를 구분하는 최소 제안이다. stale은 terminal이 아니라 옛 plan 무효화→validating의 plan 단계→새 awaiting_approval 전이다. 단순 stale replan은 attempt를 올리지 않는다.
+
+DB `attempt=0`은 아직 생성하지 않았거나 AI 미호출인 기록이다. 실제 최초 생성은 1/3부터, `ai_reused`는 인프라가 확인한 재사용 여부다. 호출 실패·기준 모듈·destroy·재사용을 0 하나로 구분하지 않는다. API에서 미호출을 null/별도 표시로 내보낼지는 은현·소비자 확인 전이며 화면용으로 DB 0을 1로 바꾸지 않는다. `step/step_state`는 채택한 대상별 이벤트에서 투영한다. 현재 Jenkins의 환경별 세부 단계는 콘솔 줄뿐이므로 A-03/A-04에 언제나 정확한 값이 온다고 약속하지 않는다.
 
 ### 6.2 현재값과 과거값
 
@@ -664,6 +673,8 @@ retry는 원본 실패 target의 고정 입력을 복사해 새 배포로 만든
 
 위 lineage는 요청 계보·복원 원본을 뜻한다. 인프라 밖에서 수동 배포가 가능하므로 rollback_trigger나 target의 마지막 확인 포인터가 실제로 직전에 교체된 모든 리소스 상태를 증명하지는 않는다. 그 사실은 인프라의 적용 전후 관측 결과로 확인하며 완전한 인프라 변경 감사 원장을 구현했다고 주장하지 않는다.
 
+API `rolled_back_from`은 복원 원본인 rollback_of_deployment_id 방향으로 매핑하는 초안이다. 부분 성공 배포 전체를 원본으로 허용하지 않는 현재 제안은 은현·소비자와 확인한다. WR-14 `reason`은 별도 컬럼이 없으며 안전한 요청 input_snapshot/이벤트 payload에 남기는 방향으로 검토한다. 새로운 컬럼이나 확정 API 정책으로 선언하지 않는다.
+
 ## 7. 트랜잭션·동시성 경계
 
 | 경계 | 같은 DB 트랜잭션으로 묶는 것 | 외부 호출/후속 처리 |
@@ -672,7 +683,7 @@ retry는 원본 실패 target의 고정 입력을 복사해 새 배포로 만든
 | plan 채택 | source 중복 검사, execution-target·script 소속/input 검증, 대상 잠금, 이전 plan/approval 무효화, 새 revision/pending, current_plan 교체, 이벤트 | 원문은 인프라 보관 |
 | 승인 | 현재 접근/승인 권한, current plan/digest/hash/expiry 확인, 승인 결정, apply 명령·연결, state 락, 상태·이벤트·멱등 응답 | 커밋 후 승인된 정확한 plan 제출 |
 | 명령 제출 | pending 확보→dispatching 커밋; 별도 트랜잭션에서 응답 queue/run 저장 | HTTP는 두 트랜잭션 사이; 유실이면 unknown |
-| 콜백 | 발신 신뢰 검증 후 request/run/target 연결 확인, 중복 hash 검사, 상태/plan/usage 변경, 이벤트 seq, 전체 상태 집계 | 수신 ACK는 커밋 후 |
+| 폴링 결과 수신 | 인증된 Jenkins 응답의 request/run/target 연결 확인, 중복 hash 검사, 상태/plan/usage 변경, 이벤트 seq, 전체 상태 집계 | 다음 조회 cursor는 결과와 함께 커밋 |
 | stale | 옛 plan·approval 무효화, current_plan 해제, 승인 apply가 미실행인지 확인된 명령 종료, 락 해제 근거, replan 명령 생성 | 실행 여부 unknown이면 먼저 인프라 확인 |
 | 취소·중단 | 요청 actor/시각, stop 명령·연결, 멱등 응답 | 실제 종료 확인 전 cancelled·락 해제 금지 |
 | 빌드 수신 | source_version 기록, 선택된 source ID 또는 PREPARE request/run을 먼저 대조, project/commit 확인·이미지 1회 연결, project_event | plan은 최종 이미지/input hash 확정 후 허용 |
@@ -681,19 +692,34 @@ retry는 원본 실패 target의 고정 입력을 복사해 새 배포로 만든
 
 FK로 모두 표현되지 않는 교차 행 조건은 명시적으로 서비스에서 검사한다: current_plan.state=active, approval 만료≤plan 만료, apply digest/input=plan 내용, target_lock.state_identity=대상 snapshot, 대상 lineage와 부모 원본 배포의 일치. DB CHECK가 다른 테이블을 조회한다고 가정하지 않는다. 이 조건들이 구현·검증 항목에서 누락되지 않도록 10장 시나리오에 포함한다.
 
+낙관적 잠금 충돌은 공통 처리기가 `STATE_CONFLICT` 409로 반환한다. 무결성 예외는 constraint를 아는 소유 서비스가 실제 target_lock 경합·멱등 재조회·다른 오류로 구분한다. 모든 UNIQUE/FK/NOT NULL 오류를 TARGET_LOCKED로 바꾸지 않는다. `TARGET_LOCKED.retryable`은 소비자 합의 전 현재 false를 유지한다. true라도 자동 apply 재제출 허가가 아니다.
+
 현재 plan을 가리키는 순환 관계의 저장 순서는 대상→명령·execution_target→script→plan→approval→current_plan이다. apply는 이미 존재하는 plan을 연결한다. FK를 끄거나 전체 순환 관계를 nullable 상태로 영구 방치하지 않는다.
 
 ## 8. Jenkins 계약과 장애 처리
 
-인프라에 제안할 operation은 prepare/replan/apply/stop이다. 최종 Job 이름·별도 Job인지 같은 run 재개인지는 설정으로 대응하되 명령마다 당시 instance/job을 보존한다. payload에는 request_id, deployment_id, 전체 commit, 대상 snapshot, 최종 image refs/input hash(확정된 단계), apply의 plan ID·artifact ref·전체 digest를 전달한다. 배포·명령·AI attempt·plan revision·stage occurrence는 서로 다른 식별자다.
+인프라 #19 답변에 따라 **서버가 Jenkins 상태·로그·산출물을 폴링**한다. 5초는 초기 제안으로 고정 SLA가 아니며 Jenkins 주소·네트워크·인증과 실제 주기는 연동 때 확인한다. 현재 `daisy-cd-plan`이 prepare 역할을 하고, 서버 승인 후 별도 `daisy-cd-apply`를 시작한다. Jenkins 승인 대기나 같은 run 재개는 현재 흐름에서 사용하지 않는다. 명령마다 당시 instance/job/queue/build를 보존한다.
 
-인증·인가 공통정책은 은현이 소유한다. 승환은 Jenkins client/callback에서 필요한 발신 instance 식별·credential 참조·검증 입력을 정의하고 그 정책을 사용한다. 발신자가 인증되었다고 다른 deployment/target/run으로 결과를 붙일 수는 없다. URL은 설정한 Jenkins origin과 소유한 Job에 제한하고 콜백이 임의의 외부 URL을 서버가 조회하게 하지 않는다.
+10/1 실제 main의 `cd-plan.Jenkinsfile`, `cd-apply.Jenkinsfile`, `tf-run.sh` 및 [#17 07:34Z 답변](https://github.com/Softbank-Hackathon-2026-Team-Daisy/daisy/pull/17#issuecomment-5926896705)을 대조한 범위:
+
+| 항목 | 현재 제공·구현 | 연동 확인이 남은 것 |
+|---|---|---|
+| 실행 추적 | buildWithParameters의 Location → queue executable.number, progressiveText·build API·wfapi 조회 | 서버 request_id 파라미터·검색·중복 방지는 현재 Job에 없음. 같은 파라미터 큐 병합을 영구 멱등성으로 보지 않음 |
+| plan | plan-summary.json의 plan_id/plan_build, target ok, `summary` 문자열(`create=15` 등), AI mode/calls/usage_total | 구조화 counts/resources/risks, 원본 참조·digest·input hash·기한 계약. 문자열에서 없는 필드를 만들어 채우지 않음 |
+| apply | PLAN_BUILD·APPROVAL_ID, 저장 plan 파일 hash·이미 적용 여부 검사, Terraform stale 거부 | 대상별 승인 행과 단일 APPROVAL_ID 매핑. 현재는 발견한 모든 대상 plan을 실행하며 부분 대상 선택 파라미터 없음 |
+| 대상 완료 | URL·헬스 상태·단일 요청 시간은 로그에 있음 | apply-result.json은 추가 예정이며 아직 코드에 없음. p95·이전 버전 유지 여부를 만들어내지 않음 |
+| 중단 | apply STOP 미지원, plan `/stop`은 인프라 변화 없는 방향이나 호출 미검증 | plan stop 실제 종료·복구 연결. apply는 중단 요청 표시 후 결과를 기다림 |
+| state | runner는 local 기본·TF_STATE_BUCKET 지정 시 S3, 키는 현재 APP/환경 기준 | 현재 AWS 검증은 local. AWS S3·GCP GCS·온프레미스 영속 local은 운영 방향, project_id/target_id 키·state_identity 정규화는 확인 대기 |
+
+내부 operation prepare/replan/apply/stop, request_id·deployment_id·고정 입력·승인 plan 참조/digest/hash는 **서버 설계 요구**다. 현재 Jenkins 파라미터에 이미 있다는 뜻이 아니다. 배포·명령·AI attempt·plan revision·stage occurrence는 서로 다른 식별자다.
+
+인증·인가 공통정책은 은현이 소유한다. 승환은 Jenkins client의 instance 식별·credential 참조·검증 입력을 정의하고 그 정책을 사용한다. 인증된 응답이라도 다른 deployment/target/run으로 결과를 붙일 수는 없다. 큐·산출물 URL은 설정한 Jenkins origin과 소유 Job에 제한한다. 공개 Jenkins 로그 링크는 제공하지 않는다.
 
 외부 요청 응답 유실 시 저장한 request_id로 queue/run을 찾는다. 조회에서 아직 안 보인다는 사실은 미실행 증거가 아니다. 인프라가 멱등 재제출을 보장하거나 명확히 미실행이라고 확인하기 전에는 자동 재제출하지 않는다. 중단 ACK도 종료 증거가 아니다. 실제 run 종료와 대상 결과를 확인한 뒤 상태·state 락을 정리한다.
 
-**STOP은 진행 상태의 새 소유자가 아니다.** stop 명령은 parent_execution_id로 중단할 apply/prepare를 가리키고 자기 execution_target에 제어 요청 결과를 기록한다. deployment_target.current_execution_id는 기존 실행을 유지하므로 STOP 요청 후에도 APPLY의 실제 종료 콜백을 받을 수 있다. STOP 수락/완료 ACK만으로 target을 종료하거나 락을 해제하지 않는다. 기존 실행의 실제 종료 확인을 반영한 뒤에만 current 명령을 종료한다.
+**STOP은 진행 상태의 새 소유자가 아니다.** 내부 stop 기록은 parent_execution_id로 원래 실행을 가리키고 제어 요청 결과를 보존한다. apply STOP은 Jenkins에 제출하지 않으며 deployment_target.current_execution_id도 기존 실행을 유지한다. STOP 수락/완료 ACK만으로 target을 종료하거나 락을 해제하지 않는다. 기존 실행의 실제 종료·대상 결과를 폴링으로 확인한 뒤에만 정리한다.
 
-콜백은 source event ID와 command-target별 단조 source_sequence를 제공하는 계약을 제안한다. 역순 상태 사건은 보존하되 최신 상태를 되돌리지 않는다. 높은 순번의 상태 사건이 먼저 왔다고 낮은 순번의 script/usage 등 독립 결과를 버리지 않는다. 같은 attempt의 반복 plan은 새 stage_occurrence_id와 새 plan revision으로 구분한다. 종료 target은 늦은 진행 이벤트로 다시 실행 중이 되지 않는다.
+폴링 수신은 실제 run·artifact/log offset의 안정적 원천 키로 중복을 제거한다. source event ID·command-target source_sequence·stage_occurrence_id는 구조화된 결과 요구이며 현재 콘솔 줄에서 보장되지 않는다. 역순 상태 사건은 보존하되 최신 상태를 되돌리지 않고 script/usage 등 독립 결과를 버리지 않는다. 종료 target은 늦은 진행 이벤트로 다시 실행 중이 되지 않는다. 콜백 수신 엔드포인트는 이번 연동의 필수 범위가 아니다.
 
 Jenkins 실행 자체의 succeeded는 준비 명령 완료일 수 있으므로 배포 성공이 아니다. apply에서 해당 target의 성공 결과와 실제 사용 이미지/plan 동일성을 확인해야 성공 처리한다. 저장된 DB 멱등성만으로 외부 apply의 정확히 한 번을 보장했다고 주장하지 않는다.
 
@@ -702,6 +728,8 @@ Jenkins 실행 자체의 succeeded는 준비 명령 완료일 수 있으므로 �
 배포 상태 변경, 이벤트 저장, 채널 seq 증가를 하나의 트랜잭션으로 처리한다. 일반 identity/sequence의 발급 순서는 commit 순서를 보장하지 않으므로 SSE seq로 쓰지 않는다. project.last_event_seq와 deployment.last_event_seq를 잠근 채 1씩 증가시켜 commit 가시성 순서와 맞춘다. 대량 콘솔에 의한 채널별 쓰기 직렬화는 이 최소 설계의 한계이며, 실제 처리량이 문제가 될 때 배치 기록을 검토한다.
 
 SSE는 저장된 이벤트를 `seq > Last-Event-ID`로 지속 조회하는 방식을 기본안으로 삼는다. 초기 재생 후 같은 cursor로 이어가므로 구독 등록과 인메모리 발행 사이의 경합을 피한다. 전송 성공한 seq까지만 연결 cursor를 이동하고 재연결 중 중복은 seq로 제거한다. 최초 즉시·15초 heartbeat는 데이터 seq를 소비하지 않는다. 접근 검증은 은현 공통 정책을 적용한다.
+
+#19의 상태 구독 요구는 같은 durable 채널·seq에 `event_type` 필터를 두는 방향으로 반영한다. 연결의 내부 조회 cursor는 검사한 구간까지 진행하고 전달한 이벤트는 원래 seq를 사용한다. seq가 연속하지 않을 수 있으며 필터를 바꾸면 해당 범위를 재조회한다. 필터 이름·기본값·SSE DB 조회 주기·batch 크기는 은현·소비자와 확인한다. Jenkins 폴링 주기와 SSE 조회 주기는 별개이며 이번 PR에는 SSE 기능을 구현하지 않는다.
 
 기본 보관은 이벤트·멱등 응답·승인·배포 이력 무기한이다. 자동 TTL·CASCADE 삭제를 넣지 않는다. 프로젝트/target은 archived_at, account는 disabled_at을 사용한다. artifact 원본 만료는 reference/digest/summary/승인 이력을 지우지 않으며 코드 조회는 unavailable/expired를 반환한다. 원문 plan/state 조회 API는 기본 범위가 아니다.
 
@@ -751,14 +779,46 @@ APNs 채택 시에만 `device`를 추가한다. 제안 컬럼은 id(ID PK NN), a
 
 | 담당 | 확인할 구체적 질문 | 영향을 받는 설계 |
 |---|---|---|
-| 인프라 | prepare/apply/replan/stop이 별도 Job인가, 같은 run 재개인가? request_id로 queue/run 조회·중복 실행 방지를 보장할 수 있는가? | execution의 run 매핑·unknown 복구. 어느 방식이든 명령 ID는 유지 |
+| 인프라 | 분리된 plan/apply Job에 request_id·대상별 입력을 전달하고 기존 queue/run 검색·중복 실행 방지를 보장할 수 있는가? replan·plan stop은 어떻게 연결하는가? | execution의 run 매핑·unknown 복구. apply stop 미지원 |
 | 인프라 | 승인된 plan ID·전체 digest·input hash를 apply 직전에 대조하고 stale을 구조화해 반환하는가? plan 유효 기한은 얼마인가? | plan_revision/approval, 승인 후 실행 안전성 |
 | 인프라 | state_identity 정규화 규칙과 실제 state 직렬화 범위는 무엇인가? stop 뒤 실제 종료와 target별 결과를 어떻게 확인하는가? | target_lock의 실제 충돌 범위·해제 근거 |
 | 인프라 | event/call/script ID 발급 범위, command-target 순번, stage occurrence, service별 이미지, 최종 AI usage를 제공할 수 있는가? | 수신 중복 방지·부분 실패·비용 미확인 |
 | 인프라 | script/plan 보관 참조·수명·권한·비밀값 제거와 콘솔 offset 조회를 제공하는가? | 참조 조회·만료·로그 수집 |
-| 은현 | 계정 역할·membership 접근 정책, callback 발신 신뢰 정책, 기존 상태/API DTO 매핑을 이 경계에 연결할 수 있는가? | identity/project 소유, 실행 서비스의 인가 검사 |
+| 은현 | 계정 역할·membership 접근 정책, Jenkins 서비스 인증 정책, 기존 상태/API DTO 매핑을 이 경계에 연결할 수 있는가? | identity/project 소유, 실행 서비스의 인가 검사 |
 | 은현 | 이미 작성한 DDL/미반영 코드와 이름·키·Flyway 버전이 겹치는가? source_version 동일 commit 재빌드와 nullable source 연결을 수용하는가? | 기존 작업 보존·관리 API 연결 |
 | 은현 | 실행/조회 서비스 DTO·SSE 이벤트 형식·고정 환율과 반올림을 어떻게 매핑할 것인가? | 구현 인계. DB 의미를 화면 편의로 바꾸지 않음 |
+
+### 12.1 소비자 선택 필드 분류 초안
+
+아래 **제공 가능**은 기존 데이터로 표현할 수 있다는 뜻이며 API 구현 완료·제공 시한 약속이 아니다. 최종 DTO·OpenAPI는 은현과 확인한다. 미제공은 현재 원본/정책이 없고, 인프라 연동 대기는 구조화된 결과를 확인해야 한다는 뜻이다.
+
+| 요구 | 현재 분류·근거 |
+|---|---|
+| Build source_version_id·branch, Project branch | 제공 가능: ID와 원천 branch/default_branch가 있음. 원천 branch 미확인은 NULL |
+| A-02/A-04 image_digest, Build digest | 인프라 연동 대기: 실제 digest 수신 필요. 단일 서비스 projection 가능, MSA 대표 정책 미결 |
+| target title/current_commit, Deployment.targets title | 제공 가능: target snapshot·관측 commit으로 구성. runtime/location/access_method/exposure는 config에서 실제 제공한 값만 가능 |
+| state_backend | 인프라 연동 대기: 실제 backend와 운영 목표를 구분해 표시 |
+| health_summary | 인프라 연동 대기: apply-result 필요. 상태 코드·1회 측정 ms 범위, p95는 미제공 |
+| targets steps, Build steps·duration_ms·started_at | 후순위/인프라 연동 대기: wfapi의 Job 단계와 대상별 콘솔 단계는 다름. 관측된 시작·종료·occurrence 없이 duration 생성 금지 |
+| Deployment 표시 version(v7)·commit_message, Build 작성자·커밋시각 | 후순위: 원천·표시 버전 정책 없음. `@Version`은 동시성 값이며 표시 버전으로 쓰지 않음 |
+| AI calls·상세 at/target/step/attempt/tokens/cost/status | 인프라 연동 대기: 합계 calls는 가능하나 호출별 원본은 현재 미제공. LLM 결과만 status로 사용 |
+| AI note/title | 후순위: 원본 설명이 있는 경우만 제공, 명칭 미결 |
+| script created_at/base_commit/input/storage/ai_tokens/note | 제공 가능: 실제 수신 validated_at·원본 배포/입력 참조·안전한 보관 설명. ai_tokens는 실제 사용량 연동 대기, note는 후순위 |
+| Manifest ref | 제공 가능: 고정 commit·manifest 경로 기반 표시. raw는 후순위이며 권한·비밀값 제거를 확인해야 함 |
+| resources monthly_cost_krw·앱 버전·환경변수 hash | 미제공: 현재 구조화된 인프라 원본 없음. secret 원문/단순 hash를 추정 제공하지 않음 |
+| R-09 demo 인증, A-10 연결 테스트, A-11 리소스, A-12 프로젝트 상세 | 은현 확인 대기: 별도 정책·관리 API 범위, 이번 ERD PR에서 수락·구현 완료로 선언하지 않음 |
+
+목록 봉투 `{items,next_cursor}`, POST /projects 단일 Project 또는 `{project,manifest}`, 로그 `seq/at/message` projection, manifest 오류 path 목록은 은현의 공개 API 계약에서 확인한다. 공통 오류 details 지원은 이 필드 모양 확정을 대신하지 않는다.
+
+### 12.2 Flyway 인계 시 대조 목록
+
+은현이 작성·검증했다고 공유한 17개 테이블 `V1__init.sql`은 #19 브랜치를 base로 별도 PR을 받는다. 이 PR에서 대신 작성·덮어쓰기하지 않는다. 실제 migration PR 도착 후 다음을 SQL·PostgreSQL에서 대조한다.
+
+- 17개 테이블·252개 컬럼의 타입/NULL/PK/일반 UNIQUE, 2개 복합 PK, 상태 소문자·CHECK와 숫자 범위.
+- 프로젝트/대상/plan 소속 복합 FK, 순환 current 포인터의 생성 순서, 부분 UNIQUE(active plan/pending approval/log owner), 원천 이벤트·호출·빌드·멱등 중복 제약.
+- 동일 commit의 별도 source_version 허용, state_identity 전역 lock, rollback/retry lineage와 삭제 RESTRICT, seq/offset·승인 기한 조건.
+- JPA INSERT는 DB 기본값에 의존하지 않음: 생성 서비스가 NN 값·초기 status/kind·생성 시각을 제공하는지 확인. 타임스탬프 정책은 생성 기능에서 정함.
+- `ddl-auto=validate` 기동·JSONB/Instant/금액/enum 저장조회, 실제 @Version 경합·target_lock/멱등 경합·부분 실패와 트랜잭션 롤백 검증. 메타데이터 테스트 성공은 이 검증을 대신하지 않음.
 
 검토 후 구현할 때도 인증·관리·조회는 은현, 실행·승인 유효성·Jenkins·멱등성·복구는 승환의 책임을 유지한다. 이 문서 작성은 구현 착수·마이그레이션 적용·외부 Job 실행 권한을 뜻하지 않는다.
 
