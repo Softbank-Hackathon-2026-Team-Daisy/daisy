@@ -87,7 +87,7 @@ pipeline {
               withCloud(t) { sh "\"\$AI_PY\" infra/ai/plan_with_ai.py ${t}" }
             } catch (err) {
               failed << t
-              echo "${t}: 검증을 통과한 plan을 만들지 못했어요. 다른 환경은 계속 진행해요"
+              echo "${t}: 검증을 통과한 plan을 만들지 못했어요 (${err.getMessage()}). 다른 환경은 계속 진행해요"
             }
           }
           env.FAILED_TARGETS = failed.join(',')
