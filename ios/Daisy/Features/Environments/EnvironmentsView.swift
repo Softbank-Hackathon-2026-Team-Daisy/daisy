@@ -27,10 +27,14 @@ struct EnvironmentsView: View {
                                 Text("퍼블릭 클라우드(소규모 사업자 포함)나 다른 온프레미스 서버를 대상 환경으로 추가해요. 준비된 기준 모듈이 없어도 AI가 deploy.yaml로 Terraform을 처음부터 만들어요.")
                                     .font(.subheadline).foregroundStyle(.secondary)
                                 // 웹도 추가 흐름 화면이 아직 없어요 (예선 범위 결정 대기)
-                                Button { } label: { Label("환경 추가", systemImage: "plus") }
-                                    .buttonStyle(.glassCapsule)
-                                    .disabled(true)
-                                    .help("환경 추가 흐름은 예선 범위 결정 뒤에 열려요")
+                                HStack(spacing: 10) {
+                                    Button { } label: { Label("환경 추가", systemImage: "plus") }
+                                        .buttonStyle(.glassCapsule)
+                                        .disabled(true)
+                                        .help("예선 범위 결정 전이에요")
+                                    EnvTag(type: .unknown, label: "Azure")
+                                    Text("예선 범위 결정 전이에요").font(.caption).foregroundStyle(.secondary)
+                                }
                             }
                         }
                         .padding(20)
@@ -51,15 +55,16 @@ struct EnvironmentsView: View {
                 Spacer()
                 switch target.connection?.state {
                 case .ok: StatusBadge(text: "연결됨", color: .green)
-                case .failed: StatusBadge(text: "연결 끊김", color: .red)
+                case .failed: StatusBadge(text: "연결 안 됨", color: .red)
                 default: StatusBadge(text: "확인 전", color: .gray)
                 }
             }
-            InfoRow("유형", target.runtime)
-            InfoRow(target.type == .onprem ? "위치" : "리전", target.location)
+            InfoRow("유형", target.runtime ?? target.title)
+            InfoRow(target.locationLabel ?? (target.type == .onprem ? "위치" : "리전"), target.location)
             InfoRow("연결", target.accessMethod)
             InfoRow("공개", target.exposure)
-            InfoRow("state", target.stateBackend)
+            // state 저장소는 인프라가 아직 정하지 않았어요 (10/1, 키 방향만 {project_id}/{target_id})
+            InfoRow("state", target.stateBackend ?? "[미정]")
             InfoRow("현재 버전", target.currentCommit.map { String($0.prefix(7)) }, monospaced: true)
             HStack(spacing: 8) {
                 Button {
@@ -93,12 +98,11 @@ struct EnvironmentsView: View {
         defer { testing = nil }
         do {
             let result = try await client.send(.testConnection(targetID: target.id))
-            toast = result.connected
-                ? ToastMessage(kind: .success, title: "\(target.type.displayName) 연결됨", message: result.message)
-                : ToastMessage(kind: .danger, title: "\(target.type.displayName) 연결 끊김", message: result.message)
+            // 웹: 서버 메시지를 그대로 제목으로
+            toast = ToastMessage(kind: result.connected ? .success : .danger, title: result.message ?? (result.connected ? "연결됨" : "연결 안 됨"))
         } catch {
             app.handle(error)
-            toast = ToastMessage(kind: .danger, title: "연결을 확인하지 못했어요", message: error.localizedDescription)
+            toast = ToastMessage(kind: .danger, title: "연결 테스트를 하지 못했어요", message: error.localizedDescription)
         }
     }
 }
@@ -113,15 +117,21 @@ private struct ResourcesSheet: View {
     var body: some View {
         NavigationStack {
             LoadStateView(state: resources, retry: { await load() }) { list in
-                List(list, id: \.self) { resource in
-                    VStack(alignment: .leading) {
-                        Text(resource.address).font(.subheadline.monospaced())
-                        if let type = resource.type { Text(type).font(.caption).foregroundStyle(.secondary) }
+                List {
+                    Section {
+                        ForEach(list, id: \.self) { resource in
+                            VStack(alignment: .leading) {
+                                Text(resource.address).font(.subheadline.monospaced())
+                                if let type = resource.type { Text(type).font(.caption).foregroundStyle(.secondary) }
+                            }
+                        }
+                    } footer: {
+                        Text("Terraform state에 기록된 리소스예요.")
                     }
                 }
                 .overlay { if list.isEmpty { ContentUnavailableView("리소스가 없어요", systemImage: "square.stack.3d.up") } }
             }
-            .navigationTitle("\(target.type.displayName) 리소스")
+            .navigationTitle("\(target.title ?? target.name) 리소스")
             .toolbar {
                 ToolbarItem(placement: .confirmationAction) { Button("닫기") { dismiss() } }
             }
