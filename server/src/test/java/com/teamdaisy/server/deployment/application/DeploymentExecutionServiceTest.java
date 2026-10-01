@@ -58,6 +58,7 @@ class DeploymentExecutionServiceTest {
   void setup() {
     when(accessProvider.getIfAvailable()).thenReturn(access);
     when(inputProvider.getIfAvailable()).thenReturn(inputs);
+    when(inputs.projectName("prj_1")).thenReturn("Fixture project");
     when(idempotency.execute(
             anyString(), anyString(), anyString(), anyString(), anyString(), any(), any()))
         .thenAnswer(
@@ -156,7 +157,9 @@ class DeploymentExecutionServiceTest {
 
   @Test
   void creationUsesOwnerSnapshotsAndQueuesOneImmutablePrepare() {
-    when(inputs.capture(eq("actor_1"), eq("prj_1"), eq(commit), eq(List.of("tgt_1")), any()))
+    var images = mapper.createObjectNode();
+    images.putObject("app").put("commit_sha", commit).put("image_ref", "registry/app:" + commit);
+    when(inputs.capture(eq("actor_1"), eq("prj_1"), eq("src_1"), eq(List.of("tgt_1")), any()))
         .thenReturn(
             new ExecutionInputs.Captured(
                 mapper.createObjectNode(),
@@ -164,11 +167,11 @@ class DeploymentExecutionServiceTest {
                 List.of(
                     new ExecutionInputs.TargetInput(
                         "tgt_1", mapper.createObjectNode().put("name", "production"), "state/one")),
-                null));
+                new ExecutionInputs.BuildInput("src_1", commit, images)));
     var response =
         service.create(
             new DeploymentExecutionService.CreateRequest(
-                "actor_1", "prj_1", commit, List.of("tgt_1"), mapper.createObjectNode(), "key"));
+                "actor_1", "prj_1", "src_1", List.of("tgt_1"), mapper.createObjectNode(), "key"));
     assertEquals(201, response.status());
     verify(access).requireWrite("actor_1", "prj_1");
     verify(commands)
@@ -189,9 +192,10 @@ class DeploymentExecutionServiceTest {
     var target = target(deployment);
     var plan = plan(target, Instant.now().plusSeconds(300));
     stored(deployment, target);
-    var approval = Approval.pending("apv_1", plan, now, plan.expiresAt());
+    var approval = Approval.pending("apv_1", plan, now, plan.expiresAt(), "Fixture project");
     when(store.plan("plan_1")).thenReturn(plan);
     when(store.approval("apv_1")).thenReturn(approval);
+    when(store.approvalForPlan("plan_1")).thenReturn(approval);
     var wrong =
         new DeploymentExecutionService.DecisionRequest(
             "actor_1",
@@ -206,7 +210,8 @@ class DeploymentExecutionServiceTest {
             "actor_1",
             "prj_1",
             "dep_1",
-            Map.of("tgt_1", new DeploymentExecutionService.Decision("apv_1", true, "production")),
+            Map.of(
+                "tgt_1", new DeploymentExecutionService.Decision("apv_1", true, "Fixture project")),
             "key");
     service.decide(correct);
     assertEquals("approved", approval.decision());
@@ -221,7 +226,8 @@ class DeploymentExecutionServiceTest {
     var expiredTarget = target(deployment());
     var expiredPlan = plan(expiredTarget, now.plusSeconds(1));
     var expiredApproval =
-        Approval.pending("apv_expired", expiredPlan, now, expiredPlan.expiresAt());
+        Approval.pending(
+            "apv_expired", expiredPlan, now, expiredPlan.expiresAt(), "Fixture project");
     assertThrows(
         DaisyException.class,
         () ->
@@ -230,7 +236,7 @@ class DeploymentExecutionServiceTest {
   }
 
   @Test
-  void pendingCancellationHasEvidenceButStopKeepsCurrentApplyOwner() {
+  void pendingCancellationHasEvidenceButSubmittedApplyOnlyRecordsIntent() {
     var deployment = deployment();
     var target = target(deployment);
     target.attachExecution("job_prepare");
@@ -255,7 +261,9 @@ class DeploymentExecutionServiceTest {
     service.cancel(control());
     assertFalse(applying.status().terminal());
     assertEquals("job_apply", applying.currentExecutionId());
-    verify(commands).enqueue(eq("dep_1"), eq("stop"), eq("job_apply"), any(), any());
+    verify(commands, never()).enqueue(eq("dep_1"), eq("stop"), eq("job_apply"), any(), any());
+    assertEquals("actor_1", applying.cancelRequestedBy());
+    assertNotNull(applying.cancelRequestedAt());
   }
 
   @Test
@@ -309,7 +317,8 @@ class DeploymentExecutionServiceTest {
     deployment.aggregate(List.of(target), now);
     stored(deployment, target);
     service.rollback(
-        new DeploymentExecutionService.RollbackRequest("actor_1", "prj_1", "dep_1", null, "key"));
+        new DeploymentExecutionService.RollbackRequest(
+            "actor_1", "prj_1", "dep_1", null, List.of("tgt_1"), "Restore stable version", "key"));
     verify(store)
         .save(
             argThat(

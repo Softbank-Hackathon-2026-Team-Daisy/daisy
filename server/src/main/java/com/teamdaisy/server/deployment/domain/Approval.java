@@ -51,7 +51,8 @@ public class Approval {
 
   protected Approval() {}
 
-  public static Approval pending(String id, PlanRevision plan, Instant now, Instant expiry) {
+  public static Approval pending(
+      String id, PlanRevision plan, Instant now, Instant expiry, String projectName) {
     plan.assertUsable(plan.id(), plan.digest(), plan.inputHash(), now);
     DomainChecks.time(expiry);
     if (!expiry.isAfter(now) || expiry.isAfter(plan.expiresAt())) DomainChecks.invalid();
@@ -62,6 +63,7 @@ public class Approval {
     value.state = "pending";
     value.createdAt = now;
     value.expiresAt = expiry;
+    value.confirmationText = DomainChecks.safeText(projectName, 128);
     return value;
   }
 
@@ -85,14 +87,13 @@ public class Approval {
     plan.assertUsable(planId, plan.digest(), target.inputHash(), now);
     if (confirmation != null && confirmation.length() > 128) DomainChecks.invalid();
     if (approved && plan.hasDelete()) {
-      String expected = target.targetSnapshot().path("name").asText();
-      if (!expected.equals(confirmation)) DomainChecks.invalid();
+      DomainChecks.require(confirmationText != null && !confirmationText.isBlank());
+      if (!confirmationText.equals(confirmation)) DomainChecks.invalid();
     }
     state = approved ? "approved" : "rejected";
     decision = state;
     decidedBy = actor;
     decidedAt = now;
-    confirmationText = confirmation;
   }
 
   public void assertApproved(PlanRevision plan, DeploymentTarget target, Instant now) {

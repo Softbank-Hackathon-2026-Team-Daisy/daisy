@@ -25,7 +25,7 @@ class JenkinsWorkerTest {
   void setup() {
     ObjectProvider<DeploymentExecutionService> provider = mock(ObjectProvider.class);
     when(provider.getObject()).thenReturn(deployments);
-    worker = new JenkinsWorker(commands, client, new ObjectMapper(), provider);
+    worker = new JenkinsWorker(commands, client, new ObjectMapper(), provider, true);
   }
 
   private CommandScope command(String operation, String dispatch, Long queue, Long build) {
@@ -94,9 +94,9 @@ class JenkinsWorkerTest {
 
   @Test
   void stopAckDoesNotChangeParentTargetOrFinishRun() {
-    when(commands.lookup("job_parent")).thenReturn(command("apply", "accepted", 11L, 7L));
+    when(commands.lookup("job_parent")).thenReturn(command("prepare", "accepted", 11L, 7L));
     worker.dispatch(command("stop", "dispatching", null, null));
-    verify(client).stopBuild("daisy/apply", 7);
+    verify(client).stopBuild("daisy/prepare", 7);
     verify(commands).dispatched("job_1", 11L, 7L, "unknown");
     verify(commands, never()).observed(anyString(), any(), anyString());
     verifyNoInteractions(deployments);
@@ -112,11 +112,30 @@ class JenkinsWorkerTest {
 
   @Test
   void stopDefiniteRejectionDoesNotFailParentTargets() {
-    when(commands.lookup("job_parent")).thenReturn(command("apply", "accepted", 11L, 7L));
-    doThrow(new JenkinsClient.RequestException(true)).when(client).stopBuild("daisy/apply", 7);
+    when(commands.lookup("job_parent")).thenReturn(command("prepare", "accepted", 11L, 7L));
+    doThrow(new JenkinsClient.RequestException(true)).when(client).stopBuild("daisy/prepare", 7);
     worker.dispatch(command("stop", "dispatching", null, null));
     verify(commands).dispatchFailed("job_1", true);
     verifyNoInteractions(deployments);
+  }
+
+  @Test
+  void persistedApplyStopNeverReachesJenkinsEvenIfPlanStopIsEnabled() {
+    when(commands.lookup("job_parent")).thenReturn(command("apply", "accepted", 11L, 7L));
+    worker.dispatch(command("stop", "dispatching", null, null));
+    verify(commands).dispatchFailed("job_1", true);
+    verifyNoInteractions(client, deployments);
+  }
+
+  @Test
+  @SuppressWarnings("unchecked")
+  void unconfirmedPlanStopDoesNotReachJenkins() {
+    ObjectProvider<DeploymentExecutionService> provider = mock(ObjectProvider.class);
+    var disabled = new JenkinsWorker(commands, client, new ObjectMapper(), provider, false);
+    when(commands.lookup("job_parent")).thenReturn(command("prepare", "accepted", 11L, 7L));
+    disabled.dispatch(command("stop", "dispatching", null, null));
+    verify(commands).dispatchFailed("job_1", true);
+    verifyNoInteractions(client, deployments);
   }
 
   @Test

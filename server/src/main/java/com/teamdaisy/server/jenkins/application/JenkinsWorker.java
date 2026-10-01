@@ -7,6 +7,7 @@ import com.teamdaisy.server.jenkins.application.JenkinsCommandService.CommandSco
 import com.teamdaisy.server.jenkins.infrastructure.JenkinsClient;
 import java.util.Map;
 import org.springframework.beans.factory.ObjectProvider;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.boot.context.event.ApplicationReadyEvent;
 import org.springframework.context.event.EventListener;
@@ -24,16 +25,19 @@ public class JenkinsWorker {
   private final ObjectMapper mapper;
   private final ObjectProvider<DeploymentExecutionService> deployments;
   private volatile boolean ready;
+  private final boolean planStopEnabled;
 
   public JenkinsWorker(
       JenkinsCommandService commands,
       JenkinsClient client,
       ObjectMapper mapper,
-      ObjectProvider<DeploymentExecutionService> deployments) {
+      ObjectProvider<DeploymentExecutionService> deployments,
+      @Value("${daisy.jenkins.plan-stop-confirmed:false}") boolean planStopEnabled) {
     this.commands = commands;
     this.client = client;
     this.mapper = mapper;
     this.deployments = deployments;
+    this.planStopEnabled = planStopEnabled;
   }
 
   @EventListener(ApplicationReadyEvent.class)
@@ -63,6 +67,11 @@ public class JenkinsWorker {
     try {
       if (command.operation().equals("stop")) {
         CommandScope parent = commands.lookup(command.parentExecutionId());
+        if (parent.operation().equals("apply") || !planStopEnabled) {
+          // Also block old persisted STOP commands; rejecting a control never fails its parent.
+          commands.dispatchFailed(command.id(), true);
+          return;
+        }
         if (parent.buildNumber() != null)
           client.stopBuild(parent.jobFullName(), parent.buildNumber());
         else if (parent.queueId() != null) client.cancelQueue(parent.queueId());

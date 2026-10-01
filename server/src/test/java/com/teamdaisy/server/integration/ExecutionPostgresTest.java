@@ -132,6 +132,16 @@ class ExecutionPostgresTest {
         "insert into project_member(project_id,account_id,granted_by) values('prj_1','acct_1','acct_1')");
     jdbc.update(
         "insert into target(id,project_id,name,environment_type,state_identity,config) values('tgt_1','prj_1','Fixture target','onprem','test:shared-state','{}')");
+    var images = mapper.createObjectNode();
+    images
+        .putObject("app")
+        .put("image_ref", "registry.test/app:" + COMMIT)
+        .put("commit_sha", COMMIT)
+        .put("digest", DIGEST);
+    jdbc.update(
+        "insert into source_version(id,project_id,source,external_build_id,commit_sha,status,image_refs) values('src_1','prj_1','fixture','build-1',?,'succeeded',cast(? as jsonb))",
+        COMMIT,
+        images.toString());
   }
 
   @AfterEach
@@ -153,7 +163,7 @@ class ExecutionPostgresTest {
     return new DeploymentExecutionService.CreateRequest(
         "acct_1",
         "prj_1",
-        COMMIT,
+        "src_1",
         List.of("tgt_1"),
         mapper.createObjectNode().put("hash_format_version", 1),
         key);
@@ -191,6 +201,245 @@ class ExecutionPostgresTest {
         assertThrows(DaisyException.class, () -> execution.create(different)).errorCode());
     assertEquals(1, count("deployment"));
     assertEquals(1, count("idempotency"));
+  }
+
+  @Test
+  void rebuildSelectionUsesExactSourceIdAndIncludesItInIdempotency() throws Exception {
+    var images =
+        mapper.readTree(
+            jdbc.queryForObject(
+                "select image_refs::text from source_version where id='src_1'", String.class));
+    ((com.fasterxml.jackson.databind.node.ObjectNode) images.get("app"))
+        .put("digest", "sha256:" + "c".repeat(64));
+    jdbc.update(
+        "insert into source_version(id,project_id,source,external_build_id,commit_sha,status,image_refs) values('src_2','prj_1','fixture','build-2',?,'succeeded',cast(? as jsonb))",
+        COMMIT,
+        images.toString());
+    String first =
+        execution.create(createRequest("first-build")).body().path("deployment_id").asText();
+    var selected =
+        new DeploymentExecutionService.CreateRequest(
+            "acct_1",
+            "prj_1",
+            "src_2",
+            List.of("tgt_1"),
+            mapper.createObjectNode().put("hash_format_version", 1),
+            "second-build");
+    String second = execution.create(selected).body().path("deployment_id").asText();
+    assertEquals("src_1", value("source_version_id", "deployment", first));
+    assertEquals("src_2", value("source_version_id", "deployment", second));
+    assertEquals(
+        value("commit_sha", "deployment", first), value("commit_sha", "deployment", second));
+    assertNotEquals(
+        value("request_hash", "deployment", first), value("request_hash", "deployment", second));
+    assertNotEquals(
+        value("resolved_input_hash", "deployment", first),
+        value("resolved_input_hash", "deployment", second));
+    assertEquals(
+        ErrorCode.STATE_CONFLICT,
+        assertThrows(
+                DaisyException.class,
+                () ->
+                    execution.create(
+                        new DeploymentExecutionService.CreateRequest(
+                            "acct_1",
+                            "prj_1",
+                            "src_2",
+                            List.of("tgt_1"),
+                            selected.input(),
+                            "first-build")))
+            .errorCode());
+    String command =
+        jdbc.queryForObject(
+            "select id from jenkins_execution where deployment_id=?", String.class, second);
+    assertEquals(
+        ErrorCode.STATE_CONFLICT,
+        assertThrows(
+                DaisyException.class,
+                () ->
+                    execution.bindBuildResult(
+                        new DeploymentExecutionService.BuildResult(
+                            "prj_1",
+                            second,
+                            command,
+                            "fixture",
+                            "late-other-build",
+                            "src_1",
+                            COMMIT,
+                            images,
+                            Instant.now())))
+            .errorCode());
+    assertEquals("src_2", value("source_version_id", "deployment", second));
+  }
+
+  @Test
+  void multiTargetApprovalIsAtomicAndPartialApplyCancelOnlyRecordsIntentThenRollbackSelectsTargets()
+      throws Exception {
+    jdbc.update(
+        "insert into target(id,project_id,name,environment_type,state_identity,config) values('tgt_2','prj_1','Second target','aws','test:second-state','{}')");
+    String deployment =
+        execution
+            .create(
+                new DeploymentExecutionService.CreateRequest(
+                    "acct_1",
+                    "prj_1",
+                    "src_1",
+                    List.of("tgt_1", "tgt_2"),
+                    mapper.createObjectNode().put("hash_format_version", 1),
+                    "multi-target"))
+            .body()
+            .path("deployment_id")
+            .asText();
+    String t1 =
+        jdbc.queryForObject(
+            "select id from deployment_target where deployment_id=? and target_id='tgt_1'",
+            String.class,
+            deployment);
+    String t2 =
+        jdbc.queryForObject(
+            "select id from deployment_target where deployment_id=? and target_id='tgt_2'",
+            String.class,
+            deployment);
+    Prepared first = prepareTarget(deployment, t1, "multi-first");
+    Prepared second = prepareTarget(deployment, t2, "multi-second");
+    assertEquals("Fixture", value("confirmation_text", "approval", first.approval()));
+    jdbc.update("update project set name='Renamed project' where id='prj_1'");
+    // Existing plans keep the name shown at plan creation; missing or stale selections change
+    // nothing.
+    assertEquals(
+        ErrorCode.STATE_CONFLICT,
+        assertThrows(DaisyException.class, () -> execution.decide(decision(first, "incomplete")))
+            .errorCode());
+    var decisions = new java.util.HashMap<String, DeploymentExecutionService.Decision>();
+    decisions.put(
+        "tgt_1", new DeploymentExecutionService.Decision(first.approval(), true, "Fixture"));
+    decisions.put("tgt_2", new DeploymentExecutionService.Decision("apv_stale", true, "Fixture"));
+    assertEquals(
+        ErrorCode.STATE_CONFLICT,
+        assertThrows(
+                DaisyException.class,
+                () ->
+                    execution.decide(
+                        new DeploymentExecutionService.DecisionRequest(
+                            "acct_1", "prj_1", deployment, decisions, "stale-selection")))
+            .errorCode());
+    assertEquals(
+        0, jdbc.queryForObject("select count(*) from approval where state='approved'", Long.class));
+    assertEquals(0, count("target_lock"));
+    decisions.put(
+        "tgt_2", new DeploymentExecutionService.Decision(second.approval(), true, "Fixture"));
+    execution.decide(
+        new DeploymentExecutionService.DecisionRequest(
+            "acct_1", "prj_1", deployment, decisions, "approve-all"));
+    assertEquals(2, count("target_lock"));
+    assertEquals(
+        ErrorCode.STATE_CONFLICT,
+        assertThrows(
+                DaisyException.class,
+                () ->
+                    execution.cancel(
+                        new DeploymentExecutionService.ControlRequest(
+                            "acct_1",
+                            "prj_1",
+                            deployment,
+                            List.of("tgt_1"),
+                            "partial-before-submit")))
+            .errorCode());
+    assertNull(value("cancel_requested_by", "deployment_target", t1));
+    var commands = context.getBean(JenkinsCommandService.class);
+    jdbc.update(
+        "update jenkins_execution set dispatch_status='accepted',run_status='succeeded' where operation='prepare'");
+    String apply = value("current_execution_id", "deployment_target", t1);
+    assertEquals(
+        apply,
+        commands.claimPending().id()); // Dispatch-time check also uses the stored project name.
+    commands.dispatched(apply, 21L, 8L, "running");
+    execution.cancel(
+        new DeploymentExecutionService.ControlRequest(
+            "acct_1", "prj_1", deployment, List.of("tgt_1"), "cancel-one"));
+    assertEquals("acct_1", value("cancel_requested_by", "deployment_target", t1));
+    assertNull(value("cancel_requested_by", "deployment_target", t2));
+    assertEquals(
+        0,
+        jdbc.queryForObject(
+            "select count(*) from jenkins_execution where operation='stop'", Long.class));
+    assertEquals(2, count("target_lock"));
+    for (Prepared p : List.of(first, second)) {
+      var result =
+          mapper
+              .createObjectNode()
+              .put("plan_id", p.plan())
+              .put("plan_digest", DIGEST)
+              .put("input_hash", p.inputHash());
+      result.set("image_refs", p.images());
+      execution.acceptState(
+          state(p, apply, "success-" + p.target(), 1, DeploymentTargetStatus.SUCCEEDED, result));
+    }
+    var rollbackRequest =
+        new DeploymentExecutionService.RollbackRequest(
+            "acct_1",
+            "prj_1",
+            deployment,
+            null,
+            List.of("tgt_1"),
+            "Restore stable version",
+            "rollback-selected");
+    String rollback = execution.rollback(rollbackRequest).body().path("deployment_id").asText();
+    assertEquals(
+        List.of("tgt_1"),
+        jdbc.queryForList(
+            "select target_id from deployment_target where deployment_id=?",
+            String.class,
+            rollback));
+    assertEquals(
+        jdbc.queryForObject(
+            "select input_snapshot::text from deployment where id=?", String.class, deployment),
+        jdbc.queryForObject(
+            "select input_snapshot::text from deployment where id=?", String.class, rollback));
+    JsonNode event =
+        mapper.readTree(
+            jdbc.queryForObject(
+                "select payload::text from deployment_log where deployment_id=? and event_type='deployment.created'",
+                String.class,
+                rollback));
+    assertEquals("Restore stable version", event.path("reason").asText());
+    assertEquals(
+        first.target(),
+        jdbc.queryForObject(
+            "select restored_from_deployment_target_id from deployment_target where deployment_id=?",
+            String.class,
+            rollback));
+    assertEquals(
+        ErrorCode.STATE_CONFLICT,
+        assertThrows(
+                DaisyException.class,
+                () ->
+                    execution.rollback(
+                        new DeploymentExecutionService.RollbackRequest(
+                            "acct_1",
+                            "prj_1",
+                            deployment,
+                            null,
+                            List.of("tgt_2"),
+                            "Restore stable version",
+                            "rollback-selected")))
+            .errorCode());
+    assertEquals(
+        ErrorCode.STATE_CONFLICT,
+        assertThrows(
+                DaisyException.class,
+                () ->
+                    execution.rollback(
+                        new DeploymentExecutionService.RollbackRequest(
+                            "acct_1",
+                            "prj_1",
+                            deployment,
+                            null,
+                            List.of("tgt_1"),
+                            "Different reason",
+                            "rollback-selected")))
+            .errorCode());
+    assertEquals("succeeded", value("status", "deployment", deployment));
   }
 
   @Test
@@ -478,7 +727,13 @@ class ExecutionPostgresTest {
         execution
             .rollback(
                 new DeploymentExecutionService.RollbackRequest(
-                    "acct_1", "prj_1", prepared.deployment(), null, "rollback-key"))
+                    "acct_1",
+                    "prj_1",
+                    prepared.deployment(),
+                    null,
+                    List.of("tgt_1"),
+                    "Restore stable version",
+                    "rollback-key"))
             .body()
             .path("deployment_id")
             .asText();
@@ -730,6 +985,10 @@ class ExecutionPostgresTest {
     String target =
         jdbc.queryForObject(
             "select id from deployment_target where deployment_id=?", String.class, deployment);
+    return prepareTarget(deployment, target, key);
+  }
+
+  private Prepared prepareTarget(String deployment, String target, String key) {
     String command = value("current_execution_id", "deployment_target", target);
     String source = "test:" + command;
     var images = mapper.createObjectNode();
@@ -738,17 +997,6 @@ class ExecutionPostgresTest {
         .put("image_ref", "registry.test/app:" + COMMIT)
         .put("commit_sha", COMMIT)
         .put("digest", DIGEST);
-    execution.bindBuildResult(
-        new DeploymentExecutionService.BuildResult(
-            "prj_1",
-            deployment,
-            command,
-            source,
-            "build",
-            "src_" + key,
-            COMMIT,
-            images,
-            Instant.now()));
     var script =
         context
             .getBean(ScriptService.class)
@@ -758,7 +1006,7 @@ class ExecutionPostgresTest {
                 target,
                 new ScriptService.ScriptInput(
                     source,
-                    "code",
+                    "code-" + target,
                     "artifact:code-" + key,
                     DIGEST,
                     null,
@@ -776,9 +1024,10 @@ class ExecutionPostgresTest {
             images,
             null);
     execution.acceptState(
-        state(initial, command, "generating", 1, DeploymentTargetStatus.GENERATING, null));
-    var summary = mapper.createObjectNode().put("has_delete", false);
-    summary.putObject("counts").put("create", 1).put("update", 0).put("delete", 0);
+        state(
+            initial, command, "generating-" + target, 1, DeploymentTargetStatus.GENERATING, null));
+    var summary = mapper.createObjectNode().put("has_delete", true);
+    summary.putObject("counts").put("create", 1).put("update", 0).put("delete", 1);
     summary.putArray("risks");
     var receipt =
         new DeploymentExecutionService.PlanResult(
@@ -787,9 +1036,9 @@ class ExecutionPostgresTest {
             command,
             target,
             source,
-            "plan",
+            "plan-" + target,
             2,
-            "plan-1",
+            "plan-" + target,
             initial.inputHash(),
             script.id(),
             false,
@@ -814,7 +1063,7 @@ class ExecutionPostgresTest {
         "acct_1",
         "prj_1",
         p.deployment(),
-        Map.of("tgt_1", new DeploymentExecutionService.Decision(p.approval(), true, null)),
+        Map.of("tgt_1", new DeploymentExecutionService.Decision(p.approval(), true, "Fixture")),
         key);
   }
 
@@ -911,7 +1160,11 @@ class ExecutionPostgresTest {
       return new ExecutionInputs() {
         @Override
         public Captured capture(
-            String actor, String project, String commit, List<String> targets, JsonNode input) {
+            String actor,
+            String project,
+            String sourceVersion,
+            List<String> targets,
+            JsonNode input) {
           var selected =
               targets.stream()
                   .map(
@@ -931,7 +1184,30 @@ class ExecutionPostgresTest {
                       })
                   .toList();
           return new Captured(
-              mapper.createObjectNode().put("repository_id", "repo-1"), input, selected, null);
+              mapper.createObjectNode().put("repository_id", "repo-1"),
+              input,
+              selected,
+              readBuild(project, sourceVersion));
+        }
+
+        @Override
+        public String projectName(String project) {
+          return jdbc.queryForObject("select name from project where id=?", String.class, project);
+        }
+
+        private BuildInput readBuild(String project, String sourceVersion) {
+          return jdbc.queryForObject(
+              "select id,commit_sha,image_refs::text from source_version where id=? and project_id=? and status='succeeded'",
+              (row, index) -> {
+                try {
+                  return new BuildInput(
+                      row.getString(1), row.getString(2), mapper.readTree(row.getString(3)));
+                } catch (java.io.IOException e) {
+                  throw new IllegalStateException(e);
+                }
+              },
+              sourceVersion,
+              project);
         }
 
         @Override
@@ -939,15 +1215,7 @@ class ExecutionPostgresTest {
 
         @Override
         public BuildInput recordBuild(DeploymentExecutionService.BuildResult result) {
-          jdbc.update(
-              "insert into source_version(id,project_id,source,external_build_id,commit_sha,status,image_refs) values(?,?,?,?,?,'succeeded',cast(? as jsonb))",
-              result.sourceVersionId(),
-              result.projectId(),
-              result.source(),
-              result.sourceEventId(),
-              result.commitSha(),
-              result.imageRefs().toString());
-          return new BuildInput(result.sourceVersionId(), result.commitSha(), result.imageRefs());
+          return readBuild(result.projectId(), result.sourceVersionId());
         }
       };
     }

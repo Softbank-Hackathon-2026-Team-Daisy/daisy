@@ -29,7 +29,7 @@ public class DeploymentExecutionService {
   public record CreateRequest(
       String actorId,
       String projectId,
-      String commitSha,
+      String sourceVersionId,
       List<String> targetIds,
       JsonNode input,
       String idempotencyKey) {}
@@ -55,6 +55,8 @@ public class DeploymentExecutionService {
       String projectId,
       String sourceDeploymentId,
       String triggerDeploymentId,
+      List<String> targetIds,
+      String reason,
       String idempotencyKey) {}
 
   public record BuildResult(
@@ -161,12 +163,13 @@ public class DeploymentExecutionService {
 
   public IdempotencyService.Response create(CreateRequest request) {
     requireWrite(request.actorId(), request.projectId());
+    safeText(request.sourceVersionId(), 64, false);
     List<String> selected = ids(request.targetIds());
     JsonNode body =
         mapper.valueToTree(
             Map.of(
-                "commit_sha",
-                request.commitSha(),
+                "source_version_id",
+                request.sourceVersionId(),
                 "target_ids",
                 selected,
                 "input",
@@ -184,10 +187,14 @@ public class DeploymentExecutionService {
                   .capture(
                       request.actorId(),
                       request.projectId(),
-                      request.commitSha(),
+                      request.sourceVersionId(),
                       selected,
                       request.input());
           require(captured != null && captured.targets() != null, ErrorCode.STATE_CONFLICT);
+          require(
+              captured.source() != null
+                  && request.sourceVersionId().equals(captured.source().sourceVersionId()),
+              ErrorCode.STATE_CONFLICT);
           require(
               captured.targets().stream()
                   .map(ExecutionInputs.TargetInput::id)
@@ -201,7 +208,7 @@ public class DeploymentExecutionService {
                   id("dep"),
                   request.projectId(),
                   request.actorId(),
-                  request.commitSha(),
+                  captured.source().commitSha(),
                   captured.repository(),
                   captured.commonInput(),
                   json.hash(body),
@@ -222,7 +229,7 @@ public class DeploymentExecutionService {
             targets.add(target);
             store.save(target);
           }
-          if (captured.source() != null) bindSource(deployment, targets, captured.source());
+          bindSource(deployment, targets, captured.source());
           store.flush();
           var command = prepare(deployment, targets, false);
           internal(
@@ -251,13 +258,37 @@ public class DeploymentExecutionService {
         () -> {
           Deployment deployment = store.lock(request.projectId(), request.deploymentId());
           List<DeploymentTarget> all = store.targets(deployment.id());
+          require(
+              request.decisions().values().stream().allMatch(Objects::nonNull)
+                  && request.decisions().values().stream()
+                          .map(Decision::approved)
+                          .distinct()
+                          .count()
+                      == 1,
+              ErrorCode.VALIDATION_FAILED);
+          require(
+              new HashSet<>(
+                      all.stream()
+                          .filter(t -> t.status() == DeploymentTargetStatus.AWAITING_APPROVAL)
+                          .map(DeploymentTarget::targetId)
+                          .toList())
+                  .equals(request.decisions().keySet()),
+              ErrorCode.STATE_CONFLICT);
           List<DeploymentTarget> selected = select(all, request.decisions().keySet());
+          require(
+              selected.stream()
+                      .map(t -> store.approvalForPlan(t.currentPlanId()).confirmationText())
+                      .distinct()
+                      .count()
+                  == 1,
+              ErrorCode.STATE_CONFLICT);
           Instant now = Instant.now();
           List<DeploymentTarget> approved = new ArrayList<>();
           for (var target : selected) {
             Decision decision = request.decisions().get(target.targetId());
             require(decision != null, ErrorCode.VALIDATION_FAILED);
-            var approval = store.approval(decision.approvalId());
+            var approval = store.approvalForPlan(target.currentPlanId());
+            require(approval.id().equals(decision.approvalId()), ErrorCode.STATE_CONFLICT);
             require(target.currentPlanId() != null, ErrorCode.STATE_CONFLICT);
             var plan = store.plan(target.currentPlanId());
             scripts.requireScript(plan.scriptId(), deployment.projectId(), target.targetId(), now);
@@ -283,7 +314,7 @@ public class DeploymentExecutionService {
                     .toList();
             ObjectNode command =
                 commandPayload(deployment, approved)
-                    .put("approval_policy", "atomic_selected_targets");
+                    .put("approval_policy", "atomic_pending_targets");
             var plans = command.putArray("plans");
             for (var target : approved) {
               var plan = store.plan(target.currentPlanId());
@@ -353,6 +384,15 @@ public class DeploymentExecutionService {
                         t ->
                             group.getValue().stream()
                                 .anyMatch(s -> s.id().equals(t.deploymentTargetId())));
+            boolean notSubmitted = wholeCommand && commands.cancelPending(scope.id());
+            // Once APPLY may have reached Jenkins, record intent only; never stop the run.
+            if (scope.operation().equals("apply") && !notSubmitted) {
+              // A pending shared command cannot cancel only some targets without resubmission.
+              require(
+                  !scope.dispatchStatus().equals("pending") || wholeCommand,
+                  ErrorCode.STATE_CONFLICT);
+              continue;
+            }
             require(
                 commands.executionTargets(scope.id()).stream()
                     .allMatch(
@@ -361,7 +401,6 @@ public class DeploymentExecutionService {
                                     .anyMatch(s -> s.id().equals(t.deploymentTargetId()))
                                 || find(all, t.deploymentTargetId()).status().terminal()),
                 ErrorCode.STATE_CONFLICT);
-            boolean notSubmitted = wholeCommand && commands.cancelPending(scope.id());
             if (notSubmitted) {
               for (var target : group.getValue()) {
                 target.confirmCancellation(now);
@@ -455,8 +494,14 @@ public class DeploymentExecutionService {
 
   public IdempotencyService.Response rollback(RollbackRequest request) {
     requireWrite(request.actorId(), request.projectId());
+    List<String> selectedIds = ids(request.targetIds());
+    safeText(request.reason(), 1000, false);
     ObjectNode body =
-        mapper.createObjectNode().put("source_deployment_id", request.sourceDeploymentId());
+        mapper
+            .createObjectNode()
+            .put("source_deployment_id", request.sourceDeploymentId())
+            .put("reason", request.reason());
+    body.set("target_ids", mapper.valueToTree(selectedIds));
     if (request.triggerDeploymentId() != null)
       body.put("trigger_deployment_id", request.triggerDeploymentId());
     return idempotency.execute(
@@ -471,12 +516,13 @@ public class DeploymentExecutionService {
           Deployment original = store.lock(request.projectId(), request.sourceDeploymentId());
           if (request.triggerDeploymentId() != null)
             store.lock(request.projectId(), request.triggerDeploymentId());
-          List<DeploymentTarget> originals = store.targets(original.id());
+          List<DeploymentTarget> allOriginals = store.targets(original.id());
           require(
-              !originals.isEmpty()
-                  && originals.stream()
+              !allOriginals.isEmpty()
+                  && allOriginals.stream()
                       .allMatch(t -> t.status() == DeploymentTargetStatus.SUCCEEDED),
               ErrorCode.STATE_CONFLICT);
+          List<DeploymentTarget> originals = select(allOriginals, new HashSet<>(selectedIds));
           inputPort()
               .verifyFrozen(request.actorId(), request.projectId(), frozen(original, originals));
           Instant now = Instant.now();
@@ -504,7 +550,7 @@ public class DeploymentExecutionService {
               null,
               command.id(),
               "deployment.created",
-              payload(deployment).put("reason", "rollback"),
+              payload(deployment).put("reason", request.reason()),
               null,
               now);
           return response(deployment, 201);
@@ -519,6 +565,9 @@ public class DeploymentExecutionService {
         scope.projectId().equals(result.projectId()) && scope.operation().equals("prepare"),
         ErrorCode.STATE_CONFLICT);
     require(deployment.commitSha().equals(result.commitSha()), ErrorCode.STATE_CONFLICT);
+    require(
+        Objects.equals(deployment.sourceVersionId(), result.sourceVersionId()),
+        ErrorCode.STATE_CONFLICT);
     var targets = store.targets(deployment.id());
     ObjectNode payload =
         mapper
@@ -639,7 +688,13 @@ public class DeploymentExecutionService {
             now,
             result.expiresAt(),
             result.artifactExpiresAt());
-    var approval = Approval.pending(id("apv"), plan, now, plan.expiresAt());
+    var approval =
+        Approval.pending(
+            id("apv"),
+            plan,
+            now,
+            plan.expiresAt(),
+            inputPort().projectName(deployment.projectId()));
     store.save(plan);
     store.save(approval);
     store.flush();

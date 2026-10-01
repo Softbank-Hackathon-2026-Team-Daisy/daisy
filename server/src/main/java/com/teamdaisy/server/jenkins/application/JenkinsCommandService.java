@@ -113,7 +113,9 @@ public class JenkinsCommandService {
           (target.planId() == null) == (target.planDigest() == null), ErrorCode.VALIDATION_FAILED);
       if (operation.equals("stop")) {
         requireScope(parentExecutionId, deploymentId, target.deploymentTargetId());
-        require(!lookup(parentExecutionId).operation().equals("stop"), ErrorCode.STATE_CONFLICT);
+        require(
+            Set.of("prepare", "replan").contains(lookup(parentExecutionId).operation()),
+            ErrorCode.STATE_CONFLICT);
       } else {
         require(
             Objects.equals(target.inputHash(), row.get("input_hash")), ErrorCode.STATE_CONFLICT);
@@ -144,7 +146,7 @@ public class JenkinsCommandService {
               and a.expires_at>now() and a.expires_at<=p.expires_at
               and a.decided_by is not null and a.decided_at is not null
               and (coalesce((p.summary->>'has_delete')::boolean,false)=false
-                or a.confirmation_text=t.target_snapshot->>'name')
+                or (a.confirmation_text is not null and btrim(a.confirmation_text)<>''))
             """,
                     p)
                 == 1,
@@ -154,7 +156,13 @@ public class JenkinsCommandService {
     String id = "job_" + UUID.randomUUID();
     String requestId = UUID.randomUUID().toString();
     String instance = instance();
-    String job = env.getProperty("daisy.jenkins.operation-jobs." + operation, "daisy/" + operation);
+    String defaultJob =
+        switch (operation) {
+          case "prepare", "replan" -> "daisy-cd-plan";
+          case "apply" -> "daisy-cd-apply";
+          default -> "internal-stop"; // STOP uses its parent's run, never submits this Job.
+        };
+    String job = env.getProperty("daisy.jenkins.operation-jobs." + operation, defaultJob);
     require(
         !instance.isBlank() && instance.length() <= 128 && !job.isBlank() && job.length() <= 512,
         ErrorCode.VALIDATION_FAILED);
@@ -461,7 +469,7 @@ public class JenkinsCommandService {
           and a.state='approved' and a.decision='approved' and a.expires_at>now()
           and a.expires_at<=p.expires_at and a.decided_by is not null and a.decided_at is not null
           and (coalesce((p.summary->>'has_delete')::boolean,false)=false
-            or a.confirmation_text=t.target_snapshot->>'name')
+            or (a.confirmation_text is not null and btrim(a.confirmation_text)<>''))
         """,
                 new MapSqlParameterSource("id", id))
             == targets;

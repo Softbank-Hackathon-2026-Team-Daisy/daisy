@@ -123,10 +123,14 @@ class DeploymentBehaviorTest {
     var target = target(deployment("dep_1"), "dt_1");
     var plan = plan(target, true);
     awaitPlan(target, plan);
-    var approval = Approval.pending("apv_1", plan, now, now.plusSeconds(500));
+    var approval = Approval.pending("apv_1", plan, now, now.plusSeconds(500), "Fixture project");
     assertThrows(
         DaisyException.class, () -> approval.decide(plan, target, "actor_1", true, "wrong", now));
-    approval.decide(plan, target, "actor_1", true, "production", now);
+    assertThrows(
+        DaisyException.class,
+        () -> approval.decide(plan, target, "actor_1", true, "production", now));
+    approval.decide(plan, target, "actor_1", true, "Fixture project", now);
+    assertEquals("Fixture project", approval.confirmationText());
     approval.assertApproved(plan, target, now);
     assertThrows(
         DaisyException.class,

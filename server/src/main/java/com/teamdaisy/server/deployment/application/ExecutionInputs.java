@@ -30,7 +30,14 @@ public interface ExecutionInputs {
       List<FrozenTarget> targets) {}
 
   Captured capture(
-      String actorId, String projectId, String commitSha, List<String> targetIds, JsonNode input);
+      String actorId,
+      String projectId,
+      String sourceVersionId,
+      List<String> targetIds,
+      JsonNode input);
+
+  /** Read the current project name inside the already locked project transaction. */
+  String projectName(String projectId);
 
   void verifyFrozen(String actorId, String projectId, FrozenInput input);
 
