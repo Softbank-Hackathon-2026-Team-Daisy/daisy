@@ -29,7 +29,7 @@ struct AIUsageView: View {
             if app.selectedProjectID == nil {
                 NoProjectView()
             } else if deployments.isEmpty && detail.value == nil {
-                ContentUnavailableView("아직 배포가 없어요", systemImage: "cellularbars",
+                ContentUnavailableView("아직 배포가 없어요", systemImage: "chart.bar",
                                        description: Text("배포하면 AI를 몇 번, 얼마나 썼는지 여기서 봐요"))
             } else {
                 LoadStateView(state: detail, retry: { await loadDetail() }) { detail in

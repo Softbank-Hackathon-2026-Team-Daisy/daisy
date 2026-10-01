@@ -32,7 +32,7 @@ enum AppTab: String, CaseIterable, Identifiable, Hashable {
         case .environments: "server.rack"
         case .history: "clock"
         case .scripts: "apple.terminal"
-        case .aiUsage: "cellularbars"
+        case .aiUsage: "chart.bar"
         case .settings: "gearshape"
         }
     }
