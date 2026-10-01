@@ -432,9 +432,9 @@ V10 이 핵심이었습니다. 나머지가 다 맞아도 여기서 새면 다�
 - 빌드가 수천 건일 때의 커서 성능은 보지 않았습니다. 설계 5.5 의 `INDEX(project_id, received_at DESC, id)` 를 쓰는 질의라는 것만 확인했습니다.
 - 실행 도메인에서 수용한 `image_refs`의 digest가 조회 projection까지 보존되는 회귀 테스트를 추가했습니다. 실제 Jenkins 수신부터 조회까지의 연결은 아직 검증하지 않았습니다.
 
-## 실행 서비스 연결 — 어댑터와 공개 배포 API (10/2, 하은현) · 스펙, 구현 전
+## 실행 서비스 연결 — 어댑터와 공개 배포 API (10/2, 하은현)
 
-> **리뷰를 먼저 받습니다.** 아래 「확인이 필요한 것」에서 갈리면 코드는 쓰지 않습니다.
+> **스펙 리뷰를 먼저 받습니다.** 7시 연동 일정 때문에 구현도 같이 올렸고, 아래 「확인이 필요한 것」에서 갈리면 코드를 그에 맞춰 고칩니다. 구현 범위는 「구현 상태」 절에 있습니다.
 > 기준: #40 (`server/feat-backend-integration`, `82edcd0`) 의 `ExecutionAccess`·`ExecutionInputs`·`DeploymentExecutionService`·`EventSseService`·`DeploymentQueryService`, `docs/execution-service-contract.md`.
 > 반영한 코멘트: #36 승환(22:39)·도영 리뷰, #13 승환(22:39), #40 승준(22:54), 승환 메시지(23:58 — 조회 계약 push, "그렇게 개발해주셔도 좋아요").
 
