@@ -53,6 +53,11 @@ extension Endpoint {
               body: jsonBody(RollbackBody(targetIds: targetIDs, reason: reason)), idempotencyKey: UUID().uuidString)
     }
 
+    /// W-12 호출별 AI 사용량 (10/1 서버 결정: 합계는 A-05 plan, 호출별 상세는 이 목록의 `deployment_id` 필터. 응답 모양은 OpenAPI 대기)
+    static func aiUsage(projectID: String, deploymentID: String) -> Endpoint<Page<AIUsage.Call>> {
+        .init(path: "projects/\(projectID)/ai-usage", query: [("deployment_id", deploymentID)])
+    }
+
     /// A-10 (가칭) · W-10 "연결 테스트"
     static func testConnection(targetID: String) -> Endpoint<ConnectionTestResult> {
         .init(method: "POST", path: "targets/\(targetID)/test")

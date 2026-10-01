@@ -61,7 +61,8 @@ struct OverviewView: View {
             }
         } content: {
             if workspace.statuses.isEmpty {
-                Text("아직 등록된 환경이 없어요").foregroundStyle(.secondary)
+                ContentUnavailableView("아직 배포한 환경이 없어요", systemImage: "server.rack",
+                                       description: Text("새 배포로 첫 환경을 올려 보세요"))
             } else {
                 VStack(spacing: 0) {
                     ForEach(workspace.statuses) { status in
@@ -69,16 +70,14 @@ struct OverviewView: View {
                         if status.id != workspace.statuses.last?.id { Divider() }
                     }
                 }
-                let parity = workspace.statuses.parity
-                if parity.deployed > 0 {
-                    HStack(spacing: 8) {
-                        StatusBadge(text: "\(parity.matching)/\(workspace.statuses.count) 일치",
-                                    color: parity.matching == workspace.statuses.count ? .green : .orange)
-                        Text(parity.matching == workspace.statuses.count
-                             ? "\(koreanCount(workspace.statuses.count)) 환경 모두 같은 이미지 digest예요"
-                             : "환경마다 이미지가 달라요")
-                            .font(.subheadline).foregroundStyle(.secondary)
-                    }
+                let matching = workspace.statuses.parityMatching
+                HStack(spacing: 8) {
+                    StatusBadge(text: "\(matching)/\(workspace.statuses.count) 일치",
+                                color: matching == workspace.statuses.count ? .green : .orange)
+                    Text(matching == workspace.statuses.count
+                         ? "\(koreanCount(workspace.statuses.count)) 환경 모두 같은 이미지 digest예요"
+                         : "이미지 digest가 다른 환경이 있어요")
+                        .font(.subheadline).foregroundStyle(.secondary)
                 }
             }
         }
@@ -101,7 +100,8 @@ struct OverviewView: View {
                         .buttonStyle(.glassCapsule(fullWidth: true))
                 }
             } else {
-                Text("지금 할 일이 없어요").foregroundStyle(.secondary)
+                ContentUnavailableView("지금 할 일이 없어요", systemImage: "checkmark",
+                                       description: Text("승인을 기다리는 배포가 없어요"))
             }
         }
     }
@@ -109,7 +109,7 @@ struct OverviewView: View {
     /// "온프레미스는 검증된 스크립트 재사용이라 AI 호출 0회예요."
     private func reuseNote(_ deployment: Deployment) -> String? {
         let reused = (deployment.targets ?? []).filter { $0.reusedScript == true }
-        guard !reused.isEmpty else { return nil }
+        guard !reused.isEmpty else { return "모든 환경의 validate · plan · 위험 설정 검사를 통과했어요." }
         let names = reused.map { target in
             workspace.statuses.first { $0.targetId == target.targetId }?.type.displayName ?? target.targetId
         }
@@ -129,13 +129,22 @@ struct OverviewView: View {
                 VStack(spacing: 0) {
                     ForEach(store.recent) { deployment in
                         NavigationLink(value: Route.run(deployment.id)) {
-                            RunListItem(deployment: deployment).padding(.vertical, 8)
+                            RunListItem(deployment: deployment, badge: recentBadge(deployment)).padding(.vertical, 8)
                         }
                         .buttonStyle(.plain)
                         if deployment.id != store.recent.last?.id { Divider() }
                     }
                 }
             }
+        }
+    }
+
+    /// 웹 최근 실행: 성공은 "배포 완료", 실패는 "중단", 나머지는 상태 그대로
+    private func recentBadge(_ deployment: Deployment) -> StatusBadge {
+        switch deployment.state {
+        case .succeeded where !deployment.isRollback: StatusBadge(text: "배포 완료", color: .green)
+        case .failed: StatusBadge(text: "중단", color: .red)
+        default: deployment.badge
         }
     }
 
@@ -174,7 +183,7 @@ struct OverviewView: View {
         ContentUnavailableView {
             Label("아직 배포한 프로젝트가 없어요", systemImage: "shippingbox")
         } description: {
-            Text("GitHub 레포를 연결하거나 소스를 올려서 시작해 보세요")
+            Text("GitHub 레포를 연결해서 시작해 보세요")
         } actions: {
             Button("새 프로젝트") { router.open(.connectProject) }
                 .buttonStyle(.glassCapsule(prominent: true))

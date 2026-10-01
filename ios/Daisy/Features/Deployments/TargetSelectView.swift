@@ -30,20 +30,19 @@ struct TargetSelectView: View {
                         ForEach(targets) { card($0) }
                     }
                     summary(targets)
-                    if let errorMessage { InlineAlert(.danger, "시작하지 못했어요", errorMessage) }
+                    if let errorMessage { InlineAlert(.danger, "배포를 시작하지 못했어요", errorMessage) }
                     if app.isViewer {
                         InlineAlert(.info, "읽기 전용 계정이라 배포할 수 없어요.")
                     }
                     FlowButtons {
-                        Button("이전") { router.popToRoot() }
+                        // 웹: 이전 → W-03 이미지 빌드
+                        Button("이전") { router.replaceTop(with: commit.map { .build(commit: $0) } ?? .newDeployment) }
                             .buttonStyle(.glassCapsule)
-                        Button {
-                            Task { await start() }
-                        } label: {
-                            if starting { ProgressView().controlSize(.small) } else { Text("인프라 코드 생성 · 검증 시작") }
+                        Button(starting ? "시작하는 중…" : "인프라 코드 생성 · 검증 시작") {
+                            Task { await start(chosenTargets(targets)) }
                         }
                         .buttonStyle(.glassProminent)
-                        .disabled(selected.isEmpty || commit == nil || starting || app.isViewer)
+                        .disabled(chosenTargets(targets).isEmpty || commit == nil || starting || app.isViewer)
                     }
                 }
             }
@@ -54,7 +53,7 @@ struct TargetSelectView: View {
     // MARK: 카드
 
     private func card(_ target: DeployTarget) -> some View {
-        let isOn = selected.contains(target.id)
+        let isOn = selected.contains(target.id) && !target.isUnreachable
         return Button {
             if isOn { selected.remove(target.id) } else { selected.insert(target.id) }
         } label: {
@@ -74,35 +73,39 @@ struct TargetSelectView: View {
             .overlay(RoundedRectangle(cornerRadius: 12).strokeBorder(isOn ? AnyShapeStyle(.tint) : AnyShapeStyle(.clear), lineWidth: 2))
         }
         .buttonStyle(.plain)
+        .disabled(target.isUnreachable)
+        .opacity(target.isUnreachable ? 0.5 : 1)
         .accessibilityAddTraits(isOn ? .isSelected : [])
     }
 
-    /// 웹: "home-lab Proxmox VM · 사설망 · 검증된 스크립트 있음 → 태그만 교체" / "ap-northeast-2 · 처음 배포 → AI가 Terraform 생성"
-    /// 재사용 판단과 이유는 서버가 줘요 (WR-04 `reuse`).
+    /// 웹: 서버가 준 `reuse.reason`을 그대로 ("home-lab Proxmox VM · 사설망 · 검증된 스크립트 있음 → 태그만 교체").
+    /// 연결이 안 되는 환경은 고를 수 없어요.
     private func cardDescription(_ target: DeployTarget) -> String {
-        let reuse = target.reuse?.available == true
-            ? "\(target.reuse?.reason ?? "검증된 스크립트 있음") → 태그만 교체"
-            : "처음 배포 → AI가 Terraform 생성"
-        var parts = [target.location, reuse].compactMap { $0 }
-        if target.connection?.state == .failed { parts.append("연결 끊김") }
-        return parts.joined(separator: " · ")
+        if target.isUnreachable { return "연결할 수 없어요 · 환경 화면에서 확인해 주세요" }
+        return target.reuse?.reason
+            ?? (target.reuse?.available == true ? "검증된 스크립트 있음 → 태그만 교체" : "처음 배포 → AI가 Terraform 생성")
     }
 
     // MARK: 선택 요약
 
     private func summary(_ targets: [DeployTarget]) -> some View {
-        let chosen = targets.filter { selected.contains($0.id) }
+        let chosen = chosenTargets(targets)
         let reused = chosen.filter { $0.reuse?.available == true }
         let fresh = chosen.filter { $0.reuse?.available != true }
         func names(_ list: [DeployTarget]) -> String {
-            list.isEmpty ? "0개" : "\(list.count)개 · " + list.map(\.type.displayName).joined(separator: ", ")
+            list.isEmpty ? "없음" : "\(list.count)개 · " + list.map(\.type.displayName).joined(separator: ", ")
         }
         return SectionCard("선택 요약") {
             InfoRow("선택한 환경", "\(chosen.count)개")
             InfoRow("스크립트 재사용", names(reused))
             InfoRow("AI가 새로 생성", names(fresh))
-            InfoRow("배포할 이미지", image, monospaced: true)
+            InfoRow("배포할 이미지", image ?? "—", monospaced: true)
         }
+    }
+
+    /// 고른 환경 중 연결되는 것만 (웹과 같아요)
+    private func chosenTargets(_ targets: [DeployTarget]) -> [DeployTarget] {
+        targets.filter { selected.contains($0.id) && !$0.isUnreachable }
     }
 
     // MARK: 동작
@@ -124,12 +127,12 @@ struct TargetSelectView: View {
         }
     }
 
-    private func start() async {
+    private func start(_ chosen: [DeployTarget]) async {
         guard let client = app.client, let projectID = app.selectedProjectID, let commit else { return }
         starting = true
         defer { starting = false }
         do {
-            let started = try await client.send(.startDeployment(projectID: projectID, commit: commit, targetIDs: Array(selected)))
+            let started = try await client.send(.startDeployment(projectID: projectID, commit: commit, targetIDs: chosen.map(\.id)))
             errorMessage = nil
             router.replaceTop(with: .started(started.id))
             await workspace.refresh(using: app)

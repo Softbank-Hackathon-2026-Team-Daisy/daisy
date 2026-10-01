@@ -1,6 +1,7 @@
 # SPEC.md — Daisy Apple 앱 (iOS · macOS) 명세와 백엔드 요구사항
 
-> 작성: 박승준 · 상태: **초안 (9/29)** · 참조: 루트 `AGENTS.md`, 노션 ADR-007, Backend API Endpoint 초안 v0.1(김도영), User Flow Chart
+> 작성: 박승준 · 상태: **10/1 최신화** (결정 보드 `ios/BOARD.md` · 웹 PR #18 화면 기준) · 참조: 루트 `AGENTS.md`, 노션 ADR-007, 프론트 ↔ 백엔드 계약 초안 v0.3, User Flow Chart
+> **서버 · 인프라가 아직 정하지 않아서 앱이 가정으로 두고 있는 것은 [§6-9](#6-9-미정-서버--인프라-결정-대기-101)에 모아 뒀어요.**
 > **§6의 API 경로·이벤트 이름은 9/29에 서버(하은현)가 확정했어요** ([#1 리뷰](https://github.com/Softbank-Hackathon-2026-Team-Daisy/daisy/pull/1)). 아직 정해지지 않은 것만 `(가칭)`이나 ❓로 남겨 뒀어요: §6-7 모델 필드 일부, 배포 상태·단계 값, §7 CI 요구사항.
 >
 > **백엔드 파트(하은현, 김승환)는 [§6 백엔드 요구사항](#6-백엔드-요구사항)부터 읽으면 돼요.** 확정 상태와 제공 일정은 §6-0에 정리했어요.
@@ -26,12 +27,12 @@
 웹과 앱은 코드를 공유하지 않고 **같은 백엔드 API만** 써요. 화면을 두 번 만들지 않도록 역할을 나눠요.
 
 > ⚠️ **9/30 변경 (박승준):** 앱도 웹 와이어프레임 v1.0의 화면 · 문구 · 버튼을 모두 가져가요 (W-00 ~ W-13, L-01 ~ L-03). 그래서 앱에서도 저장소 연결, 환경 선택, 배포 시작, 롤백, 연결 테스트, 프로젝트 연결 해제를 할 수 있어요.
-> 이건 ADR-007("앱은 승인 · 진행 상태 · 알림만"), 도영 님 메모("W-02~W-04, W-10~W-13, L-xx는 웹 전용"), **`web/SPEC.md` §1-1(PR #9, "웹만 하는 것: 저장소 연결 · 환경 선택 · 배포 시작 · W-10~W-13")**과 **어긋나요.** 팀 결정이라 **9/30 21시 회의에서 확정**해야 해요 (§8). 확정 전까지 앱 쪽은 이 방향으로 만들어 두고, 결정이 반대로 나면 해당 버튼만 빼요.
+> 이건 ADR-007("앱은 승인 · 진행 상태 · 알림만"), 도영 님 메모("W-02~W-04, W-10~W-13, L-xx는 웹 전용"), **`web/SPEC.md` §1-1(PR #9, "웹만 하는 것: 저장소 연결 · 환경 선택 · 배포 시작 · W-10~W-13")**과 **어긋나요.** 팀 결정이라 회의에서 확정해야 해요 (§8). 9/30 21시 회의에서는 다루지 않아서 **아직 `[미정]`**이에요. 확정 전까지 앱 쪽은 이 방향으로 만들어 두고, 결정이 반대로 나면 해당 버튼만 빼요.
 > 서버에 새로 부탁하는 건 거의 없어요: 웹이 요청해 서버가 받아 준 `WR-xx`를 그대로 써요 (§6-8).
 
 | | 웹 (React) | 앱 (Swift) |
 |---|---|---|
-| 저장소 연결, 환경 선택, 배포 시작 (W-02 ~ W-04) | O | **O** (9/30 변경, 회의 확정 필요). 업로드(W-02b)는 둘 다 설계만 |
+| 저장소 연결, 환경 선택, 배포 시작 (W-02 ~ W-04) | O | **O** (9/30 변경, 회의 확정 필요). 업로드(W-02b)는 범위 제외 (9/30, 둘 다 화면 없음) |
 | 생성 · 검증 진행, 중단 처리 (W-05, W-05b) | O | **O** |
 | plan 확인 · 승인 · 거절 (W-06) | O | **O** |
 | 배포 진행 · 결과 · 동일성 검증 (W-07, W-08) | O | **O** |
@@ -67,7 +68,8 @@
 **디자인 (9/30, 박승준):**
 - 재질 · 사이드바 · 움직임은 AfterPlan Mac 앱을 그대로 따라요: 사이드바는 HUD 재질(창 뒤 블렌딩), 본문은 창 뒤가 비치는 재질 한 장, 둘 사이에 선 없음. 선택 틴트는 스프링(0.32, 0.86)으로 미끄러지고 굵기는 즉시 바뀌어요. 사이드바 폭은 끌어서 190–420
 - 버튼은 Craft 레퍼런스를 따라요: 화면마다 큰 제목 머리줄, 오른쪽에 동그란 글래스 버튼 · 캡슐 버튼 · 캡슐 세그먼트 (macOS 26 · iOS 26 이상은 Liquid Glass)
-- **기능 UX는 웹과 맞춰요.** 같은 기능(플랜 승인, 배포 진행, 멀티 환경 상태, 이력)은 웹과 같은 흐름 · 용어 · 표기(리소스 `+/~/-` 등)를 써요. 웹 코드가 아직 없어서 지금 기준은 노션 User Flow Chart와 도영 님 Figma예요
+- **기능 UX는 웹과 맞춰요.** 같은 기능은 웹과 같은 흐름 · 용어 · 표기(리소스 `+/~/-` 등)를 써요. **기준은 웹 화면 코드(`web/feat-screens`, PR #18)**예요 (10/1 맞춤: 상태 라벨 `api/status.ts`, 단계 추정 `pages/flow.ts`, 시간 표기 `utils/format.ts`, 화면별 문구 · 버튼 · 확인 창). 디자인(색 · 모양 · 배치)은 앱 방식 그대로예요
+- **보드 결정이 웹 코드보다 새로우면 보드를 따라요** (10/1): 빌드는 Jenkins(웹 목업은 아직 GitHub Actions), AI 호출 결과는 "호출 성공 · 호출 실패"(웹은 아직 "통과 · 실패"), 호출 기록은 `ai-usage?deployment_id=`(웹은 아직 A-04 `ai_usage.items`)
 
 **메뉴 (웹 사이드바와 같은 구성):** 프로젝트 전환 · 새 배포 · PROJECT(개요 · 배포 · 환경 · 이력 · 스크립트) · ENVIRONMENTS(환경별 상태) · AI 사용량 · 설정 · 연결 상태 · 사용자. 좁은 화면은 같은 메뉴를 탭으로 (다섯 개가 넘으면 시스템 "더 보기").
 **배치 규칙:** 웹의 좌표는 참고만 하고, 앱 패턴(큰 제목 머리줄 · 카드 · 폭 따라 바뀌는 그리드 · 넓으면 표 좁으면 목록)으로 다시 놓아요. 버튼은 모두 글래스 양식(원 · 캡슐 · 캡슐 세그먼트)이고, 화면의 핵심 동작 하나만 강조 캡슐이에요.
@@ -76,19 +78,19 @@
 |---|---|---|---|---|
 | W-00 · W-00b 로그인 | `LoginView` | 앱 시작 (로그인 전) | R-02, R-09 (가칭) | M |
 | W-01 개요 | `OverviewView` | 메뉴 개요 | A-01, A-02(+`image_digest` WR-09), A-03 | M |
-| (웹에 없음) 배포 목록 | `DeploymentsView` | 메뉴 배포 | A-03 | M |
-| W-02 애플리케이션 연결 → L-01 (W-02b 업로드는 설계만) | `ConnectAppView` | 프로젝트 전환 › 새 프로젝트 연결 | WR-02, WR-03, A-06 | S |
-| W-03 이미지 빌드 | `BuildStage` | L-01 뒤 (배포가 생기기 전, 빌드가 끝나면 W-04로) | A-06 | S |
-| W-04 배포할 환경 선택 → L-02 | `TargetSelectView` | 사이드바 새 배포, W-03 다음 | WR-04, WR-05 | M |
+| 메뉴 "배포" (웹 `CurrentDeployment`) | `DeploymentsView` → `RunView` | 메뉴 배포: **가장 최근 배포의 지금 단계**(W-05 ~ W-08)를 바로 열어요. 배포가 없으면 "아직 배포가 없어요". 지난 배포는 이력(W-09) | A-03 | M |
+| W-02 애플리케이션 연결 → L-01 (입력은 GitHub 저장소 하나, W-02b 업로드는 범위 제외) | `ConnectAppView` | 프로젝트 전환 › 새 프로젝트 연결, 연결 해제 뒤 | WR-02, WR-03, A-06 | S |
+| W-03 이미지 빌드 (Jenkins `daisy-ci`) | `BuildStage` | **사이드바 새 배포**(최근 빌드), L-01 뒤. 빌드가 끝나면 W-04로. Jenkins 화면은 외부 비공개라 로그 링크 없음 | A-06 | S |
+| W-04 배포할 환경 선택 → L-02 | `TargetSelectView` | W-03 다음 (연결 안 되는 환경은 고를 수 없어요) | WR-04, WR-05 | M |
 | W-05 인프라 코드 생성 · 검증 | `RunView` › `GenerateStage` | 배포 한 건 (apply 전) | A-04, WR-07 | M |
 | W-05b ○○만 멈췄어요 | `RunView` › `StoppedStage` | 배포 한 건 (한 환경이 apply 전에 3회 실패, 나머지는 계속) | A-04, A-07, WR-05("○○만 다시 시도") | S |
 | W-06 변경 사항 확인 후 승인 → L-03 | `PlanApprovalView` | 배포 한 건 (승인 대기), 개요 › 지금 할 일 | A-05 + WR-06, W-01 | M |
 | W-07 배포 중 | `RunView` › `ApplyStage` | 배포 한 건 (배포 중) | A-04, A-07 | M |
-| W-08 배포 결과 | `RunView` › `ResultStage` | 배포 한 건 (끝, `partially_succeeded`면 "일부 성공" 배지 · 성공한 환경끼리 동일성 비교) | A-04, A-02(+WR-09), WR-05(다시 시도) | M |
-| W-09 배포 이력 | `HistoryView` | 메뉴 이력 | A-03, WR-14 | M |
+| W-08 배포 결과 | `RunView` › `ResultStage` | 배포 한 건 (끝, `partially_succeeded`면 "일부 성공" 배지 · 성공한 환경끼리 동일성 비교: digest · 커밋 · 앱 버전 · 헬스) | A-04(환경별 `image_digest` · `health_summary`), WR-05(다시 시도) | M |
+| W-09 배포 이력 | `HistoryView` | 메뉴 이력 (행 동작: 승인 대기 → 승인하기, 지난 성공 → 롤백, 나머지 → 결과) | A-03, WR-14 | M |
 | W-10 환경 | `EnvironmentsView` | 메뉴 환경 | WR-04, A-10 · A-11 (가칭) | S |
 | W-11 스크립트 | `ScriptsView` | 메뉴 스크립트 | WR-10 | S |
-| W-12 AI 사용량 (배포 단위) | `AIUsageView` | 메뉴 AI 사용량 › 배포 고르기 | A-03, A-04 `ai_usage` | S |
+| W-12 AI 사용량 (배포 단위) | `AIUsageView` | 메뉴 AI 사용량 › 배포 고르기 | A-03, 합계 A-05 `ai_usage`, 호출 기록 `GET /projects/{id}/ai-usage?deployment_id=` (10/1 서버) | S |
 | W-13 설정 | `SettingsView` (+ 앱 설정: 서버 주소 · 계정 · 버전) | 메뉴 설정 | A-12 (가칭), WR-03, WR-12, WR-13 | S |
 | 푸시 알림 | — | 승인 필요 · 완료 · 실패 | P-01, P-02 | S |
 
@@ -233,7 +235,7 @@ View ──▶ Store(@Observable) ──▶ APIClient ────────�
 | A-03 | `GET /projects/{id}/deployments?state=&cursor=` | 배포 목록 | `Deployment` 요약 목록 | M | v0.1 제안과 같음 |
 | A-04 | `GET /deployments/{id}` | 배포 상세 | `Deployment` 스냅샷 | M | v0.1과 같음. 환경별 `attempt`와 현재 단계 포함. 한 환경이 3회 실패해도 다른 환경은 계속 진행해요. **`attempt`는 첫 생성을 포함한 총 시도 횟수**예요: `1/3`부터 시작하고 AI 수정은 최대 2번. 화면 문구는 "시도 n/3" |
 | A-05 | `GET /deployments/{id}/plan` | 승인 | `Plan` (환경별 개수 · 삭제 여부 · 위험 설정) + `ai_usage` | M | 서버의 `PlanSummary`(김승환) 그대로. AI 토큰 · 비용은 plan 안이 아니라 응답의 `ai_usage` 합계로 같이 와요. 원화 비용은 **고정 환율로 환산한 추정치**라, 앱은 "추정"과 적용 환율을 같이 보여줘요. 앱은 **요약 필드만** 써요 (리소스 전체 목록은 웹) |
-| A-06 🆕 | `GET /projects/{id}/builds?cursor=` | **커밋 · 파이프라인** | `Build[]` (§6-7) | M | Actions webhook으로 받은 내용을 저장해 두고 돌려주면 돼요. 커밋별 **배포된 환경 목록**까지 |
+| A-06 🆕 | `GET /projects/{id}/builds?cursor=` | **W-03 이미지 빌드** | `Build[]` (§6-7) | M | Jenkins `daisy-ci`가 보낸 빌드 결과(9/30 회의: GitHub Actions 대신 Jenkins)를 저장해 두고 돌려주면 돼요. 커밋별 **배포된 환경 목록**까지 |
 | A-07 🆕 | `GET /deployments/{id}/logs?target_id=&tail=100` | 배포 상세 | 최근 로그 N줄 | S | SSE가 끊겼다 들어왔을 때 최근 로그 채우기용 |
 | A-08 | `GET /approvals?state=pending` | 승인 탭 배지 | 대기 중 승인 목록 | S | 만들지 않아요. A-03의 `awaiting_approval` 필터로 대신해요 (9/29 합의) |
 
@@ -266,10 +268,10 @@ v0.1의 SSE 채널·봉투·재연결 규칙을 **그대로** 써요. 앱에 필
 
 - 웹에서 먼저 승인했으면 **409 `STATE_CONFLICT`**를 주세요. 앱은 최신 상태를 다시 불러와요
 - 삭제가 포함된 plan은 `confirm_text`를 서버에서도 검증해 주세요 (v0.1과 같음)
-- ❓ **`confirm_text`에 무엇을 넣나요?** v0.1 예시는 대상 환경 이름(`gcp-prod`)인데, 환경이 여러 개면 어떻게 하는지 정해 주세요. 지금 앱은 사용자가 입력한 값을 그대로 보내요 `(가칭)`
+- `confirm_text`: 웹 · 앱 모두 **프로젝트 이름**(예: `sample-monolith`)을 입력받아 보내요 (10/1, 웹 W-06과 같게). 서버가 같은 값으로 검증하는지는 §6-9 확인 대기 `(가칭)`
 - viewer 역할이면 **403** (R-03)
 - **plan을 다시 뜨는 경우 (9/29, 하은현):** 승인 대기가 길어져 plan이 낡으면(stale) 서버가 plan을 다시 뜨고 이전 승인은 무효가 돼요. 이건 AI 수정이 아니라서 **`attempt`는 그대로**이고, `approval.required`가 다시 와요. 앱은 같은 "시도 n/3"으로 승인 카드를 다시 띄우고, "plan이 갱신됐어요"처럼 이유를 보여줘요
-- ❓ **승인 단위**: 배포 전체를 한 번에 승인하나요, 환경별로 따로 승인하나요? 플로우차트(7-1~7-3)는 전체 한 번으로 읽혀요. 앱은 둘 다 그릴 수 있지만 확정이 필요해요
+- **승인 단위**: 웹 · 앱 모두 **승인 대기인 환경 전부를 한 번에** 승인해요. 3회 실패한 환경은 "이번 승인에서 빠져요"로 보여줘요 (웹 W-06과 같게). 서버 동작 확인은 §6-9
 
 ### 6-5. 푸시 알림 (S, 데모 효과 큼)
 
@@ -290,7 +292,7 @@ API 모양보다 **이 정보가 어딘가에 저장되어 있는지**가 더 �
 - 환경별 **지금 떠 있는 커밋 해시 · 이미지 · 배포 시각 · 공개 URL · 헬스**
 - 배포별 **환경마다의 현재 단계, 최초 생성 포함 총 시도 횟수(n/3), 실패 이유 한 줄**
 - plan별 **환경마다의 생성 · 변경 · 삭제 개수, 삭제 포함 여부, 위험 설정 목록** + AI 토큰 · 비용(`ai_usage` 합계)
-- 빌드(커밋)별 **메시지 · 작성자 · 시각 · Actions 결과 · 실행 링크 · 이미지 태그 · 배포된 환경**
+- 빌드(커밋)별 **메시지 · 작성자 · 시각 · Jenkins 결과 · 실행 링크 · 이미지 태그 · 배포된 환경**
 
 ### 6-7. 데이터 모델
 
@@ -336,7 +338,9 @@ API 모양보다 **이 정보가 어딘가에 저장되어 있는지**가 더 �
       "attempt": 1,                          // 첫 생성을 포함한 총 시도 횟수 (1~3). 화면에는 "시도 n/3"
       "reused_script": false,                // 검증된 스크립트 재사용 (AI 호출 0회)이면 true
       "url": null,
-      "error_summary": null
+      "error_summary": null,
+      "image_digest": "sha256:…" | null,     // W-08 동일성 검증 (apply가 끝난 환경) — 웹 A-04와 같아요
+      "health_summary": "200 OK · p95 120ms" | null
     }
   ],
   "pending_approval": { "approval_id": "apv_7", "kind": "plan" } | null,
@@ -354,11 +358,22 @@ API 모양보다 **이 정보가 어딘가에 저장되어 있는지**가 더 �
       "target_id": "tgt_aws",
       "counts": { "create": 12, "update": 0, "delete": 0 },
       "has_delete": false,                  // 리소스 교체(replace)로 삭제가 생겨도 true
-      "risks": [ { "level": "high", "rule": "sg-open-world", "resource": "aws_security_group.web", "message": "보안 그룹이 0.0.0.0/0에 열려 있어요" } ]
+      "risks": [ { "level": "high", "rule": "sg-open-world", "resource": "aws_security_group.web", "message": "보안 그룹이 0.0.0.0/0에 열려 있어요" } ],
+      "summary": "이미지 태그만 교체" | null,  // W-06 환경별 요약 끝말 (웹과 같아요). 없으면 "위험 설정 n건"
+      "plan_text": "…" | null                 // W-06 plan 원문. 없으면 리소스 목록만
     }
   ],
-  "ai_usage": { "tokens": 18234, "cost_krw": 312, "exchange_rate": 1400, "estimated": true }
-  // (가칭) 누적 합계. 서버는 USD로 합산한 뒤 고정 환율로 원화 환산해요. 필드 모양은 서버 OpenAPI 기준으로 맞춰요
+  "ai_usage": { "tokens": 18234, "cost_krw": 312, "exchange_rate": 1400, "estimated": true, "calls": 3 }
+  // 배포 한 건의 합계 (10/1 서버: 승인 화면 합계는 A-05에). 서버는 USD로 합산한 뒤 고정 환율로 원화 환산해요
+}
+
+// AI 호출 한 번 — GET /projects/{id}/ai-usage?deployment_id= (10/1 서버 결정, 목록 봉투는 `{ items, next_cursor }` 가정)
+{
+  "at": "…", "deployment_id": "dep_42", "target_id": "tgt_aws",
+  "step": "generate" | "fix", "attempt": 2,
+  "tokens": 1860 | null, "cost_krw": 48 | null,  // 확인 못 한 값은 0이 아니라 null → 화면 "—"
+  "status": "succeeded" | "failed",              // LLM 호출 성공 · 실패 (Terraform 검증과 별개) → "호출 성공 · 호출 실패"
+  "note": "보안 그룹 0.0.0.0/0 수정" | null        // 필수 아님 (웹 목업 이름은 `title`, 앱은 둘 다 받아요)
 }
 
 // Build — A-06, 커밋·파이프라인 화면
@@ -367,7 +382,7 @@ API 모양보다 **이 정보가 어딘가에 저장되어 있는지**가 더 �
   "message": "feat(ci): Daisy 앱 연결 요구사항 추가",
   "author": "Seungjun1127",
   "committed_at": "…",
-  "pipeline": { "status": "running" | "success" | "failed", "run_url": "https://github.com/…/actions/runs/…" },
+  "pipeline": { "status": "running" | "success" | "failed", "run_url": "https://<jenkins>/job/daisy-ci/42/" | null },  // Jenkins 빌드 링크 (§6-9)
   "image": "ghcr.io/…:2311c0b…" | null,     // 실패하면 null
   "deployed_to": [ { "target_id": "tgt_gcp", "deployment_id": "dep_42", "deployed_at": "…" } ]
 }
@@ -386,13 +401,13 @@ API 모양보다 **이 정보가 어딘가에 저장되어 있는지**가 더 �
 | WR-02 | `POST /projects` `{ repository, branch }` | W-02 연결하기 | 좋아요, 응답에 deploy.yaml 검증 결과 · D2 |
 | WR-03 | `GET /projects/{id}/manifest` | W-02 배포 명세 확인 · W-13 | 좋아요, 모양은 `deploy.yaml` 스키마 결정 뒤 · D3 |
 | WR-04 | `GET /projects/{id}/targets` → `target_id, type, name, reuse{ available, script_id?, reason? }, connection{ state: ok·failed·unknown, checked_at }` | W-04 · W-10 · 사이드바 | 별도 엔드포인트로 · D2 |
-| WR-05 | `POST /projects/{id}/deployments` `{ commit, target_ids[] }` + `Idempotency-Key` | W-04 시작, **W-05b "○○만 다시 시도" · W-08 "다시 시도"도 같은 커밋 · 그 환경만으로 새 배포** (가정, #13에서 확인 중) | 이 경로로 확정 · D2 |
+| WR-05 | `POST /projects/{id}/deployments` `{ commit, target_ids[] }` + `Idempotency-Key` | W-04 시작, **W-05b "○○만 다시 시도"(실패한 환경 전부) · W-08 "다시 시도"도 같은 커밋 · 그 환경만으로 새 배포** | 이 경로로 확정 · D2. 재시도 = 새 배포, 시도는 1/3부터 ✅ (10/1 #13). 요청 필드는 OpenAPI 대기 |
 | WR-06 | `GET /deployments/{id}/plan?detail=resources` | W-06 리소스 행 (`action`에 `replace` 포함) | 좋아요 · D3 |
 | WR-07 | `GET /deployments/{id}/targets/{target_id}/script` → `files[{ path, content }]` | W-05 생성된 스크립트 | 18시 백엔드 회의에서 확인 |
 | WR-08 | `POST /deployments/{id}/cancel` | (앱은 아직 버튼 없음) | 좋아요 · D3 |
-| WR-09 | A-02에 `image_digest` | W-01 · W-08 동일성 검증 (앱이 digest · 커밋 · 헬스로 표를 만들어요. **예전 A-09 요청은 뺐어요**) | 넣을게요 · D2 |
+| WR-09 | A-02에 `image_digest` (+ A-04 환경별 `image_digest`) | W-01 동일성(A-02, 배포된 첫 환경 기준) · W-08 동일성(A-04, 성공한 첫 환경 기준) — 웹과 같은 규칙 | A-02 넣을게요 · D2. A-04 환경별 값은 §6-9 확인 대기 |
 | WR-10 | `GET /projects/{id}/scripts` | W-11 | 승환 님 영역, D3~ |
-| WR-11 | W-12 AI 사용량 **응답 위치 `(가칭)`** — 앱은 지금 A-04 `ai_usage`에 합계 · `items`가 온다고 **가정**해요 | W-12 (배포 단위는 확정) | **백엔드 협의 중** (9/30 승환 님, #13): A-04에 다 담을지, 상세 기록을 별도 조회로 줄지 정해지면 맞춰요. `items`가 없으면 합계만 보여주는 폴백은 확인됨 |
+| WR-11 | W-12 AI 사용량: **합계는 A-05 `ai_usage`, 호출별 기록은 `GET /projects/{id}/ai-usage?deployment_id=`** | W-12 (배포 단위) | ✅ 10/1 00:29 서버 결정 (#13). 앱 반영 완료. 목록 봉투 · 필드 이름은 OpenAPI 대기 (§6-9). plan이 아직 없으면 배포에 온 합계, 기록이 없으면 합계 · 재사용 줄만 보여줘요 |
 | WR-12 | `PUT /projects/{id}/secrets/{name}` | W-13 비밀값 추가 (지금은 비활성) | 전달 방식 팀 결정 대기 |
 | WR-13 | `DELETE /projects/{id}` | W-13 연결 해제 (확인 입력은 화면에서) | 좋아요 · S |
 | WR-14 | `POST /deployments/{id}/rollback` `{ target_ids[], reason }` → `Deployment(kind: "rollback")` | W-09 롤백 → 새 배포로 이동, **plan 승인을 거쳐요** | 넣을게요 (은현 님) |
@@ -409,48 +424,77 @@ API 모양보다 **이 정보가 어딘가에 저장되어 있는지**가 더 �
 **기존 모델에 더한 필드 (가칭) 🆕** — 없으면 화면이 "—"나 기본 문구로 보여줘요. 필수는 아니에요.
 
 - `Deployment`: `version`("v7"), `commit_message`
-- `Deployment.ai_usage` (W-12, 응답 위치 `(가칭)` · 백엔드 협의 중): 합계 `tokens, cost_krw, exchange_rate, estimated`에 더해 `calls`, `items[{ at, target_id, step: generate·fix, attempt, tokens, cost_krw, status: succeeded·failed, note? }]`. 재사용 환경은 기록이 없어서 앱이 `reused_script`로 "— 검증된 스크립트 재사용" 줄을 만들어요
-- `Deployment.targets[]`: `title`("home-lab · Docker"), `steps[]`(`{ name, state, duration_ms, started_at }`, W-05 검증 단계 · W-07 레인), `health_summary`("200 OK · p95 120ms")
-- `Plan.targets[]`: `reused_script`
-- `Build`: `branch`, `digest`, `steps[]` (W-03 GitHub Actions 단계)
+- AI 호출 기록 (W-12): §6-7 "AI 호출 한 번" 모양. 재사용 환경은 기록이 없어서 앱이 `reused_script`로 "— 검증된 스크립트 재사용" 줄을 만들어요
+- `Deployment.targets[]`: `title`("home-lab · Docker"), `steps[]`(`{ name, state, duration_ms, started_at }`, W-05 검증 단계 · W-07 레인. **없으면 웹처럼 추정**: W-05 "Terraform 생성 (AI) · terraform validate · terraform plan · 위험 설정 검사", W-07 "이미지 pull · terraform apply · state 저장 · 헬스체크"), `health_summary`("200 OK · p95 120ms"), `image_digest`
+- `Plan.targets[]`: `reused_script`, `summary`, `plan_text`
+- `Build`: `branch`, `digest`, `steps[]` (W-03 Jenkins 단계)
 - `Project`: `branch`
-- WR-04 `Target`: W-10 줄 `title, runtime, location, access_method, exposure, state_backend, current_commit`
+- WR-04 `Target`: W-10 줄 `title, runtime, location, location_label("위치" · "리전"), access_method, exposure, state_backend, current_commit`. `reuse.reason`은 카드 설명 그대로 써요 ("home-lab Proxmox VM · 사설망 · 검증된 스크립트 있음 → 태그만 교체")
+- A-07 로그 줄: 앱 초안 `ts · text`, 웹 목업 `seq · at · message` — 둘 다 받아요 (§6-9)
+- WR-03 `Manifest.errors`: 웹 목업은 문자열 배열, 앱 초안은 `{ path, message }` — 둘 다 받아요 (§6-9)
 - WR-10 `Script`: W-11 정보 카드 `note, base_commit, input, ai_tokens, storage, created_at`
 - WR-03 `Manifest`: `raw`(원문), `ref`("deploy.yaml · main@a1b2c3d")
 
 **9/30 저녁에 뺀 것:** A-09 동일성 검증 API(→ WR-09), B-01 저장소 미리 확인(→ WR-02 응답 + WR-03), B-03 · B-04 업로드(범위 밖), B-09 · B-11 재시도 API(→ WR-05 새 배포), B-10 "○○ 빼고 계속"(Q7: 나머지 환경은 자동으로 계속), 상태 `building` · `selecting_targets` · `stopped`(W-03 · W-04는 배포가 생기기 전 화면), 인프라 월 비용(서버 보류, 오면 보여줘요)
 
-## 7. CI 요구사항 (가칭) — 김도영
+### 6-9. 미정: 서버 · 인프라 결정 대기 (10/1)
 
-커밋 · 파이프라인 화면(A-06)을 채우려면 Actions가 보내는 이벤트에 정보가 조금 더 필요해요. 이 payload는 서버 웹훅으로 들어가서, **은현 님이 정리해 도영 님께 이슈로 전달**하기로 했어요 (9/29). 현재 `sample-monolith/.github/workflows/ci.yml`의 `notify` 잡 기준이에요.
+보드(`ios/BOARD.md`)에 결정이 없어서 **앱이 가정으로 두고 있는 것**이에요. 결정이 나면 앱은 모델 · 요청 한 곳만 고치면 돼요. 각 담당 브랜치 · PR에 질문을 남겼어요 (10/1).
+
+| # | 담당 | 미정 항목 | 앱이 지금 가정하는 것 | 결정 안 나면 앱은 |
+|---|---|---|---|---|
+| S-1 | 서버 (하은현) | 목록 응답 봉투: 모든 목록(A-02 · WR-04 · 새 `ai-usage`)이 `{ items, next_cursor }`인지 | 모두 봉투 | 배열이 오면 디코딩 실패 → 한 줄 수정 |
+| S-2 | 서버 (김승환) | `ai-usage` 호출 한 줄 필드: 작업 설명 이름(`note` / `title`), `calls`를 A-05 합계에 넣는지 | `note` 또는 `title`, `calls` 있으면 씀 | 설명이 없으면 "Terraform 생성 · 수정"으로 대신 |
+| S-3 | 서버 (하은현 · 김승환) | A-04 환경별 `image_digest` · `health_summary` · `steps[]` 제공 여부 (10/1 "제공 · 후순위 · 미제공으로 안내" 약속) | 오면 쓰고, 없으면 "—" · 웹처럼 단계 추정 | W-08 동일성 digest 줄이 "—" |
+| S-4 | 서버 (하은현) | 승인 `confirm_text` 검증 값 = 프로젝트 이름인지, 승인 대기 환경만 적용되는지 | 프로젝트 이름, 승인 대기 환경 전부 한 번에 | 서버가 다른 값을 요구하면 입력 안내만 바꿔요 |
+| S-5 | 서버 (하은현) | `POST /projects` 응답: `Project`만 / `{ project, manifest }` (웹 목업) | `Project` → `GET manifest` 따로 | 둘 다 받게 한 줄 수정 |
+| S-6 | 서버 (하은현) | 로그 줄 필드(`ts · text` / `seq · at · message`), `Manifest.errors` 모양 | 둘 다 받아요 | 영향 없음 |
+| S-7 | 서버 (하은현) | 로그인 없이 읽기 전용 둘러보기(9/30 회의) 방식: `POST /auth/demo` 같은 viewer 토큰 발급인지, 심사위원 테스트 계정 전달 방식 | R-09 `POST /auth/demo` (가칭) | 버튼만 두고 오류 표시. **TestFlight 외부 심사에 계정이 필요**해요 |
+| S-8 | 서버 (하은현) | 앱 추가 요청 A-10 연결 테스트 · A-11 리소스 보기 · A-12 프로젝트 상세를 받을지 | 경로 (가칭) | 버튼 비활성 |
+| S-9 | 서버 (하은현) | 개발 서버 주소 · 열리는 시각 (R-08) | — | 예시 데이터 모드로만 확인 |
+| I-1 | 인프라 (황지환) | **API 서버의 HTTPS 주소** (`daisydeploy.dev` 하위 이름 · 공인 인증서). iOS는 HTTPS가 아니면 연결을 막아요(ATS) | — | TestFlight 외부 링크 심사 제출 불가 |
+| I-2 | 인프라 (황지환 · 임채준) | Terraform state 저장소 (W-10 "state" 줄) | ✅ 일부 답 (10/1 임채준, #17): 환경이 제공하는 저장소 + 잠금 — AWS "S3 (잠금)", GCP "GCS (잠금)". **온프레미스는 황지환 님과 정하는 중**, key는 `{project_id}/{target_id}` 방향(은현 님과 확정) | 서버가 준 이름, 없으면 `[미정]` |
+| I-3 | 인프라 · CI (임채준) | 이미지 레지스트리 (W-13 "레지스트리" 줄) | 임채준 답(10/1, #17): **Docker Hub**, 이미지 `docker.io/<계정>/<앱>:<커밋 해시>`, 계정 이름은 확정 뒤 알려 주기로. 보드에는 아직 팀 결정으로 안 올라가서 앱은 `[미정]` 표시를 유지해요 | `[미정]` 그대로 |
+| I-4 | 인프라 · CI (임채준) | Jenkins 빌드 링크 · 단계 이름 | ✅ 10/1 임채준 답: Jenkins 화면은 외부 비공개 → **앱 "Jenkins 로그 열기" 버튼 숨김(반영)**. 서버가 Jenkins API(빌드 상태 · 단계 · 로그)로 받아서 넘겨요. 단계: CI `Checkout → Test → Build & Push → Trigger CD`, CD `Prepare → Infra code → Plan → Risk check → Approve → Apply → Health check` | — |
+| I-5 | 인프라 (황지환 · 임채준) | 환경별 공개 URL 형식 (W-08 QR · "열기"), 헬스 결과 | AWS는 ✅ 10/1 임채준 답: URL · 상태 코드 · **1회 측정 응답 시간(ms)** 제공, p95는 어려움 → "200 OK · 120ms" 형식(반영). 온프레미스 URL 모양은 황지환 님 답 대기 | "—" |
+| I-6 | 팀 | 헬스체크 실패 시 자동 롤백 | 10/1 임채준 답: AWS는 새 컨테이너가 헬스체크를 통과해야 트래픽을 옮겨요. 실패하면 **이전 컨테이너가 계속 서비스하고 CD 결과는 실패**. "실패 + 이전 버전 유지" 구분은 CD → 서버 결과 전달 방식이 정해지면 추가 | 실패로 표시 (롤백은 `kind: "rollback"` 새 배포만) |
+
+## 7. CI 요구사항 (가칭) — 인프라팀 (Jenkins)
+
+> **9/30 21시 회의: CI/CD 도구는 GitHub Actions 대신 Jenkins**예요. **10/1 10:42: CI/CD 일은 전부 인프라팀 담당**이에요 (김승환 님 스레드). 그래서 이 절의 받는 사람은 김도영 님이 아니라 **인프라팀(임채준 · 황지환)**이에요.
+> 10/1 임채준 답(#17): 서버가 **Jenkins API로 빌드 상태 · 단계 · 로그를 직접 받아요** (`wfapi/describe`, `logText/progressiveText`, `api/json`). 그래서 아래 C-02 · C-03(실패 · 시작 이벤트)은 서버가 Jenkins 상태를 읽는 것으로 대신할 수 있어요. C-01(커밋 메시지 · 작성자 · 시각)만 서버가 어디서 받을지 정해지면 돼요.
+
+커밋 · 파이프라인 화면(A-06)을 채우려면 빌드가 보내는 이벤트에 정보가 조금 더 필요해요. 이 payload는 서버 웹훅으로 들어가서, **은현 님이 정리해 전달**하기로 했어요 (9/29).
 
 | ID | 요구사항 | 우선 | 비고 |
 |---|---|---|---|
-| C-01 🆕 | payload에 `commit_message`, `author`, `committed_at` 추가 | M | `github.event.head_commit`에 있어요. 없으면 백엔드가 GitHub API로 따로 가져와야 해요 |
-| C-02 🆕 | **실패해도 이벤트 전송** (`status: "failed"`) | S | 지금은 `image` 잡이 성공해야만 `notify`가 돌아요. `if: always()` + 결과값 전달 |
+| C-01 🆕 | payload에 `commit_message`, `author`, `committed_at` 추가 | M | Jenkins에서는 `git log -1` 값이나 GitHub 웹훅 본문에서 가져올 수 있어요. 없으면 백엔드가 GitHub API로 따로 가져와야 해요 |
+| C-02 🆕 | **실패해도 이벤트 전송** (`status: "failed"`) | S | Jenkins `post { always { … } }`에서 결과값 전달 |
 | C-03 🆕 | 파이프라인 시작 시 `status: "running"` 이벤트 | S | 커밋 화면에서 "빌드 중" 표시 |
 
 ---
 
 ## 8. 결정이 필요한 것 ❓
 
-- [ ] **ADR-007 범위 수정** (§1-2): 현황 · 커밋 이력 · macOS 추가 — 9/29 회의
+- [ ] **ADR-007 범위 수정** (§1-2): 현황 · 커밋 이력 · macOS 추가 — 팀 회의 (9/30 회의에서 다루지 않음)
 - [x] ~~Bearer 토큰 병행~~ → Bearer 하나로 통일 (9/29, 은현 님)
 - [x] ~~개발 서버 · 데모 계정 준비~~ → D2 은현 님 (9/29)
 - [x] ~~HTTPS 공개 주소 (R-04)~~ → 도메인 구매 + HTTPS (9/29 회의, 서버 담당)
-- [ ] **승인 단위**: 배포 전체 한 번 / 환경별 (§6-4)
-- [ ] **`confirm_text` 값** (§6-4)
-- [ ] **앱 범위를 웹 전체로 넓힐지** (§1-1 ⚠️): ADR-007 · 도영 님 메모 · `web/SPEC.md` §1-1과 어긋나요 — **9/30 21시 회의**
+- [x] ~~승인 단위~~ → 웹 W-06과 같이 승인 대기 환경 전부 한 번에 (10/1 웹 코드). 서버 동작 확인은 §6-9 S-4
+- [x] ~~`confirm_text` 값~~ → 프로젝트 이름 (10/1 웹 코드와 같게). 서버 검증 값 확인은 §6-9 S-4
+- [ ] **앱 범위를 웹 전체로 넓힐지** (§1-1 ⚠️): ADR-007 · 도영 님 메모 · `web/SPEC.md` §1-1과 어긋나요 — 팀 회의 (9/30 회의에서 다루지 않음)
 - [ ] **§6-8 앱 추가 요청 R-09 · A-10 ~ A-12 · 필드 추가**를 서버가 받을지 — 하은현 · 김승환 (이슈로 전달)
-- [ ] **데모 계정 진입 방식** (R-09): 인증 범위 회의에서 — 팀
-- [ ] **Q4 빌드가 끝나면 W-04로 바로 갈지** — 앱은 지금 바로 넘어가요. 팀 결정에 맞춰요
+- [ ] **데모 계정 진입 방식** (R-09): 9/30 회의에서 "로그인 안 하면 읽기 전용 둘러보기 + 심사위원 테스트 계정 1개"로 정해졌어요. API 방식은 §6-9 S-7 — 서버
+- [ ] **Q4 빌드가 끝나면 W-04로 바로 갈지** — 앱은 지금 바로 넘어가요. 웹 W-03 코드(`BuildPage.tsx`)가 PR #18에 아직 없어서 확인 대기 — 웹
 - [ ] **헬스체크 실패 시 자동 롤백** (은현 님 제안): 넣으면 이력에 롤백 배포가 승인 없이 생겨요. 앱은 `kind: "rollback"`으로 표시만 해요 — 팀
 - [x] ~~배포 상태 · 단계 값~~ → 9/30 서버 확정 (§6-7): 배포 전체 `queued · running · awaiting_approval · succeeded · partially_succeeded · failed · cancelled`, 환경별 `waiting · generating · validating · awaiting_approval · applying · verifying · succeeded · failed · cancelled`. 롤백은 별도 배포
 - [x] ~~Q7 한 환경 3회 실패 시~~ → 환경별, 나머지는 계속 (9/29 서버). W-05b는 "○○만 멈췄어요" + "○○만 다시 시도" (9/30 도영 님 와이어프레임 수정)
-- [ ] **"○○만 다시 시도"를 새 배포로 만들지, 같은 배포 안에서 그 환경만 다시 돌릴지** — 앱은 WR-05 새 배포로 가정. 서버 확인 (#13)
+- [x] ~~"○○만 다시 시도" 방식~~ → 실패한 대상만 고른 새 배포, 시도는 1/3부터 (10/1 #13 서버). 버튼 하나로 실패한 환경 전부 (웹과 같게)
 - [x] ~~W-12 범위~~ → 배포 단위 (9/30 도영 님)
-- [ ] **W-12 응답 위치** — A-04 `ai_usage`에 다 담을지 / 상세는 별도 조회인지 `(가칭)`, 백엔드 협의 중 (#13 승환 님)
-- [ ] **AI 호출 기록 `status`의 뜻** — LLM 호출 성공 · 실패인지, Terraform 검증 결과인지 (#13 승환 님 질문). 앱은 지금 "통과/실패"로 표시해요
+- [x] ~~W-12 응답 위치~~ → 합계 A-05, 호출 기록 `ai-usage?deployment_id=` (10/1 #13 서버)
+- [x] ~~AI 호출 기록 `status`의 뜻~~ → LLM 호출 성공 · 실패, 화면 "호출 성공 · 호출 실패" (10/1 #13 서버). 웹은 아직 "통과 · 실패"라 웹 쪽 맞춤이 남아요
+- [x] ~~CI 도구~~ → Jenkins (9/30 회의). W-03 · 예시 데이터를 Jenkins로 바꿈 (10/1)
+- [x] ~~LLM~~ → Claude (9/30 김승환). W-12 비용 설명에 표시
 - [x] ~~롤백 표시~~ → 새 배포 한 건, 목록 · 알림에서 일반 배포처럼 (9/30 도영 님)
 - [x] ~~업로드 입력(W-02b)~~ → 서버 작업 없음, 앱은 설계만 표시 (9/30 은현 님 답변. 웹 화면 처리는 도영 님 결정)
 - [x] ~~푸시를 예선 범위에 넣을지~~ → D3까지 로컬 알림, APNs는 여유 있으면 (9/29)
@@ -462,6 +506,8 @@ API 모양보다 **이 정보가 어딘가에 저장되어 있는지**가 더 �
 
 | 날짜 | 변경 | 작성 |
 |---|---|---|
+| 10/1 | 인프라 답(#17 임채준) 반영: W-03 "Jenkins 로그 열기" 숨김(외부 비공개), CI 단계 이름, 헬스 "200 OK · 120ms"(1회 측정), state "S3 (잠금)" · "GCS (잠금)", ECS 실패 시 이전 컨테이너 유지 → 실패로 표시. §7 담당을 인프라팀으로(10:42 결정). 웹 결정(12:11) 반영: 끝난 배포 · 빌드는 폴링 멈춤, 동일성 헬스 줄은 `health_summary` 그대로 | 박승준 |
+| 10/1 | **보드 · 웹 최신화 맞춤**: Jenkins(W-03 · 연결 안내 · 예시 데이터), W-12 합계 A-05 + `ai-usage?deployment_id=` · "호출 성공 · 호출 실패" · 확인 못 한 토큰 "—", 상태 라벨 "취소됨 · 확인 중 · 롤백됨 · 확인 전". 웹 PR #18 화면 흐름 · 문구: 메뉴 "배포"=최근 배포 지금 단계, "새 배포"=W-03, W-02 업로드 제거 · URL 형식 검사, W-04 연결 안 되는 환경 선택 불가, W-05 · W-05b 한 줄 · 단계 추정(`flow.ts`) · "○○만 다시 시도"(실패 환경 전부) · "변경 사항 확인하기", W-06 승인 대기 환경만 · 프로젝트 이름 확인 · 승인 바 문구 · 거절 뒤 개요, W-07 단계 · 배지, W-08 동일성(A-04 기준, 앱 버전 줄), W-09 행 동작 · 롤백 창(환경 고르기 · 프로젝트 이름), W-10 · W-11 · W-13 문구 · 연결 해제 창, 24시간제 · 상대 시각. §6-9 미정 표 추가. 테스트 55 → 64개 | 박승준 |
 | 9/29 | 초안 작성 | 박승준 |
 | 9/29 | 앱 목업 모드 제거 (항상 실서버 연결), 개발 서버 요구(R-08) 추가 | 박승준 |
 | 9/29 | 에이전트 규칙 파일을 `CLAUDE.md` → `AGENTS.md`로 변경 | 박승준 |

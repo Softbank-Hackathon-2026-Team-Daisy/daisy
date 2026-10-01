@@ -57,7 +57,7 @@ struct ModelDecodingTests {
         """)
         #expect(plan.hasDelete)
         #expect(plan.targets.first?.risks.first?.level == .high)
-        #expect(plan.aiUsage?.costText?.hasPrefix("추정 ₩312") == true)
+        #expect(plan.aiUsage?.costText == "₩312 (추정, 환율 1,400원)")   // 웹 승인 바와 같은 표기
     }
 
     @Test func errorEnvelope() throws {

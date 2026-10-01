@@ -70,6 +70,8 @@ struct RunLogicTests {
         ])
         let retry = RetryRequest.only("tgt_aws", of: deployment)
         #expect(retry == RetryRequest(projectID: "prj_1", commit: "a1b2c3d4e5f6", targetIDs: ["tgt_aws"]))
+        // W-05b "○○만 다시 시도"는 실패한 환경 전부를 한 번에 (웹과 같아요)
+        #expect(RetryRequest.failed(of: deployment).targetIDs == ["tgt_aws"])
     }
 
     // MARK: 문구 (웹 와이어프레임과 글자 단위로 같아야 해요)
@@ -104,8 +106,6 @@ struct RunLogicTests {
         #expect(FlowCopy.result(deployment, name: F.name)
                 == "온프레미스 · AWS는 성공, GCP는 헬스체크에서 실패했어요. 성공한 환경끼리 같은 이미지인지 확인해요.")
         #expect(deployment.state.badge.text == "일부 성공")
-        // 동일성 검증은 성공한 환경끼리만
-        #expect(FlowCopy.parityTargets(deployment) == ["tgt_onprem", "tgt_aws"])
     }
 
     @Test func fullSuccessComparesEveryTarget() throws {
@@ -113,7 +113,6 @@ struct RunLogicTests {
             F.target("tgt_aws", state: "succeeded", step: "health_check", stepState: "done"),
         ])
         #expect(FlowCopy.result(deployment, name: F.name) == "모든 환경이 같은 이미지로 떠 있는지 확인해요.")
-        #expect(FlowCopy.parityTargets(deployment) == nil)
     }
 
     /// 롤백은 새 배포 한 건이에요. 상태는 일반 배포와 같아요 (WR-14)

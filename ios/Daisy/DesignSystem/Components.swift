@@ -56,7 +56,7 @@ struct NoProjectView: View {
         ContentUnavailableView(
             "프로젝트를 골라 주세요",
             systemImage: "folder",
-            description: Text("현황 탭 위쪽에서 프로젝트를 선택해요.")
+            description: Text("개요 탭 위쪽에서 프로젝트를 선택해요.")
         )
     }
 }
@@ -106,10 +106,13 @@ struct EnvironmentIcon: View {
 }
 
 /// 5초마다 `body`를 실행해요. 화면이 사라지면 `.task`가 취소되면서 멈춰요 (D2 폴링, SPEC §6-3).
+/// `until`이 true가 되면 더 부르지 않아요 — 끝난 배포 · 빌드는 멈춰요 (웹 `useResource`의 `done`, 10/1 웹 결정).
 @MainActor
-func poll(every seconds: Double = 5, _ body: @MainActor () async -> Void) async {
+func poll(every seconds: Double = 5, until done: @MainActor () -> Bool = { false },
+          _ body: @MainActor () async -> Void) async {
     while !Task.isCancelled {
         await body()
+        if done() { return }
         try? await Task.sleep(for: .seconds(seconds))
     }
 }

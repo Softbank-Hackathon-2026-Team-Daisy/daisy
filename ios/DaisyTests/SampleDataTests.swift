@@ -26,6 +26,7 @@ struct SampleDataTests {
             _ = try decode(Page<Script>.self, "\(p)/scripts")
             _ = try decode(Manifest.self, "\(p)/manifest")
             _ = try decode(ProjectDetail.self, p)
+            _ = try decode(Page<AIUsage.Call>.self, "\(p)/ai-usage")
             for deployment in deployments {
                 let d = "deployments/\(deployment.id)"
                 _ = try decode(Deployment.self, d)
@@ -47,6 +48,16 @@ struct SampleDataTests {
         let stages = Set(all.map(RunStage.init))
         #expect(stages == [.generate, .stopped, .approval, .apply, .result])
         #expect(all.contains { $0.state == .partiallySucceeded })
+    }
+
+    /// 빌드는 Jenkins로 해요 (9/30 회의: GitHub Actions 대신 Jenkins)
+    @Test func buildsRunOnJenkins() throws {
+        let detail = try decode(ProjectDetail.self, "projects/prj_monolith")
+        #expect(detail.build?.hasPrefix("Jenkins") == true)
+        let builds = try decode(Page<Build>.self, "projects/prj_monolith/builds").items
+        // Jenkins 화면은 외부에 공개하지 않아서 링크 없이, 단계는 daisy-ci 이름 그대로 (10/1 임채준 답)
+        #expect(builds.allSatisfy { $0.pipeline.runUrl == nil })
+        #expect(builds.first?.steps?.map(\.name) == ["Checkout", "Test", "Build & Push", "Trigger CD"])
     }
 
     /// 커밋은 실제 GitHub sample 레포에서 가져와요 (40자 SHA)
@@ -74,6 +85,10 @@ struct SampleDataTests {
 
         let waiting = try await client.send(.deployments(projectID: "prj_monolith", state: .awaitingApproval)).items
         #expect(!waiting.isEmpty && waiting.allSatisfy { $0.state == .awaitingApproval })
+
+        // W-12 호출 기록은 배포 하나로 걸러요 (deployment_id 필터)
+        let calls = try await client.send(.aiUsage(projectID: "prj_monolith", deploymentID: "dep_m6")).items
+        #expect(!calls.isEmpty && calls.allSatisfy { $0.deploymentId == "dep_m6" })
 
         do {
             _ = try await client.send(.approve(deploymentID: "dep_m6", decision: .approve))

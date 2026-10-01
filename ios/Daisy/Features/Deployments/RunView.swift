@@ -60,7 +60,7 @@ struct RunView: View {
                 }
             }
         }
-        .task { await poll { await store.refresh(using: app) } }
+        .task { await poll(until: { store.deployment.value?.state.isFinished == true }) { await store.refresh(using: app) } }
     }
 
     @ViewBuilder

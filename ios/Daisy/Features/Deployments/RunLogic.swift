@@ -42,6 +42,12 @@ struct RetryRequest: Equatable {
     static func only(_ targetID: String, of deployment: Deployment) -> RetryRequest {
         RetryRequest(projectID: deployment.projectId, commit: deployment.commit, targetIDs: [targetID])
     }
+
+    /// W-05b "AWS만 다시 시도": 실패한 환경 전부를 한 번에 (웹과 같아요)
+    static func failed(of deployment: Deployment) -> RetryRequest {
+        RetryRequest(projectID: deployment.projectId, commit: deployment.commit,
+                     targetIDs: (deployment.targets ?? []).filter(\.isFailed).map(\.targetId))
+    }
 }
 
 /// W-05b · W-08 문구. 환경 이름은 화면이 넘겨줘요 (Workspace.name(of:)).
@@ -81,18 +87,12 @@ enum FlowCopy {
         case .cancelled:
             return "배포를 취소했어요. 이미 바뀐 환경은 이력에서 확인해요."
         case .failed where succeeded.isEmpty:
-            return "모든 환경이 실패했어요. 원인을 보고 다시 시도해 주세요."
+            return "모든 환경이 실패했어요. 원인을 확인하고 다시 시도해 주세요."
         default:
             guard !failed.isEmpty else { return "모든 환경이 같은 이미지로 떠 있는지 확인해요." }
-            let where_ = Set(failed.map(\.step)).count == 1 ? "\(failed[0].step.displayName)에서 " : ""
+            // 웹: 첫 실패 환경의 단계로 "헬스체크에서" · "apply에서"
+            let where_ = failed[0].step == .healthCheck ? "헬스체크에서 " : "apply에서 "
             return "\(join(succeeded.map { name($0.targetId) }))는 성공, \(join(failed.map { name($0.targetId) }))는 \(where_)실패했어요. 성공한 환경끼리 같은 이미지인지 확인해요."
         }
-    }
-
-    /// 동일성 검증에 넣을 환경: 일부 성공이면 성공한 환경끼리만 비교해요.
-    static func parityTargets(_ deployment: Deployment) -> Set<String>? {
-        let targets = deployment.targets ?? []
-        guard targets.contains(where: \.isFailed) else { return nil }
-        return Set(targets.filter { !$0.isFailed }.map(\.targetId))
     }
 }
