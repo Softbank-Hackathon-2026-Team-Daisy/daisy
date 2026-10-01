@@ -8,6 +8,7 @@ import com.teamdaisy.server.identity.web.CurrentAccount;
 import com.teamdaisy.server.project.access.ProjectAccessService;
 import com.teamdaisy.server.project.domain.Project;
 import com.teamdaisy.server.project.domain.ProjectRepository;
+import com.teamdaisy.server.project.domain.TargetRepository;
 import java.util.List;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -21,10 +22,13 @@ import org.springframework.web.bind.annotation.RestController;
 @Transactional(readOnly = true)
 public class ProjectController {
   private final ProjectRepository projects;
+  private final TargetRepository targets;
   private final ProjectAccessService access;
 
-  public ProjectController(ProjectRepository projects, ProjectAccessService access) {
+  public ProjectController(
+      ProjectRepository projects, TargetRepository targets, ProjectAccessService access) {
     this.projects = projects;
+    this.targets = targets;
     this.access = access;
   }
 
@@ -45,5 +49,21 @@ public class ProjectController {
     Project project =
         projects.findById(projectId).orElseThrow(() -> new DaisyException(ErrorCode.NOT_FOUND));
     return ProjectResponse.detail(project);
+  }
+
+  /**
+   * 환경별 현재 상태예요 (A-02). 앱 현황 화면이 이 경로만 써요.
+   *
+   * <p>집계하지 않아요. 배포 전체 상태 집계는 설계 2장대로 실행 서비스 소유라서, 여기서는 대상별 현재 값만 읽어 내보내요.
+   *
+   * <p>대상이 하나도 없으면 오류가 아니라 빈 목록이에요. 프로젝트에 환경을 아직 연결하지 않은 정상 상태예요.
+   */
+  @GetMapping("/{projectId}/targets/status")
+  public PageResponse<TargetStatusResponse> targetStatus(
+      @CurrentAccount AuthPrincipal principal, @PathVariable String projectId) {
+    access.requireRead(principal, projectId);
+    List<TargetStatusResponse> items =
+        targets.findActiveByProject(projectId).stream().map(TargetStatusResponse::of).toList();
+    return PageResponse.of(items);
   }
 }

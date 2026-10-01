@@ -195,7 +195,7 @@
 - 시딩 순서 오류를 실제 실행에서 찾아 고쳤습니다. `ApplicationRunner` 는 `@Order` 가 없으면 가장 마지막이라, `@Order(100)` 인 프로젝트 시더가 계정 시더보다 먼저 돌아 아무것도 심지 않았습니다. 계정 시더에 `@Order(50)` 을 붙여 순서를 명시했습니다.
 - 커서 페이지네이션·보관 프로젝트 조회 정책은 확인하지 않았습니다. 목록이 한 건인 상태의 검증입니다.
 
-## 환경별 현재 상태 조회 A-02 (10/1, 하은현) — 구현 전 협의용
+## 환경별 현재 상태 조회 A-02 (10/1, 하은현)
 
 ### 왜 지금인가
 
@@ -231,7 +231,12 @@
 | `health_summary` | 같은 곳 | **미제공 (null)** |
 | `image_digest` | `source_version.image_refs` | **미제공 (null)** — WR-09 동일성 검증은 빌드 수신 뒤입니다 |
 
-`current` 는 그 대상에 한 번도 배포가 끝난 적이 없으면 통째로 null 입니다. 실행 서비스가 아직 없어서 **이번 PR 시점에는 항상 null** 입니다. 모양만 먼저 고정해 앱이 목업을 떼고 붙을 수 있게 하는 것이 목적입니다.
+`current` 는 그 대상에 한 번도 배포가 끝난 적이 없으면 통째로 null 입니다. **이번 PR 시점에는 항상 null** 이고, 이유가 둘입니다.
+
+1. 실행 서비스가 아직 없어 `deployment_target` 에 행이 생기지 않습니다.
+2. **소유 경계입니다.** 설계 2장이 `deployment` 모듈(Deployment·DeploymentTarget)을 승환 소유로, `project` 모듈(Project·Target·SourceVersion)을 은현 소유로 나눴습니다. `work.md` §14 가 *"다른 담당 영역의 Repository·Entity를 직접 사용하지 않고 서비스 계약으로 연결합니다"* 로 두었으므로, `current` 를 채우려면 **deployment 모듈의 조회 서비스 계약이 필요합니다.** `target.current_deployment_target_id` 까지는 제 소유라 읽고, 그 ID 가 가리키는 행은 읽지 않습니다.
+
+모양만 먼저 고정해 앱이 목업을 떼고 붙을 수 있게 하는 것이 이번 범위입니다.
 
 ### 데모 대상 시딩
 
@@ -250,20 +255,28 @@
 - 대상 생성·수정·삭제는 넣지 않습니다. `work.md` §2 가 삭제 지원 범위를 별도 합의 사항으로 두었습니다.
 - SSE 로 같은 정보를 밀어 주는 것은 승환님 기반 위에 붙입니다. 앱은 D2 에 5초 폴링으로 씁니다.
 
-### 검증 계획 (검사 항목을 먼저 적습니다)
+### 검증 결과 (2026-10-01)
 
-| | 검사 | 통과 조건 |
+검사 항목을 먼저 적고 그대로 돌렸습니다. 빈 PostgreSQL 17 에 띄워 실제 요청으로 확인했습니다.
+
+| | 검사 | 결과 |
 |---|---|---|
-| V1 | 토큰 없이 호출 | 401, 공통 오류 봉투 |
+| V1 | 토큰 없이 호출 | 401 |
 | V2 | 없는 프로젝트 | 404 |
-| V3 | 멤버가 아닌 프로젝트 | **404 (403 아님)** — 존재가 새지 않아야 합니다 |
+| V3 | 멤버가 아닌 프로젝트 | **404**. 403 이 아닙니다 |
 | V4 | `viewer` 계정 조회 | 200 |
-| V5 | 응답 봉투 | `{ items, next_cursor }`, `next_cursor` 는 null, 필드는 snake_case |
-| V6 | 대상이 없는 프로젝트 | `items: []`, 오류가 아님 |
-| V7 | 배포 이력이 없는 대상 | `current` 는 null, `health` 는 `"unknown"`, 미제공 필드는 null |
-| V8 | 보관된 대상 | 목록에 나오지 않음 |
-| V9 | 정렬 | `(type, name)` 으로 고정 |
-| V10 | **다른 프로젝트의 대상** | 섞여 나오지 않음 |
-| V11 | OpenAPI | 경로와 스키마가 `/v3/api-docs` 에 노출 |
+| V5 | 응답 봉투 | `{ items, next_cursor }`, `next_cursor` 는 null, 필드가 snake_case |
+| V6 | 대상이 없는 프로젝트 | `{"items":[],"next_cursor":null}` — 오류가 아닙니다 |
+| V7 | 배포 이력이 없는 대상 | `current` 는 null, `health` 는 `"unknown"`, `url`·`health_summary`·`image_digest`·`checked_at` 은 null |
+| V8 | 보관된 대상 | `archived_at` 을 넣은 대상이 목록에서 빠졌습니다 |
+| V9 | 정렬 | `aws → gcp → onprem` 으로 고정 |
+| V10 | **다른 프로젝트의 대상** | 다른 프로젝트에 대상을 넣고 확인했습니다. 섞이지 않습니다 |
+| V11 | OpenAPI | `/projects/{projectId}/targets/status` 와 `PageResponseTargetStatusResponse`·`TargetStatusResponse`·중첩 `Current` 스키마가 노출됩니다 |
 
-V10 이 핵심입니다. 나머지가 다 맞아도 여기서 새면 다른 팀의 환경 이름이 보입니다.
+- 단위 테스트 4개를 더했습니다. **접근 판정이 막으면 대상 질의가 아예 돌지 않는 것**(응답 시간으로 존재가 새지 않게), 대상 0개가 빈 목록인 것, 근거 없는 필드가 null 인 것, `viewer` 조회입니다.
+- `./gradlew --no-daemon spotlessApply spotlessCheck check build` 성공.
+- 데모 대상 3개가 `connection_state='unknown'` 으로 심기는 것을 DB 에서 확인했습니다.
+
+V10 이 핵심이었습니다. 나머지가 다 맞아도 여기서 새면 다른 팀의 환경 이름이 보입니다.
+
+**확인하지 않은 것** — `current` 가 채워진 응답은 확인하지 못했습니다. 실행 서비스와 조회 계약이 없어 채울 경로가 없습니다. 커서 페이지네이션, 대상이 많을 때의 성능, SSE 로 같은 정보를 밀어 주는 경로도 이번 범위가 아닙니다.
