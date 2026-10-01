@@ -1,0 +1,10 @@
+# sample-monolith(HelloCalc) 값 예시예요. 비밀값은 넣지 않아요.
+# 러너는 deploy.yaml로 같은 내용의 JSON을 만들어 써요 (infra/jenkins/render-tfvars.py).
+#   terraform plan -var-file=hellocalc.tfvars -var="image_tag=<커밋 해시 40자>"
+# secrets가 있으면 파일이 아니라 환경변수로 넘겨요: TF_VAR_secrets='{"KEY":"value"}'
+
+name        = "hellocalc"
+image       = "docker.io/<계정>/hellocalc"
+port        = 8080
+healthcheck = "/health"
+database    = false

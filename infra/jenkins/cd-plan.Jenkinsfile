@@ -1,6 +1,8 @@
-// CD: 환경 선택 → 인프라 코드 확인 → 병렬 plan → 위험 검사 → 승인 → 병렬 apply → 헬스체크
+// CD ① 준비: 환경 선택 → 인프라 코드 확인 → 병렬 plan → 위험 검사 → plan 요약 (승인 대기)
 //
-// (가칭) 로컬 VM 러너 프로토타입이에요 (infra/SPEC.md §12). terraform 실행은 infra/scripts/tf-run.sh가 해요.
+// (가칭) 로컬 VM 러너 프로토타입이에요 (infra/SPEC.md §12-7). 승인되면 daisy-cd-apply가 이 plan을 적용해요.
+//   plan ID = daisy-cd-plan-<빌드 번호>. plan마다 작업 폴더가 따로라 승인 대기 중인 plan을 덮어쓰지 않아요
+//   승인 정보는 웹·앱 → 서버 승인 API에서 받고, 서버가 daisy-cd-apply를 PLAN_BUILD · APPROVAL_ID로 시작해요 (§16-6)
 // MOCK: AI 생성(N-02)·위험 검사와 AI 재시도(N-05)는 server AI(김승환) 영역이라 표시만 해요.
 // 온프레미스는 황지환 영역이라 아직 선택지에 없어요.
 //
@@ -11,12 +13,12 @@ pipeline {
   agent any
   options {
     timestamps()
-    disableConcurrentBuilds()   // 같은 작업 디렉터리의 plan을 다른 빌드가 덮어쓰지 않게
-    buildDiscarder(logRotator(numToKeepStr: '30'))
+    buildDiscarder(logRotator(numToKeepStr: '50'))
   }
   parameters {
     booleanParam(name: 'DEPLOY_AWS', defaultValue: true, description: 'AWS (ECS Fargate · ALB)')
     booleanParam(name: 'DEPLOY_GCP', defaultValue: false, description: 'GCP (Cloud Run)')
+    booleanParam(name: 'DESTROY', defaultValue: false, description: '체크하면 삭제 plan을 만들어요 (승인되면 daisy-cd-apply가 지워요)')
     string(name: 'IMAGE_TAG', defaultValue: '', description: '커밋 해시 40자')
     string(name: 'IMAGE_REPO', defaultValue: '', description: '태그 없는 이미지 주소. 예: docker.io/<계정>/hellocalc')
     string(name: 'APP', defaultValue: 'hellocalc', description: 'state key · 작업 디렉터리 이름')
@@ -25,6 +27,8 @@ pipeline {
   environment {
     WORK_ROOT = "${env.JENKINS_HOME}/daisy-work"
     TF_PLUGIN_CACHE_DIR = "${env.JENKINS_HOME}/.terraform.d/plugin-cache"
+    TF_DESTROY = "${params.DESTROY ? '1' : ''}"   // tf-run.sh plan이 삭제 plan을 만들어요
+    PLAN_ID = "${env.JOB_NAME}-${env.BUILD_NUMBER}" // 승인·적용할 때 이 ID로 찾아요
   }
   stages {
     stage('Prepare') {
@@ -39,7 +43,7 @@ pipeline {
           if (targets().isEmpty()) {
             error('배포 환경을 하나 이상 선택해 주세요')
           }
-          currentBuild.description = "${targets().join(', ')} ← ${params.IMAGE_TAG.take(7)}"
+          currentBuild.description = "${params.DESTROY ? '삭제 ' : ''}${targets().join(', ')} ← ${params.IMAGE_TAG.take(7)}"
         }
         dir('app') {
           git url: params.APP_REPO, branch: 'main'
@@ -86,61 +90,28 @@ pipeline {
       }
     }
 
-    stage('Approve') {
+    stage('Summary') {
       steps {
         script {
-          def summary = ''
-          for (t in targets()) {
-            summary += "${t}: " + sh(script: "cat \"\$WORK_ROOT/\$APP/${t}/src/summary.txt\"", returnStdout: true).trim() + '\n'
-          }
-          timeout(time: 30, unit: 'MINUTES') {
-            input message: "plan 결과를 확인하고 승인해 주세요 (전체 plan은 Plan 단계 로그)\n${summary}", ok: '승인 · apply'
-          }
-        }
-      }
-    }
-
-    stage('Apply') {
-      steps {
-        script {
-          forEachTarget('apply') { t ->
-            withCloud(t) {
-              withEnv(["TF_RUN_APPROVED=${t}"]) { sh "bash infra/scripts/tf-run.sh ${t} apply" }
-            }
-          }
-        }
-      }
-    }
-
-    stage('Health check') {
-      steps {
-        script {
-          forEachTarget('check') { t ->
-            withCloud(t) {
-              sh """
-                url=\$(bash infra/scripts/tf-run.sh ${t} output)
-                hc=\$(jq -r '.healthcheck' "\$WORK_ROOT/\$APP/${t}.tfvars.json")
-                for i in \$(seq 1 30); do
-                  if curl -fsS --max-time 5 "\$url\$hc"; then echo; break; fi
-                  [ "\$i" -lt 30 ] || { echo "${t}: 헬스체크 실패 \$url\$hc"; exit 1; }
-                  sleep 10
-                done
-                if [ -f app/scripts/smoke-test.sh ]; then
-                  BASE_URL="\$url" EXPECTED_COMMIT="\$IMAGE_TAG" sh app/scripts/smoke-test.sh
-                fi
-                echo "${t}: \$url" > "result-${t}.txt"
-              """
-            }
-          }
+          // 서버·사람이 승인 화면에 쓸 요약. 비밀값이 없는 메타데이터만 담아요 (plan.json은 넣지 않아요)
+          sh """
+            for t in ${targets().join(' ')}; do cat "\$WORK_ROOT/\$APP/\$t/plans/\$PLAN_ID/meta.json"; done \
+              | jq -s --arg plan_build "\$BUILD_NUMBER" '{plan_id: .[0].plan_id, plan_build: (\$plan_build|tonumber),
+                  app: .[0].app, image_tag: .[0].image_tag, destroy: .[0].destroy,
+                  targets: (map({key: .env, value: .summary}) | from_entries)}' > plan-summary.json
+            cat plan-summary.json
+          """
+          archiveArtifacts artifacts: 'plan-summary.json'
+          def changes = sh(script: '''jq -r '.targets | to_entries | map("\\(.key): \\(.value)") | join(", ")' plan-summary.json''',
+                           returnStdout: true).trim()
+          currentBuild.description = "승인 대기 ${params.DESTROY ? '(삭제) ' : ''}${changes}"
+          echo "승인되면 daisy-cd-apply를 PLAN_BUILD=${env.BUILD_NUMBER}, APPROVAL_ID=<승인 ID>로 실행해요"
         }
       }
     }
   }
   post {
-    success {
-      sh 'cat result-*.txt'
-    }
-    always {
+    cleanup {   // always는 success보다 먼저 돌아요. 작업 공간 정리는 맨 마지막에
       deleteDir()
     }
   }
@@ -164,7 +135,7 @@ def forEachTarget(String label, Closure body) {
 }
 
 // 자격증명은 이 블록 안에서만 환경변수로 주입해요.
-// state 버킷(S3)을 쓰면 GCP 배포도 AWS 자격증명(버킷 권한)이 필요해요.
+// state 버킷(S3)을 쓰면 GCP 배포도 AWS 자격증명(버킷 권한)이 필요해요. 환경별 state 저장소(SPEC §7)로 바뀌면 지워요.
 def withCloud(String target, Closure body) {
   def creds = []
   if (target == 'aws' || env.TF_STATE_BUCKET?.trim()) {

@@ -111,20 +111,24 @@ M = 예선 데모 필수, S = 여유 있을 때
 ```bash
 # 0) 작업 디렉터리 = 검증된 스크립트 (기준 모듈 복사본 또는 AI 생성본)
 #    러너는 backend.tf 한 파일만 더해요 (생성 코드에는 backend 블록 금지)
-printf 'terraform {\n  backend "s3" {}\n}\n' > backend.tf
+#    backend는 환경마다 그 환경의 저장소예요 (§7): aws → "s3", gcp → "gcs"
+printf 'terraform {\n  backend "s3" {}\n}\n' > backend.tf     # aws 예시
 
 # 1) 자격증명은 환경변수로만 주입 (Jenkins withCredentials 등)
-#    AWS_ACCESS_KEY_ID / AWS_SECRET_ACCESS_KEY  ← state 버킷(모든 환경) + AWS 배포
-#    GOOGLE_APPLICATION_CREDENTIALS             ← GCP 배포
+#    AWS_ACCESS_KEY_ID / AWS_SECRET_ACCESS_KEY  ← AWS 배포 + AWS state 버킷
+#    GOOGLE_APPLICATION_CREDENTIALS             ← GCP 배포 + GCP state 버킷
 #    TF_VAR_secrets='{"DATABASE_PASSWORD":"..."}' ← 앱 비밀값
 
-# 2) state 경로 주입. 환경마다 key가 달라서 병렬 apply가 서로 막히지 않아요
+# 2) state 경로 주입. 환경마다 저장소와 key가 달라서 병렬 apply가 서로 막히지 않아요
+#    aws: S3 (잠금은 use_lockfile)
 terraform init -input=false \
   -backend-config="bucket=${TF_STATE_BUCKET}" \
   -backend-config="key=${APP}/${ENV}/terraform.tfstate" \
   -backend-config="region=ap-northeast-2" \
   -backend-config="encrypt=true" \
   -backend-config="use_lockfile=true"
+#    gcp: GCS (잠금은 자동)
+#    terraform init -input=false -backend-config="bucket=<GCP state 버킷>" -backend-config="prefix=${APP}/${ENV}"
 
 # 3) 검증
 terraform validate -no-color
@@ -137,10 +141,11 @@ terraform apply -input=false -no-color plan.tfplan
 terraform output -raw service_url
 ```
 
-참고 구현: [`infra/scripts/tf-run.sh`](scripts/tf-run.sh). 위 순서를 그대로 실행하고 작업 디렉터리를 레포 밖(`$WORK_ROOT/$APP/$ENV/`)에 둬요. apply·destroy는 터미널에서 환경 이름을 입력하거나, Jenkins `input` 승인 뒤 `TF_RUN_APPROVED=<env>`로만 실행돼요.
+참고 구현: [`infra/scripts/tf-run.sh`](scripts/tf-run.sh). 위 순서를 그대로 실행하고 작업 디렉터리를 레포 밖(`$WORK_ROOT/$APP/$ENV/`)에 둬요. **plan(3)과 apply(4)는 다른 실행이에요.** plan마다 `plans/<PLAN_ID>/` 폴더를 따로 만들고, apply는 승인한 `PLAN_ID`의 plan만 적용해요 (§12-7). apply·destroy는 터미널에서 환경 이름을 입력하거나, 승인된 실행(`daisy-cd-apply`)에서 `TF_RUN_APPROVED=<env>`로만 실행돼요.
 
 - `app.tfvars.json`: `deploy.yaml`과 대상 환경 정보에서 러너가 만드는 **비밀값 없는** 변수 파일
 - `ENV`는 `onprem` · `aws` · `gcp` 중 하나
+- key는 지금 `{app}/{env}`예요. 서버 ID 기준 `{project_id}/{target_id}`로 바꿀 예정이에요 `(가칭)` (§7-1)
 - plan 파일 이름은 `plan.tfplan`이에요. 루트 `.gitignore`가 `*.tfplan`만 막아서 확장자가 없는 `tfplan`은 실수로 커밋될 수 있어요
 - plan 파일과 state에는 비밀값이 들어가요. 작업 디렉터리는 레포 밖에 두고 끝나면 지워요 (server `AGENTS.md` §10과 같은 규칙)
 
@@ -148,8 +153,8 @@ terraform output -raw service_url
 
 | ID `(가칭)` | 종류 | 내용 | 권한 |
 |---|---|---|---|
-| `aws-deployer` | Username/Password (액세스 키 ID / 시크릿) | 전용 IAM 사용자 `daisy-deployer` | ECS · ELBv2 · EC2(VPC·SG) · IAM(`daisy-*` 역할 생성·PassRole) · CloudWatch Logs · Secrets Manager · RDS(S) · state 버킷(`ListBucket`, `GetObject`, `PutObject`, 잠금 파일 `*.tflock`의 `DeleteObject`) |
-| `gcp-deployer` | Secret file (JSON) | SA `daisy-deployer@<project>` 키 | `run.admin`, `iam.serviceAccountAdmin`, `iam.serviceAccountUser`, `secretmanager.admin` (+ 비공개 이미지면 `artifactregistry.admin`, DB면 `cloudsql.admin`) |
+| `aws-deployer` | Username/Password (액세스 키 ID / 시크릿) | 전용 IAM 사용자 `daisy-deployer` | ECS · ELBv2 · EC2(VPC·SG) · IAM(`daisy-*` 역할 생성·PassRole) · CloudWatch Logs · Secrets Manager · RDS(S) · **AWS** state 버킷(`ListBucket`, `GetObject`, `PutObject`, 잠금 파일 `*.tflock`의 `DeleteObject`) |
+| `gcp-deployer` | Secret file (JSON) | SA `daisy-deployer@<project>` 키 | `run.admin`, `iam.serviceAccountAdmin`, `iam.serviceAccountUser`, `secretmanager.admin`, **GCP** state 버킷의 `storage.objectAdmin`(버킷 단위) (+ 비공개 이미지면 `artifactregistry.admin`, DB면 `cloudsql.admin`) |
 | `registry` | Username/Password | 레지스트리 계정 + 쓰기 토큰 (CI 푸시용) | 이미지 저장소 쓰기 |
 
 - 개인 관리자 키를 공유하지 않아요. 전용 사용자·SA를 만들어요
@@ -167,7 +172,7 @@ terraform output -raw service_url
 | 항목 | 값 |
 |---|---|
 | Terraform | `required_version = ">= 1.11"` (S3 네이티브 잠금 `use_lockfile` 정식 지원). 러너와 같은 **1.16.4**로 고정 (`infra/AGENTS.md` §2) |
-| provider | AWS `hashicorp/aws ~> 6.0`, GCP `hashicorp/google ~> 7.0`. `.terraform.lock.hcl`은 커밋해요 |
+| provider | AWS `hashicorp/aws ~> 6.0`, GCP `hashicorp/google ~> 8.0`. `.terraform.lock.hcl`은 커밋해요 |
 | 파일 | `main.tf`(terraform·provider 블록 포함), `variables.tf`, `outputs.tf` 3개만 |
 | 필수 변수 | `image_tag` (기본값 없음). 나머지는 §3-1 |
 | 필수 출력 | `service_url` |
@@ -249,12 +254,12 @@ DB 접속 정보는 앱에 환경변수로 넣어요. 이름은 온프레미스�
 
 ### 5-4. 완료 기준
 
-- [ ] `terraform fmt -check`, `terraform init -backend=false && terraform validate` 통과
-- [ ] `sample-monolith` 값으로 `plan` 성공. 리소스가 §5-2 표와 같고 NAT·RDS 없음
-- [ ] (사람 확인 후) `apply` → `curl ${service_url}/health` 200, `smoke-test.sh` 통과, `/version`의 `commit` = `image_tag`
-- [ ] **`image_tag`만 바꾼 `plan`이 task definition 교체(`-/+`)와 service 변경(`~`)만 보여줌** (네트워크·ALB 변경 0 → N-08 "컨테이너만 교체" 확인)
-- [ ] R-1~R-6 수동 확인 (가능하면 `checkov`나 `trivy config`로 한 번 더)
-- [ ] (사람 확인 후) `destroy` 후 `Project=daisy` 태그 리소스 0개
+- [x] `terraform fmt -check`, `terraform init -backend=false && terraform validate` 통과 (9/30, aws 6.66.0)
+- [x] `sample-monolith` 값으로 `plan` 성공. 리소스가 §5-2 표와 같고 NAT·RDS 없음 (9/30, Jenkins CD #1, 개인 계정 `PLAN_ONLY`: 22개 생성)
+- [ ] (사람 확인 후) `apply` → `curl ${service_url}/health` 200, `smoke-test.sh` 통과, `/version`의 `commit` = `image_tag` — **팀 계정에서**
+- [ ] **`image_tag`만 바꾼 `plan`이 task definition 교체(`-/+`)와 service 변경(`~`)만 보여줌** (네트워크·ALB 변경 0 → N-08 "컨테이너만 교체" 확인) — apply한 state가 있어야 해서 **팀 계정에서**
+- [x] R-1~R-6 수동 확인 (9/30 plan JSON: `0.0.0.0/0` 인바운드는 ALB 80 하나, 앱은 ALB SG에서만, NAT·RDS·EIP 0개). 정적 검사 도구(`checkov`·`trivy config`)는 아직
+- [ ] (사람 확인 후) `destroy` 후 `Project=daisy` 태그 리소스 0개 — **팀 계정에서**
 
 ---
 
@@ -299,32 +304,43 @@ DB 접속 정보는 앱에 환경변수로 넣어요. 이름은 온프레미스�
 
 ## 7. state 백엔드 (N-07)
 
-### 7-1. 구성 `(가칭)` — 팀 결정 전 작업 가정 (D-4)
+### 7-1. 구성 — 환경마다 그 환경의 저장소 + 잠금 (D-4)
+
+**원칙: 각 환경의 state는 그 환경이 제공하는 저장소에 두고, 모두 잠금을 켜요** (2026-10-01, PR #17 답변).
+- 한 환경의 장애나 자격증명 문제가 **다른 환경의 배포를 막지 않아요**
+- 각 배포는 **자기 환경의 키만** 있으면 돼요 (최소 권한). GCP 배포에 AWS 키가 필요 없어요
+- 환경마다 독립적이라 "같은 앱을 여러 환경에"(이식성)라는 주제와 맞아요
+
+| 환경 | 저장소 | 잠금 | 앱·웹 화면 표시 |
+|---|---|---|---|
+| AWS | S3 버킷 `daisy-tfstate-<계정 ID>` (`ap-northeast-2`) | S3 네이티브 잠금 `use_lockfile = true` (DynamoDB 없음) | S3 (잠금) |
+| GCP | GCS 버킷 `daisy-tfstate-<프로젝트 ID>` (`asia-northeast3`) | GCS 자동 잠금 (설정 없음) | GCS (잠금) |
+| 온프레미스 | `[미정]` 황지환과 결정. 후보: Jenkins VM 로컬 디스크(자동 잠금, VM이 고장 나면 유실) · PostgreSQL `pg` backend(자동 잠금) · MinIO(S3 호환) | 후보 모두 지원 | 결정 후 |
 
 | 항목 | 값 |
 |---|---|
-| 저장소 | **S3 버킷 하나**에 모든 환경(온프레미스·AWS·GCP) state를 key로 분리 |
-| 버킷 이름 | `daisy-tfstate-<AWS 계정 ID>` (전역 고유), `ap-northeast-2` |
-| key | `{app}/{env}/terraform.tfstate` (예: `hellocalc/aws/terraform.tfstate`) |
-| 잠금 | S3 네이티브 잠금 `use_lockfile = true` (DynamoDB 테이블 없음) |
-| 보호 | 버전 관리 켬, SSE(AES256), 퍼블릭 액세스 전부 차단, TLS 아닌 요청 거부 정책, 이전 버전 30일 후 만료 |
+| key | 지금 구현: `{app}/{env}/terraform.tfstate` (예: `hellocalc/aws/terraform.tfstate`). **`(가칭)` 서버 ID 기준 `{project_id}/{target_id}/terraform.tfstate`로 바꿀 예정**이에요. 하은현과 확정해요. 서버 배포 잠금(`target_lock.state_key`)과 단위가 같아져요 |
+| 보호 | 버전 관리 켬, 서버 측 암호화, 퍼블릭 액세스 전부 차단, 이전 버전 30일 후 만료. S3는 TLS 아닌 요청 거부 정책까지 |
+| Git | state에는 비밀값이 들어 있어서 절대 커밋하지 않아요 |
 
-- GCP도 S3에 두는 이유: backend 종류가 하나라 러너 규약(§3-4)이 한 벌이고, 확인할 곳도 한 곳이에요. 대신 GCP 배포 작업에도 AWS 자격증명(state 버킷 권한만)이 필요해요
-- server의 `target_lock.state_key`를 이 key와 같은 값으로 쓰면 락 단위와 state 단위가 딱 맞아요 `(가칭)` → 하은현에게 제안
-- 온프레미스 state도 같은 버킷에 넣으려면 황지환과 맞춰요
+**잠금이란**: terraform이 실행되는 동안 state에 "사용 중" 표시를 남겨서, 두 사람(또는 두 배포)이 동시에 같은 환경을 바꿔도 state가 꼬이지 않게 해요. 두 번째 실행은 `Error acquiring the state lock`으로 멈춰요. 이 위에 Jenkins의 `disableConcurrentBuilds()`와 서버의 `target_lock`이 한 겹씩 더 있어요.
 
 ### 7-2. bootstrap (환경당 1회, 사람이 apply)
 
 | 폴더 `(가칭)` | 하는 일 |
 |---|---|
-| `infra/bootstrap/aws-state/` | state 버킷과 버킷 정책. 처음엔 로컬 state로 만든 뒤 `terraform init -migrate-state`로 같은 버킷의 `_bootstrap/terraform.tfstate`로 옮겨요 |
-| `infra/bootstrap/gcp-project/` | API 활성화(`run`, `secretmanager`, `iam` + 필요 시 `artifactregistry`, `sqladmin`). 비공개 이미지를 쓰게 되면 Artifact Registry 원격 저장소도 여기서 |
+| `infra/bootstrap/aws-state/` | **S3** state 버킷과 버킷 정책. 처음엔 로컬 state로 만든 뒤 `terraform init -migrate-state`로 같은 버킷의 `_bootstrap/terraform.tfstate`로 옮겨요 |
+| `infra/bootstrap/gcp-project/` | API 활성화(`run`, `secretmanager`, `iam`, `storage` + 필요 시 `artifactregistry`, `sqladmin`)와 **GCS** state 버킷(버전 관리, 균일 버킷 수준 액세스, 공개 차단). bootstrap 자기 state도 같은 방식으로 버킷에 옮겨요. 비공개 이미지를 쓰게 되면 Artifact Registry 원격 저장소도 여기서 |
 
 ### 7-3. 완료 기준
 
-- [ ] 버킷에 버전 관리·SSE·퍼블릭 차단·TLS 강제가 적용됨
-- [ ] `aws`·`gcp` 두 key로 동시에 `plan` → 서로 기다리지 않음. 같은 key로 동시에 `plan` → 두 번째가 잠금 에러
+- [ ] 버킷마다 버전 관리 · 암호화 · 퍼블릭 차단이 적용됨 (S3는 TLS 강제까지)
+- [ ] 같은 환경 · 같은 key로 동시에 `plan` 두 개 → 두 번째가 `Error acquiring the state lock`
+- [ ] AWS · GCP를 동시에 `plan` → 서로 기다리지 않음 (저장소가 달라요)
+- [ ] GCP 배포에 AWS 자격증명이 필요 없음, 반대도 마찬가지
 - [ ] bootstrap state도 버킷으로 옮겨져 로컬에 `*.tfstate`가 남지 않음
+
+구현 상태: `tf-run.sh`는 지금 S3만 지원해요. GCS backend 분기와 환경별 버킷 변수(`TF_STATE_BUCKET_AWS` · `TF_STATE_BUCKET_GCP` 가칭)는 GCP 모듈 PR에서 넣고, 그때 CD의 `withCloud`에서 "GCP 배포에도 AWS 키" 조건을 지워요.
 
 ---
 
@@ -337,7 +353,7 @@ DB 접속 정보는 앱에 환경변수로 넣어요. 이름은 온프레미스�
 | D-1 | CI/CD 도구 | ADR-004 GitHub Actions, `AGENTS.md` §12-4 `[미정]`, `sample-monolith`은 GitHub Actions로 동작 중 | **Jenkins (확정이라고 전달받음)** | infra가 VM에서 Jenkins CI·CD 프로토타입을 만들고 있어요 (§12). CI는 N-01(김도영)과 겹쳐요 | 4 · ADR·전역 문서 반영과 CI 담당 공유를 김도영에게 요청 |
 | D-2 | terraform 실행 주체 | `server/AGENTS.md` §10: apply는 하은현, CLI 실행부는 김승환, Postgres 작업 큐 | Jenkins가 validate~apply | 모듈은 무관해요. Jenkins CD 프로토타입은 기준 모듈로 plan → 승인 → apply를 시연해요. 웹에서 부르려면 server가 Jenkins REST `buildWithParameters`를 호출해야 해요 | 4 · server 결정과 충돌, 회의 필요 |
 | D-3 | 컨테이너 레지스트리 | `[미정]`, 지금은 GHCR | Docker Hub | ECS·Cloud Run 모두 **공개** GHCR·Docker Hub 이미지를 직접 받아요. 비공개면 인증을 넣어야 하고, GCP는 Artifact Registry 원격 저장소가 필요해요. **공개 저장소라면 어느 쪽이든 infra는 막히지 않아요.** Docker Hub는 익명 pull 횟수 제한이 있어요. VM 단계는 개인 Docker Hub 공개 저장소를 써요 | 4 · 회의 |
-| D-4 | state 저장소 | `[미정]` | S3 등 | §7 제안대로 먼저 구현. 러너가 주입해서 모듈은 무관 | 4 · 회의 확인 |
+| D-4 | state 저장소 | `[미정]` | S3 등 | **환경마다 그 환경의 저장소 + 잠금** (AWS S3 · GCP GCS, 10/1 PR #17 답변, §7-1). 러너가 주입해서 모듈은 무관해요. 온프레미스 저장소와 key 형식은 남았어요 | 4 · 회의 확인, 온프레미스는 황지환, key는 하은현 |
 | D-5 | `deploy.yaml` 확장 (`cpu`, `memory`, `instances`, 외부 공개) | 9/29 초안에 없음 | 기본값 적용, 필요 시 수정 | 모듈에 기본값 변수로 먼저 둬요. `deploy.yaml` 반영은 결정 후 | 4 · 회의 |
 | D-6 | DB 접속 환경변수 이름 | 없음 | 없음 | 세 환경이 같은 이름을 넣어야 이식성이 지켜져요 | 2 · 황지환과 합의 |
 | D-7 | 공통 변수·출력 (§3) | `infra/AGENTS.md` §4 (가칭) | — | 온프레미스 모듈과 통일 | 2 · 김승환·하은현에게 이슈로 공지 |
@@ -380,7 +396,8 @@ infra/
 ├─ jenkins/    (가칭)              Jenkins 러너 (§12)
 │  ├─ setup-runner.sh              Ubuntu 24.04 러너 설치 (VM · 팀원 서버 공용)
 │  ├─ ci.Jenkinsfile               빌드 · 테스트 · 멀티 아키텍처 푸시
-│  ├─ cd.Jenkinsfile               plan → 승인 → apply → 헬스체크
+│  ├─ cd-plan.Jenkinsfile          병렬 plan → 승인 대기 (daisy-cd-plan)
+│  ├─ cd-apply.Jenkinsfile         승인한 plan apply → 헬스체크 (daisy-cd-apply)
 │  └─ render-tfvars.py             deploy.yaml → 변수 JSON
 └─ scripts/    (가칭)
    └─ tf-run.sh                    §3-4 러너 규약 참고 구현
@@ -423,21 +440,29 @@ PR은 300줄 이하로 나눠요: ① 이 명세 ② bootstrap ③ AWS 모듈 �
 |---|---|
 | `infra/jenkins/setup-runner.sh` | Java 21, Jenkins LTS, Docker CE + buildx(`daisy-builder`), qemu, terraform(버전 고정·hold), AWS CLI v2, gcloud CLI를 설치해요. 여러 번 실행해도 안전해요 |
 | `infra/jenkins/ci.Jenkinsfile` | 앱 checkout → 테스트(`golang` 컨테이너에서 `make check`) → `linux/amd64,linux/arm64` 이미지 → 푸시 (태그 = 커밋 해시 40자) → 선택 시 CD 호출 |
-| `infra/jenkins/cd.Jenkinsfile` | 환경 선택 → 인프라 코드 확인 → **병렬 plan** → 위험 검사 → **`input` 승인** → **병렬 apply** → 헬스체크·스모크 테스트 |
+| `infra/jenkins/cd-plan.Jenkinsfile` | `daisy-cd-plan`: 환경 선택 → 인프라 코드 확인 → **병렬 plan** → 위험 검사 → plan 요약(`plan-summary.json`) → 승인 대기 |
+| `infra/jenkins/cd-apply.Jenkinsfile` | `daisy-cd-apply`: **시작 = 승인**. 승인한 plan(`PLAN_BUILD`)만 **병렬 apply** → 헬스체크·스모크 테스트 |
 | `infra/jenkins/render-tfvars.py` | `deploy.yaml` + 대상 환경 등록값 + 이미지 주소 → 변수 JSON (프로토타입용 최소 변환) |
 | `infra/scripts/tf-run.sh` | §3-4 러너 규약 참고 구현 |
 
 ### 12-3. Jenkins 설정 (UI에서 1번)
 
-- **Job**: `daisy-ci`, `daisy-cd`
+- **Job**: `daisy-ci`, `daisy-cd-plan`, `daisy-cd-apply` (예전 `daisy-cd`는 비활성)
   - 둘 다 "Pipeline script from SCM"으로 만들어요. 레포는 `https://github.com/Softbank-Hackathon-2026-Team-Daisy/daisy.git`
-  - Script Path는 각각 `infra/jenkins/ci.Jenkinsfile`, `infra/jenkins/cd.Jenkinsfile`
+  - Script Path는 각각 `infra/jenkins/ci.Jenkinsfile`, `infra/jenkins/cd-plan.Jenkinsfile`, `infra/jenkins/cd-apply.Jenkinsfile`
   - 브랜치는 머지 전에는 작업 브랜치, 머지 후에는 `main`
   - `daisy`와 `sample-monolith` 둘 다 공개 레포라 GitHub 자격증명은 필요 없어요
 - **Credentials**: `aws-deployer`, `gcp-deployer`, `registry` (§3-5)
 - **전역 환경변수 (선택)**: `TF_STATE_BUCKET`, `EXPECTED_AWS_ACCOUNT`, `EXPECTED_GCP_PROJECT`. 계정 ID라서 레포에 두지 않아요
 - **대상 환경 등록**: `/var/lib/jenkins/daisy-work/targets/gcp.json`에 `{"project_id": "<id>", "region": "asia-northeast3"}`를 넣어요. `aws.json`은 선택이에요 (없으면 모듈 기본값)
 - **Executors**: 2 (CD가 승인을 기다리는 동안에도 CI를 돌릴 수 있게)
+- **플러그인**: 권장 플러그인에 더해 **"Pipeline: REST API"**(`pipeline-rest-api`)가 필요해요. 서버가 단계별 상태(`wfapi/describe`)와 승인 대기(`wfapi/pendingInputActions`)를 읽을 때 써요. 최근 권장 플러그인에는 빠져 있어요. UI(Plugins → Available)에서 설치하거나 아래처럼 설치해요
+  ```bash
+  sudo -u jenkins java -jar jenkins-plugin-manager.jar --war /usr/share/java/jenkins.war \
+    --plugin-download-directory /var/lib/jenkins/plugins --plugins pipeline-rest-api
+  sudo systemctl restart jenkins
+  ```
+- **서버 연동용 API 토큰**: 서버가 Jenkins REST API(빌드 시작 · 로그 · 단계 · 승인)를 부를 때 Jenkins 사용자의 API 토큰을 써요. 토큰으로 인증하면 CSRF crumb은 필요 없어요. 10/1 러너에서 확인한 호출 흐름은 PR #17 코멘트(2번)에 있어요
 
 ### 12-4. MOCK과 빈 곳
 
@@ -451,10 +476,17 @@ PR은 300줄 이하로 나눠요: ① 이 명세 ② bootstrap ③ AWS 모듈 �
 
 ### 12-5. 개인 계정 단계
 
-- **AWS**:
-  - root에 MFA를 켜고, IAM 사용자 `daisy-deployer`로 액세스 키를 만들어요. SSO는 Organizations가 필요하고 Free plan이 유료 plan으로 바뀌어서 쓰지 않아요
-  - Budgets 알림을 $5 정도로 설정해요
-  - 2025-07-15 이후 만든 계정은 크레딧 기반이고 Fargate 무료 사용량이 없어요. 기본 구성이 시간당 약 $0.05라서 **apply → 확인 → destroy를 1시간 안에** 끝내요
+**원칙: 개인 계정에서는 돈이 한 푼도 나오지 않게 해요.**
+
+- **AWS: plan까지만 해요 (0원 보장)**
+  - 개인 계정이 2025-07-15 이전 가입이라 12개월 프리티어가 끝났어요. ALB · Fargate · EC2 · 공인 IPv4가 모두 유료라, 리소스를 띄우는 순간 돈이 나와요
+  - plan은 조회 API만 써서 아무것도 만들지 않아요. 모듈이 실제 AWS에서 맞는지와 Jenkins CD 흐름을 여기까지 검증해요
+  - 보장 장치 세 겹:
+    1. IAM 사용자 `daisy-deployer`에 **`ReadOnlyAccess`만** 줘요. 실수로 승인해도 AWS가 생성을 거부해요
+    2. Jenkins 전역 환경변수 **`PLAN_ONLY=1`**: CD가 plan에서 끝나고, `tf-run.sh`도 apply · destroy를 막아요
+    3. Billing → Budgets → **Zero spend budget**: $0.01만 나와도 메일이 와요
+  - root에 MFA를 켜요. SSO · Organizations는 쓰지 않아요
+  - apply → 헬스체크 → destroy는 **팀 계정(₩300,000 지원금)**에서 해요. 그때 `PLAN_ONLY`를 지우고 `daisy-deployer` 권한을 §3-5로 바꿔요
 - **GCP**:
   - 프로젝트를 만들고 결제 계정을 연결해요 (프리티어도 결제 계정이 필요해요). 예산 알림도 설정해요
   - SA `daisy-deployer` 키를 발급해요. 조직이 없는 개인 계정이라 키 생성 제한 정책이 없어요
@@ -465,9 +497,51 @@ PR은 300줄 이하로 나눠요: ① 이 명세 ② bootstrap ③ AWS 모듈 �
 
 - VM에 4GB보다 많이 주지 않아요. 빌드할 때는 Mac의 다른 무거운 앱을 닫아요
 - Ubuntu를 LVM으로 설치하면 루트가 디스크의 절반쯤만 잡혀요 (40GB 중 18.5GB). `sudo lvextend -r -l +100%FREE /dev/ubuntu-vg/ubuntu-lv`로 늘려요
+- **VMware NAT DNS(`172.16.185.2`)는 EDNS 질의에 깨진 응답을 줘요.** Go로 만든 buildkit이 레지스트리 주소를 못 찾아서 빌드가 실패해요 (`lookup registry-1.docker.io ... no such host`). `setup-runner.sh`가 VMware 게스트에서만 Docker 컨테이너 DNS를 `1.1.1.1`·`8.8.8.8`로 지정해요 (`/etc/docker/daemon.json`)
+- **Wi-Fi를 바꾸면 Mac의 Fusion NAT 서비스(`vmnet-natd`)가 꺼질 수 있어요.** Mac↔VM SSH는 되는데 VM에서 밖으로 못 나가면(`No route to host`) Mac에서 네트워크를 다시 켜요. VM은 켜 둔 채로 돼요
+  ```bash
+  sudo "/Applications/VMware Fusion.app/Contents/Library/vmnet-cli" --stop
+  sudo "/Applications/VMware Fusion.app/Contents/Library/vmnet-cli" --start
+  ```
 - Mac이 잠들었다 깨면 VM 시계가 틀어질 수 있어요. AWS가 `RequestExpired`나 `SignatureDoesNotMatch`를 내면 VM에서 `timedatectl`을 확인해요
 - Docker Hub는 익명 pull 횟수 제한이 있어요 (CI의 `golang` 이미지 등). 막히면 `docker login` 후에 받아요
 - 로컬 state를 쓰는 동안 `/var/lib/jenkins/daisy-work/<app>/<env>/state/`를 지우면 만든 리소스를 destroy할 수 없어요
+- **terraform이 도중에 강제 종료되면 state 잠금이 남을 수 있어요.** 다음 실행이 `Error acquiring the state lock`으로 막히면, 잠금을 건 실행이 정말 끝났는지 확인한 뒤 작업 디렉터리에서 `terraform force-unlock <잠금 ID>`로 풀어요. 그래서 apply 중에는 Jenkins에서 Abort하지 않아요
+
+### 12-7. CD 두 Job: plan → 승인 → apply
+
+10/1 결정: CD를 **준비(`daisy-cd-plan`)와 적용(`daisy-cd-apply`) 두 Job으로 나눠요.** §16-6의 "동일 job 대기·재개 vs 준비·적용 분리" `[미정]`을 분리로 정했어요. Jenkins `input`으로 기다리지 않아서 승인 대기 동안 executor를 잡지 않고, 승인은 서버 승인 API 하나로 받아요 (§16-6).
+
+```
+daisy-cd-plan #N ── 병렬 plan ── plan-summary.json ──▶ 서버: 승인 화면
+                                                         │ 웹·앱에서 승인
+                                                         ▼
+daisy-cd-apply ◀── 서버가 buildWithParameters(PLAN_BUILD=N, APPROVAL_ID=apv_…)
+   └ 승인한 plan만 병렬 apply → 헬스체크 · 스모크 테스트
+```
+
+| 항목 | 내용 |
+|---|---|
+| plan ID | `daisy-cd-plan-<빌드 번호>`. 서버는 빌드 번호(`PLAN_BUILD`)만 넘기면 돼요 |
+| 작업 폴더 | plan마다 `$WORK_ROOT/$APP/$ENV/plans/<PLAN_ID>/` (`src/`, `vars.json`, `meta.json`, `summary.txt`). 새 plan이 승인 대기 중인 plan을 덮어쓰지 않아요 (§16-7 협의안) |
+| 승인 화면 정보 | `GET /job/daisy-cd-plan/<N>/artifact/plan-summary.json` → `plan_id`, `image_tag`, `destroy`, 환경별 요약(`create=22` 등). 비밀값이 든 plan JSON은 보관하지 않아요 |
+| 적용 대상 | apply Job이 그 plan ID의 폴더가 있는 환경을 스스로 찾아요. 승인한 plan에 들어간 환경만 적용해요 |
+| 승인 기록 | `APPROVAL_ID` 필수 (서버 승인 ID `apv_…`, 사람이 직접 테스트할 때는 `manual-<이름>`). 없으면 실행하지 않아요 |
+| 승인한 plan만 적용 | `meta.json`의 plan 파일 해시와 다르면 거부, 이미 적용한 plan이면 거부. 그사이 state가 바뀌었으면 terraform이 stale plan으로 거부 → 다시 plan · 승인 |
+| 동시 실행 | 같은 앱·환경의 plan · apply는 `flock`으로 한 번에 하나만 (최대 10분 대기). 다른 앱·환경끼리는 동시에 돌아요 |
+| 정리 | 적용하면 비밀값이 든 plan 파일을 지우고 `current`가 그 plan을 가리켜요. 하루 지난 plan 폴더는 다음 plan 때 지워요 |
+| `PLAN_ONLY=1` | apply Job이 Verify 단계에서 거부해요 (개인 계정 0원 모드) |
+| 삭제 | `daisy-cd-plan`에서 `DESTROY` 체크 → 삭제 plan → 승인 → `daisy-cd-apply` (헬스체크는 건너뛰어요) |
+
+서버 연동 때 알아 둘 것:
+- **같은 파라미터의 요청이 대기열에 겹치면 Jenkins가 하나로 합쳐요.** 같은 `Location`(대기열 주소)을 받아요 (10/1 확인)
+- 승인 대기 API(`wfapi/pendingInputActions`)는 더는 쓰지 않아요. 승인은 apply Job 시작으로 대신해요
+
+검증 (10/1, 러너):
+- Jenkinsfile 3개 선언형 문법 검사 통과
+- `tf-run.sh` 안전장치 10가지 확인: PLAN_ID 없음 · 형식 오류 · 없는 plan · **해시 불일치** · `PLAN_ONLY` · 승인 없음 · **이미 적용** · 같은 ID 덮어쓰기 · 적용 없이 output · **잠금 대기 초과**
+- `daisy-cd-plan` 두 개를 동시에 실행 → plan 폴더 3개(`-1`~`-3`)가 이미지 태그·해시가 다른 채로 따로 남음. 잠금 때문에 순서대로 실행됨
+- 실제 apply는 개인 계정 `PLAN_ONLY` 때문에 팀 계정에서 확인해요
 
 ## 13. 팀원 서버로 옮길 때
 
@@ -475,9 +549,9 @@ PR은 300줄 이하로 나눠요: ① 이 명세 ② bootstrap ③ AWS 모듈 �
 - [ ] 서버의 OS·아키텍처를 확인해요 (`uname -m`). `setup-runner.sh`는 Ubuntu 24.04 기준이에요
 - [ ] `sudo TERRAFORM_VERSION=<infra/AGENTS.md §2의 버전> bash infra/jenkins/setup-runner.sh`로 같은 버전을 설치해요
 - [ ] 모듈의 `.terraform.lock.hcl`에 모든 플랫폼 해시가 있는지 확인해요: `terraform providers lock -platform=linux_arm64 -platform=linux_amd64 -platform=darwin_arm64`
-- [ ] Jenkins Job 2개와 전역 환경변수, 대상 환경 등록(§12-3)을 다시 만들어요
+- [ ] Jenkins Job 2개와 전역 환경변수, 대상 환경 등록, **"Pipeline: REST API" 플러그인**(§12-3)을 다시 준비해요
 - [ ] Credentials를 **팀 계정** 값으로 넣어요. 권한은 §3-5로 줄여요
-- [ ] 팀 계정에서 state 버킷 bootstrap(§7-2)을 다시 실행해요. 개인 계정 state는 옮기지 않아요 (비어 있어야 해요)
+- [ ] 팀 계정에서 환경별 state 버킷 bootstrap(§7-2: S3 · GCS)을 다시 실행해요. 개인 계정 state는 옮기지 않아요 (비어 있어야 해요)
 - [ ] 개인 IAM 사용자 키, GCP SA 키, Docker Hub 토큰을 폐기해요
 - [ ] 개인 계정 ID·프로젝트 ID가 커밋이나 PR 본문(plan 출력)에 남지 않았는지 확인해요
 
@@ -494,8 +568,11 @@ PR은 300줄 이하로 나눠요: ① 이 명세 ② bootstrap ③ AWS 모듈 �
 | 2026-09-30 | 초안 |
 | 2026-09-30 | Jenkins 러너 VM 프로토타입(§12)과 서버 이전 체크리스트(§13) 추가. 공개 GHCR 직접 pull 사실 반영(D-3, §6-3), GHCR 비공개 확인(D-12), plan 파일 이름·state 잠금 권한 수정 |
 | 2026-09-30 | 결정 기록을 `infra/AGENTS.md` §9로 옮김 (#10). `infra/CLAUDE.md` 참조를 `AGENTS.md`로 바꿈 |
+| 2026-09-30 | AWS 기준 모듈 구현(§5, `database: false` 경로 우선). Google provider 제약을 `~> 8.0`으로 수정 (최신 8.5.0) |
+| 2026-09-30 | 개인 AWS 계정은 plan까지만 (ReadOnlyAccess · `PLAN_ONLY=1` · Zero spend budget). CD에 `DESTROY`·`PLAN_ONLY` 추가 |
 | 2026-10-01 | 온프레미스 명세(§16) 추가: 설치 현황, 데모 범위, 네트워크·HTTPS, Jenkins 실행·승인 합의, 미정 계약과 완료 기준 |
 | 2026-10-01 | §16 보완: CI/CD VM 사양과 Zone 대역, 인프라팀 CI/CD 담당, 빌드·이미지 전달 검증, 작업 폴더·state 및 AI 생성·저장 협의 항목 |
+| 2026-10-01 | state 저장소를 "환경마다 그 환경의 저장소 + 잠금"으로 변경(§7, D-4). "Pipeline: REST API" 플러그인 · 서버 연동 API 토큰(§12-3), 잠금 해제 방법(§12-6) 추가 |
 
 ---
 
@@ -696,3 +773,4 @@ Jenkins: Terraform 준비 → validate · plan · 위험 검사
 | §14 결정 기록 | AGENTS 변경은 별도 `infra/docs-update-agents` 브랜치의 `1561fa5`까지 기록. 병합 시 이 절과 일치시킬 것 |
 
 기존 클라우드 리소스·일정·미정인 공통 변수의 결정을 이 절이 임의로 바꾸지 않아요.
+| 2026-10-01 | CD를 `daisy-cd-plan` · `daisy-cd-apply` 두 Job으로 분리(§12-7). plan마다 작업 폴더 분리, 승인한 plan만 적용, 앱·환경별 `flock` |

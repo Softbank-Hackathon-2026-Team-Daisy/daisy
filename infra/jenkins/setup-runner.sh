@@ -76,6 +76,21 @@ systemctl enable --now jenkins
 log "Docker CE · buildx"
 apt-get install -y -q docker-ce docker-ce-cli containerd.io docker-buildx-plugin
 systemctl enable --now docker
+# VMware NAT DNS 프록시는 EDNS 질의에 깨진 응답을 줘서, Go 리졸버를 쓰는 buildkit이 레지스트리 주소를 못 찾아요.
+# VMware 게스트에서만 컨테이너 DNS를 공용 DNS로 지정해요 (VM 자체 DNS는 그대로).
+if [[ $(systemd-detect-virt 2>/dev/null || true) == vmware ]]; then
+  want=$(jq -cn --arg d "${DOCKER_DNS:-1.1.1.1 8.8.8.8}" '$d | split(" ")')
+  have=$(jq -c '.dns // []' /etc/docker/daemon.json 2>/dev/null || echo '[]')
+  if [[ $want != "$have" ]]; then
+    tmp=$(mktemp)
+    jq --argjson d "$want" '.dns = $d' /etc/docker/daemon.json >"$tmp" 2>/dev/null ||
+      jq -n --argjson d "$want" '{dns: $d}' >"$tmp"
+    install -m 644 "$tmp" /etc/docker/daemon.json
+    rm -f "$tmp"
+    systemctl restart docker
+    sudo -u jenkins docker buildx rm daisy-builder >/dev/null 2>&1 || true   # 새 DNS로 다시 만들어요
+  fi
+fi
 if ! id -nG jenkins | grep -qw docker; then
   usermod -aG docker jenkins
   systemctl restart jenkins   # 그룹 변경은 재시작해야 적용돼요

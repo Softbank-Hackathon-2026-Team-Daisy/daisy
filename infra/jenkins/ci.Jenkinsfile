@@ -14,7 +14,7 @@ pipeline {
     string(name: 'APP_REPO', defaultValue: 'https://github.com/Softbank-Hackathon-2026-Team-Daisy/sample-monolith.git', description: '앱 저장소 (Dockerfile · deploy.yaml)')
     string(name: 'APP_BRANCH', defaultValue: 'main')
     string(name: 'IMAGE_REPO', defaultValue: '', description: '태그 없는 이미지 주소. 예: docker.io/<계정>/hellocalc (공개 저장소)')
-    booleanParam(name: 'TRIGGER_CD', defaultValue: false, description: '푸시 후 daisy-cd를 이 태그로 시작 (plan 후 승인 대기에서 멈춰요)')
+    booleanParam(name: 'TRIGGER_CD', defaultValue: false, description: '푸시 후 daisy-cd-plan을 이 태그로 시작 (plan까지 만들고 승인을 기다려요)')
   }
   stages {
     stage('Checkout') {
@@ -73,7 +73,7 @@ pipeline {
     stage('Trigger CD') {
       when { expression { params.TRIGGER_CD } }
       steps {
-        build job: 'daisy-cd', wait: false, parameters: [
+        build job: 'daisy-cd-plan', wait: false, parameters: [
           string(name: 'IMAGE_REPO', value: params.IMAGE_REPO),
           string(name: 'IMAGE_TAG', value: env.IMAGE_TAG),
           string(name: 'APP_REPO', value: params.APP_REPO),
@@ -91,6 +91,8 @@ pipeline {
         docker image prune -f >/dev/null || true
         docker buildx prune --builder daisy-builder --filter until=72h -f >/dev/null || true
       '''
+    }
+    cleanup {   // always는 success보다 먼저 돌아요. 작업 공간 정리는 맨 마지막에
       deleteDir()
     }
   }
