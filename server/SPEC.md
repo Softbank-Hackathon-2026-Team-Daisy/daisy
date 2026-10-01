@@ -172,3 +172,244 @@
 - 내부 `prepare`와 Job `daisy-cd-plan`은 연동부에서 매핑합니다. 작업명 변경이나 신규 테이블은 필요하지 않습니다.
 - 공개 API의 목록 봉투·attempt 표시·다중 승인·이미지·롤백 매핑은 아래 링크의 구체적 안을 은현과 확인한 뒤 구현합니다. 이를 인프라 답변 대기로 묶지 않습니다. 실제 산출물·식별자·state 연결만 [#35](https://github.com/Softbank-Hackathon-2026-Team-Daisy/daisy/issues/35)에서 추적합니다.
 - 통합 검증(2026-10-01): `check build --offline` 및 테스트 13건 통과, PostgreSQL 17의 SQL 제약 검사 27건 통과. 통합 jar의 classpath V1으로 별도 빈 DB에 Flyway 적용·JPA validate·기동 성공, health UP 및 OpenAPI 응답 확인. 실제 Jenkins·인가 통합·동시성 검증과 구분합니다. 상세는 [작업 일지](docs/sh/2026-10-01-pr19-feedback.md#통합-검증-결과-2026-10-01-1953-kst)에 기록했습니다.
+
+## DB 마이그레이션과 인증·인가 (10/1, 하은현)
+
+### 범위와 동작
+
+- `V1__init.sql` 로 ERD 17개 테이블을 만듭니다. 설계 문서의 FK·CHECK·부분 UNIQUE·인덱스를 DB 제약으로 구현합니다. 엔티티의 JPA 매핑이 DB 무결성을 대신하지 않습니다.
+- 복합 FK 로 프로젝트 소속을 DB 가 확인합니다. 다른 프로젝트의 `source_version`·`target`·lineage 배포를 섞을 수 없습니다.
+- 순환 FK 네 쌍은 테이블 생성 뒤 `ALTER` 로 연결합니다. 삭제 CASCADE 를 두지 않고 보관은 `archived_at`·`disabled_at` 으로 합니다.
+- `POST /auth/token` 으로 토큰을 발급하고 `GET /auth/me` 로 주체를 확인합니다. REST·SSE 모두 `Authorization: Bearer` 를 쓰고 쿠키는 받지 않습니다.
+- 별도 토큰 테이블을 두지 않습니다. 역할·활성 여부는 토큰이 아니라 요청마다 DB 에서 다시 읽습니다. 로그아웃·개별 토큰 폐기 경로는 없습니다.
+- 아이디가 없는 경우와 비밀번호가 틀린 경우를 같은 401 로 응답합니다.
+- 필터 단계 오류를 `HandlerExceptionResolver` 로 넘겨 공통 오류 봉투로 응답합니다. 공통 기반 문서의 "인증 필터 오류는 MVC advice 밖" 항목을 이 방식으로 연결합니다.
+- `ProjectAccessService` 가 접근·변경 권한을 판정합니다. 접근 여부는 활성 membership, 변경·승인 여부는 계정 역할로 나눕니다. 실행 서비스도 이 서비스를 호출하며 API 검사를 이유로 생략하지 않습니다.
+- 없는 프로젝트와 권한 없는 프로젝트를 모두 404 로 응답합니다. 403 은 접근은 되는데 역할이 모자란 경우에만 사용합니다.
+- 데모 계정은 환경변수가 있을 때만 심고 BCrypt 해시만 저장합니다. 비밀번호를 코드·마이그레이션·로그에 두지 않습니다. `DAISY_AUTH_SECRET` 이 없으면 기동하지 않습니다.
+- CORS 허용 origin 은 환경변수로 받고 와일드카드를 쓰지 않습니다. `Authorization`·`Last-Event-ID`·`Idempotency-Key`·`X-Request-ID` 를 허용하고 `X-Request-ID` 를 노출합니다.
+
+### 후속 범위
+
+- 조회·관리 API 는 아직 없습니다. 인가 판정이 실제 요청 경로에 붙은 적이 없고 단위 테스트로만 확인했습니다.
+- SSE 경로의 인증 실패 전달, 실제 터널·프록시 뒤의 CORS·스트리밍은 도메인과 개발 서버가 생긴 뒤 확인합니다.
+- 만료된 `pending` 승인을 `expired` 로 내리는 일은 서비스 책임입니다. 시간 조건은 PostgreSQL 인덱스 조건에 넣을 수 없습니다.
+- FK 인덱스가 없는 컬럼 36곳은 예선 데이터 규모를 보고 넣지 않았습니다.
+
+### 검증 결과 (2026-10-01)
+
+- 빈 PostgreSQL 17 에 올려 Flyway 적용(0.39초)·`ddl-auto=validate` 통과·기동(21.9초)을 확인했습니다. 엔티티와 컬럼이 어긋나면 기동이 실패합니다.
+- 제약 검사 17가지를 돌려 교차 프로젝트 참조, lineage 조합, plan·승인 중복, state 락, `seq`, 멱등 키가 의도대로 막히는 것을 확인했습니다. `bash server/docs/eh/sql/verify.sh` 로 재현합니다.
+- `spotlessApply build test --no-daemon` 성공. 테스트 18개(기존 11개 + 접근 권한 7개) 통과.
+- 실제 기동 후 10가지를 확인했습니다. 미인증 401, 틀린 비밀번호와 없는 계정의 동일 응답, 정상 로그인, Bearer 조회, `viewer` 역할, 변조 토큰 401, `Basic` 헤더 401, CORS preflight, OpenAPI 노출입니다.
+- DB 제약과 인증 경로만 확인했습니다. 실제 배포 흐름·동시성·Jenkins 연동·SSE 재생은 이번 검증 범위가 아닙니다.
+
+## 프로젝트 조회 API (10/1, 하은현)
+
+### 범위와 동작
+
+- `GET /projects` 는 로그인한 계정이 접근할 수 있는 프로젝트 목록을 돌려줍니다. 활성 membership 이 있고 보관되지 않은 것만 포함합니다.
+- `GET /projects/{id}` 는 프로젝트 상세를 돌려줍니다. `ProjectAccessService.requireRead` 를 적용해 없는 프로젝트와 권한 없는 프로젝트를 모두 404 로 응답합니다.
+- 목록 응답은 계약의 `{ items, next_cursor }` 봉투를 씁니다. 이번 범위에서는 전체를 한 번에 돌려주고 `next_cursor` 는 항상 null 입니다.
+- 응답 필드는 `id`, `name`, `repository`, `default_branch`, `created_at` 이고 상세에는 `repository_url`, `manifest_path` 가 더해집니다. DB 컬럼명을 그대로 노출하지 않습니다.
+- 데모 프로젝트는 환경변수가 있을 때만 심습니다. 계정 시딩과 같은 방식이고 데모 계정에 membership 을 함께 부여합니다.
+
+### 후속 범위
+
+- 커서 페이지네이션은 넣지 않았습니다. 목록이 커지면 `created_at`·`id` 기준 커서를 추가합니다.
+- `POST /projects` 는 넣지 않았습니다. 저장소 연결 절차·권한이 계약에서 미결입니다.
+- 승준님 `A-12` 가 요청한 `build`, `registry`, `webhook_last_at` 은 빌드 수신이 생긴 뒤에 붙입니다.
+- 보관된 프로젝트의 조회 정책은 정하지 않았습니다. 지금은 목록에서만 제외합니다.
+
+### 검증 결과 (2026-10-01)
+
+- 빈 PostgreSQL 17 에 띄워 6가지를 확인했습니다. owner 목록의 봉투 모양, viewer 의 조회 허용, 미인증 401, 상세 응답, 없는 프로젝트 404, **멤버십 철회 뒤 프로젝트가 존재해도 404 이고 다른 계정은 영향이 없는 것** 입니다.
+- 시딩 순서 오류를 실제 실행에서 찾아 고쳤습니다. `ApplicationRunner` 는 `@Order` 가 없으면 가장 마지막이라, `@Order(100)` 인 프로젝트 시더가 계정 시더보다 먼저 돌아 아무것도 심지 않았습니다. 계정 시더에 `@Order(50)` 을 붙여 순서를 명시했습니다.
+- 커서 페이지네이션·보관 프로젝트 조회 정책은 확인하지 않았습니다. 목록이 한 건인 상태의 검증입니다.
+
+## 환경별 현재 상태 조회 A-02 (10/1, 하은현)
+
+### 왜 지금인가
+
+`ios/SPEC.md` 182행이 D2(10/1) 요구로 `A-01·A-02·A-04` 와 개발 서버 R-08 을 적고 "은현 님 약속" 으로 표시해 두었습니다. A-02 는 우선도 **M** 이고 §6-2 가 *"앱의 핵심 화면"* 으로 적은 현황(W-01) 화면이 이 경로만 씁니다. `work.md` §2 의 *"프로젝트에 연결된 온프레미스·클라우드 대상 목록과 상태 제공"* 이 제 담당이고, 실행 서비스를 기다리지 않고 만들 수 있습니다.
+
+### 범위와 동작
+
+- `GET /projects/{id}/targets/status` 로 프로젝트에 연결된 배포 대상의 현재 상태를 돌려줍니다.
+- `ProjectAccessService.requireRead` 를 먼저 호출합니다. 없는 프로젝트와 권한 없는 프로젝트를 모두 404 로 응답합니다.
+- 목록 봉투는 기존 `GET /projects` 와 같은 `{ items, next_cursor }` 입니다. 대상 수가 프로젝트당 몇 개라 이번 범위에서는 전부 돌려주고 `next_cursor` 는 항상 null 입니다. 앱이 §6-2 에서 이 봉투를 가정했습니다.
+- 보관된 대상(`archived_at` 이 있는 행)은 제외합니다.
+- 정렬은 `(environment_type, name)` 으로 고정합니다. 화면에서 환경 순서가 매번 바뀌지 않게 하려는 것입니다.
+- **집계하지 않습니다.** 배포 전체 상태 집계는 설계 34행대로 실행 서비스(승환) 소유입니다. 이 엔드포인트는 대상별 현재 값만 읽어 돌려줍니다.
+- **`target.current_deployment_target_id` 를 갱신하지 않습니다.** 그 값을 쓰는 쪽만 맡고, 쓰는 것은 실행 서비스입니다.
+
+### 응답 필드와 출처
+
+`ios/SPEC.md` §6-7 의 `TargetStatus` 를 기준으로 하고, 제가 지금 근거를 가진 값만 채웁니다. **없는 값을 만들어 넣지 않습니다.**
+
+| 계약 필드 | 출처 | 이번 PR |
+|---|---|---|
+| `target_id` | `target.id` | 제공 |
+| `type` | `target.environment_type` (`onprem`·`aws`·`gcp`) | 제공 |
+| `name` | `target.name` | 제공 |
+| `connection_state` | `target.connection_state` (`unknown`·`connected`·`disconnected`) | **제공 (계약에 없는 추가)** — W-04 가 "연결 안 되는 환경은 고를 수 없어요" 를 하려면 필요합니다 |
+| `checked_at` | `target.connection_checked_at` | 제공 (연결 확인이 돈 적 없으면 null) |
+| `current.deployment_id` | `deployment_target.deployment_id` | 제공 |
+| `current.commit` | `deployment.commit_sha` | 제공 |
+| `current.deployed_at` | `deployment_target.finished_at` | 제공 |
+| `current.image` | `deployment.image_refs` 평탄화 | **미제공 (null)** — 빌드 수신(A-06)이 없어 `image_refs` 가 빈 상태입니다 |
+| `url` | `deployment_target.result` 의 `service_url` | **미제공 (null)** — `apply-result.json` 이 아직 인프라에 없습니다 (#17) |
+| `health` | 같은 곳 | **항상 `unknown`** — 헬스 결과가 지금 apply 로그에만 있습니다 (#17) |
+| `health_summary` | 같은 곳 | **미제공 (null)** |
+| `image_digest` | `source_version.image_refs` | **미제공 (null)** — WR-09 동일성 검증은 빌드 수신 뒤입니다 |
+
+`current` 는 그 대상에 한 번도 배포가 끝난 적이 없으면 통째로 null 입니다. **이번 PR 시점에는 항상 null** 이고, 이유가 둘입니다.
+
+1. 실행 서비스가 아직 없어 `deployment_target` 에 행이 생기지 않습니다.
+2. **소유 경계입니다.** 설계 2장이 `deployment` 모듈(Deployment·DeploymentTarget)을 승환 소유로, `project` 모듈(Project·Target·SourceVersion)을 은현 소유로 나눴습니다. `work.md` §14 가 *"다른 담당 영역의 Repository·Entity를 직접 사용하지 않고 서비스 계약으로 연결합니다"* 로 두었으므로, `current` 를 채우려면 **deployment 모듈의 조회 서비스 계약이 필요합니다.** `target.current_deployment_target_id` 까지는 제 소유라 읽고, 그 ID 가 가리키는 행은 읽지 않습니다.
+
+모양만 먼저 고정해 앱이 목업을 떼고 붙을 수 있게 하는 것이 이번 범위입니다.
+
+### 데모 대상 시딩
+
+현황 화면이 빈 목록이면 앱이 붙었는지 알 수 없어서, 데모 프로젝트에 대상 세 개(`onprem`·`aws`·`gcp`)를 심습니다.
+
+- 환경변수가 있을 때만 심습니다. 기존 계정·프로젝트 시더와 같은 방식입니다.
+- **`connection_state` 는 `unknown` 으로 심습니다.** 실제 연결 확인을 한 적이 없는데 `connected` 로 심으면 확인하지 않은 상태를 확인한 것처럼 보여 주게 됩니다.
+- `state_identity` 는 `{project_id}/{target_id}` 형태로 둡니다. 정규화 규칙은 인프라와 맞춘 뒤 서버가 검증·저장하기로 해서(#32 리뷰), 그 전까지 쓰는 임시 값입니다.
+- 저장소 연결 절차가 생기면 걷어냅니다.
+
+### 후속 범위
+
+- `url`·`health`·`health_summary`·`image_digest`·`current.image` 는 인프라 산출물이 생긴 뒤 채웁니다. 어느 것도 기본값으로 채우지 않습니다.
+- 커서 페이지네이션은 넣지 않습니다. 대상이 많아지면 `(environment_type, name)` 기준 커서를 붙입니다.
+- A-10 `POST /targets/{id}/test`(연결 테스트)와 A-11 `GET /targets/{id}/resources`(리소스 보기)는 이번 범위가 아닙니다. 둘 다 실제 대상·Terraform state 에 붙어야 해서 인프라 쪽 경로가 필요합니다 (이슈 #13).
+- 대상 생성·수정·삭제는 넣지 않습니다. `work.md` §2 가 삭제 지원 범위를 별도 합의 사항으로 두었습니다.
+- SSE 로 같은 정보를 밀어 주는 것은 승환님 기반 위에 붙입니다. 앱은 D2 에 5초 폴링으로 씁니다.
+
+### 검증 결과 (2026-10-01)
+
+검사 항목을 먼저 적고 그대로 돌렸습니다. 빈 PostgreSQL 17 에 띄워 실제 요청으로 확인했습니다.
+
+| | 검사 | 결과 |
+|---|---|---|
+| V1 | 토큰 없이 호출 | 401 |
+| V2 | 없는 프로젝트 | 404 |
+| V3 | 멤버가 아닌 프로젝트 | **404**. 403 이 아닙니다 |
+| V4 | `viewer` 계정 조회 | 200 |
+| V5 | 응답 봉투 | `{ items, next_cursor }`, `next_cursor` 는 null, 필드가 snake_case |
+| V6 | 대상이 없는 프로젝트 | `{"items":[],"next_cursor":null}` — 오류가 아닙니다 |
+| V7 | 배포 이력이 없는 대상 | `current` 는 null, `health` 는 `"unknown"`, `url`·`health_summary`·`image_digest`·`checked_at` 은 null |
+| V8 | 보관된 대상 | `archived_at` 을 넣은 대상이 목록에서 빠졌습니다 |
+| V9 | 정렬 | `aws → gcp → onprem` 으로 고정 |
+| V10 | **다른 프로젝트의 대상** | 다른 프로젝트에 대상을 넣고 확인했습니다. 섞이지 않습니다 |
+| V11 | OpenAPI | `/projects/{projectId}/targets/status` 와 `PageResponseTargetStatusResponse`·`TargetStatusResponse`·중첩 `Current` 스키마가 노출됩니다 |
+
+- 단위 테스트 4개를 더했습니다. **접근 판정이 막으면 대상 질의가 아예 돌지 않는 것**(응답 시간으로 존재가 새지 않게), 대상 0개가 빈 목록인 것, 근거 없는 필드가 null 인 것, `viewer` 조회입니다.
+- `./gradlew --no-daemon spotlessApply spotlessCheck check build` 성공.
+- 데모 대상 3개가 `connection_state='unknown'` 으로 심기는 것을 DB 에서 확인했습니다.
+
+V10 이 핵심이었습니다. 나머지가 다 맞아도 여기서 새면 다른 팀의 환경 이름이 보입니다.
+
+**확인하지 않은 것** — `current` 가 채워진 응답은 확인하지 못했습니다. 실행 서비스와 조회 계약이 없어 채울 경로가 없습니다. 커서 페이지네이션, 대상이 많을 때의 성능, SSE 로 같은 정보를 밀어 주는 경로도 이번 범위가 아닙니다.
+
+## 빌드 목록 조회 A-06 (10/1, 하은현)
+
+### 범위와 동작
+
+- `GET /projects/{id}/builds?cursor=&limit=` 로 프로젝트가 받은 빌드 결과를 최근 순으로 돌려줍니다. 소비자 모델은 `ios/SPEC.md` §6-7 의 `Build` 입니다.
+- `ProjectAccessService.requireRead` 를 먼저 호출합니다. 없는 프로젝트와 권한 없는 프로젝트를 모두 404 로 응답합니다.
+- 봉투는 `{ items, next_cursor }` 입니다. **A-02 와 달리 실제 커서를 넣었습니다.** 빌드는 커밋마다 쌓여서 목록이 자라고, 설계 5.5 가 이미 `INDEX(project_id, received_at DESC, id)` 를 그 용도로 두었습니다.
+- 정렬은 `received_at DESC, id DESC` 입니다. `received_at` 이 같은 행이 있을 수 있어 `id` 를 동반 키로 씁니다.
+- `limit` 기본값 20, 최대 100 입니다. 범위를 넘으면 400 이 아니라 최대값으로 깎습니다 — 목록 조회가 한도 때문에 실패하지 않는 쪽이 낫습니다.
+- `cursor` 는 **불투명한 문자열**입니다. 소비자가 파싱하지 않도록 base64url 로 감쌉니다. 해독할 수 없거나 형식이 깨진 커서는 400 입니다.
+- 마지막 페이지의 `next_cursor` 는 null 입니다.
+- `source_version_id` 를 내보냅니다. 승환 S1 의 *"빌드 목록에 `source_version_id` 를 내보내고 `POST /projects/{id}/deployments` 는 그 ID 와 `target_ids` 로 선택하게 한다"* 를 따릅니다.
+
+### 응답 필드와 출처
+
+| 계약 필드 | 출처 | 이번 PR |
+|---|---|---|
+| `source_version_id` | `source_version.id` | 제공 (S1 요청) |
+| `commit` | `source_version.commit_sha` | 제공 |
+| `branch` | `source_version.branch` | 제공 (없으면 null) |
+| `pipeline.status` | `source_version.status` 를 변환 | 제공 — 아래 상태 대조 참고 |
+| `pipeline.run_url` | `source_version.run_url` | 제공 (없으면 null) |
+| `image` | `source_version.image_refs` 평탄화 | 서비스가 하나면 제공, 여러 개면 null + `images[]` |
+| `images[]` | 같은 곳 | 서비스가 둘 이상일 때만 |
+| `started_at`·`finished_at` | 같은 이름 | 제공 (없으면 null) |
+| `error_summary` | 같은 이름 | 제공 (없으면 null) |
+| `received_at` | 같은 이름 | 제공 — 커서 기준이라 소비자도 순서를 알 수 있게 내보냅니다 |
+| `message`·`author`·`committed_at` | 없음 | **미제공** — 승환 S1 이 *"원천 없는 커밋 설명·작성자·시각은 후순위"* 로 두었습니다. GitHub 을 따로 호출해 채우지 않습니다 |
+| `deployed_to[]` | `deployment` 모듈 | **미제공 (null)** — 소유 경계입니다. A-02 의 `current` 와 같은 이유입니다 |
+
+### 상태 대조 — 소비자 enum 에 `pending` 자리가 없습니다
+
+승환 S1 이 *"나머지 상태도 기존 소비자 enum 을 대조하고, DB enum 을 API 에 그대로 노출하지 않는다"* 로 두어서 대조했습니다.
+
+| DB (`ck_sv_status`) | 소비자 계약 (`ios/SPEC.md` §6-7) |
+|---|---|
+| `succeeded` | `success` |
+| `running` | `running` |
+| `failed` | `failed` |
+| **`pending`** | **대응 값 없음** |
+
+`pending` 은 "빌드 결과를 받았지만 아직 시작 전" 입니다. **`running` 으로 보내지 않습니다** — 시작하지 않은 것을 진행 중으로 표시하는 건 없는 사실을 만드는 일입니다. 목록에서 빼는 것도 아닙니다. 사용자는 빌드가 접수된 것을 봐야 합니다.
+
+**그래서 `queued` 를 네 번째 값으로 내보냅니다.** 소비자 계약에 없는 값이라 웹·앱에 알렸습니다. **웹은 받기로 했습니다** (W-03 에 "대기 중", [#38 코멘트](https://github.com/Softbank-Hackathon-2026-Team-Daisy/unibloom/pull/38#issuecomment-5931767944)). 앱은 아직 답이 없습니다. 앱이 받기 어렵다면 `pending` 행을 목록에 포함한 채 `pipeline.status` 만 null 로 두는 쪽으로 바꾸겠습니다.
+
+### `image_refs` 모양 — 가정을 적어 둡니다
+
+설계 5.5 는 `image_refs` 를 *"성공 시 확정한 service별 이미지 객체"* 로만 적고 정확한 모양을 정하지 않았습니다. 이 값을 쓰는 쪽이 저이고 채우는 쪽은 승환 수신 서비스라, **제가 가정한 모양을 적어 두고 확인을 받겠습니다.**
+
+```jsonc
+{ "<서비스명>": { "image_ref": "ghcr.io/org/app:2311c0b", "image_digest": "sha256:..." } }
+```
+
+- 서비스가 **하나**면 `image` 에 그 `image_ref`, `image_digest` 에 그 digest 를 담습니다.
+- 서비스가 **둘 이상**이면 `image`·`image_digest` 를 null 로 두고 `images: [{service, image_ref, image_digest}]` 를 채웁니다. 승환 S5 의 제안 그대로입니다.
+- **임의의 첫 서비스를 고르거나 digest 를 합쳐 하나로 만들지 않습니다.**
+- 모양이 다르거나 해독할 수 없으면 `image`·`images` 를 **null 로 두고 오류를 내지 않습니다.** 조회가 깨지는 것보다 그 필드만 비는 게 낫습니다.
+
+모양이 확정되면 평탄화 함수 하나만 바뀝니다.
+
+### 후속 범위
+
+- `deployed_to[]` 는 `deployment` 모듈 조회 계약이 생긴 뒤 채웁니다.
+- `message`·`author`·`committed_at` 은 원천이 생긴 뒤입니다. 후순위입니다.
+- `#13` 의 `Build.steps[]`(W-03 GitHub Actions 단계)는 넣지 않습니다. Jenkins `daisy-ci` 가 단계별 결과를 보내기 전에는 만들 수 없고, 승환 S2 가 *"Job 단계를 대상 단계로 꾸미지 않는다"* 로 두었습니다.
+- 빌드 수신 경로(`POST`)는 승환 소유입니다. 이 PR 은 조회만입니다.
+
+### 검증 결과 (2026-10-01)
+
+검사 항목을 먼저 적고 그대로 돌렸습니다. 빈 PostgreSQL 17 에 띄워 빌드 6건(수신 시각이 같은 두 건 포함)과 다른 프로젝트의 빌드 1건을 넣고 실제 요청으로 확인했습니다.
+
+| | 검사 | 결과 |
+|---|---|---|
+| B1 | 토큰 없이 호출 | 401 |
+| B2 | 없는 프로젝트 | 404 |
+| B3 | 멤버가 아닌 프로젝트 | **404**. 403 이 아닙니다 |
+| B4 | 빌드가 없는 프로젝트 | `{"items":[],"next_cursor":null}` |
+| B5 | 정렬 | `received_at DESC, id DESC`. 수신 시각이 같은 두 건이 `id` 로 갈립니다 |
+| B6 | 상태 변환 | `succeeded→success`, `pending→queued`, `running`·`failed` 그대로 |
+| B7 | `limit` 경계 | `0`·`-1` 은 400, `101` 은 100 으로 깎여 200 |
+| B8 | 커서 왕복 | `limit=2` 로 3페이지를 받아 **6건이 중복·누락 없이** 전체 목록과 같았습니다 |
+| B9 | 마지막 페이지 | `next_cursor` 가 null |
+| B10 | 깨진 커서 | 400 |
+| B11 | `received_at` 이 같은 행 | 같은 시각의 두 건이 서로 다른 페이지에 걸쳐도 건너뛰지 않았습니다 |
+| B12 | 단일 서비스 `image_refs` | `image`·`image_digest` 채워짐, `images` 는 null |
+| B13 | 다중 서비스 `image_refs` | `image`·`image_digest` null, `images[api, web]` |
+| B14 | 모양이 다른 `image_refs` | 오류 없이 `image`·`images` 모두 null |
+| B15 | **다른 프로젝트의 빌드** | 섞이지 않습니다 |
+| B16 | OpenAPI | 경로와 `PageResponseBuildResponse`·`BuildResponse`·`Pipeline`·`ServiceImage` 스키마 노출 |
+
+- 단위 테스트 11개를 더했습니다. 상태 변환 4개(`pending` 이 `running` 이 되지 않는 것 포함), `image_refs` 평탄화 5개, 커서 왕복·깨진 커서 2개입니다. 전부 순수 함수라 DB 없이 돕니다.
+- `./gradlew --no-daemon spotlessApply spotlessCheck check build` 성공.
+
+**B16 에서 결함을 하나 찾아 고쳤습니다.** OpenAPI 가 `principal` 을 쿼리 파라미터로 노출하고 있었습니다. `@CurrentAccount AuthPrincipal` 은 인증 필터가 넣어 둔 주체를 argument resolver 가 채우는 값인데, springdoc 이 알려진 애너테이션이 아닌 인자를 쿼리로 보기 때문입니다. 보호 경로 **5개 전부**가 그랬습니다 (`/auth/me`, `/projects`, `/projects/{id}`, `targets/status`, `builds`). 소비자에게 `?principal=...` 을 보내라고 알려주는 문서였습니다. `SpringDocUtils.addAnnotationsToIgnore(CurrentAccount.class)` 로 숨겼습니다. 이슈 #13 의 완료 기준이 *"받은 건 OpenAPI 에 나와 있어요"* 라서, 문서가 틀리면 계약이 틀린 것과 같습니다.
+
+**확인하지 않은 것**
+
+- `deployed_to[]` 가 채워진 응답은 확인하지 못했습니다. `deployment` 모듈 조회 계약이 없습니다.
+- 빌드가 수천 건일 때의 커서 성능은 보지 않았습니다. 설계 5.5 의 `INDEX(project_id, received_at DESC, id)` 를 쓰는 질의라는 것만 확인했습니다.
+- `image_refs` 의 실제 모양은 승환 빌드 수신 서비스가 채우기 시작한 뒤에 다시 봐야 합니다. 지금은 가정한 모양과 다를 때 비는 것만 확인했습니다.
