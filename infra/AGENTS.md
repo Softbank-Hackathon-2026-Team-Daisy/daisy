@@ -55,7 +55,7 @@ server AI(김승환)와 러너가 환경에 상관없이 같은 방식으로 모
 | backend | 모듈에 쓰지 않아요. 러너가 `backend.tf` + `-backend-config`로 주입해요 |
 | 입력 변수 | `deploy.yaml` 키와 1:1: `name`, `port`, `healthcheck`, `env`, `secrets`, `database`. 여기에 `image`(태그 없는 주소), `image_tag`(필수, 커밋 해시)를 더해요 |
 | 출력 | `service_url` (스킴 포함, 끝에 `/` 없음). 헬스체크 주소 = `service_url` + `healthcheck` |
-| state key | `{app}/{env}/terraform.tfstate`, `env`는 `onprem` · `aws` · `gcp`. 저장소는 루트 `[미정]` |
+| state | **환경마다 그 환경의 저장소**에 두고 잠금을 켜요 (AWS S3 · GCP GCS · 온프레미스 `[미정]`). key는 지금 `{app}/{env}/terraform.tfstate`이고, 서버 ID 기준 `{project_id}/{target_id}`로 바꿀 예정이에요 `(가칭)` |
 | DB 접속 환경변수 | `DB_HOST` · `DB_PORT` · `DB_NAME` · `DB_USER` · `DB_PASSWORD`. 세 환경이 같은 이름을 넣어야 이식성이 지켜져요 |
 | 자격증명 | 코드 · 변수 어디에도 없어요. 러너의 환경변수로만 받아요 |
 | 태그 · 라벨 | `Project=daisy`, `App={name}`, `ManagedBy=terraform`. 정리할 때 이걸로 남은 리소스를 찾아요 |
@@ -121,13 +121,15 @@ APP=hellocalc IMAGE_TAG=<커밋 해시 40자> infra/scripts/tf-run.sh aws plan
 | 2026-09-30 | `[클라우드]` 개인 AWS 계정에서는 plan까지만 해요. IAM은 `ReadOnlyAccess`, Jenkins `PLAN_ONLY=1`, Zero spend budget. apply는 팀 계정에서 | 개인 계정은 프리티어가 끝나서 ALB · Fargate가 유료예요. 개인 비용 0원이 조건이에요 | 1 |
 | 2026-09-30 | `[클라우드]` CI는 `linux/amd64,linux/arm64`로 푸시해요 | Cloud Run은 amd64만 실행하고, 러너는 arm64예요 | 1 |
 | 2026-09-30 | `[클라우드]` apply · destroy는 터미널 입력이나 Jenkins `input` 승인 뒤 `TF_RUN_APPROVED`로만 실행해요 | 인프라 변경은 반드시 사람 승인 (루트 §4-2) | 1 |
+| 2026-10-01 | state는 **환경마다 그 환경의 저장소**(AWS S3 · GCP GCS)에 두고 모두 잠금을 켜요. 온프레미스 저장소는 황지환과 결정 `(가칭 · 팀 회의 확인)` | 한 환경의 장애 · 자격증명 문제가 다른 환경 배포를 막지 않고, 각 배포는 자기 환경 키만 필요해요 (최소 권한). PR #17에서 앱(박승준)에 답변 | 4 |
+| 2026-10-01 | `[클라우드]` Jenkins에 "Pipeline: REST API" 플러그인을 넣어요 | 서버가 단계별 상태 · 승인 대기 API(`wfapi`)를 써요. 최근 권장 플러그인에 빠져 있어요 | 1 |
 
 ## 10. 아직 정하지 못한 것
 
 | 무엇 | 상태 | 누가 |
 |---|---|---|
 | §4 공통 규약 | 임채준 제안. 온프레미스에도 맞는지 확인 필요 | 황지환 |
-| state 저장소 | S3 버킷 하나에 `{app}/{env}` key로 나누자는 제안. 온프레미스 state도 같이 둘지 | 팀 회의 · 황지환 |
+| state 저장소 | 방향은 "환경마다 그 환경의 저장소 + 잠금"(§9). **온프레미스 저장소**와 **key 형식**(`{project_id}/{target_id}`)이 남았어요 | 팀 회의 확인 · 황지환(온프레미스) · 하은현(key) |
 | CI/CD 도구 · terraform 실행 주체 | Jenkins로 전달받았지만, server는 Spring이 직접 실행하기로 기록해 둠 | **팀 회의** |
 | 컨테이너 레지스트리 | 루트 `[미정]` | **팀 회의** |
 | 온프레미스 배포 방식과 Terraform의 관계 | 루트 `[미정]` | 황지환 · 팀 회의 |
