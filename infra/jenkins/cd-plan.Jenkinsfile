@@ -1,12 +1,13 @@
-// CD ① 준비: 환경 선택 → 인프라 코드 확인 → 병렬 plan → 위험 검사 → plan 요약 (승인 대기)
+// CD ① 준비: 환경 선택 → 입력 정리 → 환경별 병렬 [재사용 또는 AI 생성 → validate · plan → 위험 검사, 최대 3번] → plan 요약 (승인 대기)
 //
 // (가칭) 로컬 VM 러너 프로토타입이에요 (infra/SPEC.md §12-7). 승인되면 daisy-cd-apply가 이 plan을 적용해요.
 //   plan ID = daisy-cd-plan-<빌드 번호>. plan마다 작업 폴더가 따로라 승인 대기 중인 plan을 덮어쓰지 않아요
 //   승인 정보는 웹·앱 → 서버 승인 API에서 받고, 서버가 daisy-cd-apply를 PLAN_BUILD · APPROVAL_ID로 시작해요 (§16-6)
-// MOCK: AI 생성(N-02)·위험 검사와 AI 재시도(N-05)는 server AI(김승환) 영역이라 표시만 해요.
+//   AI 생성 · 수정 루프 · 재사용은 infra/ai/plan_with_ai.py가 해요 (SPEC §17). USE_AI를 끄면 기준 모듈 그대로 (MOCK 대안 경로)
 // 온프레미스는 황지환 영역이라 아직 선택지에 없어요.
 //
-// 필요한 Jenkins Credentials: aws-deployer (Username/Password = 액세스 키 ID/시크릿), gcp-deployer (Secret file = SA JSON)
+// 필요한 Jenkins Credentials: aws-deployer (Username/Password = 액세스 키 ID/시크릿), gcp-deployer (Secret file = SA JSON),
+//   claude-api-key (Secret text = Anthropic API 키, USE_AI일 때)
 // 선택 Jenkins 전역 환경변수: TF_STATE_BUCKET, EXPECTED_AWS_ACCOUNT, EXPECTED_GCP_PROJECT
 // 러너에 1번 등록: $JENKINS_HOME/daisy-work/targets/<env>.json (예: {"project_id": "...", "region": "asia-northeast3"})
 pipeline {
@@ -19,6 +20,7 @@ pipeline {
     booleanParam(name: 'DEPLOY_AWS', defaultValue: true, description: 'AWS (ECS Fargate · ALB)')
     booleanParam(name: 'DEPLOY_GCP', defaultValue: false, description: 'GCP (Cloud Run)')
     booleanParam(name: 'DESTROY', defaultValue: false, description: '체크하면 삭제 plan을 만들어요 (승인되면 daisy-cd-apply가 지워요)')
+    booleanParam(name: 'USE_AI', defaultValue: true, description: 'AI로 Terraform을 생성 · 수정해요. 끄면 기준 모듈을 그대로 써요 (MOCK 대안 경로)')
     string(name: 'IMAGE_TAG', defaultValue: '', description: '커밋 해시 40자')
     string(name: 'IMAGE_REPO', defaultValue: '', description: '태그 없는 이미지 주소. 예: docker.io/<계정>/hellocalc')
     string(name: 'APP', defaultValue: 'hellocalc', description: 'state key · 작업 디렉터리 이름')
@@ -29,6 +31,8 @@ pipeline {
     TF_PLUGIN_CACHE_DIR = "${env.JENKINS_HOME}/.terraform.d/plugin-cache"
     TF_DESTROY = "${params.DESTROY ? '1' : ''}"   // tf-run.sh plan이 삭제 plan을 만들어요
     PLAN_ID = "${env.JOB_NAME}-${env.BUILD_NUMBER}" // 승인·적용할 때 이 ID로 찾아요
+    USE_AI = "${params.USE_AI ? '1' : '0'}"
+    AI_PY = '/opt/daisy-ai/venv/bin/python'         // setup-runner.sh가 만든 가상환경 (anthropic SDK)
   }
   stages {
     stage('Prepare') {
@@ -56,8 +60,7 @@ pipeline {
       steps {
         script {
           for (t in targets()) {
-            // 검증된 스크립트 저장소(SPEC D-8)가 정해지면: 있으면 재사용(이미지 태그만 교체), 없으면 AI 생성
-            echo "MOCK: ${t} — AI 생성 대신 기준 모듈 infra/modules/${t}를 그대로 써요 (재사용 경로와 같아요)"
+            // deploy.yaml + 대상 환경 등록값 → 변수 파일. AI 입력이자 재사용 판단(입력 지문)의 기준이에요
             sh """
               mkdir -p "\$WORK_ROOT/\$APP"
               target_file="\$WORK_ROOT/targets/${t}.json"
@@ -75,18 +78,20 @@ pipeline {
     }
 
     stage('Plan') {
+      // 환경마다: 재사용(AI 0회) 또는 AI 생성 → validate · plan → 위험 검사, 실패하면 오류 로그로 AI가 고쳐요 (총 3번)
       steps {
         script {
+          def failed = []
           forEachTarget('plan') { t ->
-            withCloud(t) { sh "bash infra/scripts/tf-run.sh ${t} plan" }
+            try {
+              withCloud(t) { sh "\"\$AI_PY\" infra/ai/plan_with_ai.py ${t}" }
+            } catch (err) {
+              failed << t
+              echo "${t}: 검증을 통과한 plan을 만들지 못했어요 (${err.getMessage()}). 다른 환경은 계속 진행해요"
+            }
           }
+          env.FAILED_TARGETS = failed.join(',')
         }
-      }
-    }
-
-    stage('Risk check') {
-      steps {
-        echo 'MOCK: 위험 검사(SPEC §4-3 R-1~R-6)와 실패 시 AI 수정·재시도(최대 3회)는 server AI(김승환) 영역이에요. 지금은 통과로 처리해요'
       }
     }
 
@@ -95,16 +100,32 @@ pipeline {
         script {
           // 서버·사람이 승인 화면에 쓸 요약. 비밀값이 없는 메타데이터만 담아요 (plan.json은 넣지 않아요)
           sh """
-            for t in ${targets().join(' ')}; do cat "\$WORK_ROOT/\$APP/\$t/plans/\$PLAN_ID/meta.json"; done \
-              | jq -s --arg plan_build "\$BUILD_NUMBER" '{plan_id: .[0].plan_id, plan_build: (\$plan_build|tonumber),
-                  app: .[0].app, image_tag: .[0].image_tag, destroy: .[0].destroy,
-                  targets: (map({key: .env, value: .summary}) | from_entries)}' > plan-summary.json
+            for t in ${targets().join(' ')}; do
+              m="\$WORK_ROOT/\$APP/\$t/plans/\$PLAN_ID/meta.json"
+              a="\$WORK_ROOT/\$APP/\$t/ai/\$PLAN_ID/ai.json"
+              ai=\$( [ -f "\$a" ] && jq -c '{mode, ai_calls, message, usage_total}' "\$a" || echo null )
+              if [ -f "\$m" ]; then
+                jq -c --argjson ai "\$ai" '{env, ok: true, summary, ai: \$ai}' "\$m"
+              else
+                jq -nc --arg env "\$t" --argjson ai "\$ai" '{env: \$env, ok: false, summary: null, ai: \$ai}'
+              fi
+            done | jq -s --arg plan_build "\$BUILD_NUMBER" --arg plan_id "\$PLAN_ID" --arg app "\$APP" \
+                     --arg image_tag "\$IMAGE_TAG" --argjson destroy ${params.DESTROY} \
+                     '{plan_id: \$plan_id, plan_build: (\$plan_build|tonumber), app: \$app, image_tag: \$image_tag,
+                       destroy: \$destroy, targets: (map({key: .env, value: (del(.env))}) | from_entries)}' > plan-summary.json
             cat plan-summary.json
           """
           archiveArtifacts artifacts: 'plan-summary.json'
-          def changes = sh(script: '''jq -r '.targets | to_entries | map("\\(.key): \\(.value)") | join(", ")' plan-summary.json''',
+          def changes = sh(script: '''jq -r '.targets | to_entries | map("\\(.key): " + (if .value.ok then .value.summary + " (" + (.value.ai.mode // "-") + ")" else "실패" end)) | join(", ")' plan-summary.json''',
                            returnStdout: true).trim()
           currentBuild.description = "승인 대기 ${params.DESTROY ? '(삭제) ' : ''}${changes}"
+          def failed = env.FAILED_TARGETS ? env.FAILED_TARGETS.split(',') as List : []
+          if (failed.size() == targets().size()) {
+            error("모든 환경이 검증을 통과하지 못했어요: ${failed.join(', ')}")
+          }
+          if (failed) {
+            unstable("검증을 통과하지 못한 환경: ${failed.join(', ')}. 나머지 환경만 승인 · 적용할 수 있어요")
+          }
           echo "승인되면 daisy-cd-apply를 PLAN_BUILD=${env.BUILD_NUMBER}, APPROVAL_ID=<승인 ID>로 실행해요"
         }
       }
@@ -136,6 +157,7 @@ def forEachTarget(String label, Closure body) {
 
 // 자격증명은 이 블록 안에서만 환경변수로 주입해요.
 // state 버킷(S3)을 쓰면 GCP 배포도 AWS 자격증명(버킷 권한)이 필요해요. 환경별 state 저장소(SPEC §7)로 바뀌면 지워요.
+// AI를 쓸 때만 Anthropic API 키를 넣어요 (삭제 plan은 AI를 부르지 않아요)
 def withCloud(String target, Closure body) {
   def creds = []
   if (target == 'aws' || env.TF_STATE_BUCKET?.trim()) {
@@ -143,6 +165,9 @@ def withCloud(String target, Closure body) {
   }
   if (target == 'gcp') {
     creds << file(credentialsId: 'gcp-deployer', variable: 'GOOGLE_APPLICATION_CREDENTIALS')
+  }
+  if (params.USE_AI && !params.DESTROY) {
+    creds << string(credentialsId: 'claude-api-key', variable: 'ANTHROPIC_API_KEY')
   }
   withCredentials(creds) { body() }
 }

@@ -43,6 +43,7 @@ usage() {
   EXPECTED_GCP_PROJECT apply·destroy 전에 변수 파일의 project_id 확인
   TF_RUN_APPROVED      승인된 실행(daisy-cd-apply)에서만 $ENV 값으로 설정
   TF_DESTROY=1         plan을 삭제 plan으로 만들어요
+  MODULE_SRC           앱 모듈 대신 이 폴더의 코드로 plan해요 (AI 생성 코드, 검증된 스크립트)
   PLAN_ONLY=1          apply·destroy를 막아요 (개인 계정 0원 모드, SPEC §12-5)
 EOF
   exit 2
@@ -65,7 +66,7 @@ WORK_ROOT=${WORK_ROOT:-$HOME/daisy-work}
 [[ $WORK_ROOT == /* ]] || WORK_ROOT="$PWD/$WORK_ROOT"
 case "$WORK_ROOT/" in "$REPO_ROOT/"*) die "WORK_ROOT가 레포 안이에요: $WORK_ROOT" ;; esac
 if [[ $KIND == app ]]; then
-  MODULE_DIR="$REPO_ROOT/infra/modules/$ENV"
+  MODULE_DIR="${MODULE_SRC:-$REPO_ROOT/infra/modules/$ENV}" # MODULE_SRC: AI가 만든 코드 (infra/ai)
   WORK="$WORK_ROOT/$APP/$ENV"
   STATE_KEY="$APP/$ENV/terraform.tfstate"
   DEFAULT_VAR_FILE="$WORK_ROOT/$APP/$ENV.tfvars.json"
@@ -153,8 +154,11 @@ make_plan() { # $1 = 1이면 삭제 plan
   cp "$MODULE_DIR"/*.tf "$PLAN_DIR/src/"
   [[ -f $MODULE_DIR/.terraform.lock.hcl ]] && cp "$MODULE_DIR/.terraform.lock.hcl" "$PLAN_DIR/src/"
   if [[ $var_file == /dev/null ]]; then echo '{}' >"$PLAN_DIR/vars.json"; else cp "$var_file" "$PLAN_DIR/vars.json"; fi
+  echo "tf-run: 단계 init" # infra/ai가 실패한 단계를 이 표시로 알아요
   init
+  echo "tf-run: 단계 validate"
   tf validate -no-color
+  echo "tf-run: 단계 plan"
   local plan_args=()
   [[ $1 == 1 ]] && plan_args+=(-destroy)
   [[ $KIND == app ]] && plan_args+=(-var="image_tag=$IMAGE_TAG")
