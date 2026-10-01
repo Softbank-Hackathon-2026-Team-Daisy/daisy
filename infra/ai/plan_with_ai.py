@@ -46,7 +46,7 @@ def main() -> int:
         current = work / "current" / "src"
         src = current if current.exists() else generate.reference_dir(env)
         ok, out = run_plan(env, src, plan_dir)
-        return finish(plan_dir, ai_dir, {"mode": "destroy", "source": str(src)}, ok, out)
+        return finish(plan_dir, ai_dir, {"mode": "destroy", "source": str(src)}, ok, "" if ok else tail(out, 4000))
 
     inputs = json.loads(var_file.read_text(encoding="utf-8"))
     fp = fingerprint(env, inputs)
@@ -58,7 +58,7 @@ def main() -> int:
         print("MOCK: USE_AI=0 — AI 없이 기준 모듈을 그대로 써요")
         record["mode"] = "reference"
         ok, out = plan_and_check(env, generate.reference_dir(env), plan_dir)
-        return finish(plan_dir, ai_dir, record, ok, out)
+        return finish(plan_dir, ai_dir, record, ok, "" if ok else tail(out[1], 4000))
 
     previous, stage, error = None, None, None
     if verified.exists():
