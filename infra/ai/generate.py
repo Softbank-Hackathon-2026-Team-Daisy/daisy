@@ -101,11 +101,12 @@ def generate(env: str, inputs: dict, previous: dict | None = None, stage: str | 
         messages=[{"role": "user", "content": user_message(env, inputs, previous, stage, error, attempt)}],
     ) as stream:
         message = stream.get_final_message()
+        request_id = stream.request_id  # 스트림 응답은 메시지가 아니라 스트림에 요청 ID가 있어요
 
     u = message.usage
     usage = {
         "model": message.model,  # 대체 모델이 답했으면 그 모델이에요
-        "request_id": message._request_id,
+        "request_id": request_id,
         "input_tokens": u.input_tokens,
         "output_tokens": u.output_tokens,
         "cache_creation_input_tokens": u.cache_creation_input_tokens or 0,
