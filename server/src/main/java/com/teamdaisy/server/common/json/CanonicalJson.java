@@ -21,12 +21,17 @@ public class CanonicalJson {
   public static final int MAX_BYTES = 256 * 1024;
   private final ObjectMapper mapper;
 
-  public CanonicalJson(ObjectMapper mapper) { this.mapper = mapper; }
+  public CanonicalJson(ObjectMapper mapper) {
+    this.mapper = mapper;
+  }
 
   public String canonicalize(JsonNode value) {
     try {
-      String encoded = mapper.writer().without(SerializationFeature.INDENT_OUTPUT)
-          .writeValueAsString(sorted(value, 0));
+      String encoded =
+          mapper
+              .writer()
+              .without(SerializationFeature.INDENT_OUTPUT)
+              .writeValueAsString(sorted(value, 0));
       if (encoded.getBytes(StandardCharsets.UTF_8).length > MAX_BYTES) invalid();
       return encoded;
     } catch (JsonProcessingException e) {
@@ -36,12 +41,19 @@ public class CanonicalJson {
 
   public String hash(JsonNode value) {
     try {
-      return "sha256:" + HexFormat.of().formatHex(MessageDigest.getInstance("SHA-256")
-          .digest(canonicalize(value).getBytes(StandardCharsets.UTF_8)));
-    } catch (NoSuchAlgorithmException e) { throw new IllegalStateException(e); }
+      return "sha256:"
+          + HexFormat.of()
+              .formatHex(
+                  MessageDigest.getInstance("SHA-256")
+                      .digest(canonicalize(value).getBytes(StandardCharsets.UTF_8)));
+    } catch (NoSuchAlgorithmException e) {
+      throw new IllegalStateException(e);
+    }
   }
 
-  public JsonNode copy(JsonNode value) { return snapshot(value); }
+  public JsonNode copy(JsonNode value) {
+    return snapshot(value);
+  }
 
   public static JsonNode snapshot(JsonNode value) {
     JsonNode copy = sorted(value, 0);
@@ -64,9 +76,12 @@ public class CanonicalJson {
       return result;
     }
     if (!(value.isNull() || value.isTextual() || value.isBoolean() || value.isNumber())
-        || ((value.isDouble() || value.isFloat()) && !Double.isFinite(value.doubleValue()))) invalid();
+        || ((value.isDouble() || value.isFloat()) && !Double.isFinite(value.doubleValue())))
+      invalid();
     return value.deepCopy();
   }
 
-  private static void invalid() { throw new DaisyException(ErrorCode.VALIDATION_FAILED); }
+  private static void invalid() {
+    throw new DaisyException(ErrorCode.VALIDATION_FAILED);
+  }
 }

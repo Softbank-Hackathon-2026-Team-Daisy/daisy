@@ -65,14 +65,23 @@ public class Approval {
     return value;
   }
 
-  public void decide(PlanRevision plan, DeploymentTarget target, String actor, boolean approved,
-      String confirmation, Instant now) {
+  public void decide(
+      PlanRevision plan,
+      DeploymentTarget target,
+      String actor,
+      boolean approved,
+      String confirmation,
+      Instant now) {
     DomainChecks.id(actor);
     DomainChecks.time(now);
-    DomainChecks.require("pending".equals(state) && now.isBefore(expiresAt)
-        && !now.isBefore(createdAt) && planId.equals(plan.id())
-        && deploymentTargetId.equals(target.id()) && planId.equals(target.currentPlanId())
-        && target.status() == DeploymentTargetStatus.AWAITING_APPROVAL);
+    DomainChecks.require(
+        "pending".equals(state)
+            && now.isBefore(expiresAt)
+            && !now.isBefore(createdAt)
+            && planId.equals(plan.id())
+            && deploymentTargetId.equals(target.id())
+            && planId.equals(target.currentPlanId())
+            && target.status() == DeploymentTargetStatus.AWAITING_APPROVAL);
     plan.assertUsable(planId, plan.digest(), target.inputHash(), now);
     if (confirmation != null && confirmation.length() > 128) DomainChecks.invalid();
     if (approved && plan.hasDelete()) {
@@ -88,9 +97,12 @@ public class Approval {
 
   public void assertApproved(PlanRevision plan, DeploymentTarget target, Instant now) {
     DomainChecks.time(now);
-    DomainChecks.require("approved".equals(state) && "approved".equals(decision)
-        && now.isBefore(expiresAt) && planId.equals(target.currentPlanId())
-        && deploymentTargetId.equals(target.id()));
+    DomainChecks.require(
+        "approved".equals(state)
+            && "approved".equals(decision)
+            && now.isBefore(expiresAt)
+            && planId.equals(target.currentPlanId())
+            && deploymentTargetId.equals(target.id()));
     plan.assertUsable(planId, plan.digest(), target.inputHash(), now);
   }
 
@@ -103,16 +115,51 @@ public class Approval {
     invalidationReason = reason;
   }
 
-  public String id() { return id; }
-  public String planId() { return planId; }
-  public String deploymentTargetId() { return deploymentTargetId; }
-  public String state() { return state; }
-  public String decision() { return decision; }
-  public String decidedBy() { return decidedBy; }
-  public Instant decidedAt() { return decidedAt; }
-  public String confirmationText() { return confirmationText; }
-  public Instant createdAt() { return createdAt; }
-  public Instant expiresAt() { return expiresAt; }
-  public Instant invalidatedAt() { return invalidatedAt; }
-  public String invalidationReason() { return invalidationReason; }
+  public String id() {
+    return id;
+  }
+
+  public String planId() {
+    return planId;
+  }
+
+  public String deploymentTargetId() {
+    return deploymentTargetId;
+  }
+
+  public String state() {
+    return state;
+  }
+
+  public String decision() {
+    return decision;
+  }
+
+  public String decidedBy() {
+    return decidedBy;
+  }
+
+  public Instant decidedAt() {
+    return decidedAt;
+  }
+
+  public String confirmationText() {
+    return confirmationText;
+  }
+
+  public Instant createdAt() {
+    return createdAt;
+  }
+
+  public Instant expiresAt() {
+    return expiresAt;
+  }
+
+  public Instant invalidatedAt() {
+    return invalidatedAt;
+  }
+
+  public String invalidationReason() {
+    return invalidationReason;
+  }
 }

@@ -8,13 +8,16 @@ import org.springframework.stereotype.Component;
 
 @Component
 @EnableScheduling
-@ConditionalOnProperty(name = {"daisy.jenkins.console-enabled", "daisy.jenkins.console-sanitized-utf8-confirmed"}, havingValue = "true")
+@ConditionalOnProperty(
+    name = {"daisy.jenkins.console-enabled", "daisy.jenkins.console-sanitized-utf8-confirmed"},
+    havingValue = "true")
 public class JenkinsConsoleWorker {
   private final JenkinsConsoleService consoles;
   private final JenkinsClient client;
 
   public JenkinsConsoleWorker(JenkinsConsoleService consoles, JenkinsClient client) {
-    this.consoles = consoles; this.client = client;
+    this.consoles = consoles;
+    this.client = client;
   }
 
   @Scheduled(fixedDelayString = "${daisy.jenkins.console-delay-ms:5000}")
@@ -30,7 +33,8 @@ public class JenkinsConsoleWorker {
         var response = client.progressiveLog(owner.job(), owner.build(), owner.cursor());
         consoles.commit(owner, response);
       } catch (RuntimeException error) {
-        // Do not log raw response/errors or move the cursor; next bounded poll retries persisted bytes.
+        // Do not log raw response/errors or move the cursor; next bounded poll retries persisted
+        // bytes.
         consoles.failed(candidate);
       }
     }

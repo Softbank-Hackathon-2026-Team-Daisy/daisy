@@ -89,8 +89,15 @@ public class Deployment {
 
   protected Deployment() {}
 
-  public static Deployment create(String id, String projectId, String actor, String commit,
-      JsonNode repository, JsonNode input, String requestHash, Instant now) {
+  public static Deployment create(
+      String id,
+      String projectId,
+      String actor,
+      String commit,
+      JsonNode repository,
+      JsonNode input,
+      String requestHash,
+      Instant now) {
     var value = new Deployment();
     value.id = DomainChecks.id(id);
     value.projectId = DomainChecks.id(projectId);
@@ -108,18 +115,26 @@ public class Deployment {
     return value;
   }
 
-  public static Deployment retry(String id, String actor, Deployment original,
-      String requestHash, Instant now) {
-    DomainChecks.require(original.status.terminal() && original.status != DeploymentStatus.SUCCEEDED
-        && original.status != DeploymentStatus.CANCELLED && !original.id.equals(id));
+  public static Deployment retry(
+      String id, String actor, Deployment original, String requestHash, Instant now) {
+    DomainChecks.require(
+        original.status.terminal()
+            && original.status != DeploymentStatus.SUCCEEDED
+            && original.status != DeploymentStatus.CANCELLED
+            && !original.id.equals(id));
     var value = copyRequest(id, actor, original, requestHash, now);
     value.kind = "retry";
     value.retryOfDeploymentId = original.id;
     return value;
   }
 
-  public static Deployment rollback(String id, String actor, Deployment original,
-      String triggerId, String requestHash, Instant now) {
+  public static Deployment rollback(
+      String id,
+      String actor,
+      Deployment original,
+      String triggerId,
+      String requestHash,
+      Instant now) {
     DomainChecks.require(original.status == DeploymentStatus.SUCCEEDED && !original.id.equals(id));
     if (triggerId != null) {
       DomainChecks.id(triggerId);
@@ -133,12 +148,24 @@ public class Deployment {
     return value;
   }
 
-  private static Deployment copyRequest(String id, String actor, Deployment original,
-      String requestHash, Instant now) {
-    var value = create(id, original.projectId, actor, original.commitSha,
-        original.repositorySnapshot, original.inputSnapshot, requestHash, now);
-    if (original.sourceVersionId != null) value.bindSource(original.sourceVersionId,
-        original.commitSha, original.imageRefs, original.resolvedInputHash);
+  private static Deployment copyRequest(
+      String id, String actor, Deployment original, String requestHash, Instant now) {
+    var value =
+        create(
+            id,
+            original.projectId,
+            actor,
+            original.commitSha,
+            original.repositorySnapshot,
+            original.inputSnapshot,
+            requestHash,
+            now);
+    if (original.sourceVersionId != null)
+      value.bindSource(
+          original.sourceVersionId,
+          original.commitSha,
+          original.imageRefs,
+          original.resolvedInputHash);
     return value;
   }
 
@@ -147,22 +174,28 @@ public class Deployment {
     DomainChecks.hash(resolvedHash);
     JsonNode copy = DomainChecks.object(images);
     if (copy.isEmpty()) DomainChecks.invalid();
-    copy.fieldNames().forEachRemaining(name->DomainChecks.safeText(name,128));
+    copy.fieldNames().forEachRemaining(name -> DomainChecks.safeText(name, 128));
     for (JsonNode image : copy) {
-      DomainChecks.keys(image,java.util.Set.of("image_ref","digest","commit_sha"));
-      if (!image.isObject() || !image.path("commit_sha").asText().equals(commit)
-          || !image.path("image_ref").isTextual() || image.path("image_ref").asText().isBlank())
-        DomainChecks.invalid();
-      String ref=DomainChecks.safeText(image.path("image_ref").asText(),2048);
-      if (ref.contains("?") || ref.contains("#") || ref.contains("://") || ref.contains("@") && !ref.matches("[^@]+@sha256:[0-9a-f]{64}")) DomainChecks.invalid();
+      DomainChecks.keys(image, java.util.Set.of("image_ref", "digest", "commit_sha"));
+      if (!image.isObject()
+          || !image.path("commit_sha").asText().equals(commit)
+          || !image.path("image_ref").isTextual()
+          || image.path("image_ref").asText().isBlank()) DomainChecks.invalid();
+      String ref = DomainChecks.safeText(image.path("image_ref").asText(), 2048);
+      if (ref.contains("?")
+          || ref.contains("#")
+          || ref.contains("://")
+          || ref.contains("@") && !ref.matches("[^@]+@sha256:[0-9a-f]{64}")) DomainChecks.invalid();
       if (image.has("digest") && !image.path("digest").isNull())
         DomainChecks.hash(image.path("digest").asText());
       else if (!image.path("image_ref").asText().endsWith(":" + commit)) DomainChecks.invalid();
     }
     DomainChecks.require(commitSha.equals(commit));
     if (sourceVersionId != null) {
-      DomainChecks.require(sourceVersionId.equals(sourceId) && imageRefs.equals(copy)
-          && resolvedInputHash.equals(resolvedHash));
+      DomainChecks.require(
+          sourceVersionId.equals(sourceId)
+              && imageRefs.equals(copy)
+              && resolvedInputHash.equals(resolvedHash));
       return;
     }
     DomainChecks.require(!status.terminal());
@@ -183,42 +216,111 @@ public class Deployment {
     if (targets == null || targets.isEmpty()) DomainChecks.invalid();
     DomainChecks.require(targets.stream().allMatch(t -> id.equals(t.deploymentId())));
     if (startedAt == null && targets.stream().anyMatch(t -> t.startedAt() != null))
-      startedAt = targets.stream().map(DeploymentTarget::startedAt).filter(Objects::nonNull)
-          .min(Instant::compareTo).orElse(now);
+      startedAt =
+          targets.stream()
+              .map(DeploymentTarget::startedAt)
+              .filter(Objects::nonNull)
+              .min(Instant::compareTo)
+              .orElse(now);
     DeploymentStatus next;
     if (targets.stream().anyMatch(t -> t.status().running())) next = DeploymentStatus.RUNNING;
     else if (targets.stream().anyMatch(t -> t.status() == DeploymentTargetStatus.AWAITING_APPROVAL))
       next = DeploymentStatus.AWAITING_APPROVAL;
     else if (targets.stream().allMatch(t -> t.status().terminal())) {
-      long successes = targets.stream().filter(t -> t.status() == DeploymentTargetStatus.SUCCEEDED).count();
-      next = successes == targets.size() ? DeploymentStatus.SUCCEEDED
-          : successes > 0 ? DeploymentStatus.PARTIALLY_SUCCEEDED
-          : targets.stream().anyMatch(t -> t.status() == DeploymentTargetStatus.FAILED)
-              ? DeploymentStatus.FAILED : DeploymentStatus.CANCELLED;
-    } else next = startedAt == null && targets.stream().allMatch(t -> t.status() == DeploymentTargetStatus.WAITING)
-        ? DeploymentStatus.QUEUED : DeploymentStatus.RUNNING;
+      long successes =
+          targets.stream().filter(t -> t.status() == DeploymentTargetStatus.SUCCEEDED).count();
+      next =
+          successes == targets.size()
+              ? DeploymentStatus.SUCCEEDED
+              : successes > 0
+                  ? DeploymentStatus.PARTIALLY_SUCCEEDED
+                  : targets.stream().anyMatch(t -> t.status() == DeploymentTargetStatus.FAILED)
+                      ? DeploymentStatus.FAILED
+                      : DeploymentStatus.CANCELLED;
+    } else
+      next =
+          startedAt == null
+                  && targets.stream().allMatch(t -> t.status() == DeploymentTargetStatus.WAITING)
+              ? DeploymentStatus.QUEUED
+              : DeploymentStatus.RUNNING;
     DomainChecks.require(!status.terminal() || status == next);
     status = next;
     if (next.terminal() && finishedAt == null) finishedAt = now;
   }
 
-  public String id() { return id; }
-  public String projectId() { return projectId; }
-  public String sourceVersionId() { return sourceVersionId; }
-  public String requestedBy() { return requestedBy; }
-  public String kind() { return kind; }
-  public String retryOfDeploymentId() { return retryOfDeploymentId; }
-  public String rollbackOfDeploymentId() { return rollbackOfDeploymentId; }
-  public String rollbackTriggerDeploymentId() { return rollbackTriggerDeploymentId; }
-  public String commitSha() { return commitSha; }
-  public JsonNode repositorySnapshot() { return repositorySnapshot.deepCopy(); }
-  public JsonNode inputSnapshot() { return inputSnapshot.deepCopy(); }
-  public JsonNode imageRefs() { return imageRefs == null ? null : imageRefs.deepCopy(); }
-  public String requestHash() { return requestHash; }
-  public String resolvedInputHash() { return resolvedInputHash; }
-  public DeploymentStatus status() { return status; }
-  public Instant createdAt() { return createdAt; }
-  public Instant startedAt() { return startedAt; }
-  public Instant finishedAt() { return finishedAt; }
-  public long lastEventSeq() { return lastEventSeq; }
+  public String id() {
+    return id;
+  }
+
+  public String projectId() {
+    return projectId;
+  }
+
+  public String sourceVersionId() {
+    return sourceVersionId;
+  }
+
+  public String requestedBy() {
+    return requestedBy;
+  }
+
+  public String kind() {
+    return kind;
+  }
+
+  public String retryOfDeploymentId() {
+    return retryOfDeploymentId;
+  }
+
+  public String rollbackOfDeploymentId() {
+    return rollbackOfDeploymentId;
+  }
+
+  public String rollbackTriggerDeploymentId() {
+    return rollbackTriggerDeploymentId;
+  }
+
+  public String commitSha() {
+    return commitSha;
+  }
+
+  public JsonNode repositorySnapshot() {
+    return repositorySnapshot.deepCopy();
+  }
+
+  public JsonNode inputSnapshot() {
+    return inputSnapshot.deepCopy();
+  }
+
+  public JsonNode imageRefs() {
+    return imageRefs == null ? null : imageRefs.deepCopy();
+  }
+
+  public String requestHash() {
+    return requestHash;
+  }
+
+  public String resolvedInputHash() {
+    return resolvedInputHash;
+  }
+
+  public DeploymentStatus status() {
+    return status;
+  }
+
+  public Instant createdAt() {
+    return createdAt;
+  }
+
+  public Instant startedAt() {
+    return startedAt;
+  }
+
+  public Instant finishedAt() {
+    return finishedAt;
+  }
+
+  public long lastEventSeq() {
+    return lastEventSeq;
+  }
 }

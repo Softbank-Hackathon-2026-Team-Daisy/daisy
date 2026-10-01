@@ -3,7 +3,9 @@ package com.teamdaisy.server.jenkins.application;
 import jakarta.servlet.http.HttpServletRequest;
 import java.util.Set;
 
-/** EH supplies service authentication (including credential/certificate checks), never user login. */
+/**
+ * EH supplies service authentication (including credential/certificate checks), never user login.
+ */
 public interface ExecutionCallbackAccess {
   VerifiedSender verify(HttpServletRequest request);
 

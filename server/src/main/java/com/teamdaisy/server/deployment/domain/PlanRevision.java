@@ -1,13 +1,13 @@
 package com.teamdaisy.server.deployment.domain;
 
 import com.fasterxml.jackson.databind.JsonNode;
+import com.teamdaisy.server.common.json.CanonicalJson;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.Id;
 import jakarta.persistence.Table;
 import jakarta.persistence.UniqueConstraint;
 import java.time.Instant;
-import com.teamdaisy.server.common.json.CanonicalJson;
 import org.hibernate.annotations.JdbcTypeCode;
 import org.hibernate.type.SqlTypes;
 
@@ -85,10 +85,24 @@ public class PlanRevision {
 
   protected PlanRevision() {}
 
-  public static PlanRevision create(String id, String deploymentTargetId, String executionId,
-      String projectId, String targetId, int revision, String source, String sourcePlanId,
-      String inputHash, String scriptId, String artifactRef, String digest, JsonNode summary,
-      JsonNode resources, Instant now, Instant expiry, Instant artifactExpiry) {
+  public static PlanRevision create(
+      String id,
+      String deploymentTargetId,
+      String executionId,
+      String projectId,
+      String targetId,
+      int revision,
+      String source,
+      String sourcePlanId,
+      String inputHash,
+      String scriptId,
+      String artifactRef,
+      String digest,
+      JsonNode summary,
+      JsonNode resources,
+      Instant now,
+      Instant expiry,
+      Instant artifactExpiry) {
     var value = new PlanRevision();
     value.id = DomainChecks.id(id);
     value.deploymentTargetId = DomainChecks.id(deploymentTargetId);
@@ -102,22 +116,25 @@ public class PlanRevision {
     value.inputHash = DomainChecks.hash(inputHash);
     value.scriptId = DomainChecks.id(scriptId);
     value.artifactRef = DomainChecks.safeText(artifactRef, 4096);
-    if (artifactRef.contains("?") || artifactRef.contains("#") || artifactRef.contains("@")) DomainChecks.invalid();
+    if (artifactRef.contains("?") || artifactRef.contains("#") || artifactRef.contains("@"))
+      DomainChecks.invalid();
     value.digest = DomainChecks.hash(digest);
     value.summary = DomainChecks.object(summary);
     validateSummary(summary);
     if (resources == null || !resources.isArray()) DomainChecks.invalid();
     for (JsonNode resource : resources) {
       if (!resource.isObject()) DomainChecks.invalid();
-      DomainChecks.keys(resource, java.util.Set.of("address","actions"));
+      DomainChecks.keys(resource, java.util.Set.of("address", "actions"));
       if (!resource.path("address").isTextual()) DomainChecks.invalid();
       DomainChecks.safeText(resource.path("address").asText(), 1024);
       JsonNode actions = resource.path("actions");
       if (!actions.isArray() || actions.isEmpty()) DomainChecks.invalid();
       for (JsonNode action : actions) {
-        if (!action.isTextual() || !java.util.Set.of("create", "update", "delete", "read", "no-op")
-            .contains(action.asText())) DomainChecks.invalid();
-        if ("delete".equals(action.asText()) && !summary.path("has_delete").asBoolean()) DomainChecks.invalid();
+        if (!action.isTextual()
+            || !java.util.Set.of("create", "update", "delete", "read", "no-op")
+                .contains(action.asText())) DomainChecks.invalid();
+        if ("delete".equals(action.asText()) && !summary.path("has_delete").asBoolean())
+          DomainChecks.invalid();
       }
     }
     value.resources = CanonicalJson.snapshot(resources);
@@ -131,20 +148,22 @@ public class PlanRevision {
   }
 
   private static void validateSummary(JsonNode summary) {
-    DomainChecks.keys(summary,java.util.Set.of("counts","has_delete","risks"));
+    DomainChecks.keys(summary, java.util.Set.of("counts", "has_delete", "risks"));
     JsonNode counts = summary.path("counts");
-    DomainChecks.keys(counts,java.util.Set.of("create","update","delete"));
-    if (!counts.isObject() || !summary.path("has_delete").isBoolean()
+    DomainChecks.keys(counts, java.util.Set.of("create", "update", "delete"));
+    if (!counts.isObject()
+        || !summary.path("has_delete").isBoolean()
         || !summary.path("risks").isArray()) DomainChecks.invalid();
     for (String name : java.util.List.of("create", "update", "delete")) {
       JsonNode count = counts.path(name);
-      if (!count.isIntegralNumber() || !count.canConvertToInt() || count.asInt() < 0) DomainChecks.invalid();
-    }
-    if (summary.path("has_delete").asBoolean() != (counts.path("delete").asInt() > 0)) DomainChecks.invalid();
-    for (JsonNode risk : summary.path("risks")) {
-      DomainChecks.keys(risk,java.util.Set.of("level","rule","resource","message"));
-      if (!risk.isObject() || !risk.path("level").isTextual())
+      if (!count.isIntegralNumber() || !count.canConvertToInt() || count.asInt() < 0)
         DomainChecks.invalid();
+    }
+    if (summary.path("has_delete").asBoolean() != (counts.path("delete").asInt() > 0))
+      DomainChecks.invalid();
+    for (JsonNode risk : summary.path("risks")) {
+      DomainChecks.keys(risk, java.util.Set.of("level", "rule", "resource", "message"));
+      if (!risk.isObject() || !risk.path("level").isTextual()) DomainChecks.invalid();
       DomainChecks.safeText(risk.path("level").asText(), 32);
       for (String field : java.util.List.of("rule", "resource", "message")) {
         if (!risk.path(field).isTextual()) DomainChecks.invalid();
@@ -153,12 +172,16 @@ public class PlanRevision {
     }
   }
 
-  public void assertUsable(String expectedId, String expectedDigest, String expectedInputHash, Instant now) {
+  public void assertUsable(
+      String expectedId, String expectedDigest, String expectedInputHash, Instant now) {
     DomainChecks.time(now);
-    DomainChecks.require("active".equals(state) && id.equals(expectedId)
-        && digest.equals(expectedDigest) && inputHash.equals(expectedInputHash)
-        && now.isBefore(expiresAt)
-        && (artifactExpiresAt == null || now.isBefore(artifactExpiresAt)));
+    DomainChecks.require(
+        "active".equals(state)
+            && id.equals(expectedId)
+            && digest.equals(expectedDigest)
+            && inputHash.equals(expectedInputHash)
+            && now.isBefore(expiresAt)
+            && (artifactExpiresAt == null || now.isBefore(artifactExpiresAt)));
   }
 
   public void invalidate(String reason, Instant now) {
@@ -170,25 +193,87 @@ public class PlanRevision {
     invalidationReason = reason;
   }
 
-  public boolean hasDelete() { return summary.path("has_delete").asBoolean(); }
-  public String id() { return id; }
-  public String deploymentTargetId() { return deploymentTargetId; }
-  public String executionId() { return executionId; }
-  public String projectId() { return projectId; }
-  public String targetId() { return targetId; }
-  public int revision() { return revision; }
-  public String source() { return source; }
-  public String sourcePlanId() { return sourcePlanId; }
-  public String inputHash() { return inputHash; }
-  public String scriptId() { return scriptId; }
-  public String artifactRef() { return artifactRef; }
-  public String digest() { return digest; }
-  public JsonNode summary() { return summary.deepCopy(); }
-  public JsonNode resources() { return resources.deepCopy(); }
-  public String state() { return state; }
-  public Instant createdAt() { return createdAt; }
-  public Instant expiresAt() { return expiresAt; }
-  public Instant artifactExpiresAt() { return artifactExpiresAt; }
-  public Instant invalidatedAt() { return invalidatedAt; }
-  public String invalidationReason() { return invalidationReason; }
+  public boolean hasDelete() {
+    return summary.path("has_delete").asBoolean();
+  }
+
+  public String id() {
+    return id;
+  }
+
+  public String deploymentTargetId() {
+    return deploymentTargetId;
+  }
+
+  public String executionId() {
+    return executionId;
+  }
+
+  public String projectId() {
+    return projectId;
+  }
+
+  public String targetId() {
+    return targetId;
+  }
+
+  public int revision() {
+    return revision;
+  }
+
+  public String source() {
+    return source;
+  }
+
+  public String sourcePlanId() {
+    return sourcePlanId;
+  }
+
+  public String inputHash() {
+    return inputHash;
+  }
+
+  public String scriptId() {
+    return scriptId;
+  }
+
+  public String artifactRef() {
+    return artifactRef;
+  }
+
+  public String digest() {
+    return digest;
+  }
+
+  public JsonNode summary() {
+    return summary.deepCopy();
+  }
+
+  public JsonNode resources() {
+    return resources.deepCopy();
+  }
+
+  public String state() {
+    return state;
+  }
+
+  public Instant createdAt() {
+    return createdAt;
+  }
+
+  public Instant expiresAt() {
+    return expiresAt;
+  }
+
+  public Instant artifactExpiresAt() {
+    return artifactExpiresAt;
+  }
+
+  public Instant invalidatedAt() {
+    return invalidatedAt;
+  }
+
+  public String invalidationReason() {
+    return invalidationReason;
+  }
 }

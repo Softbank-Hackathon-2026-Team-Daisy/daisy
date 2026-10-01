@@ -30,7 +30,10 @@ class JenkinsCommandServiceTest {
   @BeforeEach
   void setup() {
     var mapper = new ObjectMapper();
-    commands = spy(new JenkinsCommandService(jdbc, mapper, new CanonicalJson(mapper), new MockEnvironment()));
+    commands =
+        spy(
+            new JenkinsCommandService(
+                jdbc, mapper, new CanonicalJson(mapper), new MockEnvironment()));
   }
 
   @Test
@@ -38,30 +41,64 @@ class JenkinsCommandServiceTest {
     when(jdbc.queryForList(anyString(), anyMap()))
         .thenReturn(List.of(Map.of("queue_id", 11L, "build_number", 7L)));
     assertThatThrownBy(() -> commands.dispatched("job_1", 12L, null, "queued"))
-        .isInstanceOfSatisfying(DaisyException.class, e -> assertThat(e.errorCode()).isEqualTo(ErrorCode.STATE_CONFLICT));
+        .isInstanceOfSatisfying(
+            DaisyException.class,
+            e -> assertThat(e.errorCode()).isEqualTo(ErrorCode.STATE_CONFLICT));
     assertThatThrownBy(() -> commands.observed("job_1", 8L, "running"))
-        .isInstanceOfSatisfying(DaisyException.class, e -> assertThat(e.errorCode()).isEqualTo(ErrorCode.STATE_CONFLICT));
+        .isInstanceOfSatisfying(
+            DaisyException.class,
+            e -> assertThat(e.errorCode()).isEqualTo(ErrorCode.STATE_CONFLICT));
     verify(jdbc, never()).update(anyString(), any(MapSqlParameterSource.class));
   }
 
   @Test
   void invalidRunStatusDoesNotTouchStorage() {
     assertThatThrownBy(() -> commands.dispatched("job_1", 11L, null, "applying"))
-        .isInstanceOfSatisfying(DaisyException.class, e -> assertThat(e.errorCode()).isEqualTo(ErrorCode.VALIDATION_FAILED));
+        .isInstanceOfSatisfying(
+            DaisyException.class,
+            e -> assertThat(e.errorCode()).isEqualTo(ErrorCode.VALIDATION_FAILED));
     verifyNoInteractions(jdbc);
   }
 
   @Test
   void invalidatedApprovalRejectsBeforeDispatchAttempt() {
-    var pending = new CommandScope("job_1", "dep_1", "prj_1", "request_1", "apply", null,
-        "proposal-jenkins", "daisy/apply", "pending", "unknown", null, null, new ObjectMapper().createObjectNode());
-    var rejected = new CommandScope("job_1", "dep_1", "prj_1", "request_1", "apply", null,
-        "proposal-jenkins", "daisy/apply", "rejected", "unknown", null, null, pending.payload());
+    var pending =
+        new CommandScope(
+            "job_1",
+            "dep_1",
+            "prj_1",
+            "request_1",
+            "apply",
+            null,
+            "proposal-jenkins",
+            "daisy/apply",
+            "pending",
+            "unknown",
+            null,
+            null,
+            new ObjectMapper().createObjectNode());
+    var rejected =
+        new CommandScope(
+            "job_1",
+            "dep_1",
+            "prj_1",
+            "request_1",
+            "apply",
+            null,
+            "proposal-jenkins",
+            "daisy/apply",
+            "rejected",
+            "unknown",
+            null,
+            null,
+            pending.payload());
     doReturn(pending, rejected).when(commands).lookup("job_1");
     doReturn(List.of(new CommandTarget("dt_1", "input", "plan_1", "digest", "state")))
-        .when(commands).executionTargets("job_1");
+        .when(commands)
+        .executionTargets("job_1");
     when(jdbc.queryForList(anyString(), anyMap())).thenReturn(List.of(Map.of("id", "job_1")));
-    when(jdbc.queryForObject(anyString(), any(MapSqlParameterSource.class), eq(Long.class))).thenReturn(0L);
+    when(jdbc.queryForObject(anyString(), any(MapSqlParameterSource.class), eq(Long.class)))
+        .thenReturn(0L);
     assertThat(commands.claimPending().dispatchStatus()).isEqualTo("rejected");
     verify(jdbc).update(contains("approval_invalid_before_dispatch"), eq(Map.of("id", "job_1")));
     verify(jdbc, never()).update(contains("dispatch_attempts=dispatch_attempts+1"), anyMap());

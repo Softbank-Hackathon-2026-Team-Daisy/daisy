@@ -30,9 +30,12 @@ class JenkinsConsoleServiceTest {
   private final CanonicalJson json = new CanonicalJson(mapper);
   private final NamedParameterJdbcTemplate jdbc = mock(NamedParameterJdbcTemplate.class);
   private final EventJournal journal = mock(EventJournal.class);
-  private final MockEnvironment env = new MockEnvironment().withProperty("daisy.jenkins.console-enabled", "true")
-      .withProperty("daisy.jenkins.console-sanitized-utf8-confirmed", "true");
-  private final JenkinsConsoleService consoles = new JenkinsConsoleService(jdbc, journal, mapper, json, env);
+  private final MockEnvironment env =
+      new MockEnvironment()
+          .withProperty("daisy.jenkins.console-enabled", "true")
+          .withProperty("daisy.jenkins.console-sanitized-utf8-confirmed", "true");
+  private final JenkinsConsoleService consoles =
+      new JenkinsConsoleService(jdbc, journal, mapper, json, env);
 
   private LogChunk chunk(String text, boolean more) {
     byte[] bytes = text.getBytes(StandardCharsets.UTF_8);
@@ -40,22 +43,63 @@ class JenkinsConsoleServiceTest {
   }
 
   private JenkinsConsoleService.Owner owner() {
-    String stream = "jenkins-console:" + json.hash(mapper.valueToTree(Map.of("instance", "proposal-jenkins", "job", "daisy/prepare", "build", 7L)));
-    return new JenkinsConsoleService.Owner("job_1", "dep_1", "prj_1", "proposal-jenkins", "daisy/prepare", 7, 0, false, Instant.EPOCH, stream);
+    String stream =
+        "jenkins-console:"
+            + json.hash(
+                mapper.valueToTree(
+                    Map.of("instance", "proposal-jenkins", "job", "daisy/prepare", "build", 7L)));
+    return new JenkinsConsoleService.Owner(
+        "job_1",
+        "dep_1",
+        "prj_1",
+        "proposal-jenkins",
+        "daisy/prepare",
+        7,
+        0,
+        false,
+        Instant.EPOCH,
+        stream);
   }
 
   private void storedCursor(long cursor) {
-    Map<String, Object> row = new HashMap<>(Map.of("id", "job_1", "deployment_id", "dep_1", "project_id", "prj_1",
-        "instance_id", "proposal-jenkins", "job_full_name", "daisy/prepare", "build_number", 7L,
-        "log_owner_execution_id", "job_1", "log_cursor", cursor, "log_complete", false, "created_at", Timestamp.from(Instant.EPOCH)));
-    when(jdbc.queryForList(anyString(), anyMap())).thenAnswer(invocation ->
-        invocation.<String>getArgument(0).startsWith("select e.*") ? List.of(row) : List.of(Map.of("id", "any")));
+    Map<String, Object> row =
+        new HashMap<>(
+            Map.of(
+                "id",
+                "job_1",
+                "deployment_id",
+                "dep_1",
+                "project_id",
+                "prj_1",
+                "instance_id",
+                "proposal-jenkins",
+                "job_full_name",
+                "daisy/prepare",
+                "build_number",
+                7L,
+                "log_owner_execution_id",
+                "job_1",
+                "log_cursor",
+                cursor,
+                "log_complete",
+                false,
+                "created_at",
+                Timestamp.from(Instant.EPOCH)));
+    when(jdbc.queryForList(anyString(), anyMap()))
+        .thenAnswer(
+            invocation ->
+                invocation.<String>getArgument(0).startsWith("select e.*")
+                    ? List.of(row)
+                    : List.of(Map.of("id", "any")));
   }
 
   @Test
   void retainsSplitUtf8AndTrailingLineWithoutInventingCharacterOffsets() {
     byte[] prefix = "done\n가".getBytes(StandardCharsets.UTF_8);
-    var parsed = JenkinsConsoleService.parse(100, new LogChunk(Arrays.copyOf(prefix, prefix.length - 1), 100 + prefix.length - 1, true));
+    var parsed =
+        JenkinsConsoleService.parse(
+            100,
+            new LogChunk(Arrays.copyOf(prefix, prefix.length - 1), 100 + prefix.length - 1, true));
     assertThat(parsed.consumed()).isEqualTo(5);
     assertThat(parsed.blocks().getFirst().text()).isEqualTo("done\n");
     assertThat(parsed.complete()).isFalse();
@@ -65,19 +109,25 @@ class JenkinsConsoleServiceTest {
 
   @Test
   void invalidByteRangeUtf8AndOversizedLineAreRejected() {
-    assertThatThrownBy(() -> JenkinsConsoleService.parse(0, new LogChunk(new byte[]{1}, 2, true))).isInstanceOf(DaisyException.class);
-    assertThatThrownBy(() -> JenkinsConsoleService.parse(0, new LogChunk(new byte[]{(byte) 0xe3}, 1, false))).isInstanceOf(DaisyException.class);
-    assertThatThrownBy(() -> JenkinsConsoleService.parse(0, chunk("x".repeat(16385), true))).isInstanceOf(DaisyException.class);
+    assertThatThrownBy(() -> JenkinsConsoleService.parse(0, new LogChunk(new byte[] {1}, 2, true)))
+        .isInstanceOf(DaisyException.class);
+    assertThatThrownBy(
+            () -> JenkinsConsoleService.parse(0, new LogChunk(new byte[] {(byte) 0xe3}, 1, false)))
+        .isInstanceOf(DaisyException.class);
+    assertThatThrownBy(() -> JenkinsConsoleService.parse(0, chunk("x".repeat(16385), true)))
+        .isInstanceOf(DaisyException.class);
   }
 
   @Test
   void groupsOnlyAtCompleteLineBoundariesWithinMessageLimit() {
     var parsed = JenkinsConsoleService.parse(0, chunk("가\n".repeat(5000), true));
     assertThat(parsed.blocks()).hasSize(2);
-    assertThat(parsed.blocks()).allSatisfy(block -> {
-      assertThat(block.bytes().length).isLessThanOrEqualTo(16384);
-      assertThat(block.text()).endsWith("\n");
-    });
+    assertThat(parsed.blocks())
+        .allSatisfy(
+            block -> {
+              assertThat(block.bytes().length).isLessThanOrEqualTo(16384);
+              assertThat(block.text()).endsWith("\n");
+            });
     assertThat(parsed.consumed()).isEqualTo(20000);
   }
 
@@ -120,7 +170,8 @@ class JenkinsConsoleServiceTest {
     var service = new JenkinsConsoleService(jdbc, actual, mapper, json, env);
     // First block reaches its limit, so value would otherwise be stored in another block.
     String log = "x".repeat(16376) + "\ntoken=\n" + "sensitive-value\n";
-    assertThatThrownBy(() -> service.commit(owner(), chunk(log, false))).isInstanceOf(DaisyException.class);
+    assertThatThrownBy(() -> service.commit(owner(), chunk(log, false)))
+        .isInstanceOf(DaisyException.class);
     verifyNoInteractions(jdbc);
   }
 }

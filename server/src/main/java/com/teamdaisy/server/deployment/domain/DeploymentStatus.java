@@ -17,7 +17,10 @@ public enum DeploymentStatus {
     this.code = code;
   }
 
-  public String code() { return code; }
+  public String code() {
+    return code;
+  }
+
   public boolean terminal() {
     return this == SUCCEEDED || this == PARTIALLY_SUCCEEDED || this == FAILED || this == CANCELLED;
   }

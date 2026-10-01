@@ -12,7 +12,9 @@ import org.springframework.web.bind.annotation.RestController;
 public class JenkinsCallbackController {
   private final JenkinsCallbackService callbacks;
 
-  public JenkinsCallbackController(JenkinsCallbackService callbacks) { this.callbacks = callbacks; }
+  public JenkinsCallbackController(JenkinsCallbackService callbacks) {
+    this.callbacks = callbacks;
+  }
 
   @PostMapping(path = "/internal/jenkins/callbacks", consumes = "application/json")
   public JenkinsCallbackService.Receipt receive(HttpServletRequest request) {

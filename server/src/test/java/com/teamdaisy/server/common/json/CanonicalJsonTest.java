@@ -21,7 +21,8 @@ class CanonicalJsonTest {
     assertTrue(json.hash(a).matches("sha256:[0-9a-f]{64}"));
     assertNotEquals(json.hash(mapper.readTree("{}")), json.hash(mapper.readTree("{\"a\":null}")));
     assertNotEquals(json.hash(mapper.readTree("[1,2]")), json.hash(mapper.readTree("[2,1]")));
-    assertEquals("sha256:44136fa355b3678a1146ad16f7e8649e94fb4fc21fe77e8310c060f61caaff8a",
+    assertEquals(
+        "sha256:44136fa355b3678a1146ad16f7e8649e94fb4fc21fe77e8310c060f61caaff8a",
         json.hash(mapper.readTree("{}")));
   }
 
@@ -29,7 +30,8 @@ class CanonicalJsonTest {
   void rejectsNonJsonNonFiniteAndOversizedUtf8AndCopiesDeeply() {
     assertThrows(DaisyException.class, () -> json.hash(DoubleNode.valueOf(Double.NaN)));
     assertThrows(DaisyException.class, () -> json.copy(new POJONode(new Object())));
-    assertThrows(DaisyException.class, () -> json.hash(mapper.getNodeFactory().textNode("한".repeat(90000))));
+    assertThrows(
+        DaisyException.class, () -> json.hash(mapper.getNodeFactory().textNode("한".repeat(90000))));
     var original = mapper.createObjectNode().set("nested", mapper.createObjectNode().put("a", 1));
     var copy = json.copy(original);
     ((com.fasterxml.jackson.databind.node.ObjectNode) original.get("nested")).put("a", 2);
