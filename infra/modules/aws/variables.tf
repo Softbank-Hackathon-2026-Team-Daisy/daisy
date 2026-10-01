@@ -115,3 +115,37 @@ variable "region" {
   type        = string
   default     = "ap-northeast-2"
 }
+
+# ---------------------------------------------------------------- 고정 네트워크 (대상 환경 등록값)
+# infra/bootstrap/aws-network의 출력이에요. daisy-bootstrap이 targets/aws.json에 넣어 두면 러너가 넘겨줘요
+
+variable "vpc_id" {
+  description = "고정 VPC ID"
+  type        = string
+
+  validation {
+    condition     = can(regex("^vpc-[0-9a-f]+$", var.vpc_id))
+    error_message = "vpc_id는 vpc-로 시작해야 해요."
+  }
+}
+
+variable "public_subnet_ids" {
+  description = "ALB · 앱 태스크용 public 서브넷 ID (서로 다른 AZ 2개 이상)"
+  type        = list(string)
+
+  validation {
+    condition     = length(var.public_subnet_ids) >= 2
+    error_message = "ALB는 서로 다른 AZ의 public 서브넷이 2개 이상 필요해요."
+  }
+}
+
+variable "private_subnet_ids" {
+  description = "DB용 private 서브넷 ID (database = true일 때 2개 이상)"
+  type        = list(string)
+  default     = []
+
+  validation {
+    condition     = !var.database || length(var.private_subnet_ids) >= 2
+    error_message = "database = true면 private 서브넷이 2개 이상 필요해요."
+  }
+}

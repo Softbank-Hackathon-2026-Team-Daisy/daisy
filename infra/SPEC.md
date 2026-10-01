@@ -213,6 +213,20 @@ terraform output -raw service_url
 
 ## 5. AWS 기준 모듈 (N-06) — 먼저
 
+### 5-0. 고정 네트워크와 앱 배포를 나눠요 (10/1)
+
+**VPC · 서브넷은 한 번 만들어 두고, 앱 배포는 ALB · ECS · 보안 그룹만 만들고 지워요.** 처음에는 앱 모듈이 배포 때마다 VPC까지 만들고 destroy 때 같이 지웠는데, 불필요한 반복이라 바꿨어요.
+
+| 층 | 위치 | 만드는 것 | 수명 |
+|---|---|---|---|
+| 고정 네트워크 | `infra/bootstrap/aws-network/` | VPC `10.20.0.0/16`, public 서브넷 ×2 · private 서브넷 ×2 (AZ 2a · 2b), IGW, 라우팅 테이블, 기본 보안 그룹 잠금 | 1번 만들고 유지 (모두 **무료**) |
+| 앱 | `infra/modules/aws/` | 보안 그룹, ALB, ECS, IAM 실행 역할, 로그, (비밀값, RDS) | 매 배포 · 앱을 지우면 같이 지워요 |
+
+- 앱 모듈은 `vpc_id`, `public_subnet_ids`, `private_subnet_ids`를 **필수 변수**로 받아요. 값은 대상 환경 등록값(`targets/aws.json`)에서 와요. `daisy-bootstrap`(§12-8)이 네트워크를 만들고 나서 자동으로 넣어 줘요
+- 대역은 온프레미스(`172.16.1.0/24` · `172.16.2.0/24`, §16-2)와 겹치지 않아서 나중에 VPN을 붙일 수 있어요
+- NAT Gateway는 여전히 없어요. private 서브넷은 DB 전용이라 인터넷 경로가 없어요
+- 앱이 여러 개여도 VPC 하나를 같이 써요 (리전당 VPC 기본 5개 제한을 피해요)
+
 ### 5-1. 구성
 
 ```
@@ -231,13 +245,13 @@ NAT Gateway 없이 이미지를 받으려고 태스크를 public 서브넷에 �
 
 | 묶음 | 리소스 | 조건 |
 |---|---|---|
-| 네트워크 | `aws_vpc`, `aws_internet_gateway`, public `aws_subnet` ×2, `aws_route_table`(+ 연결 ×2) | 항상 |
+| 네트워크 | 만들지 않아요. 고정 네트워크의 VPC · 서브넷 ID를 받아요 (§5-0) | — |
 | 보안 그룹 | ALB SG, 앱 SG | 항상 |
 | 로드밸런서 | `aws_lb`, `aws_lb_target_group`, `aws_lb_listener`(80) | 항상 |
 | 실행 | `aws_ecs_cluster`, `aws_ecs_task_definition`, `aws_ecs_service`, `aws_cloudwatch_log_group` | 항상 |
 | 권한 | 실행 역할 `aws_iam_role` + `AmazonECSTaskExecutionRolePolicy` + 자기 비밀값 읽기 인라인 정책 | 항상 (인라인은 비밀값이 있을 때) |
 | 비밀값 | `aws_secretsmanager_secret` + `_version` (키마다) | `secrets`가 있을 때 |
-| DB (S) | private `aws_subnet` ×2, `aws_db_subnet_group`, DB SG, `aws_db_instance` | `database = true` |
+| DB (S) | `aws_db_subnet_group`(고정 private 서브넷), DB SG, `aws_db_instance` | `database = true` |
 
 DB 접속 정보는 앱에 환경변수로 넣어요. 이름은 온프레미스·GCP와 같아야 해서 황지환과 맞춰요 (D-6): `(가칭)` `DB_HOST`, `DB_PORT`, `DB_NAME`, `DB_USER`는 일반 환경변수, `DB_PASSWORD`는 RDS 관리 비밀값(`manage_master_user_password = true`)에서 읽어요.
 
@@ -329,6 +343,7 @@ DB 접속 정보는 앱에 환경변수로 넣어요. 이름은 온프레미스�
 
 | 폴더 `(가칭)` | 하는 일 |
 |---|---|
+| `infra/bootstrap/aws-network/` | **고정 네트워크** (§5-0). `daisy-bootstrap`으로 plan → 승인 → apply하고, 만든 ID를 `targets/aws.json`에 넣어요. 구현 완료 (10/1) |
 | `infra/bootstrap/aws-state/` | **S3** state 버킷과 버킷 정책. 처음엔 로컬 state로 만든 뒤 `terraform init -migrate-state`로 같은 버킷의 `_bootstrap/terraform.tfstate`로 옮겨요 |
 | `infra/bootstrap/gcp-project/` | API 활성화(`run`, `secretmanager`, `iam`, `storage` + 필요 시 `artifactregistry`, `sqladmin`)와 **GCS** state 버킷(버전 관리, 균일 버킷 수준 액세스, 공개 차단). bootstrap 자기 state도 같은 방식으로 버킷에 옮겨요. 비공개 이미지를 쓰게 되면 Artifact Registry 원격 저장소도 여기서 |
 
@@ -390,7 +405,8 @@ infra/
 │  │  └─ hellocalc.tfvars.example  sample-monolith 값 예시 (비밀값 없음)
 │  ├─ gcp/                         같은 구조
 │  └─ onprem/                      황지환
-├─ bootstrap/  (가칭)              사람이 1회 apply
+├─ bootstrap/  (가칭)              사람이 1회 apply (daisy-bootstrap)
+│  ├─ aws-network/                 고정 VPC · 서브넷 (§5-0)
 │  ├─ aws-state/
 │  └─ gcp-project/
 ├─ jenkins/    (가칭)              Jenkins 러너 (§12)
@@ -476,9 +492,11 @@ PR은 300줄 이하로 나눠요: ① 이 명세 ② bootstrap ③ AWS 모듈 �
 
 ### 12-5. 개인 계정 단계
 
-**원칙: 개인 계정에서는 돈이 한 푼도 나오지 않게 해요.**
+**10/1 변경: 개인 AWS 계정을 실제 환경으로 써요** (비용은 정산 예정). 아래 "plan까지만" 원칙은 9/30 ~ 10/1 오전 기록이에요.
+- 실제로 만들 때는 `daisy-deployer`에 생성 권한(지금은 `AdministratorAccess`, 나중에 §3-5로 축소)이 있어야 하고, Jenkins `PLAN_ONLY`를 `0`으로 바꿔요. 둘 다 사람이 확인하고 바꿔요
+- 비용은 계속 줄여요: 고정 네트워크는 무료, 앱(ALB · Fargate)은 쓰지 않을 때 지워요. Zero spend budget 알림은 켜 둬요
 
-- **AWS: plan까지만 해요 (0원 보장)**
+- **AWS: plan까지만 해요 (0원 보장, 9/30 ~ 10/1 오전)**
   - 개인 계정이 2025-07-15 이전 가입이라 12개월 프리티어가 끝났어요. ALB · Fargate · EC2 · 공인 IPv4가 모두 유료라, 리소스를 띄우는 순간 돈이 나와요
   - plan은 조회 API만 써서 아무것도 만들지 않아요. 모듈이 실제 AWS에서 맞는지와 Jenkins CD 흐름을 여기까지 검증해요
   - 보장 장치 세 겹:
@@ -542,6 +560,17 @@ daisy-cd-apply ◀── 서버가 buildWithParameters(PLAN_BUILD=N, APPROVAL_ID
 - `tf-run.sh` 안전장치 10가지 확인: PLAN_ID 없음 · 형식 오류 · 없는 plan · **해시 불일치** · `PLAN_ONLY` · 승인 없음 · **이미 적용** · 같은 ID 덮어쓰기 · 적용 없이 output · **잠금 대기 초과**
 - `daisy-cd-plan` 두 개를 동시에 실행 → plan 폴더 3개(`-1`~`-3`)가 이미지 태그·해시가 다른 채로 따로 남음. 잠금 때문에 순서대로 실행됨
 - 실제 apply는 개인 계정 `PLAN_ONLY` 때문에 팀 계정에서 확인해요
+
+### 12-8. 고정 리소스 bootstrap Job (`daisy-bootstrap`)
+
+| 항목 | 내용 |
+|---|---|
+| 파일 | `infra/jenkins/bootstrap.Jenkinsfile` |
+| 파라미터 | `STACK` (`aws-network`, 나중에 `aws-state`), `DESTROY` |
+| 흐름 | `tf-run.sh <stack> plan` → **Jenkins에서 승인** → apply → (aws-network) VPC · 서브넷 ID를 `targets/aws.json`에 넣어요 |
+| 승인 | 앱 배포와 달리 서버를 거치지 않는 관리자 작업이라 Jenkins `input`으로 승인해요. `PLAN_ONLY=1`이면 plan에서 끝나요 |
+| 작업 폴더 · state | `$WORK_ROOT/_bootstrap/<stack>/` (plan마다 폴더 분리는 앱과 같아요). state key는 `_bootstrap/<stack>/terraform.tfstate` |
+| 지울 때 | `DESTROY` 체크. 그 VPC를 쓰는 앱이 남아 있으면 AWS가 거부해요. 앱을 먼저 지워요 |
 
 ## 13. 팀원 서버로 옮길 때
 
@@ -774,3 +803,4 @@ Jenkins: Terraform 준비 → validate · plan · 위험 검사
 
 기존 클라우드 리소스·일정·미정인 공통 변수의 결정을 이 절이 임의로 바꾸지 않아요.
 | 2026-10-01 | CD를 `daisy-cd-plan` · `daisy-cd-apply` 두 Job으로 분리(§12-7). plan마다 작업 폴더 분리, 승인한 plan만 적용, 앱·환경별 `flock` |
+| 2026-10-01 | 고정 네트워크 분리(§5-0, `infra/bootstrap/aws-network`, `daisy-bootstrap` §12-8). 앱 모듈은 VPC · 서브넷 ID를 받아요. 개인 AWS 계정을 실제 환경으로 변경(§12-5) |
