@@ -14,7 +14,7 @@
 6. **한 줄 형식:** `- HH:MM [파트] 결정 — [출처](링크)`. 파트: 팀 · 웹 · 앱 · 서버 · 인프라 · CI · 샘플.
 7. **비밀값 · 개인 연락처는 적지 않아요.**
 
-상태: 마지막 갱신 2026-10-01 22:52 KST · 확인한 범위 Slack ~22:50 / Notion ~22:50 / GitHub ~22:50 (21:22–22:50: PR #39 Mac 다운로드 주소 · `source_version_id` 전송(앱) 2건, 서버 연결 24시 마감 1건, #36 → #40 대체 · 승인 요청 모양(서버) 2건 반영 · 번복 없음. #23 · #25(박승준) · #33(김승환) 승인만, #23 · #25 · #33 · #37 · #39 · #40 머지 없음. 22:44 황지환 질문(내부 서버에 앱까지 올려 HTTPS로 UI까지인지)은 아직 답 없음. #13 김승환 현황 댓글(R-09는 별도 `POST /auth/demo` 없이 `POST /auth/token`의 viewer 계정 등)은 하은현 응답 범위 확인 전이라 미반영. 노션 「10/01 Meeting」 · ADR · 정산 페이지는 이후 수정 없음, 새 허들 캔버스 없음. 슬랙 검색 API 대신 채널 · 스레드를 직접 읽음)
+상태: 마지막 갱신 2026-10-01 23:50 KST · 확인한 범위 Slack ~23:50 / Notion ~23:50 / GitHub ~23:50 (22:20–23:50: 새 결정 없음 · 번복 없음. 23:43 김승환 "`unibloom.cloud` 연결은 해둠"은 진행 보고라 미반영(어떤 서버가 붙었는지 · 개발/데모 주소 확정 아님). 23:34 임채준 질문(앱 심사에 프론트 · 백 · 인프라가 다 연결된 주소가 필요한지, 프론트 화면만 보이면 되는지)은 박승준 답 없음. 임채준 브랜치 `infra/feat-unibloom-server`(23:25, 심사용 서버 `ios.unibloom.cloud` · 와일드카드 인증서)는 PR · 머지 전이라 미반영. #40 승인 ID 응답 필드(`pending_approvals` vs `targets[].approval_id`) 질문(22:54 박승준)은 서버 답 없음. #23 · #25 · #33 · #37 · #39 · #40 머지 없음(#33은 22:25 김승환 승인만), 새 PR 없음. 노션 「10/01 Meeting」 · ADR · 정산 페이지는 이후 수정 없음, 새 허들 캔버스 없음. 슬랙 검색 API 대신 채널 · 스레드를 직접 읽음)
 
 ## 결정 기록
 
@@ -212,3 +212,4 @@
 - 22:35 [인프라] `unibloom.cloud`에 HTTPS로 서버를 붙이는 것까지 오늘(10/1) 24시까지 (앱 심사에서 실제 서버에 로그인해야 함, 박승준 답 · 황지환 22:42 진행) — [슬랙](https://softbankhackathon2026.slack.com/archives/C0C1YSY25LZ/p1790861715265989?thread_ts=1790859158.930959&cid=C0C1YSY25LZ) · [슬랙](https://softbankhackathon2026.slack.com/archives/C0C1YSY25LZ/p1790862123047549?thread_ts=1790859158.930959&cid=C0C1YSY25LZ)
 - 22:39 [서버] #36을 닫고 #40(실행 기능 + main의 #38 인증 · 조회 통합)으로 대체, 이후 리뷰 · 연결은 #40 기준 / `ExecutionAccess` · `ExecutionInputs`는 하은현 어댑터로 연결(actor는 인증된 principal, 자격증명은 참조만, `hash_format_version: 1`) (하은현 안 · 김승환 수락) — [PR #36](https://github.com/Softbank-Hackathon-2026-Team-Daisy/unibloom/pull/36#issuecomment-5932641533) · [PR #40](https://github.com/Softbank-Hackathon-2026-Team-Daisy/unibloom/pull/40)
 - 22:39 [서버] 승인 공개 요청은 `{ decision, confirm_text, items: [{target_id, approval_id}] }`(사용자가 본 승인 대기 항목), `decision` 값은 기존 웹 · 앱대로 `approve | reject`(`approved`는 저장 상태), 중복 `target_id`는 거절 (하은현 질문 · 김승환 답) — [PR #36](https://github.com/Softbank-Hackathon-2026-Team-Daisy/unibloom/pull/36#issuecomment-5932641533) · [하은현 질문](https://github.com/Softbank-Hackathon-2026-Team-Daisy/unibloom/pull/36#issuecomment-5931715812)
+- 23:00 [인프라] 오늘 24시까지 `unibloom.cloud` HTTPS 서버 연결은 이동 중인 황지환 대신 김승환이 맡음 (황지환 22:55 요청 · 김승환 수락, 계정 · 업무 전달은 DM) — [슬랙](https://softbankhackathon2026.slack.com/archives/C0C1YSY25LZ/p1790862910158459) · [슬랙](https://softbankhackathon2026.slack.com/archives/C0C1YSY25LZ/p1790863248602649)
