@@ -95,3 +95,38 @@ struct ModelDecodingTests {
         #expect(error.isStateConflict)
     }
 }
+
+/// 서버가 본문 없이 202 · 204를 줘도 승인이 "실패"로 보이지 않아요 (서버 #42 SPEC ③)
+private final class EmptyBodyProtocol: URLProtocol, @unchecked Sendable {
+    override class func canInit(with request: URLRequest) -> Bool { true }
+    override class func canonicalRequest(for request: URLRequest) -> URLRequest { request }
+    override func startLoading() {
+        let response = HTTPURLResponse(url: request.url!, statusCode: 202, httpVersion: nil, headerFields: nil)!
+        client?.urlProtocol(self, didReceive: response, cacheStoragePolicy: .notAllowed)
+        client?.urlProtocol(self, didLoad: Data())
+        client?.urlProtocolDidFinishLoading(self)
+    }
+    override func stopLoading() {}
+}
+
+struct EmptyBodyTests {
+    @Test func approveWithEmpty202() async throws {
+        let config = URLSessionConfiguration.ephemeral
+        config.protocolClasses = [EmptyBodyProtocol.self]
+        let client = APIClient(baseURL: URL(string: "https://api.example.com")!, token: "t", session: URLSession(configuration: config))
+        let items = [Deployment.ApprovalItem(targetId: "tgt_aws", approvalId: "apv_1")]
+        _ = try await client.send(.approve(deploymentID: "dep_1", decision: .approve, items: items))
+        // 빈 본문은 EmptyResponse만 성공이고, 모양이 있는 응답은 여전히 오류예요
+        await #expect(throws: APIError.self) { _ = try await client.send(.deployment(id: "dep_1")) }
+    }
+
+    /// A-04 환경에 단계 · 시도가 없어도 배포 화면이 떠요 (서버 안: 확인 전이면 null · 생략)
+    @Test func deploymentTargetWithoutStep() throws {
+        let deployment = try JSONDecoder.daisy.decode(Deployment.self, from: Data("""
+        { "id": "dep_1", "project_id": "prj_1", "commit": "abc", "state": "queued",
+          "targets": [ { "target_id": "tgt_aws", "state": "waiting", "step": null, "attempt": null } ] }
+        """.utf8))
+        let target = try #require(deployment.targets?.first)
+        #expect(target.step == .unknown && target.stepState == .unknown && target.attempt == 0)
+    }
+}

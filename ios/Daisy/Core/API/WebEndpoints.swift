@@ -8,11 +8,6 @@ private func jsonBody(_ value: some Encodable) -> Data? {
 }
 
 extension Endpoint {
-    /// R-09 (가칭) · W-00 "데모 계정으로 둘러보기 (읽기 전용)". 인증 범위는 9/30 회의 안건
-    static func demoToken() -> Endpoint<AuthToken> {
-        .init(method: "POST", path: "auth/demo")
-    }
-
     /// WR-02 · W-02 연결하기. 응답에 deploy.yaml 검증 결과가 같이 와요
     static func connectProject(repository: String, branch: String) -> Endpoint<Project> {
         .init(method: "POST", path: "projects",

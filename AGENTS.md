@@ -317,7 +317,7 @@ The team has ₩300,000 of cloud credit in total. ALB, NAT Gateway, and RDS cost
 - **Name.** The service is **Unibloom** (10/1 meeting); the team is still Team Daisy. The GitHub repo `daisy` is now **`unibloom`** (old URLs redirect; run `git remote set-url origin https://github.com/Softbank-Hackathon-2026-Team-Daisy/unibloom.git`). Each area cleans up `daisy` wording in its own docs; code identifiers, bundle IDs, and the TestFlight record may keep `daisy`.
 - **Domain.** `unibloom.cloud` replaces `daisydeploy.dev` (bought 10/1 by 황지환, HTTPS setup in progress).
 - **App download.** The Mac app ships as `Unibloom.dmg` at `…/unibloom/releases/download/mac-latest/Unibloom.dmg` (W-14). `Daisy.dmg` stays at the same release as a copy until the web switches.
-- **Query API shapes** (server #38, accepted by the web, not merged yet): build `pipeline.status` adds `queued` ("대기 중"); lists use `{ items, next_cursor }`; A-02 `current` is null when nothing is deployed; A-06 has no commit message, author, or commit time yet; roles are `owner` and `viewer`.
+- **Query API shapes** (server #38, merged 10/1 22:04): build `pipeline.status` adds `queued` ("대기 중"); lists use `{ items, next_cursor }`; A-06 has no commit message, author, or commit time yet; roles are `owner` and `viewer`. A-02 `current` comes only when `current_status` is `confirmed`; null means "no confirmed current deployment", not "never deployed" (10/2 01:10, #42).
 
 ## 13. Maintaining these files
 

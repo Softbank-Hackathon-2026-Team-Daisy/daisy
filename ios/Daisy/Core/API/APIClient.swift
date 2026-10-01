@@ -47,6 +47,11 @@ struct APIClient: Sendable {
             )
         }
 
+        // 승인 · 취소는 본문 없이 202 · 204를 줄 수 있어요 (서버 #42 SPEC ③). 빈 본문은 빈 객체로 읽어요 (EmptyResponse만 성공)
+        if data.allSatisfy({ $0 == 0x20 || $0 == 0x0A || $0 == 0x0D || $0 == 0x09 }),
+           let empty = try? JSONDecoder.daisy.decode(Response.self, from: Data("{}".utf8)) {
+            return empty
+        }
         do {
             return try JSONDecoder.daisy.decode(Response.self, from: data)
         } catch {

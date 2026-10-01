@@ -131,6 +131,28 @@ struct Deployment: Decodable, Identifiable, Hashable, Sendable {
         let imageDigest: String?
 
         var id: String { targetId }
+
+        private enum CodingKeys: String, CodingKey {
+            case targetId, state, step, stepState, attempt, reusedScript, url, errorSummary, title, steps, healthSummary, imageDigest
+        }
+
+        /// A-04 모양은 서버가 아직 확정 전이라 단계 · 시도는 없을 수 있어요 (서버 안: 확인 전이면 null · 생략).
+        /// 하나가 없다고 배포 화면 전체가 안 뜨지 않게, 없으면 모름(`unknown`) · 시도 0(생성 전)으로 읽어요
+        init(from decoder: Decoder) throws {
+            let c = try decoder.container(keyedBy: CodingKeys.self)
+            targetId = try c.decode(String.self, forKey: .targetId)
+            state = try c.decodeIfPresent(TargetState.self, forKey: .state)
+            step = try c.decodeIfPresent(DeploymentStep.self, forKey: .step) ?? .unknown
+            stepState = try c.decodeIfPresent(StepState.self, forKey: .stepState) ?? .unknown
+            attempt = try c.decodeIfPresent(Int.self, forKey: .attempt) ?? 0
+            reusedScript = try c.decodeIfPresent(Bool.self, forKey: .reusedScript)
+            url = try c.decodeIfPresent(URL.self, forKey: .url)
+            errorSummary = try c.decodeIfPresent(String.self, forKey: .errorSummary)
+            title = try c.decodeIfPresent(String.self, forKey: .title)
+            steps = try c.decodeIfPresent([StepItem].self, forKey: .steps)
+            healthSummary = try c.decodeIfPresent(String.self, forKey: .healthSummary)
+            imageDigest = try c.decodeIfPresent(String.self, forKey: .imageDigest)
+        }
     }
 
     /// 승인 요청 한 항목: 사용자가 화면에서 본 승인 대기 환경 (10/1 22:39 서버 확정, #36 · #40)

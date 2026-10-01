@@ -74,13 +74,6 @@ final class AppModel {
         adopt(result, username: username)
     }
 
-    /// W-00 "데모 계정으로 둘러보기 (읽기 전용)" — 서버가 viewer 토큰을 줘요 (R-09 가칭).
-    func signInAsDemo() async throws {
-        guard let serverURL else { throw APIError.notConfigured }
-        let result = try await APIClient(baseURL: serverURL, token: nil).send(.demoToken())
-        adopt(result, username: "데모 계정")
-    }
-
     private func adopt(_ result: AuthToken, username: String) {
         tokenStore.save(result.accessToken)
         self.username = username
