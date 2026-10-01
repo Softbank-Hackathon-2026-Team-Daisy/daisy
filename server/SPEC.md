@@ -681,3 +681,54 @@ Idempotency-Key: <키>
 | V13 | `./gradlew --no-daemon spotlessCheck check build` | 성공 |
 
 V9 의 실제 Jenkins 실행은 하지 않습니다. 기본 비활성 설정 그대로 명령이 저장되는 데까지만 봅니다.
+
+## 배포 대상 목록 WR-04 (10/2, 하은현)
+
+### 범위
+
+`GET /projects/{id}/targets` 는 배포 시작 화면(W-04)과 환경 화면(W-10)에서 고를 수 있는 대상 목록을 돌려줍니다. A-02(`targets/status`)와 별도 경로로 두는 것은 9/30 결정(*"환경 선택용 `GET /projects/{id}/targets`는 `targets/status`와 별도"*, PR #9)대로입니다. A-02 는 "지금 어떻게 떠 있나", WR-04 는 "어디에 배포할 수 있나" 입니다.
+
+- 권한은 A-02 와 같습니다. `ProjectAccessService.requireRead` — 없는 프로젝트·비멤버 404, viewer 도 조회는 됩니다.
+- 보관된 대상은 뺍니다. 정렬은 A-02 와 같은 `(environment_type, name)` 입니다.
+- 목록 봉투 `{ items, next_cursor }` 이고 `next_cursor` 는 항상 null 입니다 (프로젝트당 대상이 몇 개뿐).
+- 이번 범위가 아닌 것: W-10 의 선택 필드(`title`·`runtime`·`location`·`access_method`·`exposure`·`state_backend`·`current_commit`). 대상 설정 키가 정해지지 않았고 S8 에서 `title` 조립 주체도 미정입니다.
+
+### 응답 필드
+
+소비자 계약은 `ios/SPEC.md` 406행 *"`target_id, type, name, reuse{ available, script_id?, reason? }, connection{ state: ok·failed·unknown, checked_at }`"* 입니다.
+
+| 필드 | 출처 | 비고 |
+|---|---|---|
+| `target_id`·`type`·`name` | `target.id`·`environment_type`·`name` | A-02 와 같음 |
+| `connection.state` | `target.connection_state` 를 변환 | 아래 표 |
+| `connection.checked_at` | `target.connection_checked_at` | 확인한 적 없으면 null |
+| `reuse` | `target.reuse_assessment` | **인프라 보고가 없으면 통째로 null** |
+| `reuse.available`·`script_id`·`reason` | 같은 JSON 의 같은 키 | |
+| `reuse.assessed_at` | 같은 JSON 의 `assessed_at` | 설계의 "판정 시각". 키 이름은 인프라 보고 형식이 정해지면 맞춥니다 |
+
+**연결 상태는 소비자 값으로 바꿉니다.** S1 의 *"DB enum을 API에 그대로 노출하지 않습니다"* 를 따릅니다.
+
+| DB `ck_target_conn` | WR-04 `connection.state` |
+|---|---|
+| `connected` | `ok` |
+| `disconnected` | `failed` |
+| `unknown` | `unknown` |
+| 그 밖 | 그대로 (꾸미지 않음) |
+
+**`reuse` 는 없으면 null 입니다.** 인프라가 재사용 판정을 보고한 적이 없는데 `available: false` 로 보내면 "재사용 불가로 확인됨" 처럼 읽힙니다. 지금은 `reuse_assessment` 를 채우는 곳이 없어서 항상 null 입니다. 저장된 JSON 이 모양과 다르면(`available` 이 boolean 이 아님 등) 목록 전체를 실패시키지 않고 그 대상의 `reuse` 만 null 로 둡니다.
+
+### 확인이 필요한 것
+
+**① A-02 의 `connection_state` 와 값이 다릅니다 (웹·앱).** A-02 는 계약에 없던 필드를 제가 더하면서 DB 값(`connected`·`disconnected`)을 그대로 내보냈고, 웹은 *"W-04에서 연결이 안 되는 환경을 막을 때는 `connection_state`를 쓸게요"* (#38 도영) 라고 했습니다. W-04 는 원래 WR-04 를 쓰는 화면이라, **W-04 에서는 WR-04 `connection.state` 를 써 달라고** 알리겠습니다. A-02 값도 같은 변환으로 맞출지는 웹·앱과 정합니다.
+
+**② `reuse_assessment` 를 채우는 쪽 (승환·인프라).** 설계는 *"인프라가 보고한"* 값인데 수신 경로가 없습니다. 실행 결과 수신(#35)과 함께 정해지면 키 이름도 맞춥니다.
+
+### 검증 계획
+
+| | 검사 | 기대 |
+|---|---|---|
+| T1 | 토큰 없음 / 비멤버 / viewer | 401 / 404 / 200 |
+| T2 | `connected`·`disconnected`·`unknown` 대상 | `ok`·`failed`·`unknown` |
+| T3 | `reuse_assessment` 없음 / 정상 / 모양 틀림 | null / 채워짐 / 그 대상만 null, 응답 200 |
+| T4 | 보관된 대상 | 목록에 없음 |
+| T5 | OpenAPI | 경로가 나오고 `principal` 노출 0건 |
