@@ -159,6 +159,89 @@ class EventSseServiceTest {
   }
 
   @Test
+  void filteredStreamKeepsChannelSequenceAndAdvancesPastFilteredRows() throws Exception {
+    Capture capture = new Capture();
+    EventSseService service = service(capture);
+    ObjectMapper mapper = new ObjectMapper();
+    Instant now = Instant.now();
+    when(journal.deploymentBounds("dep_1")).thenReturn(new EventJournal.Bounds(1, 3));
+    when(journal.readDeployment("dep_1", 0))
+        .thenReturn(
+            List.of(
+                new EventJournal.PublicEvent(
+                    1,
+                    "dep_1",
+                    "tgt_1",
+                    "log.batch",
+                    mapper.createObjectNode(),
+                    "log",
+                    "plan",
+                    "info",
+                    "applied",
+                    now),
+                new EventJournal.PublicEvent(
+                    2,
+                    "dep_1",
+                    "tgt_1",
+                    "plan.ready",
+                    mapper.createObjectNode(),
+                    null,
+                    null,
+                    null,
+                    "applied",
+                    now),
+                new EventJournal.PublicEvent(
+                    3,
+                    "dep_1",
+                    "tgt_1",
+                    "log.batch",
+                    mapper.createObjectNode(),
+                    "next log",
+                    "plan",
+                    "info",
+                    "applied",
+                    now)));
+    CountDownLatch nextPoll = new CountDownLatch(1);
+    when(journal.readDeployment("dep_1", 3))
+        .thenAnswer(
+            invocation -> {
+              nextPoll.countDown();
+              return List.of();
+            });
+    try {
+      service.openDeployment("acct_1", "prj_1", "dep_1", null, "plan.ready");
+      assertTrue(nextPoll.await(3, TimeUnit.SECONDS));
+      synchronized (capture) {
+        var messages =
+            capture.bodies.stream()
+                .filter(EventSseService.Envelope.class::isInstance)
+                .map(EventSseService.Envelope.class::cast)
+                .toList();
+        assertEquals(1, messages.size());
+        assertEquals(2, messages.getFirst().seq());
+        assertTrue(capture.wire.stream().anyMatch(frame -> frame.contains("event:heartbeat")));
+        assertFalse(capture.wire.stream().anyMatch(frame -> frame.contains("event:resync")));
+      }
+    } finally {
+      service.shutdown();
+    }
+  }
+
+  @Test
+  void invalidEventFilterDoesNotAllocateStream() {
+    Capture capture = new Capture();
+    EventSseService service = service(capture);
+    try {
+      assertThrows(
+          DaisyException.class,
+          () -> service.openProject("acct_1", "prj_1", null, "log.batch\nevent:fake"));
+      assertTrue(capture.wire.isEmpty());
+    } finally {
+      service.shutdown();
+    }
+  }
+
+  @Test
   void logBatchUsesPublicLineShape() {
     ObjectMapper mapper = new ObjectMapper();
     Instant now = Instant.parse("2026-10-01T00:00:00Z");

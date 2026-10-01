@@ -54,14 +54,24 @@ public class EventSseService {
 
   public SseEmitter openDeployment(
       String actorId, String projectId, String deploymentId, String lastEventId) {
+    return openDeployment(actorId, projectId, deploymentId, lastEventId, null);
+  }
+
+  public SseEmitter openDeployment(
+      String actorId, String projectId, String deploymentId, String lastEventId, String eventType) {
     authorize(actorId, projectId);
     journal.requireDeploymentProject(projectId, deploymentId);
-    return open(actorId, projectId, deploymentId, false, lastEventId);
+    return open(actorId, projectId, deploymentId, false, lastEventId, eventType);
   }
 
   public SseEmitter openProject(String actorId, String projectId, String lastEventId) {
+    return openProject(actorId, projectId, lastEventId, null);
+  }
+
+  public SseEmitter openProject(
+      String actorId, String projectId, String lastEventId, String eventType) {
     authorize(actorId, projectId);
-    return open(actorId, projectId, projectId, true, lastEventId);
+    return open(actorId, projectId, projectId, true, lastEventId, eventType);
   }
 
   public record Envelope(
@@ -72,12 +82,20 @@ public class EventSseService {
   }
 
   private SseEmitter open(
-      String actor, String projectId, String channel, boolean project, String lastEventId) {
+      String actor,
+      String projectId,
+      String channel,
+      boolean project,
+      String lastEventId,
+      String eventType) {
+    if (eventType != null && !eventType.matches("[a-z][a-z0-9_.]{0,63}"))
+      throw new DaisyException(ErrorCode.VALIDATION_FAILED);
     long cursor = parseCursor(lastEventId);
     EventJournal.Bounds bounds =
         project ? journal.projectBounds(channel) : journal.deploymentBounds(channel);
     SseEmitter emitter = createEmitter();
-    Connection connection = new Connection(actor, projectId, channel, project, emitter, cursor);
+    Connection connection =
+        new Connection(actor, projectId, channel, project, emitter, cursor, eventType);
     synchronized (connections) {
       if (connections.size() >= maxConnections
           || connections.keySet().stream().filter(c -> actor.equals(c.actor)).count()
@@ -147,6 +165,7 @@ public class EventSseService {
     private final String actor, projectId, channel;
     private final boolean project;
     private final SseEmitter emitter;
+    private final String eventType;
     private long cursor, lastHeartbeat;
     private boolean closed;
     private ScheduledFuture<?> task;
@@ -157,13 +176,15 @@ public class EventSseService {
         String channel,
         boolean project,
         SseEmitter emitter,
-        long cursor) {
+        long cursor,
+        String eventType) {
       this.actor = actor;
       this.projectId = projectId;
       this.channel = channel;
       this.project = project;
       this.emitter = emitter;
       this.cursor = cursor;
+      this.eventType = eventType;
     }
 
     synchronized void close() {
@@ -191,7 +212,8 @@ public class EventSseService {
                 : journal.readDeployment(channel, cursor)) {
           if (closed) return;
           // Stale observations advance only the poll cursor; reconnecting may safely reread them.
-          if (!"ignored_stale".equals(event.processingResult())) {
+          if (!"ignored_stale".equals(event.processingResult())
+              && (eventType == null || eventType.equals(event.eventType()))) {
             JsonNode data = wireData(event);
             emitter.send(
                 SseEmitter.event()
