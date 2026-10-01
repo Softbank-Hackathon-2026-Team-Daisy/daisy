@@ -48,6 +48,28 @@ public class Project {
 
   protected Project() {}
 
+  public static Project connect(
+      String id,
+      String name,
+      String repositoryId,
+      String repositoryUrl,
+      String defaultBranch,
+      String manifestPath,
+      String createdBy,
+      Instant now) {
+    Project project = new Project();
+    project.id = id;
+    project.name = name;
+    project.repositoryId = repositoryId;
+    project.repositoryUrl = repositoryUrl;
+    project.defaultBranch = defaultBranch;
+    project.manifestPath = manifestPath;
+    project.createdBy = createdBy;
+    project.createdAt = now;
+    project.updatedAt = now;
+    return project;
+  }
+
   public String id() {
     return id;
   }

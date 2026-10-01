@@ -8,6 +8,7 @@ import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.ApplicationArguments;
 import org.springframework.boot.ApplicationRunner;
+import org.springframework.core.annotation.Order;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -17,6 +18,7 @@ import org.springframework.transaction.annotation.Transactional;
  * <p>환경변수가 없으면 아무것도 하지 않아요. 기본 비밀번호를 코드에 두지 않아요. 이미 있는 계정은 건드리지 않아요.
  */
 @Component
+@Order(50)
 public class DemoAccountSeeder implements ApplicationRunner {
   private static final Logger LOG = LoggerFactory.getLogger(DemoAccountSeeder.class);
 
