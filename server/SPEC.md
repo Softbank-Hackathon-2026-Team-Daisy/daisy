@@ -425,7 +425,8 @@ V10 이 핵심이었습니다. 나머지가 다 맞아도 여기서 새면 다�
 ## 실행 서비스 연결 — 어댑터와 공개 배포 API (10/2, 하은현) · 스펙, 구현 전
 
 > **리뷰를 먼저 받습니다.** 아래 「확인이 필요한 것」에서 갈리면 코드는 쓰지 않습니다.
-> 기준: #40 (`server/feat-backend-integration`, `8a3c1a0`) 의 `ExecutionAccess`·`ExecutionInputs`·`DeploymentExecutionService`·`EventSseService`, `docs/execution-service-contract.md`.
+> 기준: #40 (`server/feat-backend-integration`, `82edcd0`) 의 `ExecutionAccess`·`ExecutionInputs`·`DeploymentExecutionService`·`EventSseService`·`DeploymentQueryService`, `docs/execution-service-contract.md`.
+> 반영한 코멘트: #36 승환(22:39)·도영 리뷰, #13 승환(22:39), #40 승준(22:54), 승환 메시지(23:58 — 조회 계약 push, "그렇게 개발해주셔도 좋아요").
 
 ### 범위
 
@@ -437,8 +438,9 @@ V10 이 핵심이었습니다. 나머지가 다 맞아도 여기서 새면 다�
 | ② | `ExecutionInputs` 어댑터 | 구현할 수준까지 |
 | ③ | 공개 REST·SSE 연결 (생성·승인·취소·재시도·롤백·이벤트) | 경로·요청·검증까지. 응답 DTO 는 조회 API(A-04)와 함께 정합니다 |
 | ④ | 승인 요청 변환 | 구현할 수준까지 |
+| ⑤ | A-02 `current`·A-06 `deployed_to` 연결 (`82edcd0` 의 `DeploymentQueryService`) | 구현할 수준까지 |
 
-이번 범위가 아닌 것: 조회 API A-03·A-04·A-05·A-07, A-02 `current`, A-06 `deployed_to`. 전부 `deployment` 모듈의 조회 계약이 필요하고, #40 에서 승환이 정리하기로 했습니다.
+이번 범위가 아닌 것: 조회 API A-03·A-04·A-05·A-07. 응답 대부분이 `deployment` 모듈이라 그쪽 조회 계약이 더 필요합니다. 단 ④ 를 위해 A-04 에 넣을 승인 ID 필드 이름은 여기서 정합니다.
 
 ### ① `ExecutionAccess` 어댑터
 
@@ -518,7 +520,7 @@ V10 이 핵심이었습니다. 나머지가 다 맞아도 여기서 새면 다�
 | W-01 | `POST /deployments/{id}/approvals` | ④ 참고 | `decide` | 202 |
 | WR-08 | `POST /deployments/{id}/cancel` | `{ target_ids[] }` | `cancel` | 202 |
 | (제안) | `POST /deployments/{id}/retry` | `{ target_ids[] }` | `retry` | 201 |
-| WR-14 | `POST /deployments/{id}/rollback` | `{ target_ids[], reason, trigger_deployment_id? }` | `rollback` | 201 |
+| WR-14 | `POST /deployments/{id}/rollback` | `{ target_ids[], reason, trigger_deployment_id? }` — `reason` 필수·1000자 이하 (웹은 자동으로 채움) | `rollback` | 201 |
 | E-01 | `GET /deployments/{id}/events` | `Last-Event-ID` 헤더, `?event_type=` | `openDeployment` | SSE |
 | E-02 | `GET /projects/{id}/events` | `Last-Event-ID` 헤더, `?event_type=` | `openProject` | SSE |
 
@@ -526,7 +528,7 @@ V10 이 핵심이었습니다. 나머지가 다 맞아도 여기서 새면 다�
 - `actorId` 는 `@CurrentAccount` 에서만 꺼냅니다.
 - 입력 검증은 컨트롤러에서 길이·형식만 보고, 업무 규칙은 실행 서비스와 ② 에 맡깁니다. 같은 검사를 두 곳에 두지 않습니다.
 - `DaisyException` 은 기존 전역 처리기로 보냅니다. 상태 코드는 실행 서비스가 정한 것(생성·재시도·롤백 201, 승인·취소 202)을 그대로 씁니다.
-- WR-05 는 웹·앱 명세에 아직 `{ commit, target_ids }` 로 남아 있습니다. S1 대로 **전환 기간에는 둘 다 받습니다.** `source_version_id` 는 필수이고, `commit` 이 함께 오면 그 빌드의 `commit_sha` 와 같은지 봅니다 (다르면 400). `commit` 만으로 빌드를 고르지는 않습니다. `strategy` 는 생략하면 `recreate`, 다른 값은 400 입니다.
+- **웹은 `source_version_id` 로 바꾸기로 했습니다** (#36 도영 리뷰: *"웹 W-04도 A-06 빌드의 `source_version_id`로 고르고 보내게 바꿀게요"*). 앱은 아직 확인 전이고 명세에는 `{ commit, target_ids }` 가 남아 있어, S1 대로 **전환 기간에는 둘 다 받습니다.** `source_version_id` 는 필수이고, `commit` 이 함께 오면 그 빌드의 `commit_sha` 와 같은지 봅니다 (다르면 400). `commit` 만으로 빌드를 고르지는 않습니다. `strategy` 는 생략하면 `recreate`, 다른 값은 400 입니다.
 - SSE 는 `text/event-stream`·`Cache-Control: no-cache` 를 붙이고, 인증은 REST 와 같은 Bearer 헤더입니다.
 - 응답 본문은 지금 실행 서비스의 최소 응답을 그대로 내보내지 않고, A-04 `Deployment` 요약 DTO 로 바꿉니다. 그 DTO 는 A-04 와 함께 정합니다. **그 전까지는 `{ deployment_id, status }` 만** 돌려줍니다.
 - 모두 OpenAPI 에 나오게 하고, `principal` 이 쿼리 파라미터로 새지 않는지 확인합니다 (#38 에서 한 번 샜습니다).
@@ -557,6 +559,35 @@ Idempotency-Key: <키>
 
 `comment` 는 실행 서비스에 넘길 자리가 없어서 지금은 저장하지 않습니다. OpenAPI 설명에 그렇게 적습니다.
 
+**`items` 가 비면 400 입니다.** 승인 대기 전체로 해석하지 않습니다. 사용자가 본 대상만 승인한다는 S4 의 원칙이라, 서버가 대상을 채워 넣으면 화면에 없던 대상까지 승인될 수 있습니다.
+
+**A-04 에 `pending_approvals: [{ target_id, approval_id }]` 로 승인 ID 를 줍니다** (#40 승준 질문의 1번). S4 가 제안한 이름이고 `items` 와 모양이 같아 그대로 보낼 수 있습니다. `targets[].approval_id`·`pending_approval` 은 쓰지 않습니다. A-04 를 만들 때 넣습니다.
+
+### ⑤ A-02 `current`·A-06 `deployed_to` 연결
+
+`DeploymentQueryService` 를 그대로 부릅니다. 대상 목록·빌드 페이지는 제가 읽고, 포인터·ID 만 넘깁니다.
+
+**A-02** — `findActiveByProject` 로 읽은 대상의 `(id, current_deployment_target_id)` 를 `current()` 에 넘기고, 결과를 `current` 로 바꿉니다.
+
+| 공개 필드 | 값 |
+|---|---|
+| `current.deployment_id` | `deploymentId` |
+| `current.commit` | `commitSha` |
+| `current.deployed_at` | `deployedAt` — 대상 성공 완료 시각. 트래픽 전환 시각이 아닙니다 |
+| `current.image`·`image_digest` | 서비스가 **정확히 하나**일 때만. 여럿이면 null 로 두고 `current.images[{service, image_ref, image_digest}]` 를 줍니다 (A-06 과 같은 S5 규칙) |
+
+**A-06** — 페이지의 빌드 ID 를 `deployedTo()` 에 넘기고 `deployed_to[{ target_id, deployment_id, deployed_at }]` 로 바꿉니다. **조회했는데 성공 이력이 없으면 `[]`, 조회 자체를 못 했으면 null** 입니다. 과거 성공 이력이지 지금 그 버전이 떠 있다는 뜻이 아닙니다.
+
+**제 방식으로 바꾸는 것 — 대상 하나가 화면 전체를 깨지 않게 합니다.** `current()` 는 포인터 하나가 다른 대상을 가리키면 404, 성공 배포가 아니면 409 를 던져 **A-02 전체가 실패**합니다. 앱 핵심 화면이 대상 하나 때문에 비게 됩니다. 그래서:
+
+- 일괄 호출이 404·409 로 실패하면, 대상별로 한 번씩 다시 불러 **문제 대상만 `current: null` + `current_status: "unverified"`** 로 두고 나머지는 정상 응답합니다. 로그에 대상 ID 와 오류 코드를 남깁니다.
+- 권한 오류(인가 404·403)는 그대로 전파합니다. 그건 대상 문제가 아니라 요청 문제입니다.
+- 대상 수가 많지 않아(프로젝트당 4개 안팎) 실패할 때만 대상별로 다시 부르는 비용은 작습니다. 정상일 때는 한 번입니다.
+
+**`current: null` 의 뜻을 공개 계약에 적습니다.** 승환 정의대로 *"확인된 현재 참조 없음"* 이지 "배포가 없다"가 아닙니다. 지금은 포인터를 갱신하는 경로가 없어 **실제로 배포됐어도 null** 입니다. 웹은 *"`current`가 null이면 '아직 배포 없음'으로"* 보여주기로 했는데(#38 도영), 이 문구는 사실과 다를 수 있습니다. **"확인된 배포 없음" 또는 "—"** 로 바꿔 달라고 웹·앱에 알립니다. `current_status` 를 함께 두어 `none`(포인터 없음)·`unverified`(포인터는 있으나 확인 실패)를 구분합니다.
+
+**포인터 갱신은 제 몫입니다 (후속).** `target.current_deployment_target_id` 는 제 영역이라 실제 결과에 따라 바꾸는 서비스를 제가 열어야 합니다. 오래된 결과나 "가장 최근 시각" 만으로 바꾸지 않는다는 승환의 원칙을 따릅니다. 어떤 결과를 근거로 바꿀지는 #35 의 실제 결과 계약이 정해진 뒤 정합니다. **그 전까지 A-02 `current` 는 항상 null 입니다.**
+
 ### 확인이 필요한 것 (승환)
 
 **① `/deployments/{id}/...` 경로에서 `projectId` 를 어떻게 얻을까요.** 실행 서비스는 모든 요청에 `projectId` 를 받는데, 공개 경로에는 배포 ID 만 있습니다. 배포 → 프로젝트 조회는 `deployment` 모듈 소유라 제가 직접 읽지 않으려고 합니다. `EventJournal.requireDeploymentProject(projectId, deploymentId)` 는 둘 다 알 때 맞는지만 봅니다. **`deployment` 쪽에 `projectIdOf(deploymentId)` 같은 조회를 하나 열어 주실 수 있을까요.** 없는 배포는 404 로 하면 됩니다. 이게 없으면 경로를 `/projects/{pid}/deployments/{id}/...` 로 바꿔야 해서 웹·앱 계약이 바뀝니다.
@@ -576,14 +607,14 @@ Idempotency-Key: <키>
 
 **⑤ `disconnected` 대상을 생성에서 막을까요.** W-04 가 *"연결 안 되는 환경은 고를 수 없어요"* 인데, 지금은 연결 확인 기능이 없어서 모든 대상이 `unknown` 입니다. `unknown` 까지 막으면 아무것도 배포할 수 없습니다. **`disconnected` 만 409 로 막고 `unknown` 은 허용**하는 쪽을 제안합니다.
 
-**⑥ 재시도를 어느 경로로 받을까요 (웹·앱과 함께).** 9/30 결정은 *"재시도는 같은 커밋의 새 배포"* 이고 웹·앱 명세는 WR-05(새 배포 생성)를 그대로 씁니다. 실행 서비스에는 원본 배포에서 실패 대상만 복사하는 `retry` 가 따로 있습니다. 계보(lineage)가 남는 `retry` 를 쓰려면 `POST /deployments/{id}/retry` 를 새로 열어야 하고 웹·앱 호출도 바뀝니다. **저는 `retry` 경로를 여는 쪽을 제안합니다** — 실패 대상만 고르고 원본 성공 대상을 건드리지 않는 규칙을 서버가 보장할 수 있어서입니다.
+**⑥ 재시도를 어느 경로로 받을까요 (웹·앱과 함께).** 승환은 #13 에서 *"실패한 환경 재시도는 기존 답변대로 새 배포"*, *"재시도의 원본 연결 등 구체 요청은 공개 API에서 맞추겠습니다"* 라고 했습니다. 웹·앱 명세는 WR-05(새 배포 생성)를 그대로 씁니다. 실행 서비스에는 원본 배포에서 실패 대상만 복사하는 `retry` 가 따로 있습니다. 계보(lineage)가 남는 `retry` 를 쓰려면 `POST /deployments/{id}/retry` 를 새로 열어야 하고 웹·앱 호출도 바뀝니다. **저는 `retry` 경로를 여는 쪽을 제안합니다** — 실패 대상만 고르고 원본 성공 대상을 건드리지 않는 규칙을 서버가 보장할 수 있어서입니다.
 
 ### 다른 파트와 닿는 지점
 
 | 누구 | 무엇 |
 |---|---|
 | 승환 | 위 ①~⑤. ① 이 정해져야 ③ 의 경로가 확정됩니다 |
-| 웹·앱 | WR-05 에 `source_version_id` 가 필수로 더해집니다 (S1, A-06 이 이미 내보냄). 승인 요청에 `items[]` 가 더해집니다 (S4). 재시도 경로는 ⑥ 에서 함께 정합니다 |
+| 웹·앱 | WR-05 에 `source_version_id` 가 필수로 더해집니다 (S1, A-06 이 이미 내보냄. 웹은 수용). 승인 요청에 `items[]` 가 더해지고 **비면 400** 입니다 (S4). 승인 ID 는 A-04 `pending_approvals` 로 줍니다 (#40 승준). **A-02 `current: null` 은 "배포 없음"이 아니라 "확인된 참조 없음"** 이라 화면 문구를 바꿔야 합니다. 재시도 경로는 ⑥ 에서 함께 정합니다 |
 | 인프라 | 없음. Jenkins 연결은 #35 에서 승환이 맞춥니다 |
 
 ### 검증 계획 (구현 뒤)
@@ -602,6 +633,8 @@ Idempotency-Key: <키>
 | V8 | 같은 키로 같은 요청 두 번 | 첫 응답 그대로 재생 |
 | V9 | 실제 기동 — 로그인 → 생성 → 승인 → SSE 연결·`Last-Event-ID` 재연결 | 각 단계 상태 코드와 이벤트 seq |
 | V10 | OpenAPI — 새 경로 전부 Bearer 요구, `principal` 쿼리 노출 0건 | 통과 |
-| V11 | `./gradlew --no-daemon spotlessCheck check build` | 성공 |
+| V11 | A-02 — 포인터 없음·정상 포인터·다른 대상을 가리키는 포인터가 섞인 프로젝트 | 각각 `none`·채워짐·`unverified`, **응답 전체는 200** |
+| V12 | A-06 — 성공 이력 있는 빌드·없는 빌드 | `deployed_to` 채워짐·`[]` |
+| V13 | `./gradlew --no-daemon spotlessCheck check build` | 성공 |
 
 V9 의 실제 Jenkins 실행은 하지 않습니다. 기본 비활성 설정 그대로 명령이 저장되는 데까지만 봅니다.
