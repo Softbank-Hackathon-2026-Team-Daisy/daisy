@@ -732,3 +732,15 @@ V9 의 실제 Jenkins 실행은 하지 않습니다. 기본 비활성 설정 그
 | T3 | `reuse_assessment` 없음 / 정상 / 모양 틀림 | null / 채워짐 / 그 대상만 null, 응답 200 |
 | T4 | 보관된 대상 | 목록에 없음 |
 | T5 | OpenAPI | 경로가 나오고 `principal` 노출 0건 |
+
+### 검증 결과 (10/2 새벽)
+
+빈 PostgreSQL 17 에 jar 로 기동해서 확인했습니다. 단위 테스트 4개(변환 규칙)도 추가했습니다.
+
+| | 결과 |
+|---|---|
+| T1 | 토큰 없음 401, viewer 200, 멤버십 철회 뒤 404 |
+| T2 | `connected`→`ok`, `disconnected`→`failed`, `unknown`→`unknown`. 확인한 적 없는 대상은 `checked_at: null` |
+| T3 | 판정 없음 → `reuse: null`, 정상 판정 → 네 필드 그대로, `available: "yes"` 처럼 모양이 틀린 판정 → 그 대상만 `reuse: null`, 응답은 200 |
+| T4 | 보관된 대상은 목록에 없음 |
+| T5 | OpenAPI 에 경로가 나오고 파라미터는 `projectId` 하나 (`principal` 노출 없음) |

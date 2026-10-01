@@ -150,6 +150,11 @@ public class Target {
     return credentialVersion;
   }
 
+  /** 인프라가 보고한 재사용 판정이에요. 보고가 없으면 null 이에요. 복사본을 돌려줘요. */
+  public JsonNode reuseAssessment() {
+    return reuseAssessment == null ? null : reuseAssessment.deepCopy();
+  }
+
   /**
    * 현재 배포 대상 ID 예요. 대상은 이 모듈 소유라 실제 결과에 따라 갱신하는 서비스도 이 모듈이 열어야 하지만, 근거가 될 결과 계약(#35)이 정해지기 전이라 아직
    * 갱신하는 곳이 없어요 (server/SPEC.md ⑤). 그 전까지 이 값은 항상 null 이에요.

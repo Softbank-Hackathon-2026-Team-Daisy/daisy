@@ -74,6 +74,19 @@ public class ProjectController {
   }
 
   /**
+   * 배포할 수 있는 대상 목록이에요 (WR-04). 배포 시작 화면(W-04)이 여기서 환경을 골라요.
+   *
+   * <p>A-02 와 따로 둬요 (9/30 결정). 연결 상태는 소비자 값으로 바꾸고, 인프라 보고가 없는 재사용 판정은 null 로 둬요.
+   */
+  @GetMapping("/{projectId}/targets")
+  public PageResponse<TargetResponse> targetList(
+      @CurrentAccount AuthPrincipal principal, @PathVariable String projectId) {
+    access.requireRead(principal, projectId);
+    return PageResponse.of(
+        targets.findActiveByProject(projectId).stream().map(TargetResponse::of).toList());
+  }
+
+  /**
    * 환경별 현재 상태예요 (A-02). 앱 현황 화면이 이 경로만 써요.
    *
    * <p>집계하지 않아요. 배포 전체 상태 집계는 설계 2장대로 실행 서비스 소유라서, 여기서는 대상별 현재 값만 읽어 내보내요.
