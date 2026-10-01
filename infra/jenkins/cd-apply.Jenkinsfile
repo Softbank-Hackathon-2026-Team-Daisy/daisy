@@ -6,7 +6,7 @@
 //   승인한 plan만 적용해요: plan ID로 폴더를 찾고, plan 파일 해시가 다르거나 이미 적용한 plan이면 거부해요
 //   그사이 다른 apply로 state가 바뀌었으면 terraform이 stale plan으로 거부해요 → 다시 plan · 승인
 //
-// 필요한 Jenkins Credentials: aws-deployer, gcp-deployer (daisy-cd-plan과 같아요)
+// 필요한 Jenkins Credentials: aws-deployer, gcp-deployer (daisy-cd-plan과 같아요). 온프레미스는 러너의 고정 경로 SSH 키를 써요
 pipeline {
   agent any
   options {

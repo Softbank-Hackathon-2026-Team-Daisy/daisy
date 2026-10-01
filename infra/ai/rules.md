@@ -24,16 +24,20 @@ You return exactly three files: `main.tf`, `variables.tf`, `outputs.tf`.
 # Fixed rules (a violation fails the risk check)
 
 Structure
-- Terraform `required_version = ">= 1.11"`; provider `hashicorp/aws` constraint `~> 6.0` (for `gcp`: `hashicorp/google ~> 8.0`). Keep the `terraform` and `provider` blocks in `main.tf`.
+- Terraform `required_version = ">= 1.11"`; provider `hashicorp/aws` constraint `~> 6.0` (for `gcp`: `hashicorp/google ~> 8.0`; for `onprem`: `kreuzwerker/docker` at exactly the version the reference module pins). Keep the `terraform` and `provider` blocks in `main.tf`.
 - No `backend` block anywhere. The runner injects the backend.
 - No credentials in code: no `access_key`, `secret_key`, `token`, `profile`, or credentials file in any provider block.
 - Required variable `image_tag` (string, no default). The image reference is `"${var.image}:${var.image_tag}"`.
 - Keep every variable the reference module declares, with the same names and types, and keep its validations.
 - Required output `service_url`: the public URL with scheme and no trailing slash.
-- Resource names start with `daisy-${var.name}`. Keep the provider `default_tags` (`Project = "daisy"`, `App`, `ManagedBy`).
+- Resource names start with `daisy-${var.name}`. Keep the provider `default_tags` (`Project = "daisy"`, `App`, `ManagedBy`) on aws.
+- For `onprem`, keep the reference module's resource addresses and container name unchanged: an existing container is already tracked in state under them.
 
 Fixed network (aws)
 - The VPC and subnets already exist and are passed in as `vpc_id`, `public_subnet_ids`, `private_subnet_ids`. **Never create** `aws_vpc`, `aws_subnet`, `aws_internet_gateway`, `aws_route_table`, `aws_route_table_association`, `aws_nat_gateway`, or `aws_eip`.
+
+Fixed host (onprem)
+- The Service VM and its Docker engine already exist. Connect only over `ssh://` with the key and known_hosts paths passed in as variables. Bind published ports to `var.host_ip`, never `0.0.0.0`. No `privileged`, no `host` network mode, no Docker socket mounts.
 
 Security policy
 - R-1: Internet ingress (`0.0.0.0/0` or `::/0`) only on the public load balancer, only on ports 80 and 443.

@@ -4,12 +4,17 @@
 //   plan ID = daisy-cd-plan-<빌드 번호>. plan마다 작업 폴더가 따로라 승인 대기 중인 plan을 덮어쓰지 않아요
 //   승인 정보는 웹·앱 → 서버 승인 API에서 받고, 서버가 daisy-cd-apply를 PLAN_BUILD · APPROVAL_ID로 시작해요 (§16-6)
 //   AI 생성 · 수정 루프 · 재사용은 infra/ai/plan_with_ai.py가 해요 (SPEC §17). USE_AI를 끄면 기준 모듈 그대로 (MOCK 대안 경로)
-// 온프레미스는 황지환 영역이라 아직 선택지에 없어요.
+// 온프레미스: 황지환의 기준 모듈(infra/modules/onprem)을 같은 흐름으로 돌려요. Service VM의 Docker에 SSH로 붙어요.
+//   SSH 키 · known_hosts는 러너의 고정 경로에 있고(targets/onprem.json에 경로만), Jenkins Credentials는 쓰지 않아요.
+//   plan과 apply가 다른 빌드라, 빌드마다 바뀌는 임시 경로를 쓰면 apply 때 키를 못 찾아요.
 //
 // 필요한 Jenkins Credentials: aws-deployer (Username/Password = 액세스 키 ID/시크릿), gcp-deployer (Secret file = SA JSON),
 //   claude-api-key (Secret text = Anthropic API 키, USE_AI일 때)
 // 선택 Jenkins 전역 환경변수: TF_STATE_BUCKET, EXPECTED_AWS_ACCOUNT, EXPECTED_GCP_PROJECT
-// 러너에 1번 등록: $JENKINS_HOME/daisy-work/targets/<env>.json (예: {"project_id": "...", "region": "asia-northeast3"})
+// 러너에 1번 등록: $JENKINS_HOME/daisy-work/targets/<env>.json (레포 밖, 계정 · 주소 값)
+//   aws.json: daisy-bootstrap이 만들어요 (region · vpc_id · 서브넷 ID)
+//   onprem.json: {"docker_host": "ssh://<user>@<Service VM>:22", "ssh_key_path": "...", "known_hosts_path": "...", "host_ip": "<Service VM>", "host_port": 8080}
+//   gcp.json: {"project_id": "...", "region": "asia-northeast3"}
 pipeline {
   agent any
   options {
@@ -17,6 +22,7 @@ pipeline {
     buildDiscarder(logRotator(numToKeepStr: '50'))
   }
   parameters {
+    booleanParam(name: 'DEPLOY_ONPREM', defaultValue: false, description: '온프레미스 (Service VM의 Docker 컨테이너)')
     booleanParam(name: 'DEPLOY_AWS', defaultValue: true, description: 'AWS (ECS Fargate · ALB)')
     booleanParam(name: 'DEPLOY_GCP', defaultValue: false, description: 'GCP (Cloud Run)')
     booleanParam(name: 'DESTROY', defaultValue: false, description: '체크하면 삭제 plan을 만들어요 (승인되면 daisy-cd-apply가 지워요)')
@@ -64,10 +70,7 @@ pipeline {
             sh """
               mkdir -p "\$WORK_ROOT/\$APP"
               target_file="\$WORK_ROOT/targets/${t}.json"
-              if [ ! -f "\$target_file" ]; then
-                [ "${t}" != gcp ] || { echo "GCP 대상 환경 등록이 필요해요: \$target_file"; exit 1; }
-                target_file=-
-              fi
+              [ -f "\$target_file" ] || { echo "${t} 대상 환경 등록이 필요해요: \$target_file (infra/SPEC.md §12-3)"; exit 1; }
               python3 infra/jenkins/render-tfvars.py app/deploy.yaml "\$target_file" "\$IMAGE_REPO" \
                 > "\$WORK_ROOT/\$APP/${t}.tfvars.json"
               cat "\$WORK_ROOT/\$APP/${t}.tfvars.json"
@@ -140,6 +143,7 @@ pipeline {
 
 def targets() {
   def selected = []
+  if (params.DEPLOY_ONPREM) { selected << 'onprem' }
   if (params.DEPLOY_AWS) { selected << 'aws' }
   if (params.DEPLOY_GCP) { selected << 'gcp' }
   return selected
@@ -157,6 +161,7 @@ def forEachTarget(String label, Closure body) {
 
 // 자격증명은 이 블록 안에서만 환경변수로 주입해요.
 // state 버킷(S3)을 쓰면 GCP 배포도 AWS 자격증명(버킷 권한)이 필요해요. 환경별 state 저장소(SPEC §7)로 바뀌면 지워요.
+// 온프레미스는 넣을 자격증명이 없어요 (SSH 키는 러너의 고정 경로).
 // AI를 쓸 때만 Anthropic API 키를 넣어요 (삭제 plan은 AI를 부르지 않아요)
 def withCloud(String target, Closure body) {
   def creds = []

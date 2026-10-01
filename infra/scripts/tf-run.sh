@@ -1,9 +1,9 @@
 #!/usr/bin/env bash
 # infra/SPEC.md §3-4 러너 규약의 참고 구현이에요 (Jenkins 러너 · 사람이 직접 실행 공용).
 #
-#   tf-run.sh <aws|gcp|aws-network> <plan|apply|destroy|output>
+#   tf-run.sh <aws|gcp|onprem|aws-network> <plan|apply|destroy|output>
 #
-#   aws · gcp     앱 모듈 (infra/modules/<env>). 매 배포
+#   aws · gcp · onprem   앱 모듈 (infra/modules/<env>). 매 배포. onprem state는 러너 로컬 (온프레미스 저장소 [미정])
 #   aws-network   고정 리소스 bootstrap (infra/bootstrap/<stack>). 1번만, $WORK_ROOT/_bootstrap/<stack>/
 #
 # 작업 디렉터리는 레포 밖이에요. state·plan에 비밀값이 들어가요.
@@ -21,9 +21,9 @@ umask 077
 
 usage() {
   cat >&2 <<'EOF'
-사용법: tf-run.sh <aws|gcp|aws-network> <plan|apply|destroy|output>
+사용법: tf-run.sh <aws|gcp|onprem|aws-network> <plan|apply|destroy|output>
 
-  aws · gcp      앱 모듈 (infra/modules/<env>). IMAGE_TAG 필요
+  aws · gcp · onprem   앱 모듈 (infra/modules/<env>). IMAGE_TAG 필요
   aws-network    고정 리소스 bootstrap (infra/bootstrap/<stack>). IMAGE_TAG 필요 없음
 
   plan     plans/<PLAN_ID>/에 plan을 만들어요 (TF_DESTROY=1이면 삭제 plan)
@@ -54,7 +54,7 @@ die() { echo "tf-run: $*" >&2; exit 1; }
 [[ $# -eq 2 ]] || usage
 ENV=$1 CMD=$2
 case $ENV in
-aws | gcp) KIND=app ;;
+aws | gcp | onprem) KIND=app ;;
 aws-network) KIND=bootstrap ;;
 *) usage ;;
 esac
