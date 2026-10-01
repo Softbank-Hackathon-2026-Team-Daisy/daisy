@@ -85,7 +85,9 @@ private struct SlimTabBar: View {
         return Button {
             withAnimation(reduceMotion ? nil : .spring(response: 0.32, dampingFraction: 0.86)) { router.tab = tab }
         } label: {
+            // 선택한 메뉴만 채운 아이콘(cloud.fill · play.fill …). 채운 버전이 없는 심볼은 그대로예요
             Image(systemName: tab.systemImage)
+                .symbolVariant(selected ? .fill : .none)
                 .font(.system(size: 16, weight: selected ? .semibold : .regular))
                 .foregroundStyle(selected ? AnyShapeStyle(.primary) : AnyShapeStyle(.secondary))
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
