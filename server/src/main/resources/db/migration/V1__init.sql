@@ -20,11 +20,13 @@ CREATE TABLE account (
   password_hash text         NOT NULL,
   display_name  varchar(128) NOT NULL,
   role          varchar(32)  NOT NULL,
-  created_at    timestamptz  NOT NULL,
-  updated_at    timestamptz  NOT NULL,
+  created_at    timestamptz  NOT NULL DEFAULT now(),
+  updated_at    timestamptz  NOT NULL DEFAULT now(),
   disabled_at   timestamptz,
   CONSTRAINT pk_account PRIMARY KEY (id),
-  CONSTRAINT uq_account_username UNIQUE (username)
+  CONSTRAINT uq_account_username UNIQUE (username),
+  -- 역할 값은 인증 정책 소유자가 확정한다 (설계 5.1 "최종 값은 은현 정의")
+  CONSTRAINT ck_account_role CHECK (role IN ('owner','viewer'))
 );
 
 CREATE TABLE project (
@@ -33,12 +35,12 @@ CREATE TABLE project (
   repository_id             varchar(255) NOT NULL,
   repository_url            text         NOT NULL,
   default_branch            varchar(255) NOT NULL,
-  manifest_path             varchar(512) NOT NULL,
+  manifest_path             varchar(512) NOT NULL DEFAULT 'deploy.yaml',
   repository_credential_ref text,
   created_by                varchar(64)  NOT NULL,
   last_event_seq            bigint       NOT NULL DEFAULT 0,
-  created_at                timestamptz  NOT NULL,
-  updated_at                timestamptz  NOT NULL,
+  created_at                timestamptz  NOT NULL DEFAULT now(),
+  updated_at                timestamptz  NOT NULL DEFAULT now(),
   archived_at               timestamptz,
   CONSTRAINT pk_project PRIMARY KEY (id),
   CONSTRAINT fk_project_created_by FOREIGN KEY (created_by) REFERENCES account (id),
@@ -50,7 +52,7 @@ CREATE TABLE project_member (
   project_id varchar(64) NOT NULL,
   account_id varchar(64) NOT NULL,
   granted_by varchar(64) NOT NULL,
-  granted_at timestamptz NOT NULL,
+  granted_at timestamptz NOT NULL DEFAULT now(),
   revoked_at timestamptz,
   CONSTRAINT pk_project_member PRIMARY KEY (project_id, account_id),
   CONSTRAINT fk_pm_project    FOREIGN KEY (project_id) REFERENCES project (id),
@@ -71,19 +73,21 @@ CREATE TABLE target (
   config_revision              bigint       NOT NULL DEFAULT 1,
   credential_ref               text,
   credential_version           varchar(255),
-  connection_state             varchar(32)  NOT NULL,
+  connection_state             varchar(32)  NOT NULL DEFAULT 'unknown',
   connection_checked_at        timestamptz,
   current_deployment_target_id varchar(64),            -- FK 는 파일 끝 (순환)
   observed_state               jsonb,
   observed_at                  timestamptz,
   reuse_assessment             jsonb,
-  created_at                   timestamptz  NOT NULL,
-  updated_at                   timestamptz  NOT NULL,
+  created_at                   timestamptz  NOT NULL DEFAULT now(),
+  updated_at                   timestamptz  NOT NULL DEFAULT now(),
   archived_at                  timestamptz,
   CONSTRAINT pk_target PRIMARY KEY (id),
   CONSTRAINT uq_target_project UNIQUE (id, project_id),
   CONSTRAINT fk_target_project FOREIGN KEY (project_id) REFERENCES project (id),
-  CONSTRAINT ck_target_config_revision CHECK (config_revision >= 1)
+  CONSTRAINT ck_target_config_revision CHECK (config_revision >= 1),
+  CONSTRAINT ck_target_env CHECK (environment_type IN ('onprem','aws','gcp')),
+  CONSTRAINT ck_target_conn CHECK (connection_state IN ('unknown','connected','disconnected'))
 );
 CREATE INDEX ix_target_list  ON target (project_id, archived_at, id);
 CREATE INDEX ix_target_state ON target (state_identity);
@@ -95,7 +99,7 @@ CREATE TABLE source_version (
   external_build_id       varchar(255) NOT NULL,
   commit_sha              varchar(64)  NOT NULL,
   branch                  varchar(255),
-  status                  varchar(32)  NOT NULL,
+  status                  varchar(32)  NOT NULL DEFAULT 'pending',
   image_refs              jsonb,
   manifest_snapshot       jsonb,
   manifest_ref            text,
@@ -105,11 +109,12 @@ CREATE TABLE source_version (
   started_at              timestamptz,
   finished_at             timestamptz,
   error_summary           text,
-  received_at             timestamptz  NOT NULL,
+  received_at             timestamptz  NOT NULL DEFAULT now(),
   CONSTRAINT pk_source_version PRIMARY KEY (id),
   CONSTRAINT uq_sv_project  UNIQUE (id, project_id),
   CONSTRAINT uq_sv_external UNIQUE (source, external_build_id),
-  CONSTRAINT fk_sv_project  FOREIGN KEY (project_id) REFERENCES project (id)
+  CONSTRAINT fk_sv_project  FOREIGN KEY (project_id) REFERENCES project (id),
+  CONSTRAINT ck_sv_status CHECK (status IN ('pending','running','succeeded','failed'))
 );
 -- (project_id, commit_sha) 는 일부러 UNIQUE 가 아니다. 동일 커밋 재빌드를 새 행으로 보존한다 (설계 5.5)
 CREATE INDEX ix_sv_recent ON source_version (project_id, received_at DESC, id);
@@ -122,7 +127,7 @@ CREATE TABLE deployment (
   project_id                     varchar(64)  NOT NULL,
   source_version_id              varchar(64),
   requested_by                   varchar(64)  NOT NULL,
-  kind                           varchar(32)  NOT NULL,
+  kind                           varchar(32)  NOT NULL DEFAULT 'normal',
   retry_of_deployment_id         varchar(64),
   rollback_of_deployment_id      varchar(64),
   rollback_trigger_deployment_id varchar(64),
@@ -132,10 +137,10 @@ CREATE TABLE deployment (
   request_hash                   varchar(128) NOT NULL,
   image_refs                     jsonb,
   resolved_input_hash            varchar(128),
-  status                         varchar(32)  NOT NULL,
+  status                         varchar(32)  NOT NULL DEFAULT 'queued',
   last_event_seq                 bigint       NOT NULL DEFAULT 0,
   version                        bigint       NOT NULL DEFAULT 0,
-  created_at                     timestamptz  NOT NULL,
+  created_at                     timestamptz  NOT NULL DEFAULT now(),
   started_at                     timestamptz,
   finished_at                    timestamptz,
   CONSTRAINT pk_deployment PRIMARY KEY (id),
@@ -189,7 +194,7 @@ CREATE TABLE deployment_target (
   restored_from_deployment_target_id varchar(64),
   state_identity                     varchar(512) NOT NULL,
   input_hash                         varchar(128),
-  status                             varchar(32)  NOT NULL,
+  status                             varchar(32)  NOT NULL DEFAULT 'waiting',
   attempt                            smallint     NOT NULL DEFAULT 0,
   ai_reused                          boolean      NOT NULL DEFAULT false,
   script_id                          varchar(64),            -- FK 는 파일 끝 (순환)
@@ -233,7 +238,6 @@ CREATE TABLE deployment_target (
   CONSTRAINT ck_dt_lineage_exclusive CHECK (
     retry_of_deployment_target_id IS NULL OR restored_from_deployment_target_id IS NULL)
 );
-CREATE INDEX ix_dt_by_dep    ON deployment_target (deployment_id);
 CREATE INDEX ix_dt_by_target ON deployment_target (target_id, finished_at DESC);
 
 -- ────────────────────────────────── 4. Jenkins 명령
@@ -248,8 +252,8 @@ CREATE TABLE jenkins_execution (
   job_full_name          varchar(512) NOT NULL,
   request_payload        jsonb        NOT NULL,
   request_hash           varchar(128) NOT NULL,
-  dispatch_status        varchar(32)  NOT NULL,
-  run_status             varchar(32)  NOT NULL,
+  dispatch_status        varchar(32)  NOT NULL DEFAULT 'pending',
+  run_status             varchar(32)  NOT NULL DEFAULT 'unknown',
   dispatch_attempts      integer      NOT NULL DEFAULT 0,
   dispatch_started_at    timestamptz,
   queue_id               bigint,
@@ -261,7 +265,7 @@ CREATE TABLE jenkins_execution (
   next_check_at          timestamptz,
   last_checked_at        timestamptz,
   last_error             text,
-  created_at             timestamptz  NOT NULL,
+  created_at             timestamptz  NOT NULL DEFAULT now(),
   started_at             timestamptz,
   finished_at            timestamptz,
   CONSTRAINT pk_jenkins_execution PRIMARY KEY (id),
@@ -298,7 +302,7 @@ CREATE TABLE execution_target (
   input_hash           varchar(128),
   plan_id              varchar(64),            -- FK 는 파일 끝 (순환)
   plan_digest          varchar(128),
-  status               varchar(32)  NOT NULL,
+  status               varchar(32)  NOT NULL DEFAULT 'pending',
   last_source_sequence bigint,
   started_at           timestamptz,
   finished_at          timestamptz,
@@ -308,7 +312,11 @@ CREATE TABLE execution_target (
     REFERENCES jenkins_execution (id, deployment_id),
   CONSTRAINT fk_et_target FOREIGN KEY (deployment_target_id, deployment_id)
     REFERENCES deployment_target (id, deployment_id),
-  CONSTRAINT ck_et_status CHECK (status IN ('pending','running','succeeded','failed','cancelled','stale'))
+  CONSTRAINT ck_et_status CHECK (status IN ('pending','running','succeeded','failed','cancelled','stale')),
+  -- plan 참조는 id 와 digest 가 함께 있거나 함께 없다
+  CONSTRAINT ck_et_plan_pair CHECK (
+    (plan_id IS NULL AND plan_digest IS NULL)
+    OR (plan_id IS NOT NULL AND plan_digest IS NOT NULL))
 );
 CREATE INDEX ix_et_by_target ON execution_target (deployment_target_id, execution_id);
 CREATE INDEX ix_et_by_plan   ON execution_target (plan_id);
@@ -328,7 +336,7 @@ CREATE TABLE script (
   compatibility_key           varchar(255),
   metadata                    jsonb,
   validated_at                timestamptz  NOT NULL,
-  received_at                 timestamptz  NOT NULL,
+  received_at                 timestamptz  NOT NULL DEFAULT now(),
   artifact_expires_at         timestamptz,
   unavailable_at              timestamptz,
   CONSTRAINT pk_script PRIMARY KEY (id),
@@ -341,7 +349,7 @@ CREATE TABLE script (
     REFERENCES deployment_target (id, target_id, project_id),
   CONSTRAINT ck_script_version CHECK (version >= 1)
 );
-CREATE INDEX ix_script_reuse ON script (project_id, target_id, version DESC);
+CREATE INDEX ix_script_reuse ON script (project_id, target_id, validated_at DESC);
 
 CREATE TABLE plan_revision (
   id                   varchar(64)  NOT NULL,
@@ -358,8 +366,8 @@ CREATE TABLE plan_revision (
   digest               varchar(128) NOT NULL,
   summary              jsonb        NOT NULL,
   resources            jsonb        NOT NULL,
-  state                varchar(32)  NOT NULL,
-  created_at           timestamptz  NOT NULL,
+  state                varchar(32)  NOT NULL DEFAULT 'active',
+  created_at           timestamptz  NOT NULL DEFAULT now(),
   expires_at           timestamptz  NOT NULL,
   invalidated_at       timestamptz,
   invalidation_reason  varchar(255),
@@ -376,7 +384,8 @@ CREATE TABLE plan_revision (
     REFERENCES script (id, project_id, target_id),
   CONSTRAINT ck_plan_revision_no CHECK (revision >= 1),
   CONSTRAINT ck_plan_expiry CHECK (expires_at > created_at),
-  CONSTRAINT ck_plan_state CHECK (state IN ('active','superseded','expired','invalidated'))
+  -- 설계의 세 값만 쓴다. 무효화는 invalidated_at·invalidation_reason 으로 남긴다
+  CONSTRAINT ck_plan_state CHECK (state IN ('active','superseded','expired'))
 );
 -- 한 대상에 살아 있는 plan 은 하나뿐
 CREATE UNIQUE INDEX uq_plan_active ON plan_revision (deployment_target_id) WHERE state = 'active';
@@ -392,7 +401,7 @@ CREATE TABLE approval (
   decided_by           varchar(64),
   decided_at           timestamptz,
   confirmation_text    varchar(128),
-  created_at           timestamptz  NOT NULL,
+  created_at           timestamptz  NOT NULL DEFAULT now(),
   expires_at           timestamptz  NOT NULL,
   invalidated_at       timestamptz,
   invalidation_reason  varchar(255),
@@ -409,7 +418,8 @@ CREATE TABLE approval (
     OR (decision IS NOT NULL AND decided_by IS NOT NULL AND decided_at IS NOT NULL)),
   -- state 가 approved/rejected 면 decision 과 일치해야 한다
   CONSTRAINT ck_approval_state_decision CHECK (
-    state NOT IN ('approved','rejected') OR decision = state),
+    state NOT IN ('approved','rejected')
+    OR (decision IS NOT NULL AND decision = state)),
   CONSTRAINT ck_approval_expiry CHECK (expires_at > created_at)
 );
 -- 한 대상에 살아 있는 승인은 하나뿐
@@ -435,7 +445,7 @@ CREATE TABLE ai_usage (
   cost_usd             numeric(20,10),
   cost_basis           varchar(32),
   occurred_at          timestamptz    NOT NULL,
-  received_at          timestamptz    NOT NULL,
+  received_at          timestamptz    NOT NULL DEFAULT now(),
   CONSTRAINT pk_ai_usage PRIMARY KEY (id),
   CONSTRAINT uq_ai_external UNIQUE (source, external_call_id),
   CONSTRAINT fk_ai_execution_target FOREIGN KEY (execution_id, deployment_target_id)
@@ -444,9 +454,16 @@ CREATE TABLE ai_usage (
   CONSTRAINT ck_ai_status CHECK (status IN ('succeeded','failed','unknown')),
   CONSTRAINT ck_ai_tokens CHECK (
     (input_tokens  IS NULL OR input_tokens  >= 0)
-    AND (output_tokens IS NULL OR output_tokens >= 0))
+    AND (output_tokens IS NULL OR output_tokens >= 0)),
+  -- attempt 는 개별 API 호출 횟수가 아니라 생성·수정 회차다 (1~3)
+  CONSTRAINT ck_ai_attempt CHECK (attempt BETWEEN 1 AND 3),
+  CONSTRAINT ck_ai_cost_sign CHECK (cost_usd IS NULL OR cost_usd >= 0),
+  CONSTRAINT ck_ai_cost_pair CHECK (
+    (cost_usd IS NULL AND cost_basis IS NULL)
+    OR (cost_usd IS NOT NULL AND cost_basis IS NOT NULL))
 );
-CREATE INDEX ix_ai_by_dt ON ai_usage (deployment_target_id, occurred_at);
+CREATE INDEX ix_ai_by_dt   ON ai_usage (deployment_target_id, occurred_at, id);
+CREATE INDEX ix_ai_by_exec ON ai_usage (execution_id);
 
 -- ────────────────────────────────── 6. 이벤트·멱등·락
 
@@ -471,7 +488,7 @@ CREATE TABLE deployment_log (
   source_offset        bigint,
   source_end_offset    bigint,
   occurred_at          timestamptz  NOT NULL,
-  received_at          timestamptz  NOT NULL,
+  received_at          timestamptz  NOT NULL DEFAULT now(),
   CONSTRAINT pk_deployment_log PRIMARY KEY (id),
   CONSTRAINT uq_dl_in_dep   UNIQUE (id, deployment_id),
   CONSTRAINT uq_dl_seq      UNIQUE (deployment_id, seq),
@@ -497,7 +514,6 @@ CREATE TABLE deployment_log (
 );
 CREATE UNIQUE INDEX uq_dl_stream_offset ON deployment_log (source_stream, source_offset)
   WHERE source_stream IS NOT NULL;
-CREATE INDEX ix_dl_replay    ON deployment_log (deployment_id, seq);
 CREATE INDEX ix_dl_by_target ON deployment_log (deployment_id, deployment_target_id, seq);
 CREATE INDEX ix_dl_stage     ON deployment_log (execution_id, stage_occurrence_id);
 
@@ -514,7 +530,7 @@ CREATE TABLE project_event (
   event_type        varchar(64)  NOT NULL,
   payload           jsonb        NOT NULL,
   occurred_at       timestamptz  NOT NULL,
-  received_at       timestamptz  NOT NULL,
+  received_at       timestamptz  NOT NULL DEFAULT now(),
   CONSTRAINT pk_project_event PRIMARY KEY (id),
   CONSTRAINT uq_pe_seq      UNIQUE (project_id, seq),
   CONSTRAINT uq_pe_external UNIQUE (project_id, source, source_event_id),
@@ -531,7 +547,6 @@ CREATE TABLE project_event (
 -- 배포 사건의 프로젝트 투영은 원본 하나당 한 번만
 CREATE UNIQUE INDEX uq_pe_log_projection ON project_event (deployment_log_id)
   WHERE deployment_log_id IS NOT NULL;
-CREATE INDEX ix_pe_replay ON project_event (project_id, seq);
 
 CREATE TABLE idempotency (
   id              bigint       GENERATED BY DEFAULT AS IDENTITY,
@@ -544,7 +559,7 @@ CREATE TABLE idempotency (
   deployment_id   varchar(64),
   response_status smallint     NOT NULL,
   response_body   jsonb        NOT NULL,
-  created_at      timestamptz  NOT NULL,
+  created_at      timestamptz  NOT NULL DEFAULT now(),
   CONSTRAINT pk_idempotency PRIMARY KEY (id),
   CONSTRAINT uq_idem_scope UNIQUE (actor_id, project_id, operation, resource_key, request_key),
   CONSTRAINT fk_idem_actor   FOREIGN KEY (actor_id)   REFERENCES account (id),
@@ -559,7 +574,7 @@ CREATE TABLE target_lock (
   state_identity       varchar(512) NOT NULL,
   execution_id         varchar(64)  NOT NULL,
   deployment_target_id varchar(64)  NOT NULL,
-  acquired_at          timestamptz  NOT NULL,
+  acquired_at          timestamptz  NOT NULL DEFAULT now(),
   CONSTRAINT pk_target_lock PRIMARY KEY (state_identity),
   CONSTRAINT uq_tl_owner UNIQUE (execution_id, deployment_target_id),
   CONSTRAINT fk_tl_execution_target FOREIGN KEY (execution_id, deployment_target_id)
