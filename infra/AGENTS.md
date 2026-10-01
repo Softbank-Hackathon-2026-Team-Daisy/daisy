@@ -30,7 +30,7 @@ Proxmox VM 자동 생성은 후속 목표예요. 데모에서는 사전 준비�
 | Terraform 버전 | **1.16.4** `(가칭)` | 러너 · AI 작성 규칙 · 모듈이 같은 버전을 써요. 모듈은 `required_version = ">= 1.11"` (S3 네이티브 잠금) |
 | provider | AWS `hashicorp/aws ~> 6.0`, Google `hashicorp/google ~> 8.0`, 온프레미스: Docker provider · 버전 `[미정]` | 데모는 기존 VM의 컨테이너를 관리해요. Proxmox provider 선정은 후속 VM 자동 생성 범위예요. Google은 최신 8.x(10/1 기준 8.5.0) |
 | 온프레미스 런타임 | **Docker** | ADR-005 |
-| CI/CD | **Jenkins 확정**: `daisy-ci`, `daisy-cd` | 10/1 전달된 팀 합의. Terraform 실행은 CI/CD VM의 Jenkins가 맡아요 |
+| CI/CD | **Jenkins 확정**: `daisy-ci`, `daisy-cd-plan` → 승인 → `daisy-cd-apply` | 10/1 전달된 팀 합의. Terraform 실행은 CI/CD VM의 Jenkins가 맡아요 |
 | 러너 OS | Ubuntu 24.04 기반 프로토타입 | 클라우드 `SPEC.md` §12 참고. 실제 CI/CD VM 사양과 도구 버전은 별도 기록해요 |
 
 ### 온프레미스 설치 현황과 설계 방향
@@ -194,6 +194,7 @@ APP=hellocalc IMAGE_TAG=<커밋 해시 40자> infra/scripts/tf-run.sh aws plan
 | 2026-09-30 | `[클라우드]` apply · destroy는 터미널 입력이나 Jenkins `input` 승인 뒤 `TF_RUN_APPROVED`로만 실행해요 | 인프라 변경은 반드시 사람 승인 (루트 §4-2) | 1 |
 | 2026-10-01 | state는 **환경마다 그 환경의 저장소**(AWS S3 · GCP GCS)에 두고 모두 잠금을 켜요. 온프레미스 저장소는 황지환과 결정 `(가칭 · 팀 회의 확인)` | 한 환경의 장애 · 자격증명 문제가 다른 환경 배포를 막지 않고, 각 배포는 자기 환경 키만 필요해요 (최소 권한). PR #17에서 앱(박승준)에 답변 | 4 |
 | 2026-10-01 | `[클라우드]` Jenkins에 "Pipeline: REST API" 플러그인을 넣어요 | 서버가 단계별 상태 · 승인 대기 API(`wfapi`)를 써요. 최근 권장 플러그인에 빠져 있어요 | 1 |
+| 2026-10-01 | CD를 `daisy-cd-plan`(plan · 위험 검사 · 요약)과 `daisy-cd-apply`(승인한 plan 적용 · 헬스체크) 두 Job으로 분리. 서버가 승인 후 `daisy-cd-apply`를 `PLAN_BUILD` · `APPROVAL_ID`로 시작해요 | Jenkins `input` 대기 없이 승인을 서버 승인 API 하나로 받고(§16-6), plan마다 작업 폴더를 분리해 승인 대기 plan을 덮어쓰지 않아요(§16-7). 승인 대기 중 executor를 잡지 않아요 | 2 (서버가 쓰는 계약, 하은현에게 공유) |
 | 2026-10-01 | `[온프레미스]` 데모는 기존 VM의 Docker 컨테이너를 Terraform으로 관리 | VM 생성 시간을 제외하면서 팀의 plan·승인·apply 흐름 유지. 이전 VM 생성 우선 방향을 대체 | 1 |
 | 2026-10-01 | `[온프레미스]` Proxmox 템플릿 복제·cloud-init 기반 VM 자동 생성은 후속 목표 | 데모의 컨테이너 배포와 VM 준비 자동화를 단계적으로 분리 | 1 |
 | 2026-10-01 | `[온프레미스]` Route 53 → 공인 IP, 외부 80·443으로 앱 공개 | 터널 대신 공인 IP 기반 서비스 공개 방향 | 1 |
@@ -211,7 +212,7 @@ APP=hellocalc IMAGE_TAG=<커밋 해시 40자> infra/scripts/tf-run.sh aws plan
 | §4 공통 규약 | 임채준 제안. 온프레미스에도 맞는지 확인 필요 | 황지환 |
 | state 저장소 | 방향은 "환경마다 그 환경의 저장소 + 잠금"(§9). **온프레미스 저장소**와 **key 형식**(`{project_id}/{target_id}`)이 남았어요 | 팀 회의 확인 · 황지환(온프레미스) · 하은현(key) |
 | 서버 ↔ Jenkins 세부 계약 | 도구·실행 주체·승인 창구는 확정. plan 전달·식별, 로그 수신, 중단 요청 방식은 10/1까지 공유 | 황지환 · 임채준, 서버와 조율 |
-| 승인 전 plan과 승인 후 apply 연결 | CD job 대기·재개 또는 실행 분리, 승인 검증·재승인·중복 요청 처리, 기존 프로토타입 승인 전환 | 인프라 · 서버 |
+| 승인 전 plan과 승인 후 apply 연결 | 구조는 **두 Job으로 분리**해서 정했어요 (§9, 클라우드 SPEC §12-7). 서버 쪽 승인 ID 발급 · 재승인 · 중복 요청 처리와 서버 연결 구현이 남았어요 | 인프라 · 서버 |
 | 컨테이너 레지스트리 | 루트 `[미정]` | **팀 회의** |
 | 온프레미스 Docker 모듈 계약 | 기존 VM의 컨테이너를 Terraform으로 관리하는 방식 확정. provider·버전, 리소스 범위와 공통 입력·출력 매핑은 미정 | 황지환 · 임채준, 서버와 계약 공유 |
 | Jenkins 호스트 | 같은 Proxmox 물리 서버의 별도 CI/CD VM 방향. Service VM과 분리하며 실제 설치·운영 분담 확인 필요 | 황지환 · 임채준 · 서버 |

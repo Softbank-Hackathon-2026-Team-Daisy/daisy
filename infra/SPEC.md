@@ -141,7 +141,7 @@ terraform apply -input=false -no-color plan.tfplan
 terraform output -raw service_url
 ```
 
-참고 구현: [`infra/scripts/tf-run.sh`](scripts/tf-run.sh). 위 순서를 그대로 실행하고 작업 디렉터리를 레포 밖(`$WORK_ROOT/$APP/$ENV/`)에 둬요. apply·destroy는 터미널에서 환경 이름을 입력하거나, Jenkins `input` 승인 뒤 `TF_RUN_APPROVED=<env>`로만 실행돼요.
+참고 구현: [`infra/scripts/tf-run.sh`](scripts/tf-run.sh). 위 순서를 그대로 실행하고 작업 디렉터리를 레포 밖(`$WORK_ROOT/$APP/$ENV/`)에 둬요. **plan(3)과 apply(4)는 다른 실행이에요.** plan마다 `plans/<PLAN_ID>/` 폴더를 따로 만들고, apply는 승인한 `PLAN_ID`의 plan만 적용해요 (§12-7). apply·destroy는 터미널에서 환경 이름을 입력하거나, 승인된 실행(`daisy-cd-apply`)에서 `TF_RUN_APPROVED=<env>`로만 실행돼요.
 
 - `app.tfvars.json`: `deploy.yaml`과 대상 환경 정보에서 러너가 만드는 **비밀값 없는** 변수 파일
 - `ENV`는 `onprem` · `aws` · `gcp` 중 하나
@@ -396,7 +396,8 @@ infra/
 ├─ jenkins/    (가칭)              Jenkins 러너 (§12)
 │  ├─ setup-runner.sh              Ubuntu 24.04 러너 설치 (VM · 팀원 서버 공용)
 │  ├─ ci.Jenkinsfile               빌드 · 테스트 · 멀티 아키텍처 푸시
-│  ├─ cd.Jenkinsfile               plan → 승인 → apply → 헬스체크
+│  ├─ cd-plan.Jenkinsfile          병렬 plan → 승인 대기 (daisy-cd-plan)
+│  ├─ cd-apply.Jenkinsfile         승인한 plan apply → 헬스체크 (daisy-cd-apply)
 │  └─ render-tfvars.py             deploy.yaml → 변수 JSON
 └─ scripts/    (가칭)
    └─ tf-run.sh                    §3-4 러너 규약 참고 구현
@@ -439,15 +440,16 @@ PR은 300줄 이하로 나눠요: ① 이 명세 ② bootstrap ③ AWS 모듈 �
 |---|---|
 | `infra/jenkins/setup-runner.sh` | Java 21, Jenkins LTS, Docker CE + buildx(`daisy-builder`), qemu, terraform(버전 고정·hold), AWS CLI v2, gcloud CLI를 설치해요. 여러 번 실행해도 안전해요 |
 | `infra/jenkins/ci.Jenkinsfile` | 앱 checkout → 테스트(`golang` 컨테이너에서 `make check`) → `linux/amd64,linux/arm64` 이미지 → 푸시 (태그 = 커밋 해시 40자) → 선택 시 CD 호출 |
-| `infra/jenkins/cd.Jenkinsfile` | 환경 선택 → 인프라 코드 확인 → **병렬 plan** → 위험 검사 → **`input` 승인** → **병렬 apply** → 헬스체크·스모크 테스트 |
+| `infra/jenkins/cd-plan.Jenkinsfile` | `daisy-cd-plan`: 환경 선택 → 인프라 코드 확인 → **병렬 plan** → 위험 검사 → plan 요약(`plan-summary.json`) → 승인 대기 |
+| `infra/jenkins/cd-apply.Jenkinsfile` | `daisy-cd-apply`: **시작 = 승인**. 승인한 plan(`PLAN_BUILD`)만 **병렬 apply** → 헬스체크·스모크 테스트 |
 | `infra/jenkins/render-tfvars.py` | `deploy.yaml` + 대상 환경 등록값 + 이미지 주소 → 변수 JSON (프로토타입용 최소 변환) |
 | `infra/scripts/tf-run.sh` | §3-4 러너 규약 참고 구현 |
 
 ### 12-3. Jenkins 설정 (UI에서 1번)
 
-- **Job**: `daisy-ci`, `daisy-cd`
+- **Job**: `daisy-ci`, `daisy-cd-plan`, `daisy-cd-apply` (예전 `daisy-cd`는 비활성)
   - 둘 다 "Pipeline script from SCM"으로 만들어요. 레포는 `https://github.com/Softbank-Hackathon-2026-Team-Daisy/daisy.git`
-  - Script Path는 각각 `infra/jenkins/ci.Jenkinsfile`, `infra/jenkins/cd.Jenkinsfile`
+  - Script Path는 각각 `infra/jenkins/ci.Jenkinsfile`, `infra/jenkins/cd-plan.Jenkinsfile`, `infra/jenkins/cd-apply.Jenkinsfile`
   - 브랜치는 머지 전에는 작업 브랜치, 머지 후에는 `main`
   - `daisy`와 `sample-monolith` 둘 다 공개 레포라 GitHub 자격증명은 필요 없어요
 - **Credentials**: `aws-deployer`, `gcp-deployer`, `registry` (§3-5)
@@ -505,6 +507,41 @@ PR은 300줄 이하로 나눠요: ① 이 명세 ② bootstrap ③ AWS 모듈 �
 - Docker Hub는 익명 pull 횟수 제한이 있어요 (CI의 `golang` 이미지 등). 막히면 `docker login` 후에 받아요
 - 로컬 state를 쓰는 동안 `/var/lib/jenkins/daisy-work/<app>/<env>/state/`를 지우면 만든 리소스를 destroy할 수 없어요
 - **terraform이 도중에 강제 종료되면 state 잠금이 남을 수 있어요.** 다음 실행이 `Error acquiring the state lock`으로 막히면, 잠금을 건 실행이 정말 끝났는지 확인한 뒤 작업 디렉터리에서 `terraform force-unlock <잠금 ID>`로 풀어요. 그래서 apply 중에는 Jenkins에서 Abort하지 않아요
+
+### 12-7. CD 두 Job: plan → 승인 → apply
+
+10/1 결정: CD를 **준비(`daisy-cd-plan`)와 적용(`daisy-cd-apply`) 두 Job으로 나눠요.** §16-6의 "동일 job 대기·재개 vs 준비·적용 분리" `[미정]`을 분리로 정했어요. Jenkins `input`으로 기다리지 않아서 승인 대기 동안 executor를 잡지 않고, 승인은 서버 승인 API 하나로 받아요 (§16-6).
+
+```
+daisy-cd-plan #N ── 병렬 plan ── plan-summary.json ──▶ 서버: 승인 화면
+                                                         │ 웹·앱에서 승인
+                                                         ▼
+daisy-cd-apply ◀── 서버가 buildWithParameters(PLAN_BUILD=N, APPROVAL_ID=apv_…)
+   └ 승인한 plan만 병렬 apply → 헬스체크 · 스모크 테스트
+```
+
+| 항목 | 내용 |
+|---|---|
+| plan ID | `daisy-cd-plan-<빌드 번호>`. 서버는 빌드 번호(`PLAN_BUILD`)만 넘기면 돼요 |
+| 작업 폴더 | plan마다 `$WORK_ROOT/$APP/$ENV/plans/<PLAN_ID>/` (`src/`, `vars.json`, `meta.json`, `summary.txt`). 새 plan이 승인 대기 중인 plan을 덮어쓰지 않아요 (§16-7 협의안) |
+| 승인 화면 정보 | `GET /job/daisy-cd-plan/<N>/artifact/plan-summary.json` → `plan_id`, `image_tag`, `destroy`, 환경별 요약(`create=22` 등). 비밀값이 든 plan JSON은 보관하지 않아요 |
+| 적용 대상 | apply Job이 그 plan ID의 폴더가 있는 환경을 스스로 찾아요. 승인한 plan에 들어간 환경만 적용해요 |
+| 승인 기록 | `APPROVAL_ID` 필수 (서버 승인 ID `apv_…`, 사람이 직접 테스트할 때는 `manual-<이름>`). 없으면 실행하지 않아요 |
+| 승인한 plan만 적용 | `meta.json`의 plan 파일 해시와 다르면 거부, 이미 적용한 plan이면 거부. 그사이 state가 바뀌었으면 terraform이 stale plan으로 거부 → 다시 plan · 승인 |
+| 동시 실행 | 같은 앱·환경의 plan · apply는 `flock`으로 한 번에 하나만 (최대 10분 대기). 다른 앱·환경끼리는 동시에 돌아요 |
+| 정리 | 적용하면 비밀값이 든 plan 파일을 지우고 `current`가 그 plan을 가리켜요. 하루 지난 plan 폴더는 다음 plan 때 지워요 |
+| `PLAN_ONLY=1` | apply Job이 Verify 단계에서 거부해요 (개인 계정 0원 모드) |
+| 삭제 | `daisy-cd-plan`에서 `DESTROY` 체크 → 삭제 plan → 승인 → `daisy-cd-apply` (헬스체크는 건너뛰어요) |
+
+서버 연동 때 알아 둘 것:
+- **같은 파라미터의 요청이 대기열에 겹치면 Jenkins가 하나로 합쳐요.** 같은 `Location`(대기열 주소)을 받아요 (10/1 확인)
+- 승인 대기 API(`wfapi/pendingInputActions`)는 더는 쓰지 않아요. 승인은 apply Job 시작으로 대신해요
+
+검증 (10/1, 러너):
+- Jenkinsfile 3개 선언형 문법 검사 통과
+- `tf-run.sh` 안전장치 10가지 확인: PLAN_ID 없음 · 형식 오류 · 없는 plan · **해시 불일치** · `PLAN_ONLY` · 승인 없음 · **이미 적용** · 같은 ID 덮어쓰기 · 적용 없이 output · **잠금 대기 초과**
+- `daisy-cd-plan` 두 개를 동시에 실행 → plan 폴더 3개(`-1`~`-3`)가 이미지 태그·해시가 다른 채로 따로 남음. 잠금 때문에 순서대로 실행됨
+- 실제 apply는 개인 계정 `PLAN_ONLY` 때문에 팀 계정에서 확인해요
 
 ## 13. 팀원 서버로 옮길 때
 
@@ -736,3 +773,4 @@ Jenkins: Terraform 준비 → validate · plan · 위험 검사
 | §14 결정 기록 | AGENTS 변경은 별도 `infra/docs-update-agents` 브랜치의 `1561fa5`까지 기록. 병합 시 이 절과 일치시킬 것 |
 
 기존 클라우드 리소스·일정·미정인 공통 변수의 결정을 이 절이 임의로 바꾸지 않아요.
+| 2026-10-01 | CD를 `daisy-cd-plan` · `daisy-cd-apply` 두 Job으로 분리(§12-7). plan마다 작업 폴더 분리, 승인한 plan만 적용, 앱·환경별 `flock` |
