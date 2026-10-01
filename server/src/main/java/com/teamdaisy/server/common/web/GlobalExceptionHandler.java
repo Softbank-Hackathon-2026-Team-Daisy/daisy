@@ -7,6 +7,7 @@ import java.util.Map;
 import java.util.TreeMap;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.dao.OptimisticLockingFailureException;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatusCode;
 import org.springframework.http.MediaType;
@@ -29,9 +30,21 @@ public class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
     return respond(
         exception,
         code,
-        Map.of(),
+        exception.details(),
         new HttpHeaders(),
         HttpStatusCode.valueOf(code.status()),
+        request);
+  }
+
+  @ExceptionHandler(OptimisticLockingFailureException.class)
+  public ResponseEntity<Object> handleOptimisticLock(
+      OptimisticLockingFailureException exception, WebRequest request) {
+    return respond(
+        exception,
+        ErrorCode.STATE_CONFLICT,
+        Map.of(),
+        new HttpHeaders(),
+        HttpStatusCode.valueOf(409),
         request);
   }
 
