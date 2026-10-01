@@ -1,0 +1,10 @@
+# 실행할 때 레포 밖 작업 폴더의 .tfvars 파일로 복사해서 사용해요.
+# 기존 PoC와 같은 대상이에요. 다른 대상에서는 주소와 경로를 바꿔 주세요.
+image            = "docker.io/dlacowns21/hellocalc"
+image_tag        = "574acd9980b8fba01c49a5cd0ad659639de3ebe0"
+port             = 8080
+docker_host      = "ssh://user@172.16.1.5:22"
+ssh_key_path     = "/var/lib/jenkins/.ssh/onprem_deploy"
+known_hosts_path = "/var/lib/jenkins/.ssh/known_hosts"
+host_ip          = "172.16.1.5"
+host_port        = 8080
