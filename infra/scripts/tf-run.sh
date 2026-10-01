@@ -230,10 +230,13 @@ show_output() { # 앱은 service_url, bootstrap은 전체 출력 JSON
   fi
 }
 
-state_summary() { # stdin의 state → {lineage, managed: [실제 리소스 주소]}. 비어 있으면 lineage null
-  # data source는 plan마다 다시 읽는 값이라 비교에서 빼요
+state_summary() { # stdin의 state → {lineage, managed: ["주소=실제 리소스 ID"]}. 비어 있으면 lineage null
+  # 같은 인프라인지는 "같은 주소가 같은 실제 리소스 ID를 가리키는지"로 봐요.
+  # lineage는 비교하지 않아요: 빈 S3에 state push하면 terraform이 lineage를 새로 붙여요 (1.16.4, daisy-bootstrap #4 · #5)
+  # data source는 plan마다 다시 읽는 값이라 빼요
   jq -cs '(.[0] // {}) | {lineage: (.lineage // null),
-    managed: ([.resources[]? | select(.mode == "managed") | "\(.module // "")\(.type).\(.name)"] | sort)}'
+    managed: ([.resources[]? | select(.mode == "managed")
+      | "\(.module // "")\(.type).\(.name)=\([.instances[]?.attributes.id // "" | tostring] | join(","))"] | sort)}'
 }
 
 state_diff() { # $1 로컬 요약, $2 S3 요약 → 사람이 읽는 차이 (주소 · lineage만, 값은 없어요)
@@ -263,15 +266,17 @@ migrate_state() { # 로컬 state를 S3로 옮겨요. S3에 다른 state가 있�
   init "$dir" # backend.tf만 있는 빈 설정으로 S3 state에 붙어요
   want=$(state_summary <"$src")
   got=$(terraform -chdir="$dir" state pull | state_summary)
-  if [[ $got == "$want" ]]; then
-    echo "tf-run: S3에 같은 state가 이미 있어요 (앞서 올린 것). 그대로 써요"
+  if [[ $(jq '.managed | length' <<<"$want") == 0 ]]; then
+    echo "tf-run: 옮길 리소스가 없어요 (빈 state). S3에서 새로 시작해요"
+  elif [[ $(jq -c .managed <<<"$got") == $(jq -c .managed <<<"$want") ]]; then
+    echo "tf-run: S3에 같은 리소스를 가리키는 state가 이미 있어요 (앞서 올린 것). 그대로 써요"
   elif [[ $(jq '.managed | length' <<<"$got") != 0 ]]; then
     state_diff "$want" "$got"
     die "S3에 다른 state가 있어요: s3://$BUCKET/$STATE_KEY (덮어쓰지 않아요)"
   else
     terraform -chdir="$dir" state push "$src"
     got=$(terraform -chdir="$dir" state pull | state_summary)
-    if [[ $got != "$want" ]]; then
+    if [[ $(jq -c .managed <<<"$got") != $(jq -c .managed <<<"$want") ]]; then
       state_diff "$want" "$got"
       die "S3에 올린 state가 로컬과 달라요. 로컬 state는 그대로 뒀어요: $src"
     fi
