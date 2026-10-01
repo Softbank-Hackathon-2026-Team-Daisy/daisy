@@ -179,6 +179,166 @@ class ExecutionPostgresTest {
   }
 
   @Test
+  void currentQueryFollowsExplicitPointerInsteadOfLatestAttempt() {
+    var query = context.getBean(DeploymentQueryService.class);
+    var at = Instant.parse("2026-10-01T10:00:00Z");
+    readFixture("prj_1", "dep_old", "dt_old", "src_1", "tgt_1", "succeeded", at);
+    readFixture("prj_1", "dep_new", "dt_new", "src_1", "tgt_1", "succeeded", at.plusSeconds(10));
+    readFixture("prj_1", "dep_failed", "dt_failed", "src_1", "tgt_1", "failed", at.plusSeconds(20));
+    // MOCK: management-owned confirmed pointer; the query must never replace it.
+    jdbc.update("update target set current_deployment_target_id='dt_old' where id='tgt_1'");
+    var images = mapper.createObjectNode();
+    images.putObject("web").put("image_ref", "registry.test/web:" + COMMIT).put("digest", DIGEST);
+    images.putObject("api").put("image_ref", "registry.test/api:" + COMMIT).put("digest", DIGEST);
+    jdbc.update(
+        "update deployment set image_refs=cast(? as jsonb) where id='dep_old'", images.toString());
+    var current =
+        query.current(
+            "acct_1",
+            "prj_1",
+            List.of(new DeploymentQueryService.CurrentPointer("tgt_1", "dt_old")));
+    assertEquals("dep_old", current.get("tgt_1").deploymentId());
+    assertEquals("src_1", current.get("tgt_1").sourceVersionId());
+    assertEquals(COMMIT, current.get("tgt_1").commitSha());
+    assertEquals(at, current.get("tgt_1").deployedAt());
+    assertEquals(
+        List.of("api", "web"),
+        current.get("tgt_1").images().stream()
+            .map(DeploymentQueryService.ServiceImage::service)
+            .toList());
+    assertEquals(DIGEST, current.get("tgt_1").images().getFirst().imageDigest());
+    assertTrue(
+        query
+            .current(
+                "acct_1",
+                "prj_1",
+                List.of(new DeploymentQueryService.CurrentPointer("tgt_1", null)))
+            .isEmpty());
+    assertEquals("dt_old", value("current_deployment_target_id", "target", "tgt_1"));
+    assertEquals(0, count("deployment_log"));
+    assertEquals(0, count("jenkins_execution"));
+    assertEquals(
+        ErrorCode.STATE_CONFLICT,
+        assertThrows(
+                DaisyException.class,
+                () ->
+                    query.current(
+                        "acct_1",
+                        "prj_1",
+                        List.of(new DeploymentQueryService.CurrentPointer("tgt_1", "dt_failed"))))
+            .errorCode());
+  }
+
+  @Test
+  void buildHistoryUsesExactBuildAndLatestSuccessfulTargetIncludingPartialSuccess() {
+    var query = context.getBean(DeploymentQueryService.class);
+    var at = Instant.parse("2026-10-01T10:00:00Z");
+    jdbc.update(
+        """
+        insert into source_version(id,project_id,source,external_build_id,commit_sha,status,image_refs)
+        select 'src_2',project_id,source,'build-2',commit_sha,status,image_refs from source_version where id='src_1'
+        """);
+    jdbc.update(
+        "insert into target(id,project_id,name,environment_type,state_identity,config) values('tgt_2','prj_1','Second','aws','test:second-state','{}')");
+    readFixture("prj_1", "dep_a", "dt_a", "src_1", "tgt_1", "succeeded", at);
+    readFixture("prj_1", "dep_b", "dt_b", "src_1", "tgt_1", "succeeded", at);
+    jdbc.update("update deployment set status='partially_succeeded' where id='dep_b'");
+    readFixture("prj_1", "dep_c", "dt_c", "src_1", "tgt_1", "failed", at.plusSeconds(10));
+    readFixture("prj_1", "dep_d", "dt_d", "src_2", "tgt_1", "succeeded", at.plusSeconds(20));
+    readFixture("prj_1", "dep_e", "dt_e", "src_1", "tgt_2", "succeeded", at.plusSeconds(30));
+    readFixture("prj_1", "dep_f", "dt_f", "src_1", "tgt_2", "applying", null);
+    var result = query.deployedTo("acct_1", "prj_1", List.of("src_1", "src_2", "src_missing"));
+    assertEquals(
+        List.of("dep_b", "dep_e"),
+        result.get("src_1").stream()
+            .map(DeploymentQueryService.SuccessfulDeployment::deploymentId)
+            .toList());
+    assertEquals("dep_d", result.get("src_2").getFirst().deploymentId());
+    assertTrue(result.get("src_missing").isEmpty());
+    assertThrows(UnsupportedOperationException.class, () -> result.get("src_1").clear());
+  }
+
+  @Test
+  void deploymentQueriesRejectWrongScopeAndRevokedAccess() {
+    var query = context.getBean(DeploymentQueryService.class);
+    jdbc.update(
+        "insert into project(id,name,repository_id,repository_url,default_branch,created_by) values('prj_other','Other','repo-other','https://example.test/other','main','acct_1')");
+    jdbc.update(
+        "insert into target(id,project_id,name,environment_type,state_identity,config) values('tgt_other','prj_other','Other','aws','test:other-state','{}')");
+    jdbc.update(
+        """
+        insert into source_version(id,project_id,source,external_build_id,commit_sha,status,image_refs)
+        select 'src_other','prj_other',source,'other-build',commit_sha,status,image_refs from source_version where id='src_1'
+        """);
+    readFixture(
+        "prj_other", "dep_other", "dt_other", "src_other", "tgt_other", "succeeded", Instant.now());
+    assertEquals(
+        ErrorCode.NOT_FOUND,
+        assertThrows(
+                DaisyException.class,
+                () ->
+                    query.current(
+                        "acct_1",
+                        "prj_1",
+                        List.of(new DeploymentQueryService.CurrentPointer("tgt_1", "dt_other"))))
+            .errorCode());
+    assertTrue(
+        query.deployedTo("acct_1", "prj_1", List.of("src_other")).get("src_other").isEmpty());
+    readFixture("prj_1", "dep_one", "dt_one", "src_1", "tgt_1", "succeeded", Instant.now());
+    assertEquals(
+        ErrorCode.NOT_FOUND,
+        assertThrows(
+                DaisyException.class,
+                () ->
+                    query.current(
+                        "acct_1",
+                        "prj_1",
+                        List.of(new DeploymentQueryService.CurrentPointer("tgt_wrong", "dt_one"))))
+            .errorCode());
+    jdbc.update("update project_member set revoked_at=now() where project_id='prj_1'");
+    assertEquals(
+        ErrorCode.FORBIDDEN,
+        assertThrows(DaisyException.class, () -> query.deployedTo("acct_1", "prj_1", List.of()))
+            .errorCode());
+    assertEquals(
+        ErrorCode.FORBIDDEN,
+        assertThrows(DaisyException.class, () -> query.current("acct_1", "prj_1", List.of()))
+            .errorCode());
+  }
+
+  // MOCK: historical read fixtures, not evidence that Jenkins applied real infrastructure.
+  private void readFixture(
+      String project,
+      String deployment,
+      String dt,
+      String source,
+      String target,
+      String status,
+      Instant finished) {
+    jdbc.update(
+        """
+        insert into deployment(id,project_id,source_version_id,requested_by,commit_sha,
+          repository_snapshot,input_snapshot,request_hash,image_refs)
+        select ?,?,id,'acct_1',commit_sha,'{}','{}',?,image_refs from source_version where id=?
+        """,
+        deployment,
+        project,
+        DIGEST,
+        source);
+    jdbc.update(
+        """
+        insert into deployment_target(id,deployment_id,project_id,target_id,target_snapshot,state_identity,status,finished_at)
+        select ?,?,?,id,'{}',state_identity,?,? from target where id=?
+        """,
+        dt,
+        deployment,
+        project,
+        status,
+        finished == null ? null : java.sql.Timestamp.from(finished),
+        target);
+  }
+
+  @Test
   void concurrentIdempotencyCreatesExactlyOneDeploymentAndConflictsRollback() throws Exception {
     var responses =
         concurrent(
@@ -1123,6 +1283,7 @@ class ExecutionPostgresTest {
   @Import({
     DeploymentStore.class,
     DeploymentExecutionService.class,
+    DeploymentQueryService.class,
     JenkinsCommandService.class,
     ScriptService.class,
     AiUsageService.class,
