@@ -1,4 +1,4 @@
-# SPEC.md — Daisy 웹 대시보드 명세와 백엔드 요구사항
+# SPEC.md — Unibloom 웹 대시보드 명세와 백엔드 요구사항
 
 > 작성: 김도영 · 상태: **초안 (9/30)** · 참조: 루트 `AGENTS.md`, 노션 ADR-002·004·006·007, 플로우차트 설계서, `ios/SPEC.md`, `server/AGENTS.md`
 > 화면은 Figma [와이어프레임 v1.0](https://www.figma.com/design/5nqU4xotMh5jcsaDqOcTST/Team-Daisy-%EC%98%88%EC%84%A0?node-id=0-1) (9/30 확정), 모양은 같은 파일의 [디자인 시스템](https://www.figma.com/design/5nqU4xotMh5jcsaDqOcTST/Team-Daisy-%EC%98%88%EC%84%A0?node-id=2-4)을 따라요.
@@ -35,7 +35,7 @@
 - **웹만 하는 것:** 저장소 연결, 환경 선택, 배포 시작, plan 상세(리소스 전체 목록 · 스크립트), 환경 · 스크립트 · AI 사용량 · 설정 화면
 - **웹과 앱이 같이 하는 것:** 승인 · 거절, 배포 진행 상태, 환경별 현재 버전, 이력
 - 앱이 전체 흐름을 가져가기로 하면 "웹만 하는 것"이 "웹과 앱이 같이 하는 것"으로 옮겨가요. 두 쪽이 같은 API(`WR-xx`)를 써요
-- 웹은 **GitHub, 클라우드, Terraform에 직접 붙지 않아요.** 모든 데이터는 Daisy 백엔드 API를 거쳐요
+- 웹은 **GitHub, 클라우드, Terraform에 직접 붙지 않아요.** 모든 데이터는 Unibloom 백엔드 API를 거쳐요
 
 ### 1-2. 데모 목표
 
@@ -204,8 +204,8 @@ web/
 ### 3-2. 데이터 흐름
 
 ```
-Page ──▶ hook ──▶ api/client ──────────▶ Daisy 백엔드 (REST)
-  ▲        │ ◀── api/realtime (fetch 스트림 → 이벤트, 실패 시 5초 폴링) ◀── Daisy 백엔드 (SSE)
+Page ──▶ hook ──▶ api/client ──────────▶ Unibloom 백엔드 (REST)
+  ▲        │ ◀── api/realtime (fetch 스트림 → 이벤트, 실패 시 5초 폴링) ◀── Unibloom 백엔드 (SSE)
   └ 상태 ──┘
                 (서버가 없을 때만) api/client → mocks/
 ```
@@ -439,5 +439,6 @@ Page ──▶ hook ──▶ api/client ──────────▶ Daisy
 | 9/30 | 와이어프레임 수정 · 서버 답변 반영: W-00 로그인 추가, W-02b 범위 제외, W-05b 한 환경만 중단, 상태 값(§2-5), 롤백(WR-14) 범위 포함, WR-01 `fetch` 스트리밍, WR-04 · WR-05 모양 확정, W-12 배포별 보기, Q7 · Q9 · Q10 해결 | 김도영 |
 | 9/30 | 승준 님 코멘트 반영: §1-1 앱 범위는 회의 안건으로 표시(ADR-007 기준 유지), §6-1-1 앱 요청(#13) 중 웹도 쓰는 R-09 · A-10 ~ A-12 연결 | 김도영 |
 | 9/30 | W-14 Mac 앱 다운로드(Dialog) 추가 (와이어프레임 갱신) | 김도영 |
+| 10/1 | 서비스 이름 Daisy → **Unibloom** (Figma 로고 워드마크 "unibloom"). 팀 이름(Team Daisy) · GitHub 조직 이름은 그대로 | 김도영 |
 | 10/1 | 리뷰 · 결정 반영(#18): W-12 데이터 출처(A-05 + ai-usage), 호출 성공 · 실패, 빌드 Jenkins, W-14 고정 주소, 다시 시도 = 새 배포, 목록 봉투 질문, `pages/image-build` | 김도영 |
 | 9/30 | 화면 구현 반영(#15 · #18): 화면 경로 §2-6, 배지 색 확정, 전환 로딩 끝 신호 정정, 선택 필드 요청 §6-1-2, W-14 값 확정, 롤백 범위 `[미정]` 표시, 웹 담당 김도영(루트 §5-1), 일정 갱신 | 김도영 |
