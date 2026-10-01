@@ -61,6 +61,49 @@ SSE 필터는 기존 채널 seq를 재사용한다. 제외된 행도 서버 조�
 
 내부 콜백에는 별도 `ExecutionCallbackAccess` 인증 bean이 필요하다. 사용자 인증과 서비스 발신 인증을 혼동하지 않는다. 연결 전에는 누락된 bean을 가짜 허용 구현으로 대체하지 않는다. 실행 가능한 테스트 대역은 `ExecutionPostgresTest.TestConfig`에 `MOCK`으로 표시되어 있으며 운영 bean으로 복사할 대상이 아니다.
 
+## 은현 조회 API에 연결할 서비스
+
+`DeploymentQueryService`는 내부 읽기 서비스입니다. 공개 컨트롤러·DTO·새 OpenAPI 경로는 추가하지 않았습니다. `ExecutionAccess` 구현이 없으면 403으로 거절하고, 있으면 목록이 비어도 `requireRead(actorId, projectId)`를 호출합니다. 운영 접근 정책의 404/403을 그대로 전파합니다.
+
+### A-02 current — 현재 포인터가 가리키는 배포
+
+```java
+var pointers = targets.stream()
+    .map(t -> new DeploymentQueryService.CurrentPointer(t.id(), t.currentDeploymentTargetId()))
+    .toList();
+var currentByTarget = deploymentQueries.current(actorId, projectId, pointers);
+// currentByTarget.get(target.id())를 공개 Current DTO로 변환합니다.
+```
+
+- `targets`는 은현의 관리 서비스가 해당 프로젝트에서 읽은 대상들입니다. 포인터를 사용자 요청 본문에서 받지 않습니다. 관리 목록 조회와 이 메서드 호출을 같은 읽기 트랜잭션에서 수행하고, 목록이 100개를 넘으면 배치로 나눕니다.
+- **최근 성공/완료 배포를 검색해서 current로 채우지 않습니다.** 현재 포인터가 더 오래된 성공을 가리키면 그 배포를 반환합니다. 실패한 최신 배포로 기존 현재 버전을 교체하지 않습니다.
+- 반환은 `Map<targetId, CurrentDeployment>`입니다. DTO 필드는 `deploymentId`, `sourceVersionId`, `commitSha`, `images`, `deployedAt`입니다. `images`는 `ServiceImage(service, imageRef, imageDigest)` 목록이며 서비스 이름 순으로 정렬합니다. 저장 이미지 자체가 없으면 null로 두고 추정하지 않습니다.
+- 포인터가 NULL인 대상은 map에 넣지 않습니다. 이는 **확인된 현재 참조 없음**이며 실제 배포가 전혀 없거나 인프라가 삭제됐다는 판정이 아닙니다. 외부 API의 미확인 표시를 함께 맞춰야 합니다.
+- NULL이 아닌 포인터가 없거나 다른 프로젝트·대상을 가리키면 404입니다. 포인터가 가리키는 대상 배포가 성공 상태가 아니거나 종료 시각이 없으면 409입니다. 실패 배포가 실제 일부 변경을 남긴 경우처럼 성공 이력만으로 현재 상태를 표현할 수 없는 상황은 이 메서드에서 성공으로 꾸미지 않고 인프라 관측 계약으로 별도 처리합니다.
+- API `Current.commit`에는 `commitSha`, `Current.deployed_at`에는 기록된 대상 성공 완료 시각인 `deployedAt`을 사용합니다. 실제 트래픽 전환 시각을 측정한 값은 아닙니다.
+- 공개 scalar `image`·`image_digest`는 서비스가 정확히 하나일 때만 채웁니다. MSA는 대표 하나를 고르지 않습니다. A-02 서비스별 이미지 목록 추가 여부는 은현과 소비자가 공개 계약에서 결정합니다.
+- **현재 포인터를 갱신하는 기능은 구현하지 않았습니다.** target은 은현 관리 영역이므로 실제 결과·관측에 따라 포인터를 바꾸는 서비스 계약을 별도로 연결해야 합니다. 오래된 수신이나 단순 최근 시각만으로 포인터를 갱신하지 않는 원칙은 유지합니다. #35의 실제 결과 계약과 함께 확인할 후속입니다.
+
+### A-06 deployed_to — 빌드별 마지막 성공 이력
+
+```java
+var byBuild = deploymentQueries.deployedTo(
+    actorId, projectId, page.stream().map(SourceVersion::id).toList());
+// byBuild.get(version.id())를 공개 deployed_to 목록으로 변환합니다.
+```
+
+- 정확한 `source_version_id`로 조회합니다. 같은 commit의 재빌드를 섞지 않습니다. 입력은 은현 API가 선택한 프로젝트 소속 빌드 페이지이며 최대 100개입니다.
+- 반환은 `Map<sourceVersionId, List<SuccessfulDeployment>>`이고 DTO 필드는 `targetId`, `deploymentId`, `deployedAt`입니다. 조회가 완료됐으나 성공 이력이 없으면 해당 ID의 목록은 `[]`입니다. 목록 자체가 연결되지 않은 기존 null과 구분합니다. 존재 여부는 관리 서비스가 판정하며 이 메서드는 다른 프로젝트·없는 빌드에 대해 정보를 노출하지 않고 빈 목록을 반환합니다.
+- **빌드·대상 조합별 마지막 성공 1건**입니다. 같은 대상의 재배포가 여러 번 있어도 중복 나열하지 않습니다. `finished_at DESC, deployment_id DESC`로 마지막 행을 고르고 반환 목록은 target ID 순서입니다. 동일 시각의 ID 정렬은 결정적 tie-break일 뿐 시간 선후를 추정하지 않습니다.
+- 전체 deployment가 `partially_succeeded`여도 `deployment_target.status=succeeded`이고 종료 시각이 있으면 포함합니다. 실패·대기·적용 중 대상은 제외합니다.
+- 이는 **과거 배포 성공 이력**이지 현재 그 버전이 서비스 중인 대상 목록이 아닙니다. 이후 다른 빌드로 교체됐어도 이력은 남습니다. 전체 시도 이력은 별도 배포 이력 API의 책임입니다.
+
+### 공통 제한·경계
+
+빈 ID·중복 ID·100개 초과·NULL 목록은 400입니다. 빈 목록은 인가 검사 후 빈 map을 반환합니다. 반환 map/list는 수정할 수 없습니다. 조회는 배치 SQL 한 번씩, 파라미터 바인딩·readOnly 트랜잭션을 사용하고 업무 락·이벤트·명령을 생성하지 않습니다. 관리 Repository/Entity·인프라 HTTP를 직접 호출하지 않습니다. 스냅샷·자격증명·plan/state·임의 JSON 전체를 응답에 싣지 않습니다.
+
+이번에 정한 것은 서버 내부 조회 기준입니다. 공개 필드 명명·일정은 은현 및 소비자와 확인하며, 이 문서만으로 실제 사용자 API 연결 완료를 선언하지 않습니다.
+
 ## 결과 수신 어댑터 구현 기준
 
 ### ExecutionInputs JSON 저장 형태

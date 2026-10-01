@@ -175,6 +175,16 @@
 
 ## #38 통합 보완 (10/1, 김승환)
 
+### 배포 조회 서비스 연결 (승환 구현, 은현 API 연결 후속)
+
+- `DeploymentQueryService.current(actorId, projectId, pointers)`는 관리 서비스가 읽은 `(targetId, currentDeploymentTargetId)`를 받아, 해당 프로젝트·대상의 성공 배포 정보를 일괄 조회합니다. 최근 성공을 임의로 현재 배포로 선택하지 않습니다. 포인터 NULL은 확인된 현재 배포 참조 없음이며 실제 인프라 부재를 보장하지 않습니다. NULL이 아닌 포인터의 소속 불일치는 404, 성공/종료 근거 부족은 409입니다.
+- `deployedTo(actorId, projectId, sourceVersionIds)`는 **정확한 빌드 ID별·대상별 마지막 성공 1건**을 반환합니다. 전체 배포가 부분 실패했어도 성공 대상은 포함하고, 실패·진행 중 대상은 제외합니다. 과거 성공 이력이지 현재 가동 여부가 아닙니다. 같은 완료 시각이면 배포 ID로 순서를 고정합니다.
+- 두 메서드는 매번 `ExecutionAccess.requireRead`를 호출하고 포트가 없으면 거절합니다. 최대 100개 ID의 배치·중복/빈 ID 검증, readOnly 트랜잭션, 파라미터 바인딩을 사용합니다. 관리 Repository·Entity 직접 접근, 새로운 API·테이블·관측값 갱신은 없습니다.
+- 현재 배포 이미지 목록은 성공 배포에 고정된 서비스별 이미지의 명시 필드만 제공하고 입력 snapshot·자격증명·plan 원문은 노출하지 않습니다. MSA를 임의의 대표 이미지로 줄이지 않습니다. `deployedAt`은 기록된 대상 성공 완료 시각이며 실제 트래픽 전환 시각을 측정한 값은 아닙니다.
+- 공개 DTO와 API 연결은 은현 담당입니다. 현재 포인터를 실제 인프라 결과에 따라 갱신하는 경로는 별도 후속이며, 조회 서비스만으로 실제 current가 자동 채워지지 않습니다. 내부 계약 상세는 `docs/execution-service-contract.md`에 기록합니다.
+
+### 기존 인증·조회 통합 보완
+
 - 기존 인증·조회와 실행 서비스를 한 브랜치에서 검증합니다. `ExecutionAccess`·`ExecutionInputs` 어댑터와 공개 배포 API 연결은 은현의 후속 범위로 유지합니다.
 - 빌드 확인 결과의 commit·이미지가 NULL이면 NPE 대신 `STATE_CONFLICT`로 거절합니다.
 - 저장 `image_refs`는 실행 도메인과 같은 `{service: {image_ref, digest, commit_sha}}`입니다. 조회 응답은 기존 `image_digest` 이름으로 변환합니다. 테이블·공개 응답 이름은 바꾸지 않습니다.
