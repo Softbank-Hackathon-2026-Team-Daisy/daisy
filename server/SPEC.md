@@ -140,3 +140,34 @@
 - 내부 `prepare`와 Job `daisy-cd-plan`은 연동부에서 매핑합니다. 작업명 변경이나 신규 테이블은 필요하지 않습니다.
 - 공개 API의 목록 봉투·attempt 표시·다중 승인·이미지·롤백 매핑은 아래 링크의 구체적 안을 은현과 확인한 뒤 구현합니다. 이를 인프라 답변 대기로 묶지 않습니다. 실제 산출물·식별자·state 연결만 [#35](https://github.com/Softbank-Hackathon-2026-Team-Daisy/daisy/issues/35)에서 추적합니다.
 - 통합 검증(2026-10-01): `check build --offline` 및 테스트 13건 통과, PostgreSQL 17의 SQL 제약 검사 27건 통과. 통합 jar의 classpath V1으로 별도 빈 DB에 Flyway 적용·JPA validate·기동 성공, health UP 및 OpenAPI 응답 확인. 실제 Jenkins·인가 통합·동시성 검증과 구분합니다. 상세는 [작업 일지](docs/sh/2026-10-01-pr19-feedback.md#통합-검증-결과-2026-10-01-1953-kst)에 기록했습니다.
+
+## DB 마이그레이션과 인증·인가 (10/1, 하은현)
+
+### 범위와 동작
+
+- `V1__init.sql` 로 ERD 17개 테이블을 만듭니다. 설계 문서의 FK·CHECK·부분 UNIQUE·인덱스를 DB 제약으로 구현합니다. 엔티티의 JPA 매핑이 DB 무결성을 대신하지 않습니다.
+- 복합 FK 로 프로젝트 소속을 DB 가 확인합니다. 다른 프로젝트의 `source_version`·`target`·lineage 배포를 섞을 수 없습니다.
+- 순환 FK 네 쌍은 테이블 생성 뒤 `ALTER` 로 연결합니다. 삭제 CASCADE 를 두지 않고 보관은 `archived_at`·`disabled_at` 으로 합니다.
+- `POST /auth/token` 으로 토큰을 발급하고 `GET /auth/me` 로 주체를 확인합니다. REST·SSE 모두 `Authorization: Bearer` 를 쓰고 쿠키는 받지 않습니다.
+- 별도 토큰 테이블을 두지 않습니다. 역할·활성 여부는 토큰이 아니라 요청마다 DB 에서 다시 읽습니다. 로그아웃·개별 토큰 폐기 경로는 없습니다.
+- 아이디가 없는 경우와 비밀번호가 틀린 경우를 같은 401 로 응답합니다.
+- 필터 단계 오류를 `HandlerExceptionResolver` 로 넘겨 공통 오류 봉투로 응답합니다. 공통 기반 문서의 "인증 필터 오류는 MVC advice 밖" 항목을 이 방식으로 연결합니다.
+- `ProjectAccessService` 가 접근·변경 권한을 판정합니다. 접근 여부는 활성 membership, 변경·승인 여부는 계정 역할로 나눕니다. 실행 서비스도 이 서비스를 호출하며 API 검사를 이유로 생략하지 않습니다.
+- 없는 프로젝트와 권한 없는 프로젝트를 모두 404 로 응답합니다. 403 은 접근은 되는데 역할이 모자란 경우에만 사용합니다.
+- 데모 계정은 환경변수가 있을 때만 심고 BCrypt 해시만 저장합니다. 비밀번호를 코드·마이그레이션·로그에 두지 않습니다. `DAISY_AUTH_SECRET` 이 없으면 기동하지 않습니다.
+- CORS 허용 origin 은 환경변수로 받고 와일드카드를 쓰지 않습니다. `Authorization`·`Last-Event-ID`·`Idempotency-Key`·`X-Request-ID` 를 허용하고 `X-Request-ID` 를 노출합니다.
+
+### 후속 범위
+
+- 조회·관리 API 는 아직 없습니다. 인가 판정이 실제 요청 경로에 붙은 적이 없고 단위 테스트로만 확인했습니다.
+- SSE 경로의 인증 실패 전달, 실제 터널·프록시 뒤의 CORS·스트리밍은 도메인과 개발 서버가 생긴 뒤 확인합니다.
+- 만료된 `pending` 승인을 `expired` 로 내리는 일은 서비스 책임입니다. 시간 조건은 PostgreSQL 인덱스 조건에 넣을 수 없습니다.
+- FK 인덱스가 없는 컬럼 36곳은 예선 데이터 규모를 보고 넣지 않았습니다.
+
+### 검증 결과 (2026-10-01)
+
+- 빈 PostgreSQL 17 에 올려 Flyway 적용(0.39초)·`ddl-auto=validate` 통과·기동(21.9초)을 확인했습니다. 엔티티와 컬럼이 어긋나면 기동이 실패합니다.
+- 제약 검사 17가지를 돌려 교차 프로젝트 참조, lineage 조합, plan·승인 중복, state 락, `seq`, 멱등 키가 의도대로 막히는 것을 확인했습니다. `bash server/docs/eh/sql/verify.sh` 로 재현합니다.
+- `spotlessApply build test --no-daemon` 성공. 테스트 18개(기존 11개 + 접근 권한 7개) 통과.
+- 실제 기동 후 10가지를 확인했습니다. 미인증 401, 틀린 비밀번호와 없는 계정의 동일 응답, 정상 로그인, Bearer 조회, `viewer` 역할, 변조 토큰 401, `Basic` 헤더 401, CORS preflight, OpenAPI 노출입니다.
+- DB 제약과 인증 경로만 확인했습니다. 실제 배포 흐름·동시성·Jenkins 연동·SSE 재생은 이번 검증 범위가 아닙니다.
