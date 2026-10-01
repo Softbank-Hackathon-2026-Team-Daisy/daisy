@@ -40,7 +40,7 @@ echo 'Acquire::Retries "5";' > /etc/apt/apt.conf.d/80-daisy-retries
 
 log "기본 패키지"
 apt-get update -q
-apt-get install -y -q ca-certificates curl gnupg unzip jq git fontconfig python3-yaml \
+apt-get install -y -q ca-certificates curl gnupg unzip jq git fontconfig python3-yaml python3-venv \
   open-vm-tools qemu-user-static binfmt-support
 timedatectl set-ntp true   # VM이 잠들었다 깨면 시계가 틀어져 AWS 서명 오류가 나요
 
@@ -70,11 +70,16 @@ add_repo google-cloud-sdk https://packages.cloud.google.com/apt/doc/apt-key.gpg 
 apt-get update -q
 
 log "Java 21 · Jenkins LTS"
-apt-get install -y -q openjdk-21-jre-headless jenkins
+# 다시 실행해도 업그레이드되지 않게 hold해요. 업그레이드하면 Jenkins가 재시작돼서 돌던 빌드(apply)가 끊겨요
+apt-mark unhold jenkins >/dev/null 2>&1 || true
+dpkg -s jenkins >/dev/null 2>&1 || apt-get install -y -q jenkins
+apt-get install -y -q openjdk-21-jre-headless
+apt-mark hold jenkins >/dev/null
 systemctl enable --now jenkins
 
 log "Docker CE · buildx"
-apt-get install -y -q docker-ce docker-ce-cli containerd.io docker-buildx-plugin
+dpkg -s docker-ce >/dev/null 2>&1 || apt-get install -y -q docker-ce docker-ce-cli containerd.io docker-buildx-plugin
+apt-mark hold docker-ce docker-ce-cli containerd.io >/dev/null   # 업그레이드하면 Docker가 재시작돼요
 systemctl enable --now docker
 # VMware NAT DNS 프록시는 EDNS 질의에 깨진 응답을 줘서, Go 리졸버를 쓰는 buildkit이 레지스트리 주소를 못 찾아요.
 # VMware 게스트에서만 컨테이너 DNS를 공용 DNS로 지정해요 (VM 자체 DNS는 그대로).
@@ -124,15 +129,22 @@ fi
 log "gcloud CLI"
 apt-get install -y -q google-cloud-cli
 
+log "AI 생성용 Python (infra/ai)"
+# Ubuntu 24.04는 시스템 Python에 pip 설치를 막아서 전용 가상환경을 써요. Jenkinsfile이 이 경로를 불러요
+AI_VENV=/opt/daisy-ai/venv
+[[ -x $AI_VENV/bin/python ]] || python3 -m venv "$AI_VENV"
+"$AI_VENV/bin/pip" install -q --upgrade "anthropic>=1,<2"
+
 log "설치 결과"
 echo "os         : ${PRETTY_NAME} (${ARCH})"
 echo "java       : $(java -version 2>&1 | head -1)"
-echo "jenkins    : $(dpkg-query -W -f='${Version}' jenkins) ($(systemctl is-active jenkins))"
+echo "jenkins    : $(dpkg-query -W -f='${Version}' jenkins) ($(systemctl is-active jenkins), hold)"
 echo "docker     : $(docker --version) ($(systemctl is-active docker))"
 echo "buildx     : $(sudo -u jenkins docker buildx inspect daisy-builder | awk -F': *' '/^Platforms/ {print $2; exit}')"
 echo "terraform  : $(terraform version | head -1) (hold)"
 echo "aws        : $(aws --version)"
 echo "gcloud     : $(gcloud version 2>/dev/null | head -1)"
+echo "anthropic  : $($AI_VENV/bin/python -c 'import anthropic; print(anthropic.__version__)')"
 echo "swap       : $(free -h | awk '/^Swap/ {print $2}')"
 echo "jenkins UI : http://$(hostname -I | awk '{print $1}'):8080"
 if [[ -f /var/lib/jenkins/secrets/initialAdminPassword ]]; then
