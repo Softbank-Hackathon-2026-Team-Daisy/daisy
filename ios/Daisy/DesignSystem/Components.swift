@@ -123,12 +123,52 @@ struct AdaptiveGrid<Content: View>: View {
     @ViewBuilder let content: () -> Content
 
     var body: some View {
-        LazyVGrid(
-            columns: [GridItem(.adaptive(minimum: minimumWidth), spacing: 12, alignment: .top)],
-            alignment: .leading,
-            spacing: 12
-        ) {
+        // LazyVGrid는 카드 높이가 나중에 바뀌면(스크립트 로딩 등) 스크롤 높이를 크게 잡아 아래에 빈 공간이 생겨서 (W-05, 10/1)
+        // 카드 몇 개뿐인 화면이라 지연 없는 레이아웃으로 그려요.
+        AdaptiveColumns(minimumWidth: minimumWidth, spacing: 12) {
             content()
+        }
+    }
+}
+
+/// 폭에 맞춰 열 수를 정하고(최소 폭 이상), 줄마다 가장 큰 카드 높이로 위 정렬해요.
+private struct AdaptiveColumns: Layout {
+    let minimumWidth: CGFloat
+    let spacing: CGFloat
+
+    private func columns(for width: CGFloat) -> Int {
+        max(1, Int((width + spacing) / (minimumWidth + spacing)))
+    }
+
+    private func rows(_ subviews: Subviews, width: CGFloat) -> (columnWidth: CGFloat, heights: [CGFloat], count: Int) {
+        let count = columns(for: width)
+        let columnWidth = (width - spacing * CGFloat(count - 1)) / CGFloat(count)
+        let proposal = ProposedViewSize(width: columnWidth, height: nil)
+        let heights = stride(from: 0, to: subviews.count, by: count).map { start in
+            subviews[start..<min(start + count, subviews.count)].map { $0.sizeThatFits(proposal).height }.max() ?? 0
+        }
+        return (columnWidth, heights, count)
+    }
+
+    func sizeThatFits(proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) -> CGSize {
+        let width = proposal.width ?? minimumWidth
+        let layout = rows(subviews, width: width)
+        let height = layout.heights.reduce(0, +) + spacing * CGFloat(max(0, layout.heights.count - 1))
+        return CGSize(width: width, height: height)
+    }
+
+    func placeSubviews(in bounds: CGRect, proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) {
+        let layout = rows(subviews, width: bounds.width)
+        var y = bounds.minY
+        for (row, height) in layout.heights.enumerated() {
+            for column in 0..<layout.count {
+                let index = row * layout.count + column
+                guard index < subviews.count else { break }
+                let x = bounds.minX + CGFloat(column) * (layout.columnWidth + spacing)
+                subviews[index].place(at: CGPoint(x: x, y: y), anchor: .topLeading,
+                                      proposal: ProposedViewSize(width: layout.columnWidth, height: nil))
+            }
+            y += height + spacing
         }
     }
 }

@@ -80,12 +80,16 @@ struct PageScaffold<Trailing: View, Content: View>: View {
         self.content = content()
     }
 
+    /// 본문은 머리줄 뒤까지 스크롤되고, 머리줄은 뒤가 비치는 반투명 재질(`.ultraThinMaterial`)이에요 (10/1 담당자 결정).
     var body: some View {
-        VStack(spacing: 0) {
-            PageHeader(title, subtitle: subtitle) { trailing }
-            content.frame(maxWidth: .infinity, maxHeight: .infinity)
-        }
-        .navigationTitle(title)
-        .hidesSystemTitleBar()
+        content
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
+            .safeAreaInset(edge: .top, spacing: 0) {
+                PageHeader(title, subtitle: subtitle) { trailing }
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .background(.ultraThinMaterial, ignoresSafeAreaEdges: .top)
+            }
+            .navigationTitle(title)
+            .hidesSystemTitleBar()
     }
 }

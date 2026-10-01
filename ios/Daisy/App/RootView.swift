@@ -53,9 +53,10 @@ private struct TabLayout: View {
         TabStack(tab: router.tab)
             .id(router.tab)
             .frame(maxWidth: .infinity, maxHeight: .infinity)
-            // 모든 화면의 스크롤 끝에 탭 바 높이 + 여백을 둬요. 마지막 줄까지 바 위로 올라와 보여요 (10/1)
-            .contentMargins(.bottom, SlimTabBar.height + 24, for: .scrollContent)
-            // 승인 바 같은 화면 아래 고정 요소는 탭 바 위에 쌓여요
+            // 모든 화면의 스크롤 끝에 조금 여백을 둬요. 탭 바(safeAreaInset) 위로 마지막 줄까지 보여요 (10/1)
+            .contentMargins(.bottom, 40, for: .scrollContent)
+            // 화면 아래 고정 줄(W-06 승인 바)은 이 높이만큼 올라가서 탭 바 위에 놓여요
+            .environment(\.tabBarClearance, SlimTabBar.height + 8)
             .safeAreaInset(edge: .bottom, spacing: 0) {
                 SlimTabBar()
                     .padding(.horizontal, 20)
