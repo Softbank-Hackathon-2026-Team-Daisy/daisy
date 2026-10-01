@@ -1,0 +1,84 @@
+import Foundation
+
+// 웹 와이어프레임 흐름에 쓰는 요청. 웹과 같은 건 `web/SPEC.md` WR-xx(9/30 서버 답변)를 그대로 쓰고,
+// 앱이 더 요청한 것만 (가칭)이에요. SPEC §6-8과 1:1이고, 서버 OpenAPI가 나오면 여기만 고쳐요.
+
+private func jsonBody(_ value: some Encodable) -> Data? {
+    try? JSONEncoder.daisy.encode(value)
+}
+
+extension Endpoint {
+    /// R-09 (가칭) · W-00 "데모 계정으로 둘러보기 (읽기 전용)". 인증 범위는 9/30 회의 안건
+    static func demoToken() -> Endpoint<AuthToken> {
+        .init(method: "POST", path: "auth/demo")
+    }
+
+    /// WR-02 · W-02 연결하기. 응답에 deploy.yaml 검증 결과가 같이 와요
+    static func connectProject(repository: String, branch: String) -> Endpoint<Project> {
+        .init(method: "POST", path: "projects",
+              body: jsonBody(ConnectProjectBody(repository: repository, branch: branch)),
+              idempotencyKey: UUID().uuidString)
+    }
+
+    /// WR-03 · W-02 · W-13 파싱된 deploy.yaml과 오류
+    static func manifest(projectID: String) -> Endpoint<Manifest> {
+        .init(path: "projects/\(projectID)/manifest")
+    }
+
+    /// 프로젝트 상세 (노션 계약 v0.2 3-2) · W-13 저장소 카드
+    static func projectDetail(projectID: String) -> Endpoint<ProjectDetail> {
+        .init(path: "projects/\(projectID)")
+    }
+
+    /// WR-04 · W-04 · W-10 대상 환경 목록 (재사용 판단 · 연결 상태)
+    static func deployTargets(projectID: String) -> Endpoint<Page<DeployTarget>> {
+        .init(path: "projects/\(projectID)/targets")
+    }
+
+    /// WR-05 · W-04 "인프라 코드 생성 · 검증 시작". W-05b "처음부터 다시 시도", W-08 "다시 시도"도 같은 커밋으로 새 배포를 만들어요
+    static func startDeployment(projectID: String, commit: String, targetIDs: [String]) -> Endpoint<Deployment> {
+        .init(method: "POST", path: "projects/\(projectID)/deployments",
+              body: jsonBody(StartDeploymentBody(commit: commit, targetIds: targetIDs)),
+              idempotencyKey: UUID().uuidString)
+    }
+
+    /// WR-07 · W-05 생성된 스크립트 (환경별)
+    static func deploymentScript(deploymentID: String, targetID: String) -> Endpoint<Script> {
+        .init(path: "deployments/\(deploymentID)/targets/\(targetID)/script")
+    }
+
+    /// WR-14 · W-09 롤백. 이전 성공 배포의 커밋 + 그때 검증된 스크립트로 새 배포가 생기고, plan 승인을 거쳐요
+    static func rollback(deploymentID: String, targetIDs: [String], reason: String) -> Endpoint<Deployment> {
+        .init(method: "POST", path: "deployments/\(deploymentID)/rollback",
+              body: jsonBody(RollbackBody(targetIds: targetIDs, reason: reason)), idempotencyKey: UUID().uuidString)
+    }
+
+    /// A-10 (가칭) · W-10 "연결 테스트"
+    static func testConnection(targetID: String) -> Endpoint<ConnectionTestResult> {
+        .init(method: "POST", path: "targets/\(targetID)/test")
+    }
+
+    /// A-11 (가칭) · W-10 "리소스 보기"
+    static func targetResources(targetID: String) -> Endpoint<Page<EnvironmentResource>> {
+        .init(path: "targets/\(targetID)/resources")
+    }
+
+    /// WR-10 · W-11 검증된 스크립트 목록
+    static func scripts(projectID: String) -> Endpoint<Page<Script>> {
+        .init(path: "projects/\(projectID)/scripts")
+    }
+
+    /// WR-13 · W-13 "연결 해제". 인프라는 지우지 않아요. 확인 입력은 화면에서 해요
+    static func disconnectProject(projectID: String) -> Endpoint<EmptyResponse> {
+        .init(method: "DELETE", path: "projects/\(projectID)")
+    }
+
+    /// A-07 · W-05b "오류 로그 보기", W-07 로그, W-08 "원인 보기"
+    static func logs(deploymentID: String, targetID: String? = nil, tail: Int = 200) -> Endpoint<Page<LogLine>> {
+        .init(path: "deployments/\(deploymentID)/logs", query: [("target_id", targetID), ("tail", String(tail))])
+    }
+}
+
+private struct ConnectProjectBody: Encodable, Sendable { let repository: String; let branch: String }
+private struct StartDeploymentBody: Encodable, Sendable { let commit: String; let targetIds: [String] }
+private struct RollbackBody: Encodable, Sendable { let targetIds: [String]; let reason: String }
