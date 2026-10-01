@@ -47,4 +47,36 @@ public class Project {
   private Instant archivedAt;
 
   protected Project() {}
+
+  public String id() {
+    return id;
+  }
+
+  public String name() {
+    return name;
+  }
+
+  public String repositoryId() {
+    return repositoryId;
+  }
+
+  public String repositoryUrl() {
+    return repositoryUrl;
+  }
+
+  public String defaultBranch() {
+    return defaultBranch;
+  }
+
+  public String manifestPath() {
+    return manifestPath;
+  }
+
+  public Instant createdAt() {
+    return createdAt;
+  }
+
+  public Instant archivedAt() {
+    return archivedAt;
+  }
 }
