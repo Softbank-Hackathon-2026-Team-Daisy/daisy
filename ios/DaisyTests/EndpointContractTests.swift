@@ -72,6 +72,27 @@ struct EndpointContractTests {
         #expect(body["kind"] as? String == "plan")
         #expect(body["decision"] as? String == "approve")
         #expect(body["confirm_text"] as? String == "aws")
+        #expect(body["items"] == nil)   // 승인 ID를 모르면 빼요
+    }
+
+    /// 10/1 22:39 서버 확정: 사용자가 본 승인 대기 환경 전부를 `items`로
+    @Test func approveWithItems() throws {
+        let items = [Deployment.ApprovalItem(targetId: "tgt_aws", approvalId: "apv_1"),
+                     Deployment.ApprovalItem(targetId: "tgt_gcp", approvalId: "apv_2")]
+        let body = try json(Endpoint<EmptyResponse>.approve(deploymentID: "dep_42", decision: .reject, items: items))
+        #expect(body["decision"] as? String == "reject")
+        let sent = try #require(body["items"] as? [[String: String]])
+        #expect(sent == [["target_id": "tgt_aws", "approval_id": "apv_1"], ["target_id": "tgt_gcp", "approval_id": "apv_2"]])
+    }
+
+    /// 승인 ID 찾는 순서: pending_approvals → 환경별 approval_id → 환경 하나면 pending_approval
+    @Test func approvalItemsFromDeployment() throws {
+        let deployment = try JSONDecoder.daisy.decode(Deployment.self, from: Data("""
+        { "id": "dep_1", "project_id": "prj_1", "commit": "abc", "state": "awaiting_approval",
+          "pending_approvals": [ { "target_id": "tgt_aws", "approval_id": "apv_1" } ],
+          "targets": [ { "target_id": "tgt_gcp", "step": "plan", "step_state": "done", "attempt": 1, "approval_id": "apv_2" } ] }
+        """.utf8))
+        #expect(deployment.approvalItems(for: ["tgt_aws", "tgt_gcp", "tgt_onprem"]).map(\.approvalId) == ["apv_1", "apv_2"])
     }
 
     @Test("경로 (WR-03 · WR-04 · WR-07 · WR-10 · WR-13 · A-04)", arguments: [

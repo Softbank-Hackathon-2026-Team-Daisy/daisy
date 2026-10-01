@@ -33,7 +33,7 @@ final class PlanApprovalStore {
         }
     }
 
-    func submit(_ decision: ApprovalDecision, needsConfirm: Bool, using app: AppModel) async {
+    func submit(_ decision: ApprovalDecision, needsConfirm: Bool, targetIDs: [String], using app: AppModel) async {
         guard let client = app.client, !isSubmitting else { return }
         isSubmitting = true
         defer { isSubmitting = false }
@@ -42,7 +42,8 @@ final class PlanApprovalStore {
             _ = try await client.send(.approve(
                 deploymentID: deploymentID,
                 decision: decision,
-                confirmText: needsConfirm ? confirmText : nil
+                confirmText: needsConfirm ? confirmText : nil,
+                items: deployment?.approvalItems(for: targetIDs) ?? []
             ))
             decided = decision
         } catch let error as APIError where error.isStateConflict {

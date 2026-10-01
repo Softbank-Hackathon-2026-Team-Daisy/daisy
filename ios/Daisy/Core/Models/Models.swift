@@ -121,8 +121,16 @@ struct Deployment: Decodable, Identifiable, Hashable, Sendable {
         let healthSummary: String?
         /// W-08 동일성 검증: 이 환경에 올라간 이미지 digest (웹 A-04 `image_digest`)
         let imageDigest: String?
+        /// 이 환경의 승인 대기 ID (가칭, 서버가 대상별 approval_id를 주면). 승인 요청 `items`에 써요
+        let approvalId: String?
 
         var id: String { targetId }
+    }
+
+    /// 승인 요청 한 항목: 사용자가 화면에서 본 승인 대기 환경 (10/1 22:39 서버 확정, #36 · #40)
+    struct ApprovalItem: Codable, Hashable, Sendable {
+        let targetId: String
+        let approvalId: String
     }
 
     struct PendingApproval: Decodable, Hashable, Sendable {
@@ -143,6 +151,8 @@ struct Deployment: Decodable, Identifiable, Hashable, Sendable {
     let state: DeploymentState
     let targets: [Target]?
     let pendingApproval: PendingApproval?
+    /// 대상별 승인 대기 목록 (가칭 `pending_approvals`, 서버 #19 피드백 제안 이름)
+    let pendingApprovals: [ApprovalItem]?
     let createdBy: String?
     let createdAt: Date?
     let finishedAt: Date?
@@ -305,4 +315,21 @@ struct AuthToken: Decodable, Sendable {
 
     /// 데모 읽기 전용 계정 (R-03). 승인하면 403이 와요.
     var isViewer: Bool { role == "viewer" }
+}
+
+extension Deployment {
+    /// 승인 요청에 실을 항목: 화면에서 승인 대기로 보여준 환경마다 `approval_id`.
+    /// 서버가 주는 순서: `pending_approvals` → 환경별 `approval_id` → 배포 하나의 `pending_approval` (환경이 하나일 때만)
+    func approvalItems(for targetIDs: [String]) -> [ApprovalItem] {
+        targetIDs.compactMap { id in
+            if let item = pendingApprovals?.first(where: { $0.targetId == id }) { return item }
+            if let approvalId = targets?.first(where: { $0.targetId == id })?.approvalId {
+                return ApprovalItem(targetId: id, approvalId: approvalId)
+            }
+            if targetIDs.count == 1, let approvalId = pendingApproval?.approvalId {
+                return ApprovalItem(targetId: id, approvalId: approvalId)
+            }
+            return nil
+        }
+    }
 }

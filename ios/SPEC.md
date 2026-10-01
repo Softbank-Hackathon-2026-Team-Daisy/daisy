@@ -265,11 +265,11 @@ v0.1의 SSE 채널·봉투·재연결 규칙을 **그대로** 써요. 앱에 필
 
 | ID | 메서드 · 경로 | 요청 | 우선 | 비고 |
 |---|---|---|---|---|
-| W-01 | `POST /deployments/{id}/approvals` | `{ kind: "plan", decision: "approve" \| "reject", comment?, confirm_text? }` + `Idempotency-Key` | M | v0.1 3-3과 같음. 앱은 `kind: "plan"`만 써요 |
+| W-01 | `POST /deployments/{id}/approvals` | `{ kind: "plan", decision: "approve" \| "reject", confirm_text?, items: [{ target_id, approval_id }] }` + `Idempotency-Key` | M | ✅ 10/1 22:39 서버 확정(#36 · #40): `items`는 화면에 보인 승인 대기 환경 전부, 하나라도 오래되면 전체 409. `approval_id`는 배포의 `pending_approvals`(가칭) · 환경별 `approval_id`(가칭)에서 가져와요. 모르면 `items`를 빼요 |
 
 - 웹에서 먼저 승인했으면 **409 `STATE_CONFLICT`**를 주세요. 앱은 최신 상태를 다시 불러와요
 - 삭제가 포함된 plan은 `confirm_text`를 서버에서도 검증해 주세요 (v0.1과 같음)
-- `confirm_text`: 웹 · 앱 모두 **프로젝트 이름**(예: `sample-monolith`)을 입력받아 보내요 (10/1, 웹 W-06과 같게). 서버가 같은 값으로 검증하는지는 §6-9 확인 대기 `(가칭)`
+- `confirm_text`: 웹 · 앱 모두 **프로젝트 이름**(예: `sample-monolith`)을 입력받아 보내요. ✅ 서버도 승인 대기가 생길 때 고정한 프로젝트 이름과 비교해요 (#40)
 - viewer 역할이면 **403** (R-03)
 - **plan을 다시 뜨는 경우 (9/29, 하은현):** 승인 대기가 길어져 plan이 낡으면(stale) 서버가 plan을 다시 뜨고 이전 승인은 무효가 돼요. 이건 AI 수정이 아니라서 **`attempt`는 그대로**이고, `approval.required`가 다시 와요. 앱은 같은 "시도 n/3"으로 승인 카드를 다시 띄우고, "plan이 갱신됐어요"처럼 이유를 보여줘요
 - **승인 단위**: 웹 · 앱 모두 **승인 대기인 환경 전부를 한 번에** 승인해요. 3회 실패한 환경은 "이번 승인에서 빠져요"로 보여줘요 (웹 W-06과 같게). 서버 동작 확인은 §6-9
@@ -451,7 +451,7 @@ API 모양보다 **이 정보가 어딘가에 저장되어 있는지**가 더 �
 | S-1 | 서버 (하은현) | 목록 응답 봉투: 모든 목록(A-02 · WR-04 · 새 `ai-usage`)이 `{ items, next_cursor }`인지 | 모두 봉투 | 배열이 오면 디코딩 실패 → 한 줄 수정 |
 | S-2 | 서버 (하은현 조회 · 김승환 기록) | `ai-usage` 호출 한 줄 필드 (10/1 #32: 호출 1건당 1행, 상세가 없으면 미확인 — 0원 아님): 작업 설명 이름(`note` / `title`), `calls`를 A-05 합계에 넣는지 | `note` 또는 `title`, `calls` 있으면 씀 | 설명이 없으면 "Terraform 생성 (deploy.yaml)" · "Terraform 수정"으로 대신, 모르는 `status`는 "—" |
 | S-3 | 서버 (하은현 · 김승환) | A-04 환경별 `image_digest` · `health_summary` · `steps[]` 제공 여부 (10/1 "제공 · 후순위 · 미제공으로 안내" 약속) | 오면 쓰고, 없으면 "—" · 웹처럼 단계 추정 | W-08 동일성 digest 줄이 "—" |
-| S-4 | 서버 (하은현) | 승인 `confirm_text` 검증 값 = 프로젝트 이름인지, 승인 대기 환경만 적용되는지 | 프로젝트 이름, 승인 대기 환경 전부 한 번에 | 서버가 다른 값을 요구하면 입력 안내만 바꿔요 |
+| ~~S-4~~ | 서버 | ~~승인 `confirm_text` 검증 값~~ → ✅ 프로젝트 이름 · 승인 대기 환경 전부 `items`로 한 번에 (10/1 22:39, #40). 남은 것: 응답에서 `approval_id`를 주는 필드 이름 | `pending_approvals` 또는 환경별 `approval_id` | 못 받으면 `items` 없이 보내요 |
 | S-5 | 서버 (하은현) | `POST /projects` 응답: `Project`만 / `{ project, manifest }` (웹 목업) | `Project` → `GET manifest` 따로 | 둘 다 받게 한 줄 수정 |
 | S-6 | 서버 (하은현) | 로그 줄 필드(`ts · text` / `seq · at · message`), `Manifest.errors` 모양 | 둘 다 받아요 | 영향 없음 |
 | S-7 | 서버 (하은현) | 로그인 없이 읽기 전용 둘러보기(9/30 회의) 방식: `POST /auth/demo` 같은 viewer 토큰 발급인지, 심사위원 테스트 계정 전달 방식 | R-09 `POST /auth/demo` (가칭) | 버튼만 두고 오류 표시. **TestFlight 외부 심사에 계정이 필요**해요 |
@@ -511,6 +511,7 @@ API 모양보다 **이 정보가 어딘가에 저장되어 있는지**가 더 �
 
 | 날짜 | 변경 | 작성 |
 |---|---|---|
+| 10/1 | 승인 요청에 `items: [{ target_id, approval_id }]` (화면에 보인 승인 대기 환경 전부, 서버 22:39 확정). §6-9 S-4 해결 | 박승준 |
 | 10/1 | 서버 #36 계약: 배포 시작 · 다시 시도에 빌드 ID `source_version_id`를 실어 보내요 (빌드 목록 · 배포에서 받아요, 없으면 키를 빼고 `commit`만) | 박승준 |
 | 10/1 | **서비스 이름 Unibloom** (10/1 회의 · 슬랙 21:38): 앱 표시 이름 · 워드마크 `unibloom` · 제품 `Unibloom.app` · `Unibloom.dmg`, 레포 주소 `unibloom`. 결정 보드를 루트 `BOARD.md`로 옮김. Mac은 화면 머리줄의 재질 띠를 없앰(iOS만 반투명). 서버 #38 조회 응답에 맞춤: 빌드 `queued` "대기 중" · 메시지 · 작성자 없음 "—" · `image_digest`, 프로젝트 `default_branch` | 박승준 |
 | 10/1 | 단계 상태 `skipped` "건너뜀" 추가 (W-03 Trigger CD는 운영에서 늘 건너뜀, 웹 #25와 같게), 예시 데이터 반영. 10/1 역할 재분담(#33): plan 요약은 인프라가 만들고 서버가 보관 · 조회, AI 사용량은 김승환 기록 · 하은현 조회, §4 CI 열을 인프라로 | 박승준 |
