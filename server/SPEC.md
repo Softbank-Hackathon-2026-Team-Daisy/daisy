@@ -600,6 +600,37 @@ Idempotency-Key: <키>
 
 **포인터 갱신은 제 몫입니다 (후속).** `target.current_deployment_target_id` 는 제 영역이라 실제 결과에 따라 바꾸는 서비스를 제가 열어야 합니다. 오래된 결과나 "가장 최근 시각" 만으로 바꾸지 않는다는 승환의 원칙을 따릅니다. 어떤 결과를 근거로 바꿀지는 #35 의 실제 결과 계약이 정해진 뒤 정합니다. **그 전까지 A-02 `current` 는 항상 null 입니다.**
 
+### 구현 상태 (10/2 새벽)
+
+| | 무엇 | 위치 | 상태 |
+|---|---|---|---|
+| ① | `ExecutionAccess` 어댑터 | `project/access/ExecutionAccessAdapter` | 완료 |
+| ② | `ExecutionInputs` 어댑터 | `project/execution/ExecutionInputsAdapter` | 완료. 확인 ②·⑤ 는 제안대로 넣고 메서드 하나씩으로 분리 |
+| ③ | `POST /projects/{id}/deployments`·`GET /projects/{id}/events` | `project/web/DeploymentRequestController` | 완료 |
+| ③ | `/deployments/{id}/...` 경로 (승인·취소·재시도·롤백·배포 SSE) | — | **확인 ① 대기** |
+| ④ | 승인 요청 변환 | `project/web/ApprovalRequest` | 완료 (컨트롤러는 ③ 대기) |
+| ⑤ | A-02 `current`·A-06 `deployed_to` | `project/application/DeploymentHistoryReader` | 완료 |
+
+공개 API 코드는 `server/AGENTS.md` §3 의 폴더 소유대로 `deployment/` 가 아니라 `project/` 에 둡니다.
+
+**실측 (빈 PostgreSQL 17, jar 기동, Jenkins 워커 꺼진 기본 설정)**
+
+| | 검사 | 결과 |
+|---|---|---|
+| C1 | `Idempotency-Key` 없음 | 400 |
+| C2 | viewer 생성 | 403 |
+| C3 | 정상 생성 (대상 2개) | 201 `{deployment_id, status: "queued"}`. 입력 스냅샷 `{strategy: recreate, hash_format_version: 1}`, 저장소 스냅샷 키 5개, 대상 스냅샷의 자격증명은 참조 문자열 그대로. prepare 명령은 `pending` 으로 저장만 됨 |
+| C4 | 같은 키·같은 본문 재전송 | 첫 응답 그대로, 배포 행 늘지 않음 |
+| C5 | 같은 키·다른 본문 | 409 |
+| C6 | `commit` 이 빌드와 다름 / 같음 | 400 / 201 |
+| C7 | 없는 빌드 | 404 |
+| C8 | `disconnected` 대상 | 409 |
+| C9 | `strategy: canary` | 400 |
+| S1 | 토큰 없이 SSE | 401 |
+| S2 | SSE + `Last-Event-ID: 0` | 200 `text/event-stream`·`Cache-Control: no-cache`, heartbeat 뒤 `deployment.created` 두 건을 seq 1·2 로 재생 |
+| S3 | 잘못된 `event_type` | 400 |
+| O1 | OpenAPI | 두 경로·`Idempotency-Key`·`Last-Event-ID`·Bearer 요구가 나오고 `principal` 노출 0건 |
+
 ### 확인이 필요한 것 (승환)
 
 **① `/deployments/{id}/...` 경로에서 `projectId` 를 어떻게 얻을까요.** 실행 서비스는 모든 요청에 `projectId` 를 받는데, 공개 경로에는 배포 ID 만 있습니다. 배포 → 프로젝트 조회는 `deployment` 모듈 소유라 제가 직접 읽지 않으려고 합니다. `EventJournal.requireDeploymentProject(projectId, deploymentId)` 는 둘 다 알 때 맞는지만 봅니다. **`deployment` 쪽에 `projectIdOf(deploymentId)` 같은 조회를 하나 열어 주실 수 있을까요.** 없는 배포는 404 로 하면 됩니다. 이게 없으면 경로를 `/projects/{pid}/deployments/{id}/...` 로 바꿔야 해서 웹·앱 계약이 바뀝니다.
