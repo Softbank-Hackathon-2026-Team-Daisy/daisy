@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { useNavigate, useParams } from 'react-router'
 import { useAuth } from '../../api/auth.ts'
-import { ApiError } from '../../api/client.ts'
+import { ApiError, errorMessage, newIdempotencyKey } from '../../api/client.ts'
 import { api } from '../../api/endpoints.ts'
 import type { Deployment, Plan, PlanDetail } from '../../api/types.ts'
 import { useResource } from '../../api/useResource.ts'
@@ -56,6 +56,7 @@ function ApproveView({ d, plan, detail, reload }: { d: Deployment; plan: Plan; d
   const hasDelete = approvable.some((t) => planOf(t.target_id)?.has_delete)
   const risks = approvable.flatMap((t) => planOf(t.target_id)?.risks ?? [])
   // 삭제가 포함되면 프로젝트 이름을 입력해야 승인할 수 있어요 (서버도 confirm_text를 검증해요)
+  // MOCK: 프로젝트 이름은 A-12(GET /projects/{id})가 열리면 서버 값으로
   const confirmWord = 'sample-monolith'
   const needsConfirm = hasDelete && confirm !== confirmWord
   const viewer = role === 'viewer'
@@ -64,10 +65,11 @@ function ApproveView({ d, plan, detail, reload }: { d: Deployment; plan: Plan; d
   const currentPlan = planOf(current.target_id)
 
   const decide = async (decision: 'approve' | 'reject') => {
+    if (pending) return
     setPending(true)
     setError(null)
     try {
-      await api.approve(d.id, decision, hasDelete ? confirm : undefined)
+      await api.approve(d.id, decision, hasDelete ? confirm : undefined, newIdempotencyKey())
       if (decision === 'approve') navigate(paths.progress(projectId, d.id), { state: { transition: 'l03' } })
       // Q1(거절하면 어디로)이 정해지기 전까지는 개요로 돌아가요
       else navigate(paths.overview(projectId))
@@ -75,10 +77,8 @@ function ApproveView({ d, plan, detail, reload }: { d: Deployment; plan: Plan; d
       if (e instanceof ApiError && e.status === 409) {
         setError('다른 곳(앱 등)에서 먼저 처리했어요. 최신 상태를 다시 불러왔어요.')
         reload()
-      } else if (e instanceof ApiError && e.status === 403) {
-        setError('읽기 전용 계정이라 승인할 수 없어요.')
       } else {
-        setError(e instanceof ApiError ? e.message : '처리하지 못했어요')
+        setError(errorMessage(e, '처리하지 못했어요'))
       }
       setPending(false)
     }

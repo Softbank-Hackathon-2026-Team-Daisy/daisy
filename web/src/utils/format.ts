@@ -22,9 +22,10 @@ export function clockTime(iso: string) {
 // 커밋 해시는 앞 7자리
 export const shortCommit = (commit: string) => commit.slice(0, 7)
 
-export const won = (n: number) => `₩${n.toLocaleString('ko-KR')}`
+// 서버가 확인하지 못한 값은 null로 와요 (0으로 채우지 않아요, #13) → "—"
+export const won = (n: number | null | undefined) => (n == null ? '—' : `₩${n.toLocaleString('ko-KR')}`)
 
-export const count = (n: number) => n.toLocaleString('ko-KR')
+export const count = (n: number | null | undefined) => (n == null ? '—' : n.toLocaleString('ko-KR'))
 
 // 소요 시간 — "42s", "1m 03s". 진행 중이면 뒤에 "…"
 export function duration(ms: number | undefined, running = false) {

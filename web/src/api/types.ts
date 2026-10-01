@@ -47,6 +47,7 @@ export type TargetStatus = {
   image_digest?: string // WR-09
   url: string | null
   health: Health
+  health_summary?: string // 예: "200 OK · p95 120ms" (#13 가칭). 없으면 상태만 보여줘요
   checked_at: string
 }
 
@@ -84,22 +85,25 @@ export type DeploymentTarget = {
   health_summary?: string // 예: "200 OK · p95 120ms"
 }
 
+// AI 사용량 합계는 A-05 plan 응답에 같이 와요 (#13, 10/1 서버 결정). 확인 못 한 토큰 · 비용은 null
 export type AiUsageSummary = {
   calls: number
-  tokens: number
-  cost_krw: number
+  tokens: number | null
+  cost_krw: number | null
   exchange_rate: number
   estimated: boolean
 }
 
+// GET /projects/{id}/ai-usage?deployment_id= 호출별 기록 (#13, 경로 · 필드는 OpenAPI가 나오면 맞춰요)
+// status는 LLM 호출의 성공 · 실패예요 (Terraform 검증 결과가 아니에요). title은 제공 약속이 없어서 선택
 export type AiUsageItem = {
   at: string
   target_id: string
   step: 'generate' | 'fix'
-  title: string
+  title?: string
   attempt: number
-  tokens: number
-  cost_krw: number
+  tokens: number | null
+  cost_krw: number | null
   status: 'succeeded' | 'failed'
 }
 
@@ -119,7 +123,6 @@ export type Deployment = {
   created_by: string
   created_at: string
   finished_at: string | null
-  ai_usage?: { summary: AiUsageSummary; items: AiUsageItem[] }
   last_seq: number
 }
 

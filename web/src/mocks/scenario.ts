@@ -24,14 +24,14 @@ export const IMAGE = `ghcr.io/team-daisy/sample-monolith:${COMMIT}`
 export const DIGEST = 'sha256:9f3c…e1a'
 
 export const projects: Project[] = [
-  { id: 'prj_monolith', name: 'sample-monolith', repository: 'Softbank-Hackathon-2026-Team-Daisy/sample-monolith', branch: 'main', build: 'GitHub Actions · ci.yml', registry: 'ghcr.io', webhook_last_at: ago(3) },
+  { id: 'prj_monolith', name: 'sample-monolith', repository: 'Softbank-Hackathon-2026-Team-Daisy/sample-monolith', branch: 'main', build: 'Jenkins · daisy-build', registry: 'ghcr.io', webhook_last_at: ago(3) },
   { id: 'prj_msa', name: 'sample-msa', repository: 'Softbank-Hackathon-2026-Team-Daisy/sample-msa', branch: 'main' },
 ]
 
 export const targetStatus: TargetStatus[] = [
-  { target_id: 'tgt_onprem', type: 'onprem', name: 'home-lab', current: { commit: COMMIT, image: IMAGE, deployment_id: 'dep_41', deployed_at: ago(12) }, image_digest: DIGEST, url: 'https://sample.home-lab.daisy.dev', health: 'healthy', checked_at: ago(1) },
-  { target_id: 'tgt_aws', type: 'aws', name: 'aws-prod', current: { commit: COMMIT, image: IMAGE, deployment_id: 'dep_41', deployed_at: ago(12) }, image_digest: DIGEST, url: 'https://sample-monolith.aws.daisy.dev', health: 'healthy', checked_at: ago(1) },
-  { target_id: 'tgt_gcp', type: 'gcp', name: 'gcp-prod', current: { commit: COMMIT, image: IMAGE, deployment_id: 'dep_41', deployed_at: ago(12) }, image_digest: DIGEST, url: 'https://sample-monolith-x7k.a.run.app', health: 'healthy', checked_at: ago(1) },
+  { target_id: 'tgt_onprem', type: 'onprem', name: 'home-lab', current: { commit: COMMIT, image: IMAGE, deployment_id: 'dep_41', deployed_at: ago(12) }, image_digest: DIGEST, url: 'https://sample.home-lab.daisy.dev', health: 'healthy', health_summary: '200 OK', checked_at: ago(1) },
+  { target_id: 'tgt_aws', type: 'aws', name: 'aws-prod', current: { commit: COMMIT, image: IMAGE, deployment_id: 'dep_41', deployed_at: ago(12) }, image_digest: DIGEST, url: 'https://sample-monolith.aws.daisy.dev', health: 'healthy', health_summary: '200 OK', checked_at: ago(1) },
+  { target_id: 'tgt_gcp', type: 'gcp', name: 'gcp-prod', current: { commit: COMMIT, image: IMAGE, deployment_id: 'dep_41', deployed_at: ago(12) }, image_digest: DIGEST, url: 'https://sample-monolith-x7k.a.run.app', health: 'healthy', health_summary: '200 OK', checked_at: ago(1) },
 ]
 
 export const targets: Target[] = [
@@ -66,7 +66,7 @@ export const builds: Build[] = [
     committed_at: ago(2),
     pipeline: {
       status: 'running',
-      run_url: 'https://github.com/Softbank-Hackathon-2026-Team-Daisy/sample-monolith/actions',
+      run_url: '#',
       steps: [
         { name: '이미지 빌드', state: 'done', duration_ms: 42000 },
         { name: '이미지 테스트', state: 'done', duration_ms: 42000 },
@@ -81,13 +81,13 @@ export const builds: Build[] = [
   { commit: 'f4e5d6c', message: 'fix: 헬스체크 경로 수정 (#41)', author: '도영', committed_at: ago(3), pipeline: { status: 'success', run_url: '#' }, image: 'ghcr.io/team-daisy/sample-monolith:f4e5d6c', deployed_to: [] },
 ]
 
-const aiItems: AiUsageItem[] = [
+export const aiItems: AiUsageItem[] = [
   { at: ago(9), target_id: 'tgt_aws', step: 'generate', title: 'Terraform 생성 (deploy.yaml)', attempt: 1, tokens: 3120, cost_krw: 82, status: 'succeeded' },
   { at: ago(9), target_id: 'tgt_aws', step: 'fix', title: '보안 그룹 0.0.0.0/0 수정', attempt: 2, tokens: 1860, cost_krw: 48, status: 'succeeded' },
   { at: ago(10), target_id: 'tgt_gcp', step: 'generate', title: 'Terraform 생성 (deploy.yaml)', attempt: 1, tokens: 2940, cost_krw: 76, status: 'succeeded' },
 ]
 
-const aiUsage = { summary: { calls: 5, tokens: 7920, cost_krw: 206, exchange_rate: 1400, estimated: true }, items: aiItems }
+const aiUsage = { calls: 3, tokens: 7920, cost_krw: 206, exchange_rate: 1380, estimated: true }
 
 type TargetPatch = Partial<DeploymentTarget> & Pick<DeploymentTarget, 'state' | 'step'>
 
@@ -112,7 +112,6 @@ function deployment(id: string, state: Deployment['state'], t: [TargetPatch, Tar
     created_by: '도영',
     created_at: ago(10),
     finished_at: null,
-    ai_usage: aiUsage,
     last_seq: 0,
     ...extra,
   }
@@ -220,7 +219,7 @@ export const plan: Plan = {
     { target_id: 'tgt_aws', counts: { create: 6, update: 0, delete: 0 }, has_delete: false, risks: [] },
     { target_id: 'tgt_gcp', counts: { create: 5, update: 1, delete: 0 }, has_delete: false, risks: [] },
   ],
-  ai_usage: aiUsage.summary,
+  ai_usage: aiUsage,
 }
 
 export const planDetail: PlanDetail[] = [

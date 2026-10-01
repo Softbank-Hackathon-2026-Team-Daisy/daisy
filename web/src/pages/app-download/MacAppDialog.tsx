@@ -4,15 +4,12 @@ import Icon from '../../components/Icon.tsx'
 import InfoRow from '../../components/InfoRow.tsx'
 
 // W-14 앱 설치 — 사이드바 "Mac 앱 받기" · 로그인 폼 아래 링크에서 열어요
-// Mac: GitHub Releases의 .dmg (Developer ID 서명 + 공증 완료), iPhone: TestFlight 공개 링크 (베타 심사 뒤 열려요)
-// 새 빌드가 나오면 승준 님이 알려 주는 값으로 아래 상수만 바꿔요 (PR #9 코멘트, 태그 규칙 mac-v<버전>-<빌드>)
+// Mac: GitHub Releases의 .dmg (Developer ID 서명 + Apple 공증), iPhone: TestFlight 공개 링크 (베타 심사 뒤 열려요)
+// Mac은 고정 주소 mac-latest/Daisy.dmg가 늘 최신 빌드를 가리켜서, 새 빌드가 나와도 웹은 안 바꿔도 돼요 (승준 님 결정 9/30 20:32)
 const MAC_APP = {
-  version: '0.1.0',
-  build: '2609301801',
-  file: 'Daisy-0.1.0-2609301801.dmg',
-  size: '2.6 MB',
+  file: 'Daisy.dmg',
   minOs: 'macOS 15 (Sequoia) 이상',
-  url: 'https://github.com/Softbank-Hackathon-2026-Team-Daisy/daisy/releases/download/mac-v0.1.0-2609301801/Daisy-0.1.0-2609301801.dmg',
+  url: 'https://github.com/Softbank-Hackathon-2026-Team-Daisy/daisy/releases/download/mac-latest/Daisy.dmg',
 }
 const TESTFLIGHT_URL = 'https://testflight.apple.com/join/wF5sjQPG'
 
@@ -41,8 +38,7 @@ function MacAppDialog({ open, onClose }: MacAppDialogProps) {
       }
     >
       <div>
-        <InfoRow label="버전">{`v${MAC_APP.version} · 빌드 ${MAC_APP.build}`}</InfoRow>
-        <InfoRow label="파일">{`${MAC_APP.file} · ${MAC_APP.size}`}</InfoRow>
+        <InfoRow label="파일">{`${MAC_APP.file} · 최신 버전`}</InfoRow>
         <InfoRow label="지원">{MAC_APP.minOs}</InfoRow>
         <InfoRow label="iPhone">
           <a href={TESTFLIGHT_URL} target="_blank" rel="noopener noreferrer" style={{ display: 'inline-flex', alignItems: 'center', gap: 'var(--space-1)' }}>

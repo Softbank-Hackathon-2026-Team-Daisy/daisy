@@ -1,7 +1,7 @@
 import { useNavigate, useParams } from 'react-router'
 import { api } from '../../api/endpoints.ts'
 import type { Build } from '../../api/types.ts'
-import { useResource } from '../../api/useResource.ts'
+import { POLL_MS, useResource } from '../../api/useResource.ts'
 import Button from '../../components/Button.tsx'
 import ConnectionIndicator from '../../components/ConnectionIndicator.tsx'
 import EmptyState from '../../components/EmptyState.tsx'
@@ -18,12 +18,12 @@ import TransitionGate from '../loading/TransitionGate.tsx'
 import { ErrorBlock, LoadingBlock } from '../Loading.tsx'
 import '../page.css'
 
-// W-03 이미지 빌드 (STEP 2) — main merge를 감지하면 GitHub Actions 진행을 보여줘요. 서버 SSE 전까지 폴링
+// W-03 이미지 빌드 (STEP 2) — main merge를 감지하면 Jenkins 빌드 진행을 보여줘요 (9/30 회의). 서버 SSE 전까지 5초 폴링, 끝나면 멈춰요
 const STEP_STATE: Record<string, StepItemState> = { waiting: 'pending', running: 'running', done: 'done', failed: 'failed' }
 
 function BuildPage() {
   const { projectId = '' } = useParams()
-  const builds = useResource(() => api.listBuilds(projectId), [projectId], 2000)
+  const builds = useResource(() => api.listBuilds(projectId), [projectId], POLL_MS, (b) => !!b.items[0] && b.items[0].pipeline.status !== 'running')
   // L-01: 저장소를 연결하고 넘어왔으면 첫 빌드가 나타날 때까지 전환 로딩
   const ready = !!builds.data && builds.data.items.length > 0
 
@@ -54,8 +54,8 @@ function BuildView({ projectId, build }: { projectId: string; build: Build | und
           status === 'success'
             ? '이미지가 준비됐어요. 배포할 환경을 골라 주세요.'
             : status === 'failed'
-              ? '빌드 · 테스트가 실패해서 멈췄어요. Actions 로그를 확인해 주세요.'
-              : 'main merge를 감지했어요. GitHub Actions가 이미지를 만들고 있어요.'
+              ? '빌드 · 테스트가 실패해서 멈췄어요. Jenkins 로그를 확인해 주세요.'
+              : 'main merge를 감지했어요. Jenkins가 이미지를 만들고 있어요.'
         }
       />
 
@@ -75,7 +75,7 @@ function BuildView({ projectId, build }: { projectId: string; build: Build | und
           </div>
 
           <div className="page__row page__row--2">
-            <Panel title="GitHub Actions">
+            <Panel title="Jenkins">
               <div>
                 {(build.pipeline.steps ?? []).map((s) => (
                   <StepItem
@@ -92,7 +92,7 @@ function BuildView({ projectId, build }: { projectId: string; build: Build | und
                   trailing={<Icon name="external-link" size={16} />}
                   onClick={() => window.open(build.pipeline.run_url, '_blank', 'noopener')}
                 >
-                  Actions 로그 열기
+                  Jenkins 로그 열기
                 </Button>
               </div>
             </Panel>
@@ -105,8 +105,8 @@ function BuildView({ projectId, build }: { projectId: string; build: Build | und
                 <InfoRow label="digest">{build.digest ?? '—'}</InfoRow>
               </div>
               <div>
-                {/* MOCK: 서버 SSE(D3) 전까지는 폴링이라 연결 상태는 고정 */}
-                <ConnectionIndicator state="connected" />
+                {/* 서버 SSE(D3) 전까지는 폴링 */}
+                <ConnectionIndicator state="polling" />
               </div>
             </Panel>
           </div>

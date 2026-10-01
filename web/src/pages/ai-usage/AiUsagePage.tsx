@@ -2,7 +2,7 @@ import { useState } from 'react'
 import { useParams } from 'react-router'
 import { attemptLabel } from '../../api/status.ts'
 import { api } from '../../api/endpoints.ts'
-import type { AiUsageItem, Deployment } from '../../api/types.ts'
+import type { AiUsageItem, AiUsageSummary, Deployment } from '../../api/types.ts'
 import { useResource } from '../../api/useResource.ts'
 import Alert from '../../components/Alert.tsx'
 import DataTable from '../../components/DataTable.tsx'
@@ -20,7 +20,8 @@ import { ErrorBlock, LoadingBlock } from '../Loading.tsx'
 import '../page.css'
 
 // W-12 AI 사용량 — 배포를 골라서 그 배포의 AI 호출 · 토큰 · 비용(추정)을 봐요. 차트는 쓰지 않아요
-// 데이터는 A-04 응답의 ai_usage (합계 API WR-11은 서버 확인 중). 여러 배포 합계는 예선 범위에서 안 해요
+// 합계는 A-05 plan 응답의 ai_usage, 호출별 기록은 GET /projects/{id}/ai-usage?deployment_id= (#13, 10/1 서버 결정)
+// plan 전에 멈춘 배포는 plan이 없어서 호출 기록으로 합계를 계산해요. 여러 배포 합계는 예선 범위에서 안 해요
 type Row = { key: string; item: AiUsageItem | null; type: Deployment['targets'][number]['type'] }
 
 function AiUsagePage() {
@@ -29,6 +30,9 @@ function AiUsagePage() {
   const [picked, setPicked] = useState<string | null>(null)
   const id = picked ?? runs.data?.items[0]?.id ?? ''
   const deployment = useResource(() => (id ? api.getDeployment(id) : Promise.resolve(null)), [id])
+  const calls = useResource(() => (id ? api.listAiUsage(projectId, id) : Promise.resolve(null)), [projectId, id])
+  // plan이 없으면(404 등) null로 두고 호출 기록에서 합계를 계산해요
+  const plan = useResource(() => (id ? api.getPlan(id).catch(() => null) : Promise.resolve(null)), [id])
 
   if (runs.error) return <ErrorBlock error={runs.error} />
   if (!runs.data) return <LoadingBlock />
@@ -42,11 +46,12 @@ function AiUsagePage() {
   }
 
   const d = deployment.data
-  const usage = d?.ai_usage
+  const items = calls.data?.items
+  const summary = plan.data?.ai_usage ?? (items ? summarize(items) : null)
   const reused = d?.targets.filter((t) => t.reused_script) ?? []
   const typeOf = (targetId: string) => d?.targets.find((t) => t.target_id === targetId)?.type ?? 'onprem'
   const rows: Row[] = [
-    ...(usage?.items ?? []).map((item, i) => ({ key: `${i}`, item, type: typeOf(item.target_id) })),
+    ...(items ?? []).map((item, i) => ({ key: `${i}`, item, type: typeOf(item.target_id) })),
     ...reused.map((t) => ({ key: `reuse-${t.target_id}`, item: null, type: t.type })),
   ]
 
@@ -68,14 +73,16 @@ function AiUsagePage() {
         />
       </div>
 
-      {!d || !usage ? (
+      {deployment.error || calls.error ? (
+        <ErrorBlock error={(deployment.error ?? calls.error) as Error} />
+      ) : !d || !items || !summary || plan.loading ? (
         <LoadingBlock />
       ) : (
         <>
           <div className="page__row" style={{ gridTemplateColumns: 'repeat(4, minmax(0, 1fr))' }}>
-            <StatTile label="AI 호출" value={`${usage.summary.calls}회`} hint="이번 배포" />
-            <StatTile label="토큰" value={count(usage.summary.tokens)} hint="입력 + 출력" />
-            <StatTile label="비용" value={won(usage.summary.cost_krw)} hint={`추정 · 환율 ${count(usage.summary.exchange_rate)}원 · LLM [미정]`} />
+            <StatTile label="AI 호출" value={`${summary.calls}회`} hint="이번 배포" />
+            <StatTile label="토큰" value={count(summary.tokens)} hint="입력 + 출력" />
+            <StatTile label="비용" value={won(summary.cost_krw)} hint={`추정 · ${summary.exchange_rate ? `환율 ${count(summary.exchange_rate)}원 · ` : ''}Claude`} />
             <StatTile label="재사용한 환경" value={`${reused.length}곳`} hint={reused.length ? `${names(reused)} · AI 호출 0회` : '없음'} />
           </div>
 
@@ -87,7 +94,7 @@ function AiUsagePage() {
               columns={[
                 { key: 'at', label: '시각', width: 100, render: (r) => <span className="t-mono-sm">{r.item ? clockTime(r.item.at) : clockTime(d.created_at)}</span> },
                 { key: 'env', label: '환경', width: 120, render: (r) => <EnvTag env={r.type} /> },
-                { key: 'job', label: '작업', render: (r) => r.item?.title ?? '— 검증된 스크립트 재사용' },
+                { key: 'job', label: '작업', render: (r) => (r.item ? (r.item.title ?? STEP_LABEL[r.item.step]) : '— 검증된 스크립트 재사용') },
                 { key: 'att', label: '시도', width: 80, render: (r) => <span className="t-mono-sm">{r.item ? attemptLabel(r.item.attempt).replace('시도 ', '') : '—'}</span> },
                 { key: 'tok', label: '토큰', width: 90, render: (r) => <span className="t-mono-sm">{r.item ? count(r.item.tokens) : '0'}</span> },
                 { key: 'cost', label: '비용', width: 80, render: (r) => <span className="t-mono-sm">{r.item ? won(r.item.cost_krw) : '₩0'}</span> },
@@ -99,9 +106,9 @@ function AiUsagePage() {
                     !r.item ? (
                       <StatusBadge tone="queued">AI 호출 없음</StatusBadge>
                     ) : r.item.status === 'succeeded' ? (
-                      <StatusBadge tone="success">{r.item.step === 'generate' ? 'plan 통과' : '통과'}</StatusBadge>
+                      <StatusBadge tone="success">호출 성공</StatusBadge>
                     ) : (
-                      <StatusBadge tone="failed">실패</StatusBadge>
+                      <StatusBadge tone="failed">호출 실패</StatusBadge>
                     ),
                 },
               ]}
@@ -109,12 +116,21 @@ function AiUsagePage() {
           </Panel>
 
           <Alert type="info" title="PoC N-09 (선택)">
-            비용 표시는 N-09 결과와 LLM 선택에 따라 달라져요. 범위에서 빠지면 호출 수 · 토큰만 보여줘요.
+            비용 표시는 N-09 결과에 따라 달라져요. 서버가 확인하지 못한 토큰 · 비용은 0 대신 "—"로 보여줘요.
           </Alert>
         </>
       )}
     </div>
   )
+}
+
+const STEP_LABEL: Record<AiUsageItem['step'], string> = { generate: 'Terraform 생성', fix: 'Terraform 수정' }
+
+// 확인 못 한 값(null)이 하나라도 있으면 합계도 null → "—"
+function summarize(items: AiUsageItem[]): AiUsageSummary {
+  const sum = (pick: (i: AiUsageItem) => number | null) =>
+    items.some((i) => pick(i) == null) ? null : items.reduce((acc, i) => acc + (pick(i) ?? 0), 0)
+  return { calls: items.length, tokens: sum((i) => i.tokens), cost_krw: sum((i) => i.cost_krw), exchange_rate: 0, estimated: true }
 }
 
 export default AiUsagePage

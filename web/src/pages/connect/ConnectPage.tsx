@@ -59,7 +59,7 @@ function ConnectPage() {
       <PageHeader overline="Step 1" title="애플리케이션 연결" description="배포할 저장소를 연결해요. 처음 한 번만 하면 돼요." />
 
       <div>
-        <SourceOptionCard icon="git-merge" title="GitHub 레포 연결" description="main에 merge하면 GitHub Actions가 이미지를 빌드해요" selected />
+        <SourceOptionCard icon="git-merge" title="GitHub 레포 연결" description="main에 merge하면 Jenkins가 이미지를 빌드해요" selected />
       </div>
 
       <div className="page__row page__row--2">

@@ -1,6 +1,7 @@
 import { mockApi, MockError } from '../mocks/api.ts'
 import { ApiError, request, USE_MOCK } from './client.ts'
 import type {
+  AiUsageItem,
   AuthToken,
   Build,
   Deployment,
@@ -17,6 +18,7 @@ import type {
 
 // 화면이 부르는 API 목록. 경로는 SPEC.md §6 (공용 ID는 ios/SPEC.md §6). USE_MOCK이면 목업이 대신 답해요
 // 화면은 이 파일만 부르고, 목업 ↔ 실서버 전환은 여기서만 일어나요
+// 상태를 바꾸는 요청은 마지막 인자로 Idempotency-Key를 받아요 — 화면은 useAction이 사용자 동작마다 하나 만들어 줘요
 
 async function mock<T>(fn: () => Promise<T>): Promise<T> {
   try {
@@ -86,12 +88,12 @@ export const api = {
       : request<ListResponse<Deployment>>('GET', `/projects/${projectId}/deployments${q({ state })}`),
 
   // WR-05
-  createDeployment: (projectId: string, commit: string, targetIds: string[]) =>
+  createDeployment: (projectId: string, commit: string, targetIds: string[], key: string) =>
     USE_MOCK
       ? mock(() => mockApi.createDeployment(projectId, commit, targetIds))
       : request<Deployment>('POST', `/projects/${projectId}/deployments`, {
           body: { commit, target_ids: targetIds, strategy: 'recreate' },
-          idempotencyKey: true,
+          idempotencyKey: key,
         }),
 
   // A-04
@@ -103,24 +105,31 @@ export const api = {
     USE_MOCK ? mock(() => mockApi.getPlanDetail(id)) : request<PlanDetail[]>('GET', `/deployments/${id}/plan?detail=resources`),
 
   // API W-01 (웹 화면 ID와 겹쳐서 "API W-01"로 불러요)
-  approve: (id: string, decision: 'approve' | 'reject', confirmText?: string) =>
+  approve: (id: string, decision: 'approve' | 'reject', confirmText: string | undefined, key: string) =>
     USE_MOCK
       ? mock(() => mockApi.approve(id, decision))
       : request<Deployment>('POST', `/deployments/${id}/approvals`, {
           body: { kind: 'plan', decision, confirm_text: confirmText },
-          idempotencyKey: true,
+          idempotencyKey: key,
         }),
 
   // WR-08 · WR-14
-  cancel: (id: string) => (USE_MOCK ? mock(() => mockApi.cancel(id)) : request<Deployment>('POST', `/deployments/${id}/cancel`, { idempotencyKey: true })),
-  rollback: (id: string, targetIds: string[], reason?: string) =>
+  cancel: (id: string, key: string) =>
+    USE_MOCK ? mock(() => mockApi.cancel(id)) : request<Deployment>('POST', `/deployments/${id}/cancel`, { idempotencyKey: key }),
+  rollback: (id: string, targetIds: string[], reason: string | undefined, key: string) =>
     USE_MOCK
       ? mock(() => mockApi.rollback(id, targetIds))
-      : request<Deployment>('POST', `/deployments/${id}/rollback`, { body: { target_ids: targetIds, reason }, idempotencyKey: true }),
+      : request<Deployment>('POST', `/deployments/${id}/rollback`, { body: { target_ids: targetIds, reason }, idempotencyKey: key }),
 
   // A-07
   getLogs: (id: string, targetId?: string) =>
     USE_MOCK ? mock(() => mockApi.getLogs(id)) : request<LogLine[]>('GET', `/deployments/${id}/logs${q({ target_id: targetId, tail: '100' })}`),
+
+  // AI 사용량 호출별 기록 (#13 서버 결정, 합계는 A-05 plan 응답)
+  listAiUsage: (projectId: string, deploymentId: string) =>
+    USE_MOCK
+      ? mock(() => mockApi.listAiUsage(projectId, deploymentId))
+      : request<ListResponse<AiUsageItem>>('GET', `/projects/${projectId}/ai-usage${q({ deployment_id: deploymentId })}`),
 
   // A-06
   listBuilds: (projectId: string) =>
@@ -130,7 +139,7 @@ export const api = {
   getScript: (deploymentId: string, targetId: string) =>
     USE_MOCK
       ? mock(() => mockApi.getScript(deploymentId, targetId))
-      : request<string>('GET', `/deployments/${deploymentId}/targets/${targetId}/script`),
+      : request<Script>('GET', `/deployments/${deploymentId}/targets/${targetId}/script`),
   listScripts: (projectId: string) =>
     USE_MOCK ? mock(() => mockApi.listScripts(projectId)) : request<Script[]>('GET', `/projects/${projectId}/scripts`),
 }

@@ -1,4 +1,4 @@
-import type { AuthToken, Deployment, DeploymentTarget, ListResponse } from '../api/types.ts'
+import type { AiUsageItem, AuthToken, Deployment, DeploymentTarget, ListResponse, Script } from '../api/types.ts'
 import * as s from './scenario.ts'
 
 // MOCK: 서버 대신 응답하는 목업 API. 모양은 SPEC.md §6과 같아요. 서버가 열리면 VITE_USE_MOCK=false로 꺼요
@@ -152,9 +152,16 @@ export const mockApi = {
     }
     return { items, next_cursor: null }
   },
-  async getScript(_id: string, _targetId: string) {
+  async listAiUsage(_projectId: string, _deploymentId: string): Promise<ListResponse<AiUsageItem>> {
     await wait()
-    return s.generatedScript
+    return { items: clone(s.aiItems), next_cursor: null }
+  },
+  async getScript(_id: string, targetId: string): Promise<Script> {
+    await wait()
+    const base = s.scripts.find((x) => x.target_id === targetId) ?? s.scripts[0]
+    // AWS는 AI가 고친 diff, 나머지는 저장된 스크립트를 보여줘요
+    if (targetId !== 'tgt_aws' && base.files) return clone(base)
+    return { ...clone(base), files: [{ path: `${base.type}/main.tf`, content: s.generatedScript }] }
   },
   async listScripts(_projectId: string) {
     await wait()
