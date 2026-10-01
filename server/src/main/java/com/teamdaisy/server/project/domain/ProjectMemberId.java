@@ -34,4 +34,12 @@ public class ProjectMemberId implements Serializable {
   public int hashCode() {
     return Objects.hash(projectId, accountId);
   }
+
+  public String projectId() {
+    return projectId;
+  }
+
+  public String accountId() {
+    return accountId;
+  }
 }

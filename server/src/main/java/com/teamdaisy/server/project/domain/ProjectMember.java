@@ -21,4 +21,22 @@ public class ProjectMember {
   private Instant revokedAt;
 
   protected ProjectMember() {}
+
+  public static ProjectMember grant(
+      String projectId, String accountId, String grantedBy, Instant now) {
+    ProjectMember member = new ProjectMember();
+    member.id = new ProjectMemberId(projectId, accountId);
+    member.grantedBy = grantedBy;
+    member.grantedAt = now;
+    return member;
+  }
+
+  public ProjectMemberId id() {
+    return id;
+  }
+
+  /** 접근 권한이 살아 있는지. 철회된 뒤에도 행은 남겨 이력을 지켜요. */
+  public boolean isActive() {
+    return revokedAt == null;
+  }
 }
