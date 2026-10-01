@@ -38,4 +38,46 @@ public class Account {
   private Instant disabledAt;
 
   protected Account() {}
+
+  public static Account create(
+      String id,
+      String username,
+      String passwordHash,
+      String displayName,
+      String role,
+      Instant now) {
+    Account account = new Account();
+    account.id = id;
+    account.username = username;
+    account.passwordHash = passwordHash;
+    account.displayName = displayName;
+    account.role = role;
+    account.createdAt = now;
+    account.updatedAt = now;
+    return account;
+  }
+
+  public String id() {
+    return id;
+  }
+
+  public String username() {
+    return username;
+  }
+
+  public String passwordHash() {
+    return passwordHash;
+  }
+
+  public String displayName() {
+    return displayName;
+  }
+
+  public String role() {
+    return role;
+  }
+
+  public boolean isActive() {
+    return disabledAt == null;
+  }
 }
