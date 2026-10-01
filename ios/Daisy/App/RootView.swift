@@ -53,6 +53,9 @@ private struct TabLayout: View {
         TabStack(tab: router.tab)
             .id(router.tab)
             .frame(maxWidth: .infinity, maxHeight: .infinity)
+            // 모든 화면의 스크롤 끝에 탭 바 높이 + 여백을 둬요. 마지막 줄까지 바 위로 올라와 보여요 (10/1)
+            .contentMargins(.bottom, SlimTabBar.height + 24, for: .scrollContent)
+            // 승인 바 같은 화면 아래 고정 요소는 탭 바 위에 쌓여요
             .safeAreaInset(edge: .bottom, spacing: 0) {
                 SlimTabBar()
                     .padding(.horizontal, 20)
@@ -63,6 +66,7 @@ private struct TabLayout: View {
 
 /// 아이콘 탭 한 줄. 선택 표시는 사이드바와 같은 `.fill.tertiary` 알약이 스프링으로 미끄러져요.
 private struct SlimTabBar: View {
+    static let height: CGFloat = 44
     @Environment(Router.self) private var router
     @Environment(Workspace.self) private var workspace
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
@@ -75,7 +79,7 @@ private struct SlimTabBar: View {
             }
         }
         .padding(4)
-        .frame(height: 44)
+        .frame(height: Self.height)
         .glassSurface(in: .capsule)
     }
 
