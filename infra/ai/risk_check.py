@@ -89,6 +89,27 @@ def check_aws(plan: dict, src_text: str) -> list[str]:
     return v
 
 
+def check_onprem(plan: dict, src_text: str) -> list[str]:
+    """(가칭 · 황지환 확인) 온프레미스 Docker 컨테이너 규칙. 노출은 pfSense를 거친 Service VM IP로만 해요."""
+    v = []
+    for typ, addr, after in changes(plan):
+        if typ != "docker_container":
+            continue
+        if after.get("privileged"):
+            v.append(f"{addr}: privileged 컨테이너는 쓰지 않아요 (R-6)")
+        if after.get("network_mode") == "host":
+            v.append(f"{addr}: host 네트워크는 쓰지 않아요. 포트를 게시해요 (R-2)")
+        for port in after.get("ports") or []:
+            if port.get("ip") in (None, "", "0.0.0.0", "::"):
+                v.append(f"{addr}: 포트는 Service VM IP(host_ip)에만 바인딩해요. 0.0.0.0 금지 (R-1)")
+        for m in (after.get("volumes") or []) + (after.get("mounts") or []):
+            if "docker.sock" in str(m.get("host_path") or m.get("source") or ""):
+                v.append(f"{addr}: Docker 소켓을 컨테이너에 마운트하지 않아요 (R-6)")
+    if re.search(r'^\s*host\s*=\s*"tcp://', src_text, re.M):
+        v.append("Docker provider는 ssh://로만 접속해요. 인증 없는 tcp:// 금지")
+    return v + check_common(plan, src_text)
+
+
 def check_common(plan: dict, src_text: str) -> list[str]:
     v = []
     if re.search(r"^\s*backend\s+\"[a-z0-9_]+\"\s*\{", _without_runner_backend(src_text), re.M):
@@ -150,12 +171,15 @@ def main() -> int:
     src_text = "\n".join(f.read_text(encoding="utf-8") for f in sorted(a.src.glob("*.tf")))
     if a.env == "aws":
         violations = check_aws(plan, src_text)
+    elif a.env == "onprem":
+        violations = check_onprem(plan, src_text)
     else:
         violations = check_common(plan, src_text)  # GCP 규칙은 GCP 모듈과 함께 추가해요
     for line in violations:
         print(f"위험: {line}")
     if not violations:
-        print(f"risk_check: {a.env} 통과 (R-1~R-6 · 비용 제약 · 고정 네트워크)")
+        scope = {"aws": "R-1~R-6 · 비용 제약 · 고정 네트워크", "onprem": "컨테이너 격리 · 바인딩 · 구조"}.get(a.env, "구조")
+        print(f"risk_check: {a.env} 통과 ({scope})")
     return 1 if violations else 0
 
 
