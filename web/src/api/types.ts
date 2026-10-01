@@ -47,7 +47,7 @@ export type TargetStatus = {
   image_digest?: string // WR-09
   url: string | null
   health: Health
-  health_summary?: string // 예: "200 OK · p95 120ms" (#13 가칭). 없으면 상태만 보여줘요
+  health_summary?: string // 예: "200 OK · 120ms" — 헬스체크 1회 측정이라 p95는 없어요 (#17 인프라 답). 없으면 상태만 보여줘요
   checked_at: string
 }
 
@@ -65,7 +65,7 @@ export type Target = {
   location_label?: '위치' | '리전'
   access_method?: string
   exposure?: string
-  state_backend?: string | null
+  state_backend?: string | null // 예: "S3 (잠금)" · "GCS (잠금)" — 서버가 준 이름 그대로 (#17). 온프레미스는 미정
   current_commit?: string | null
 }
 
@@ -82,7 +82,7 @@ export type DeploymentTarget = {
   // 아래는 앱 요청 #13의 선택 필드 (가칭). 없으면 화면이 단계 · 상태에서 추정해요
   title?: string // 예: "ap-northeast-2 · ECS Fargate"
   steps?: { name: string; state: 'waiting' | 'running' | 'done' | 'failed'; duration_ms?: number }[]
-  health_summary?: string // 예: "200 OK · p95 120ms"
+  health_summary?: string // 예: "200 OK · 120ms" (1회 측정, #17)
 }
 
 // AI 사용량 합계는 A-05 plan 응답에 같이 와요 (#13, 10/1 서버 결정). 확인 못 한 토큰 · 비용은 null
@@ -155,7 +155,8 @@ export type Build = {
   message: string
   author: string
   committed_at: string
-  pipeline: { status: 'running' | 'success' | 'failed'; run_url: string; steps?: { name: string; state: 'running' | 'done' | 'failed' | 'waiting'; duration_ms?: number }[] }
+  // Jenkins 화면은 외부 비공개라 run_url은 화면에서 쓰지 않아요 (#17). 단계는 Checkout → Test → Build & Push → Trigger CD
+  pipeline: { status: 'running' | 'success' | 'failed'; run_url?: string; steps?: { name: string; state: 'running' | 'done' | 'failed' | 'waiting'; duration_ms?: number }[] }
   image: string | null
   digest?: string
   deployed_to: { target_id: string; deployment_id: string; deployed_at: string }[]

@@ -36,8 +36,8 @@ export const targetStatus: TargetStatus[] = [
 
 export const targets: Target[] = [
   { target_id: 'tgt_onprem', type: 'onprem', name: 'home-lab', title: '온프레미스 · Docker Compose', runtime: 'Proxmox VM · Docker Compose', location: 'home-lab', location_label: '위치', access_method: '사설망(VPN) + SSH', exposure: '팀 도메인 HTTPS', state_backend: null, current_commit: COMMIT, reuse: { available: true, script_id: 'scr_onprem_s3', reason: 'home-lab Proxmox VM · 사설망 · 검증된 스크립트 있음 → 태그만 교체' }, connection: { state: 'ok', checked_at: ago(1) } },
-  { target_id: 'tgt_aws', type: 'aws', name: 'aws-prod', title: 'AWS · ECS + ALB', runtime: 'ECS Fargate + ALB', location: 'ap-northeast-2', location_label: '리전', access_method: 'IAM 역할', exposure: 'ALB · 팀 도메인', state_backend: null, current_commit: COMMIT, reuse: { available: false, reason: 'ap-northeast-2 · 처음 배포 → AI가 Terraform 생성' }, connection: { state: 'ok', checked_at: ago(1) } },
-  { target_id: 'tgt_gcp', type: 'gcp', name: 'gcp-prod', title: 'GCP · Cloud Run', runtime: 'Cloud Run', location: 'asia-northeast3', location_label: '리전', access_method: '서비스 계정', exposure: 'run.app 자동 URL', state_backend: null, current_commit: COMMIT, reuse: { available: false, reason: 'asia-northeast3 · 처음 배포 → AI가 Terraform 생성' }, connection: { state: 'ok', checked_at: ago(1) } },
+  { target_id: 'tgt_aws', type: 'aws', name: 'aws-prod', title: 'AWS · ECS + ALB', runtime: 'ECS Fargate + ALB', location: 'ap-northeast-2', location_label: '리전', access_method: 'IAM 역할', exposure: 'ALB · 팀 도메인', state_backend: 'S3 (잠금)', current_commit: COMMIT, reuse: { available: false, reason: 'ap-northeast-2 · 처음 배포 → AI가 Terraform 생성' }, connection: { state: 'ok', checked_at: ago(1) } },
+  { target_id: 'tgt_gcp', type: 'gcp', name: 'gcp-prod', title: 'GCP · Cloud Run', runtime: 'Cloud Run', location: 'asia-northeast3', location_label: '리전', access_method: '서비스 계정', exposure: 'run.app 자동 URL', state_backend: 'GCS (잠금)', current_commit: COMMIT, reuse: { available: false, reason: 'asia-northeast3 · 처음 배포 → AI가 Terraform 생성' }, connection: { state: 'ok', checked_at: ago(1) } },
 ]
 
 export const manifest: Manifest = {
@@ -66,19 +66,18 @@ export const builds: Build[] = [
     committed_at: ago(2),
     pipeline: {
       status: 'running',
-      run_url: '#',
       steps: [
-        { name: '이미지 빌드', state: 'done', duration_ms: 42000 },
-        { name: '이미지 테스트', state: 'done', duration_ms: 42000 },
-        { name: '커밋 해시로 태그', state: 'done', duration_ms: 42000 },
-        { name: '레지스트리 업로드', state: 'running', duration_ms: 18000 },
+        { name: 'Checkout', state: 'done', duration_ms: 4000 },
+        { name: 'Test', state: 'done', duration_ms: 42000 },
+        { name: 'Build & Push', state: 'running', duration_ms: 18000 },
+        { name: 'Trigger CD', state: 'waiting' },
       ],
     },
     image: IMAGE,
     digest: 'sha256:9f3c…e21a',
     deployed_to: [],
   },
-  { commit: 'f4e5d6c', message: 'fix: 헬스체크 경로 수정 (#41)', author: '도영', committed_at: ago(3), pipeline: { status: 'success', run_url: '#' }, image: 'ghcr.io/team-daisy/sample-monolith:f4e5d6c', deployed_to: [] },
+  { commit: 'f4e5d6c', message: 'fix: 헬스체크 경로 수정 (#41)', author: '도영', committed_at: ago(3), pipeline: { status: 'success' }, image: 'ghcr.io/team-daisy/sample-monolith:f4e5d6c', deployed_to: [] },
 ]
 
 export const aiItems: AiUsageItem[] = [
@@ -124,7 +123,7 @@ const st = (name: string, state: StepState, sec?: number) => ({ name, state, dur
 const VALIDATED = [st('스크립트 재사용', 'done', 2), st('terraform validate', 'done', 42), st('terraform plan', 'done', 42), st('위험 설정 검사', 'done', 42)]
 const AI_VALIDATED = [st('Terraform 생성 (AI)', 'done', 42), st('terraform validate', 'done', 42), st('terraform plan', 'done', 42), st('위험 설정 검사', 'done', 42)]
 const APPLIED = [st('이미지 pull', 'done', 42), st('terraform apply', 'done', 42), st('state 저장', 'done', 42), st('헬스체크', 'done', 42)]
-const HEALTHY = '200 OK · p95 120ms'
+const HEALTHY = '200 OK · 120ms'
 
 // 화면별로 고정된 상태 — 경로의 deploymentId로 골라 봐요 (/projects/prj_monolith/deployments/dep_generate/generate 등)
 export const deployments: Record<string, Deployment> = {

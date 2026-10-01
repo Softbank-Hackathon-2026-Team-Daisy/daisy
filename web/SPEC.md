@@ -67,7 +67,7 @@ W-00 로그인 → W-01 개요 → W-02 저장소 연결 → L-01 → W-03 이�
 | W-01 | **개요** | 환경별 현재 버전(커밋 · 배포 시각 · 공개 URL · 헬스), "3/3 일치" 이식성 표시, 지금 할 일(승인 대기 → W-06, Secondary 버튼), 최근 실행 | M |
 | W-02 | **애플리케이션 연결** (STEP 1) | 저장소 URL, 배포 기준 브랜치, `deploy.yaml` 확인. 입력은 GitHub 저장소 연결 하나 (ADR-004). 데모 앱 sample-monolith 기준 (포트 8080, `/health`, DB 없음) | M |
 | ~~W-02b~~ | ~~연결 · 업로드~~ | **범위 제외 (9/30).** 소스 업로드 API가 빠졌어요. 와이어프레임에는 기록용으로 흐리게 남아 있고, 구현하지 않아요 | — |
-| W-03 | **이미지 빌드** (STEP 2) | main merge 감지, Jenkins 빌드 진행, 이미지 태그(커밋 해시) | M |
+| W-03 | **이미지 빌드** (STEP 2) | main merge 감지, Jenkins 빌드 단계(`Checkout → Test → Build & Push → Trigger CD`), 이미지 태그(커밋 해시). Jenkins 화면은 외부 비공개라 로그 링크 없음 (#17) | M |
 | W-04 | **배포할 환경 선택** (STEP 3) | 여러 환경 동시 선택, 카드에 재사용 / 새로 생성 미리 표시, 선택 요약 | M |
 | W-05 | **인프라 코드 생성 · 검증** (STEP 4) | 환경별 진행과 "시도 n/3", 검증 단계, 생성된 스크립트 보기. SSE로 실시간 갱신 | M |
 | W-05b | **AWS만 멈췄어요** | 한 환경이 3번 모두 실패하면 그 환경만 멈추고(`failed`) 나머지는 계속 진행해요. 시도 기록과 환경별 상태. "빼고 계속" 버튼 없음 | M |
@@ -311,11 +311,11 @@ Page ──▶ hook ──▶ api/client ──────────▶ Daisy
 | 필드 | 쓰는 곳 | 비고 |
 |---|---|---|
 | `Deployment.targets[].steps[] { name, state, duration_ms }` | W-05 · W-05b · W-07 단계 · 소요 시간 | #13 |
-| `Deployment.targets[].title` · `health_summary` | W-07 레인 · W-08 결과 카드 | #13 |
+| `Deployment.targets[].title` · `health_summary` | W-07 레인 · W-08 결과 카드 | #13. 헬스는 1회 측정이라 `"200 OK · 120ms"` 형식, p95 없음 (#17 인프라) |
 | `PlanDetail.resources[].monthly_cost_krw` | W-06 리소스별 월 비용 | 🆕 새 요청 |
 | 동일성 검증 "앱 버전" · "환경변수 해시" (환경별) | W-01 · W-08 동일성 검증 표 | 🆕 새 요청. 지금은 digest · 커밋 · 배포 버전 · 헬스체크만 |
 | `Build.pipeline.steps[]` · `digest` | W-03 | #13 |
-| `Target`의 `runtime` · `location` · `access_method` · `exposure` · `state_backend` · `current_commit` | W-10 | #13 |
+| `Target`의 `runtime` · `location` · `access_method` · `exposure` · `state_backend` · `current_commit` | W-10 | #13. `state_backend`는 "S3 (잠금)" · "GCS (잠금)"처럼 서버가 준 이름 그대로, 온프레미스는 미정 (#17) |
 | `Script`의 `base_commit` · `input` · `ai_tokens` · `storage` · `created_at` · `files` | W-11 | #13 |
 | `Manifest.raw` (deploy.yaml 원문) | W-13 | #13 |
 | `Project`의 `build` · `registry` · `webhook_last_at` | W-13 | #13 (A-12) |
@@ -439,5 +439,6 @@ Page ──▶ hook ──▶ api/client ──────────▶ Daisy
 | 9/30 | 와이어프레임 수정 · 서버 답변 반영: W-00 로그인 추가, W-02b 범위 제외, W-05b 한 환경만 중단, 상태 값(§2-5), 롤백(WR-14) 범위 포함, WR-01 `fetch` 스트리밍, WR-04 · WR-05 모양 확정, W-12 배포별 보기, Q7 · Q9 · Q10 해결 | 김도영 |
 | 9/30 | 승준 님 코멘트 반영: §1-1 앱 범위는 회의 안건으로 표시(ADR-007 기준 유지), §6-1-1 앱 요청(#13) 중 웹도 쓰는 R-09 · A-10 ~ A-12 연결 | 김도영 |
 | 9/30 | W-14 Mac 앱 다운로드(Dialog) 추가 (와이어프레임 갱신) | 김도영 |
+| 10/1 | 인프라 답(#17) 반영: W-03 Jenkins 로그 링크 제거 · 단계 이름, 헬스 1회 측정 형식, W-10 state 저장소 이름 | 김도영 |
 | 10/1 | 리뷰 · 결정 반영(#18): W-12 데이터 출처(A-05 + ai-usage), 호출 성공 · 실패, 빌드 Jenkins, W-14 고정 주소, 다시 시도 = 새 배포, 목록 봉투 질문, `pages/image-build` | 김도영 |
 | 9/30 | 화면 구현 반영(#15 · #18): 화면 경로 §2-6, 배지 색 확정, 전환 로딩 끝 신호 정정, 선택 필드 요청 §6-1-2, W-14 값 확정, 롤백 범위 `[미정]` 표시, 웹 담당 김도영(루트 §5-1), 일정 갱신 | 김도영 |
