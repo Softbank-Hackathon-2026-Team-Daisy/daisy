@@ -214,6 +214,7 @@ APP=hellocalc IMAGE_TAG=<커밋 해시 40자> infra/scripts/tf-run.sh aws plan
 | 2026-10-01 | Site-to-Site VPN 제외, AWS는 API, 내부 Service VM은 SSH로 배포 | 사설망 연결 없이 배포 가능. 짧은 마감에 터널·라우팅 구성과 검증 부담 축소 | 황지환·임채준 합의 |
 | 2026-10-01 | WireGuard 원격 접속은 허용된 개발자에게 제한 | 개발자 관리 접속을 서비스 공개 및 자동 배포 경로와 분리 | 황지환·임채준 합의 |
 | 2026-10-01 | `[온프레미스]` Compose는 사용자 검증용, 배포 리소스 관리 주체는 Terraform | 기존 Compose 배포 제안을 대체. 같은 컨테이너·네트워크·볼륨의 이중 관리 방지 | 1 |
+| 2026-10-02 | `daisy-cd-plan` · `daisy-cd-apply`가 서버 요청(`request_id` · `payload`)을 받고, 대상별 결과를 서버 콜백(`/internal/jenkins/callbacks`, `X-Daisy-Jenkins-Token`)으로 보내요. `state_identity`는 러너가 실제로 쓰는 state 위치 `(가칭 · 서버 확인, #35)` | 서버(PR #40)가 이미 이 형식으로 보내고 받아요. plan의 `script_id`가 서버가 정하는 ID라 산출물 폴링으로는 안 돼요 (클라우드 SPEC §12-9) | 2 (서버가 쓰는 계약, 김승환 · 하은현에게 공유) |
 
 ## 10. 아직 정하지 못한 것
 
@@ -221,7 +222,7 @@ APP=hellocalc IMAGE_TAG=<커밋 해시 40자> infra/scripts/tf-run.sh aws plan
 |---|---|---|
 | §4 공통 규약 | 임채준 제안. 온프레미스에도 맞는지 확인 필요 | 황지환 |
 | state 저장소 | 방향은 "환경마다 그 환경의 저장소 + 잠금"(§9). **AWS S3 버킷은 아직 안 만들어서 state가 임채준 러너 VM 로컬에 있어요** → 다른 Jenkins와 공유 · 잠금이 안 돼요. **온프레미스 저장소**와 **key 형식**(`{project_id}/{target_id}`)도 남았어요 | 임채준(S3) · 팀 회의 확인 · 황지환(온프레미스) · 하은현(key) |
-| 서버 ↔ Jenkins 세부 계약 | 도구·실행 주체·승인 창구 확정, CD 두 Job 구조 확정(§9). PR #17 코멘트의 호출 흐름은 분리 **전** 기준이라 두 Job 기준(`PLAN_BUILD` · `APPROVAL_ID`, `plan-summary.json`)으로 다시 공유해야 해요. 중단 요청 방식은 남았어요 | 황지환 · 임채준, 서버와 조율 |
+| 서버 ↔ Jenkins 세부 계약 | 10/2 Jenkins 쪽 구현(클라우드 SPEC §12-9): 서버 요청 · 대상별 콜백 · `state_identity` 규칙 · apply 대조. 서버 쪽 콜백 인증 · 공개 경로 · 빌드 기록 유입과 실제 연결 검증이 남았어요 (#35). apply 중단은 지원하지 않아요 | 임채준 · 서버(김승환 · 하은현) |
 | 승인 전 plan과 승인 후 apply 연결 | 구조는 **두 Job으로 분리**해서 정했어요 (§9, 클라우드 SPEC §12-7). 서버 쪽 승인 ID 발급 · 재승인 · 중복 요청 처리와 서버 연결 구현이 남았어요 | 인프라 · 서버 |
 | 컨테이너 레지스트리 | 루트 `[미정]` | **팀 회의** |
 | 온프레미스 Docker 모듈 계약 | 기존 VM의 컨테이너를 Terraform으로 관리하는 방식 확정. provider·버전, 리소스 범위와 공통 입력·출력 매핑은 미정 | 황지환 · 임채준, 서버와 계약 공유 |
