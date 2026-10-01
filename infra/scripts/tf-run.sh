@@ -197,7 +197,7 @@ apply_plan() {
   [[ -f $PLAN_DIR/meta.json ]] || die "plan이 없어요: $PLAN_ID"
   [[ $(jq -r .applied_at "$PLAN_DIR/meta.json") == null ]] || die "이미 적용한 plan이에요: $PLAN_ID"
   [[ -f $PLAN_DIR/src/plan.tfplan ]] || die "plan 파일이 없어요: $PLAN_ID"
-  [[ $(sha256sum "$PLAN_DIR/src/plan.tfplan" | cut -d' ' -f1) == $(jq -r .plan_sha256 "$PLAN_DIR/meta.json") ]] ||
+  [[ $(sha256sum "$PLAN_DIR/src/plan.tfplan" | cut -d' ' -f1) == "$(jq -r .plan_sha256 "$PLAN_DIR/meta.json")" ]] ||
     die "plan 파일이 승인한 것과 달라요: $PLAN_ID (다시 plan · 승인해요)"
   # plan을 만든 뒤 state를 S3로 옮겼으면, 그 plan은 옛 state(로컬)에 적용돼요. 다시 plan해야 해요
   local planned_backend
@@ -268,7 +268,7 @@ migrate_state() { # 로컬 state를 S3로 옮겨요. S3에 다른 state가 있�
   got=$(terraform -chdir="$dir" state pull | state_summary)
   if [[ $(jq '.managed | length' <<<"$want") == 0 ]]; then
     echo "tf-run: 옮길 리소스가 없어요 (빈 state). S3에서 새로 시작해요"
-  elif [[ $(jq -c .managed <<<"$got") == $(jq -c .managed <<<"$want") ]]; then
+  elif [[ $(jq -c .managed <<<"$got") == "$(jq -c .managed <<<"$want")" ]]; then # 오른쪽은 따옴표: 없으면 [ ] 를 패턴으로 봐요
     echo "tf-run: S3에 같은 리소스를 가리키는 state가 이미 있어요 (앞서 올린 것). 그대로 써요"
   elif [[ $(jq '.managed | length' <<<"$got") != 0 ]]; then
     state_diff "$want" "$got"
@@ -276,7 +276,7 @@ migrate_state() { # 로컬 state를 S3로 옮겨요. S3에 다른 state가 있�
   else
     terraform -chdir="$dir" state push "$src"
     got=$(terraform -chdir="$dir" state pull | state_summary)
-    if [[ $(jq -c .managed <<<"$got") != $(jq -c .managed <<<"$want") ]]; then
+    if [[ $(jq -c .managed <<<"$got") != "$(jq -c .managed <<<"$want")" ]]; then
       state_diff "$want" "$got"
       die "S3에 올린 state가 로컬과 달라요. 로컬 state는 그대로 뒀어요: $src"
     fi
