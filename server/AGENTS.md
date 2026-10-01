@@ -169,6 +169,12 @@ docker compose up -d postgres    # Postgres 17
 | 2026-10-01 | **#32 V1 통합, owner/viewer, prepare 유지** | 인증 담당 역할 확정. prepare는 daisy-cd-plan에 매핑. apply 중 stop 없이 요청을 기록하고 실제 결과를 기다리는 방향으로 #32 답변 | 1 |
 | 2026-10-01 | **#38 통합 경계 보완** | 저장 `digest` → 조회 `image_digest` 매핑, 인증 이전 CORS·OpenAPI Bearer 명시. 경로·인가·V1 유지, 사용자 승인. [통합 일지](docs/sh/2026-10-01-auth-merge.md) | 1 |
 | 2026-10-01 | **내부 배포 조회는 현재 포인터와 성공 이력을 분리** | current는 관리가 읽은 명시 포인터, deployed_to는 정확한 빌드·대상별 마지막 성공. 최근 성공을 현재 관측으로 추정하지 않음. 공개 DTO는 은현 연결 후속, [계약](docs/execution-service-contract.md) | 1 |
+| 2026-10-02 | **공개 배포 API 코드는 `project/` 에 둠** | §3 에서 `deployment/` 는 승환 폴더. 은현의 공개 API·어댑터는 `project/{access,execution,application,web}` | 1 |
+| 2026-10-02 | **승인 공개 요청은 `approve`/`reject` + `items[{target_id, approval_id}]`, 빈 `items`·중복 `target_id` 는 400** | 사용자가 본 대상만 승인(S4). 서버가 대상을 채우면 화면에 없던 대상까지 승인될 수 있음. 승인 ID 는 A-04 `pending_approvals` 로 제공 | 1 |
+| 2026-10-02 | **A-02 `current_status`(none·confirmed·unverified), 대상별 격리** | `current: null` 은 "배포 없음"이 아니라 "확인된 참조 없음". 포인터 하나의 409 가 화면 전체를 깨지 않게 함 | 1 |
+| 2026-10-02 | **A-02 만 트랜잭션 `NOT_SUPPORTED`** | 조회 서비스가 `@Transactional(readOnly)` 라 같은 트랜잭션에서 예외를 잡으면 커밋에서 `UnexpectedRollbackException`(500). 실측으로 확인. [SPEC](SPEC.md) | 1 |
+| 2026-10-02 | **배포 입력 `strategy` 는 `recreate` 만, `hash_format_version` 은 서버가 1 로 고정** | 계약상 recreate 만 지원. 사용자가 해시 형식 번호를 바꾸지 못하게 함 | 1 |
+| 2026-10-02 | **(확인 대기) 재시도·롤백 때 대상 설정 revision·자격증명 버전이 바뀌면 409, `disconnected` 대상 생성 409** | 은현 제안. 승환 확인 전이라 각각 메서드 하나로 분리해 둠 | 1 |
 
 ## 11. 아직 정하지 못한 것
 
