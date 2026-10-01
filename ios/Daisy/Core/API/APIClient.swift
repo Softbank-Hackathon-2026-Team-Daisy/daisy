@@ -1,6 +1,6 @@
 import Foundation
 
-/// Daisy 서버 REST 클라이언트. 모든 요청에 Bearer 토큰을 붙여요 (SPEC R-01).
+/// Unibloom 서버 REST 클라이언트. 모든 요청에 Bearer 토큰을 붙여요 (SPEC R-01).
 struct APIClient: Sendable {
     let baseURL: URL
     let token: String?

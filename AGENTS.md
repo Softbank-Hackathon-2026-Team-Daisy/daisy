@@ -310,6 +310,14 @@ The team has ₩300,000 of cloud credit in total. ALB, NAT Gateway, and RDS cost
 - API agreement record: Notion "Backend API Endpoint" › "프론트 ↔ 백엔드 계약 초안 v0.2". The server's OpenAPI wins when they differ.
 - Branch, commit, PR rules: `CONTRIBUTING.md`.
 - Per-area rules and decisions logs: `{area}/AGENTS.md`.
+- **Team decision board: `BOARD.md` at the repo root** (moved from `ios/BOARD.md` on 10/1 and shared by every area). It lists only decisions, in time order (KST), each with a Slack, Notion, or GitHub link; reversals stay as strikethrough. Read it during the contradiction check (§8): where it is newer than this file, it shows what the team decided since. A board agent refreshes it every 30 minutes and edits only that file.
+
+### 12-10. Decided on 10/1 evening (after v1.2; details and links in `BOARD.md`)
+
+- **Name.** The service is **Unibloom** (10/1 meeting); the team is still Team Daisy. The GitHub repo `daisy` is now **`unibloom`** (old URLs redirect; run `git remote set-url origin https://github.com/Softbank-Hackathon-2026-Team-Daisy/unibloom.git`). Each area cleans up `daisy` wording in its own docs; code identifiers, bundle IDs, and the TestFlight record may keep `daisy`.
+- **Domain.** `unibloom.cloud` replaces `daisydeploy.dev` (bought 10/1 by 황지환, HTTPS setup in progress).
+- **App download.** The Mac app ships as `Unibloom.dmg` at `…/unibloom/releases/download/mac-latest/Unibloom.dmg` (W-14). `Daisy.dmg` stays at the same release as a copy until the web switches.
+- **Query API shapes** (server #38, accepted by the web, not merged yet): build `pipeline.status` adds `queued` ("대기 중"); lists use `{ items, next_cursor }`; A-02 `current` is null when nothing is deployed; A-06 has no commit message, author, or commit time yet; roles are `owner` and `viewer`.
 
 ## 13. Maintaining these files
 

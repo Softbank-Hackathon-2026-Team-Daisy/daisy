@@ -12,8 +12,18 @@ struct Project: Decodable, Identifiable, Hashable, Sendable {
     let id: String
     let name: String
     let repository: String?
-    /// 배포 기준 브랜치 (가칭)
+    /// 배포 기준 브랜치. 서버(#38)는 `default_branch`로 줘요. 예전 이름 `branch`도 받아요
     let branch: String?
+
+    private enum CodingKeys: String, CodingKey { case id, name, repository, branch, defaultBranch }
+
+    init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        id = try c.decode(String.self, forKey: .id)
+        name = try c.decode(String.self, forKey: .name)
+        repository = try c.decodeIfPresent(String.self, forKey: .repository)
+        branch = try c.decodeIfPresent(String.self, forKey: .defaultBranch) ?? c.decodeIfPresent(String.self, forKey: .branch)
+    }
 }
 
 // MARK: - 현황 (A-02)
@@ -238,8 +248,9 @@ enum ApprovalDecision: String, Encodable, Sendable {
 
 // MARK: - 커밋 · 파이프라인 (A-06)
 
+/// `queued`: 빌드가 접수됐지만 아직 시작 전 (서버 #38, 웹 W-03 "대기 중")
 enum PipelineStatus: String, ServerEnum {
-    case running, success, failed, unknown
+    case queued, running, success, failed, unknown
     static let unknownCase = PipelineStatus.unknown
 }
 
@@ -247,6 +258,15 @@ struct Build: Decodable, Identifiable, Hashable, Sendable {
     struct Pipeline: Decodable, Hashable, Sendable {
         let status: PipelineStatus
         let runUrl: URL?
+
+        private enum CodingKeys: String, CodingKey { case status, runUrl }
+
+        /// 서버는 상태를 모르면 null을 줘요 (#38) → 알 수 없음
+        init(from decoder: Decoder) throws {
+            let c = try decoder.container(keyedBy: CodingKeys.self)
+            status = try c.decodeIfPresent(PipelineStatus.self, forKey: .status) ?? .unknown
+            runUrl = try c.decodeIfPresent(URL.self, forKey: .runUrl)
+        }
     }
 
     struct DeployedTarget: Decodable, Hashable, Sendable {
@@ -256,15 +276,17 @@ struct Build: Decodable, Identifiable, Hashable, Sendable {
     }
 
     let commit: String
-    let message: String
-    let author: String
+    /// 커밋 메시지 · 작성자 · 시각은 서버가 아직 주지 않아요 (#38 "미제공") → 화면은 "—"
+    let message: String?
+    let author: String?
     let committedAt: Date?
     let pipeline: Pipeline
     let image: String?
-    let deployedTo: [DeployedTarget]
+    let deployedTo: [DeployedTarget]?
     /// W-03 이미지 카드 · 단계 (가칭)
     let branch: String?
-    let digest: String?
+    /// 서비스가 하나면 이미지 digest, 둘 이상이면 null (#38)
+    let imageDigest: String?
     let steps: [StepItem]?
 
     var id: String { commit }

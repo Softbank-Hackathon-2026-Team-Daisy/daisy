@@ -64,7 +64,7 @@ struct LoginView: View {
         return VStack(alignment: .leading, spacing: 16) {
             HStack(spacing: 10) {
                 Image(.appLogo).resizable().frame(width: 32, height: 32).clipShape(.rect(cornerRadius: 8))
-                Text("daisy").font(.system(size: 22, weight: .semibold, design: .monospaced))
+                Text("unibloom").font(.system(size: 22, weight: .semibold, design: .monospaced))
             }
             .accessibilityElement(children: .combine)
 

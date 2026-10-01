@@ -1,8 +1,9 @@
-# SPEC.md — Daisy Apple 앱 (iOS · macOS) 명세와 백엔드 요구사항
+# SPEC.md — Unibloom Apple 앱 (iOS · macOS) 명세와 백엔드 요구사항
 
-> 작성: 박승준 · 상태: **10/1 최신화** (결정 보드 `ios/BOARD.md` · 웹 PR #18 화면 기준) · 참조: 루트 `AGENTS.md`, 노션 ADR-007, 프론트 ↔ 백엔드 계약 초안 v0.3, User Flow Chart
+> 작성: 박승준 · 상태: **10/1 최신화** (팀 결정 보드 루트 [`BOARD.md`](../BOARD.md) · 웹 PR #18 화면 기준)
+> **서비스 이름은 10/1부터 Unibloom이에요** (팀 이름은 Team Daisy 그대로, 레포 `daisy` → `unibloom`). 앱 표시 이름 · 워드마크 `unibloom` · `Unibloom.dmg`. 코드 안 이름(타깃 · 모듈 `Daisy`, 번들 ID `com.teamdaisy.daisy`)은 그대로 둬요 — 바꾸면 TestFlight · 키체인 로그인이 끊겨요 · 참조: 루트 `AGENTS.md`, 노션 ADR-007, 프론트 ↔ 백엔드 계약 초안 v0.3, User Flow Chart
 > **서버 · 인프라가 아직 정하지 않아서 앱이 가정으로 두고 있는 것은 [§6-9](#6-9-미정-서버--인프라-결정-대기-101)에 모아 뒀어요.**
-> **§6의 API 경로·이벤트 이름은 9/29에 서버(하은현)가 확정했어요** ([#1 리뷰](https://github.com/Softbank-Hackathon-2026-Team-Daisy/daisy/pull/1)). 아직 정해지지 않은 것만 `(가칭)`이나 ❓로 남겨 뒀어요: §6-7 모델 필드 일부, 배포 상태·단계 값, §7 CI 요구사항.
+> **§6의 API 경로·이벤트 이름은 9/29에 서버(하은현)가 확정했어요** ([#1 리뷰](https://github.com/Softbank-Hackathon-2026-Team-Daisy/unibloom/pull/1)). 아직 정해지지 않은 것만 `(가칭)`이나 ❓로 남겨 뒀어요: §6-7 모델 필드 일부, 배포 상태·단계 값, §7 CI 요구사항.
 >
 > **백엔드 파트(하은현, 김승환)는 [§6 백엔드 요구사항](#6-백엔드-요구사항)부터 읽으면 돼요.** 확정 상태와 제공 일정은 §6-0에 정리했어요.
 > CI 파트(김도영)는 [§7](#7-ci-요구사항-가칭--김도영)만 보면 돼요.
@@ -11,7 +12,7 @@
 
 ## 1. 무엇을 만드나요
 
-**Daisy 배포 현황을 휴대폰과 맥에서 보는 네이티브 앱**이에요.
+**Unibloom 배포 현황을 휴대폰과 맥에서 보는 네이티브 앱**이에요.
 
 같은 이미지(커밋 해시)가 **어느 환경에, 어느 버전으로** 떠 있는지, 그 버전이 **어떤 커밋과 파이프라인**에서 왔는지, 지금 **어떤 배포가 진행 중이고 무엇을 승인해야 하는지**를 한 앱에서 봐요.
 
@@ -26,7 +27,7 @@
 
 웹과 앱은 코드를 공유하지 않고 **같은 백엔드 API만** 써요. 화면을 두 번 만들지 않도록 역할을 나눠요.
 
-> ✅ **10/1 확정 — ADR-007: 앱도 웹과 같은 전체 흐름이에요** (팀장 결정, 루트 `AGENTS.md` §12-4, [#33](https://github.com/Softbank-Hackathon-2026-Team-Daisy/daisy/pull/33), `web/SPEC.md` §1-1). 앱도 웹 와이어프레임 v1.0의 화면 · 문구 · 버튼을 모두 가져가요 (W-00 ~ W-13, L-01 ~ L-03): 저장소 연결, 환경 선택, 배포 시작, 승인, 롤백, 연결 테스트, 프로젝트 연결 해제까지.
+> ✅ **10/1 확정 — ADR-007: 앱도 웹과 같은 전체 흐름이에요** (팀장 결정, 루트 `AGENTS.md` §12-4, [#33](https://github.com/Softbank-Hackathon-2026-Team-Daisy/unibloom/pull/33), `web/SPEC.md` §1-1). 앱도 웹 와이어프레임 v1.0의 화면 · 문구 · 버튼을 모두 가져가요 (W-00 ~ W-13, L-01 ~ L-03): 저장소 연결, 환경 선택, 배포 시작, 승인, 롤백, 연결 테스트, 프로젝트 연결 해제까지.
 > **나누는 기준:** 앱은 문구(화면 · 메뉴 이름, 상태 이름, 안내 문구)와 흐름을 웹에서 가져가고, 색 · 모양 · 레이아웃은 앱 디자인을 따라요. 웹에서 문구를 바꾸면 앱도 맞춰요.
 > 서버에 새로 부탁하는 건 거의 없어요: 웹이 요청해 서버가 받아 준 `WR-xx`를 그대로 써요 (§6-8).
 
@@ -116,7 +117,7 @@ M = 예선 데모 필수, S = 선택
 ios/
 ├─ AGENTS.md                AI 에이전트 규칙 (이 폴더 전용, 영어)
 ├─ SPEC.md                  이 문서
-├─ Daisy.xcodeproj          앱 이름 Daisy, 번들 ID com.teamdaisy.daisy. 폴더 동기화 방식이라 파일을 추가해도 프로젝트 파일을 고칠 필요가 없어요
+├─ Daisy.xcodeproj          앱 이름 Unibloom (10/1, 제품 이름 `Unibloom.app` · 모듈 이름 `Daisy`), 번들 ID com.teamdaisy.daisy. 폴더 동기화 방식이라 파일을 추가해도 프로젝트 파일을 고칠 필요가 없어요
 ├─ Daisy/
 │  ├─ App/                  진입점, 루트 화면 (폭 700 이상 사이드바 · 미만 아이콘 탭 바), 사이드바, 메뉴 · 경로(Workspace)
 │  ├─ Features/             화면 단위 폴더. 각 폴더에 View + Store
@@ -181,7 +182,7 @@ View ──▶ Store(@Observable) ──▶ APIClient ────────�
 
 - **TestFlight 외부 테스트는 첫 빌드에 Beta App Review가 필요해요.** 보통 하루 안팎이지만 보장되지 않아서 **10/1에 제출**하는 게 목표예요. 이후 빌드는 심사가 짧거나 생략되는 경우가 많지만 이것도 보장되지 않아요
 - **업로드 준비 (9/30 완료):** App Store Connect 앱 **"Daisy Deploy"** 등록 (번들 ID `com.teamdaisy.daisy`, "Daisy"는 다른 계정이 써서 등록 이름만 달라요. 홈 화면 이름은 Daisy), 서명 팀 `X5F5WM2H6M`, 개인정보 매니페스트, **첫 빌드 0.1.0 (1) 업로드 완료**. 다음 빌드부터는 `ios/scripts/testflight.sh` 한 번이면 돼요
-- **Mac 직접 다운로드 (9/30):** Developer ID 서명 · Apple 공증 · 스테이플한 DMG를 GitHub Releases에 올려요 (웹 W-14 "Mac 앱 받기"). 웹은 **고정 주소** https://github.com/Softbank-Hackathon-2026-Team-Daisy/daisy/releases/download/mac-latest/Daisy.dmg 를 써요 (새 빌드 때 파일만 바꿔요). 지금 0.1.0 (2610011659, 예시 데이터 포함, `mac-v0.1.0-2610011659`), macOS 15 이상. 앱이 바뀔 때마다 새 릴리스 + 고정 주소 파일을 바꿔요 (10/1). 만들기는 `scripts/mac-dmg.sh`
+- **Mac 직접 다운로드 (9/30):** Developer ID 서명 · Apple 공증 · 스테이플한 DMG를 GitHub Releases에 올려요 (웹 W-14 "Mac 앱 받기"). 고정 주소는 **https://github.com/Softbank-Hackathon-2026-Team-Daisy/unibloom/releases/download/mac-latest/Unibloom.dmg** 예요 (10/1 이름 변경, 새 빌드 때 파일만 바꿔요). 웹 W-14가 새 주소로 바꿀 때까지 같은 파일을 옛 이름 `Daisy.dmg`로도 올려 둬요. 지금 0.1.0 (2610011659, 예시 데이터 포함, `mac-v0.1.0-2610011659`), macOS 15 이상. 앱이 바뀔 때마다 새 릴리스 + 고정 주소 파일을 바꿔요 (10/1). 만들기는 `scripts/mac-dmg.sh`
 - **TestFlight 그룹 (9/30):** 내부 `Team Daisy`(자동 배포, 심사 없음) · 외부 `Public Link` → **https://testflight.apple.com/join/wF5sjQPG** (Beta App Review 통과 뒤 열려요). macOS 플랫폼 추가, macOS 빌드 0.1.0 (2609301801) 업로드 · 처리 완료
 - **남은 것:** 외부 테스트 공개 링크는 Beta App Review용 서버 HTTPS 주소 · 데모 계정(R-03)이 필요해요. 앱 아이콘 원본이 200×200이라 1024에서 조금 흐려서 **1024 이상 원본(또는 SVG)으로 바꿔야 해요**
 - 앱은 로그인이 필요해서 심사 때 **Apple 심사자용 계정**을 적어 내야 해요. 그래서 데모 계정(§6-1 `R-03`)과 HTTPS 서버(`R-04`)가 **D2까지 꼭 필요해요.** 데모 계정은 D2 약속을 받았고, HTTPS는 9/29 회의에서 도메인을 사서 적용하기로 했어요 (서버 담당, 9/30 오후 전)
@@ -300,7 +301,7 @@ API 모양보다 **이 정보가 어딘가에 저장되어 있는지**가 더 �
 
 ```jsonc
 // Project
-{ "id": "prj_1", "name": "sample-monolith", "repository": "https://github.com/Softbank-Hackathon-2026-Team-Daisy/sample-monolith", "branch": "main" }
+{ "id": "prj_1", "name": "sample-monolith", "repository": "https://github.com/Softbank-Hackathon-2026-Team-Daisy/sample-monolith", "default_branch": "main" }  // #38. 예전 이름 `branch`도 받아요
 // repository는 W-02에서 입력한 전체 URL 그대로 (웹과 같아요)
 
 // TargetStatus — A-02, 현황 화면
@@ -382,12 +383,13 @@ API 모양보다 **이 정보가 어딘가에 저장되어 있는지**가 더 �
 // Build — A-06, 커밋·파이프라인 화면
 {
   "commit": "2311c0b…",
-  "message": "feat(ci): Daisy 앱 연결 요구사항 추가",
-  "author": "Seungjun1127",
-  "committed_at": "…",
-  "pipeline": { "status": "running" | "success" | "failed", "run_url": "https://<jenkins>/job/daisy-ci/42/" | null },  // Jenkins 빌드 링크 (§6-9)
+  "message": "feat(ci): Daisy 앱 연결 요구사항 추가" | 없음,   // #38: 메시지 · 작성자 · 시각은 아직 미제공 → "—"
+  "author": "Seungjun1127" | 없음,
+  "committed_at": "…" | 없음,
+  "pipeline": { "status": "queued" | "running" | "success" | "failed" | null, "run_url": null },  // queued = 접수됐지만 시작 전 "대기 중" (#38). null → 알 수 없음
   "image": "ghcr.io/…:2311c0b…" | null,     // 실패하면 null
-  "deployed_to": [ { "target_id": "tgt_gcp", "deployment_id": "dep_42", "deployed_at": "…" } ]
+  "image_digest": "sha256:…" | null,        // 서비스가 둘 이상이면 null (#38)
+  "deployed_to": [ { "target_id": "tgt_gcp", "deployment_id": "dep_42", "deployed_at": "…" } ] | null  // #36 조회 계약 뒤 채워져요
 }
 ```
 
@@ -430,8 +432,7 @@ API 모양보다 **이 정보가 어딘가에 저장되어 있는지**가 더 �
 - AI 호출 기록 (W-12): §6-7 "AI 호출 한 번" 모양. 재사용 환경은 기록이 없어서 앱이 `reused_script`로 "— 검증된 스크립트 재사용" 줄을 만들어요
 - `Deployment.targets[]`: `title`("home-lab · Docker"), `steps[]`(`{ name, state: waiting · running · done · failed · skipped(가칭), duration_ms, started_at }`, W-05 검증 단계 · W-07 레인. Jenkins 단계 이름: `daisy-cd-plan` Prepare → Infra code → Plan → Summary, `daisy-cd-apply` Verify → Apply → Health check. 실행 안 한 단계(`NOT_EXECUTED`)는 "건너뜀". **없으면 웹처럼 추정**: W-05 "Terraform 생성 (AI) · terraform validate · terraform plan · 위험 설정 검사", W-07 "이미지 pull · terraform apply · state 저장 · 헬스체크"), `health_summary`("200 OK · 120ms", 1회 측정), `image_digest`
 - `Plan.targets[]`: `reused_script`, `summary`, `plan_text`
-- `Build`: `branch`, `digest`, `steps[]` (W-03 Jenkins 단계)
-- `Project`: `branch`
+- `Build`: `branch`, `image_digest`(#38과 같은 이름), `steps[]` (W-03 Jenkins 단계)
 - WR-04 `Target`: W-10 줄 `title, runtime, location, location_label("위치" · "리전"), access_method, exposure, state_backend, current_commit`. `reuse.reason`은 카드 설명 그대로 써요 ("home-lab Proxmox VM · 사설망 · 검증된 스크립트 있음 → 태그만 교체")
 - A-07 로그 줄: 앱 초안 `ts · text`, 웹 목업 `seq · at · message` — 둘 다 받아요 (§6-9)
 - WR-03 `Manifest.errors`: 웹 목업은 문자열 배열, 앱 초안은 `{ path, message }` — 둘 다 받아요 (§6-9)
@@ -442,7 +443,7 @@ API 모양보다 **이 정보가 어딘가에 저장되어 있는지**가 더 �
 
 ### 6-9. 미정: 서버 · 인프라 결정 대기 (10/1)
 
-보드(`ios/BOARD.md`)에 결정이 없어서 **앱이 가정으로 두고 있는 것**이에요. 결정이 나면 앱은 모델 · 요청 한 곳만 고치면 돼요. 각 담당 브랜치 · PR에 질문을 남겼어요 (10/1).
+보드(루트 `BOARD.md`)에 결정이 없어서 **앱이 가정으로 두고 있는 것**이에요. 결정이 나면 앱은 모델 · 요청 한 곳만 고치면 돼요. 각 담당 브랜치 · PR에 질문을 남겼어요 (10/1).
 
 | # | 담당 | 미정 항목 | 앱이 지금 가정하는 것 | 결정 안 나면 앱은 |
 |---|---|---|---|---|
@@ -509,6 +510,7 @@ API 모양보다 **이 정보가 어딘가에 저장되어 있는지**가 더 �
 
 | 날짜 | 변경 | 작성 |
 |---|---|---|
+| 10/1 | **서비스 이름 Unibloom** (10/1 회의 · 슬랙 21:38): 앱 표시 이름 · 워드마크 `unibloom` · 제품 `Unibloom.app` · `Unibloom.dmg`, 레포 주소 `unibloom`. 결정 보드를 루트 `BOARD.md`로 옮김. Mac은 화면 머리줄의 재질 띠를 없앰(iOS만 반투명). 서버 #38 조회 응답에 맞춤: 빌드 `queued` "대기 중" · 메시지 · 작성자 없음 "—" · `image_digest`, 프로젝트 `default_branch` | 박승준 |
 | 10/1 | 단계 상태 `skipped` "건너뜀" 추가 (W-03 Trigger CD는 운영에서 늘 건너뜀, 웹 #25와 같게), 예시 데이터 반영. 10/1 역할 재분담(#33): plan 요약은 인프라가 만들고 서버가 보관 · 조회, AI 사용량은 김승환 기록 · 하은현 조회, §4 CI 열을 인프라로 | 박승준 |
 | 10/1 | **ADR-007 확정 반영** (앱도 웹과 같은 전체 흐름, #33): §1-1 · §1-2 · §8. 서버 역할 `owner` · `viewer`, `ai_usage.attempt` = 생성 · 수정 회차(1–3)는 앱의 기존 처리와 같아요 (PR #32) | 박승준 |
 | 10/1 | 스펙 · 구현 대조로 오래된 문장 정리 (§1 화면 이름, §3 폴더 구조 · 최소 OS 이유, §4 앱이 하는 일, §5 DMG 버전, A-07 줄 수, A-11 봉투, Project.repository 전체 URL, TargetStatus `image_digest` · `health_summary`, 헬스 "200 OK · 120ms", W-05b 오류 로그 → 스크립트, WR-08 apply 도중 중단 없음(17:23 결정)). 코드: 이력 "롤백 · 롤백됨" 중복, 모르는 AI 호출 상태 "—", iPhone 배포 화면 "새 배포" 버튼 | 박승준 |

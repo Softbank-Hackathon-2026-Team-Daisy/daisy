@@ -20,10 +20,10 @@ struct FlowPage<Content: View, Bottom: View>: View {
         self.bottom = bottom()
     }
 
-    /// 단계 표시 · 제목 · 설명은 위쪽 반투명 머리줄(루트 화면 `PageScaffold`와 같은 재질)에 두고, 본문만 그 뒤로 스크롤돼요 (10/1)
+    /// 단계 표시 · 제목 · 설명은 위쪽 머리줄(`pinnedHeader`, 루트 화면과 같아요: iOS 반투명 · macOS 재질 없음)에 두고, 본문만 스크롤돼요 (10/1)
     var body: some View {
         scroll
-            .safeAreaInset(edge: .top, spacing: 0) { header }
+            .pinnedHeader { header }
             .flowNavigationTitle(title)
     }
 
@@ -61,8 +61,6 @@ struct FlowPage<Content: View, Bottom: View>: View {
         .padding(.horizontal, 20)
         .padding(.top, 10)
         .padding(.bottom, 10)
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .background(.ultraThinMaterial, ignoresSafeAreaEdges: .top)
     }
 }
 

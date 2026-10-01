@@ -264,7 +264,7 @@ def main():
         responses[f"projects/{pid}/builds"] = page([{
             "commit": c["sha"], "message": subject(c), "author": c["commit"]["author"]["name"], "committed_at": c["commit"]["author"]["date"],
             "pipeline": {"status": "success", "run_url": None}, "image": f"ghcr.io/team-daisy/{name}:{c['sha'][:7]}",
-            "deployed_to": [], "branch": "main", "digest": None,
+            "deployed_to": [], "branch": "main", "image_digest": digest(c["sha"]),
             # Jenkins daisy-ci 단계 (10/1 임채준 답). Jenkins 화면은 외부에 공개하지 않아서 링크는 없어요.
             # Trigger CD는 운영에서 늘 건너뜀 — 서버가 CI 결과를 받아 daisy-cd-plan을 직접 시작해요 (10/1 #25)
             "steps": [step("Checkout", "done", 2000), step("Test", "done", 21000), step("Build & Push", "done", 73000), step("Trigger CD", "skipped")]} for i, c in enumerate(cs)])

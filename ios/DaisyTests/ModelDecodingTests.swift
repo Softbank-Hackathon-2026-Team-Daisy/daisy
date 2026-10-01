@@ -26,6 +26,33 @@ struct ModelDecodingTests {
         #expect(status.checkedAt != nil)
     }
 
+    /// 서버 #38 모양: `current` null · `health: unknown` · `connection_state`, 빌드는 메시지 · 작성자 없이 `queued`, 프로젝트는 `default_branch`
+    @Test func serverQueryShapes() throws {
+        let status = try #require(try decode(Page<TargetStatus>.self, """
+        { "items": [ { "target_id": "tgt_aws", "type": "aws", "name": "aws-prod", "connection_state": "unknown",
+                       "checked_at": null, "current": null, "url": null, "health": "unknown",
+                       "health_summary": null, "image_digest": null } ], "next_cursor": null }
+        """).items.first)
+        #expect(status.current == nil)
+        #expect(status.health == .unknown)
+
+        let build = try #require(try decode(Page<Build>.self, """
+        { "items": [ { "source_version_id": "sv_1", "commit": "2311c0b683ec", "branch": "main",
+                       "pipeline": { "status": "queued", "run_url": null }, "image": null, "image_digest": null,
+                       "images": null, "deployed_to": [], "received_at": "2026-10-01T12:00:00Z" },
+                     { "commit": "abc", "pipeline": { "status": null, "run_url": null } } ],
+          "next_cursor": "c2" }
+        """).items.first)
+        #expect(build.pipeline.status == .queued)
+        #expect(build.pipeline.status.badge.text == "대기 중")
+        #expect(build.message == nil && build.author == nil)
+
+        let project = try decode(Project.self, """
+        { "id": "prj_1", "name": "hellocalc", "repository": "team/hellocalc", "default_branch": "main", "created_at": "2026-10-01T00:00:00Z" }
+        """)
+        #expect(project.branch == "main")
+    }
+
     @Test func unknownEnumValuesDoNotFail() throws {
         let deployment = try decode(Deployment.self, """
         { "id": "dep_1", "project_id": "prj_1", "commit": "abc", "state": "rolling_back",

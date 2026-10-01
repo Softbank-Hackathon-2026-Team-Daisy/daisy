@@ -64,7 +64,8 @@ struct Sidebar: View {
                 .frame(width: 26, height: 26)
                 .clipShape(.rect(cornerRadius: 7))
                 .accessibilityHidden(true)
-            Text("daisy").font(.system(size: 17, weight: .semibold, design: .monospaced))
+            // 워드마크는 서비스 이름 "unibloom" 소문자 (10/1 이름 변경, 웹 Logo와 같아요)
+            Text("unibloom").font(.system(size: 17, weight: .semibold, design: .monospaced))
         }
         .padding(.horizontal, 10)
         .padding(.top, 4)

@@ -2414,8 +2414,8 @@
      "commit": "5139b9353edb0a27061737f243483b23f65b43a6",
      "committed_at": "2026-10-01T09:53:21Z",
      "deployed_to": [],
-     "digest": null,
      "image": "ghcr.io/team-daisy/sample-monolith:5139b93",
+     "image_digest": "sha256:9bbe193b8ad4",
      "message": "feat(app): 실행 환경 이름을 화면과 /version에 표시 (v1.1.0) (#2)",
      "pipeline": {
       "run_url": null,
@@ -2454,8 +2454,8 @@
      "commit": "574acd9980b8fba01c49a5cd0ad659639de3ebe0",
      "committed_at": "2026-09-30T08:33:30Z",
      "deployed_to": [],
-     "digest": null,
      "image": "ghcr.io/team-daisy/sample-monolith:574acd9",
+     "image_digest": "sha256:45f7dd2c3bd7",
      "message": "chore(ci): 로컬 이미지 태그를 커밋 해시로 통일 (latest 제거) (#1)",
      "pipeline": {
       "run_url": null,
@@ -2494,8 +2494,8 @@
      "commit": "85ef7c5047eb6e444f5b3dd6e8add1df7390d0d0",
      "committed_at": "2026-09-29T04:30:53Z",
      "deployed_to": [],
-     "digest": null,
      "image": "ghcr.io/team-daisy/sample-monolith:85ef7c5",
+     "image_digest": "sha256:6edc49cbcf2c",
      "message": "docs: 레포 이름 기준으로 README 제목과 LICENSE 저작권자 정리",
      "pipeline": {
       "run_url": null,
@@ -2534,8 +2534,8 @@
      "commit": "7b1578b0092229c7cf7cbf91f1b2b176c2ca583d",
      "committed_at": "2026-09-29T04:28:24Z",
      "deployed_to": [],
-     "digest": null,
      "image": "ghcr.io/team-daisy/sample-monolith:7b1578b",
+     "image_digest": "sha256:03806b3a0378",
      "message": "chore: Go 모듈 경로와 이미지 출처 레이블을 팀 레포로 변경",
      "pipeline": {
       "run_url": null,
@@ -2574,8 +2574,8 @@
      "commit": "2311c0b683ec0f46d0be1c640591245ae8d1c093",
      "committed_at": "2026-09-29T04:06:35Z",
      "deployed_to": [],
-     "digest": null,
      "image": "ghcr.io/team-daisy/sample-monolith:2311c0b",
+     "image_digest": "sha256:2177b5c728eb",
      "message": "feat(ci): Daisy 앱 연결 요구사항 추가 (deploy.yaml, /health, N-01 파이프라인)",
      "pipeline": {
       "run_url": null,
@@ -2614,8 +2614,8 @@
      "commit": "839d8c02f701c3cce2db1edf2386d28fd79f654f",
      "committed_at": "2026-09-29T03:25:44Z",
      "deployed_to": [],
-     "digest": null,
      "image": "ghcr.io/team-daisy/sample-monolith:839d8c0",
+     "image_digest": "sha256:b9cde1069411",
      "message": "HelloCalc: portable reference workload",
      "pipeline": {
       "run_url": null,
@@ -3534,8 +3534,8 @@
      "commit": "5a21c63803fba9f43a8a20839a98fccc238c881b",
      "committed_at": "2026-09-30T08:33:24Z",
      "deployed_to": [],
-     "digest": null,
      "image": "ghcr.io/team-daisy/sample-msa:5a21c63",
+     "image_digest": "sha256:361dde4a6d8e",
      "message": "docs: Cloud Run에서 backend 호출 인증 조건 안내, 로컬 이미지 태그를 커밋 해시로 통일 (#2)",
      "pipeline": {
       "run_url": null,
@@ -3574,8 +3574,8 @@
      "commit": "5e250c0aad492a86faadd482c9534a9540ca13d2",
      "committed_at": "2026-09-30T05:31:27Z",
      "deployed_to": [],
-     "digest": null,
      "image": "ghcr.io/team-daisy/sample-msa:5e250c0",
+     "image_digest": "sha256:962923ce93f9",
      "message": "feat: HelloCalc MSA 샘플 추가 (frontend + backend) (#1)",
      "pipeline": {
       "run_url": null,
