@@ -7,6 +7,7 @@ import com.fasterxml.jackson.databind.node.JsonNodeFactory;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.teamdaisy.server.common.error.DaisyException;
 import com.teamdaisy.server.common.error.ErrorCode;
+import com.teamdaisy.server.deployment.domain.Deployment;
 import java.time.Instant;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -24,7 +25,7 @@ class BuildResponseTest {
       node.put("image_ref", ref);
     }
     if (digest != null) {
-      node.put("image_digest", digest);
+      node.put("digest", digest);
     }
     return node;
   }
@@ -55,6 +56,27 @@ class BuildResponseTest {
   void unknownStateIsNotDisguised() {
     assertThat(BuildResponse.pipelineStatus("cancelled")).isEqualTo("cancelled");
     assertThat(BuildResponse.pipelineStatus(null)).isNull();
+  }
+
+  @Test
+  void executionImageShapeKeepsDigestInPublicResponse() {
+    var nodes = JsonNodeFactory.instance;
+    String commit = "a".repeat(40);
+    String digest = "sha256:" + "b".repeat(64);
+    var deployment =
+        Deployment.create(
+            "dep_1",
+            "prj_1",
+            "acc_1",
+            commit,
+            nodes.objectNode(),
+            nodes.objectNode().put("hash_format_version", 1),
+            digest,
+            Instant.now());
+    var refs = nodes.objectNode();
+    refs.set("app", service("docker.io/team/app:" + commit, digest).put("commit_sha", commit));
+    deployment.bindSource("src_1", commit, refs, digest);
+    assertThat(BuildResponse.flatten(deployment.imageRefs()).imageDigest()).isEqualTo(digest);
   }
 
   @Test

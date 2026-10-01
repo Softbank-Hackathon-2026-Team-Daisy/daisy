@@ -167,6 +167,7 @@ docker compose up -d postgres    # Postgres 17
 | 2026-09-30 | **kind normal/retry/rollback·attempt 0·image_refs map** | 입력·재빌드·MSA를 보존하는 내부 ERD 표현. API 매핑은 DB와 구분 | 1 |
 | 2026-10-01 | **결과는 폴링, prepare/apply 분리** | 인프라 #19·#17 답변. 5초는 제안, request_id 검색·상세 산출물은 연동 확인 대기 | 1 |
 | 2026-10-01 | **#32 V1 통합, owner/viewer, prepare 유지** | 인증 담당 역할 확정. prepare는 daisy-cd-plan에 매핑. apply 중 stop 없이 요청을 기록하고 실제 결과를 기다리는 방향으로 #32 답변 | 1 |
+| 2026-10-01 | **#38 통합 경계 보완** | 저장 `digest` → 조회 `image_digest` 매핑, 인증 이전 CORS·OpenAPI Bearer 명시. 경로·인가·V1 유지, 사용자 승인. [통합 일지](docs/sh/2026-10-01-auth-merge.md) | 1 |
 
 ## 11. 아직 정하지 못한 것
 

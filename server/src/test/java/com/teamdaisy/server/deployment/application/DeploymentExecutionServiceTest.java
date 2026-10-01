@@ -156,6 +156,38 @@ class DeploymentExecutionServiceTest {
   }
 
   @Test
+  void incompleteBuildConfirmationIsConflictInsteadOfNullPointer() {
+    var deployment = deployment();
+    var target = target(deployment);
+    var images = mapper.createObjectNode();
+    images.putObject("app").put("commit_sha", commit).put("image_ref", "registry/app:" + commit);
+    deployment.bindSource("src_1", commit, images, hash);
+    stored(deployment, target);
+    when(commands.requireScope("job_prepare", "dep_1", null))
+        .thenReturn(scope("job_prepare", "prepare", "accepted", "running"));
+    var result =
+        new DeploymentExecutionService.BuildResult(
+            "prj_1",
+            "dep_1",
+            "job_prepare",
+            "instance/job/1",
+            "build_1",
+            "src_1",
+            commit,
+            images,
+            now);
+    for (var confirmed :
+        List.of(
+            new ExecutionInputs.BuildInput("src_1", null, images),
+            new ExecutionInputs.BuildInput("src_1", commit, null))) {
+      when(inputs.recordBuild(result)).thenReturn(confirmed);
+      var error = assertThrows(DaisyException.class, () -> service.bindBuildResult(result));
+      assertEquals(ErrorCode.STATE_CONFLICT, error.errorCode());
+    }
+    verify(store, never()).flush();
+  }
+
+  @Test
   void creationUsesOwnerSnapshotsAndQueuesOneImmutablePrepare() {
     var images = mapper.createObjectNode();
     images.putObject("app").put("commit_sha", commit).put("image_ref", "registry/app:" + commit);

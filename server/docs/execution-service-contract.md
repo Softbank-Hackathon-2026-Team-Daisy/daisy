@@ -63,6 +63,14 @@ SSE 필터는 기존 채널 seq를 재사용한다. 제외된 행도 서버 조�
 
 ## 결과 수신 어댑터 구현 기준
 
+### ExecutionInputs JSON 저장 형태
+
+스냅샷 컬럼의 기준은 [DB 설계](database-design.md)의 §5.6 deployment·§5.7 deployment_target·§6 입력 스냅샷입니다. repository에는 저장소 ID·URL·브랜치·manifest 경로·자격증명 참조만, commonInput에는 비밀값 없는 입력과 `hash_format_version: 1`, target snapshot에는 name·type·설정 revision·자격증명 버전 참조를 고정합니다. 실제 비밀값을 넣지 않습니다.
+
+`BuildInput.imageRefs`는 실행 도메인의 `{service: {image_ref, digest, commit_sha}}` 형태입니다. 각 서비스의 `commit_sha`는 선택 빌드와 같아야 합니다. digest를 제공하면 `sha256:`과 64자리 hex를 사용하며, 미확인이라 생략할 경우 `image_ref`는 해당 전체 commit 태그를 사용합니다. 조회 API의 `image_digest`는 이 저장 키 `digest`를 변환한 이름이지 DB JSON 키가 아닙니다. 불완전한 `recordBuild` 확인 결과는 `STATE_CONFLICT`로 거절합니다.
+
+### 외부 결과 검증
+
 이 절은 백엔드 구현·테스트용 제안이며 인프라가 이미 이 형식을 보낸다는 뜻이 아니다.
 
 - 사용자 Bearer 권한과 Jenkins 서비스 간 발신 인증을 구분한다. 발신 인증 구현이 연결되지 않으면 거절한다. 인증을 우회하는 개발용 기본 구현은 두지 않는다.

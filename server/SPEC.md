@@ -173,6 +173,14 @@
 - 공개 API의 목록 봉투·attempt 표시·다중 승인·이미지·롤백 매핑은 아래 링크의 구체적 안을 은현과 확인한 뒤 구현합니다. 이를 인프라 답변 대기로 묶지 않습니다. 실제 산출물·식별자·state 연결만 [#35](https://github.com/Softbank-Hackathon-2026-Team-Daisy/daisy/issues/35)에서 추적합니다.
 - 통합 검증(2026-10-01): `check build --offline` 및 테스트 13건 통과, PostgreSQL 17의 SQL 제약 검사 27건 통과. 통합 jar의 classpath V1으로 별도 빈 DB에 Flyway 적용·JPA validate·기동 성공, health UP 및 OpenAPI 응답 확인. 실제 Jenkins·인가 통합·동시성 검증과 구분합니다. 상세는 [작업 일지](docs/sh/2026-10-01-pr19-feedback.md#통합-검증-결과-2026-10-01-1953-kst)에 기록했습니다.
 
+## #38 통합 보완 (10/1, 김승환)
+
+- 기존 인증·조회와 실행 서비스를 한 브랜치에서 검증합니다. `ExecutionAccess`·`ExecutionInputs` 어댑터와 공개 배포 API 연결은 은현의 후속 범위로 유지합니다.
+- 빌드 확인 결과의 commit·이미지가 NULL이면 NPE 대신 `STATE_CONFLICT`로 거절합니다.
+- 저장 `image_refs`는 실행 도메인과 같은 `{service: {image_ref, digest, commit_sha}}`입니다. 조회 응답은 기존 `image_digest` 이름으로 변환합니다. 테이블·공개 응답 이름은 바꾸지 않습니다.
+- CORS는 인증 필터보다 먼저 처리해, 허용 origin의 인증 실패 응답에도 CORS 헤더를 제공합니다. 미허용 origin은 거절하고 쿠키 인증은 추가하지 않습니다.
+- OpenAPI에 HTTP Bearer/JWT scheme과 보호 경로의 인증 요구를 명시합니다. 로그인 경로는 공개 상태로 유지합니다.
+
 ## DB 마이그레이션과 인증·인가 (10/1, 하은현)
 
 ### 범위와 동작
@@ -358,12 +366,12 @@ V10 이 핵심이었습니다. 나머지가 다 맞아도 여기서 새면 다�
 
 **그래서 `queued` 를 네 번째 값으로 내보냅니다.** 소비자 계약에 없는 값이라 웹·앱에 알렸습니다. **웹은 받기로 했습니다** (W-03 에 "대기 중", [#38 코멘트](https://github.com/Softbank-Hackathon-2026-Team-Daisy/unibloom/pull/38#issuecomment-5931767944)). 앱은 아직 답이 없습니다. 앱이 받기 어렵다면 `pending` 행을 목록에 포함한 채 `pipeline.status` 만 null 로 두는 쪽으로 바꾸겠습니다.
 
-### `image_refs` 모양 — 가정을 적어 둡니다
+### `image_refs` 모양 — #36 실행 도메인과 통합
 
-설계 5.5 는 `image_refs` 를 *"성공 시 확정한 service별 이미지 객체"* 로만 적고 정확한 모양을 정하지 않았습니다. 이 값을 쓰는 쪽이 저이고 채우는 쪽은 승환 수신 서비스라, **제가 가정한 모양을 적어 두고 확인을 받겠습니다.**
+초기 조회 구현의 `image_digest` 저장 키 가정을 실행 도메인의 `digest`에 맞췄습니다. 공개 응답은 기존 `image_digest`를 유지합니다. 자세한 검증 조건은 [실행 연결 계약](docs/execution-service-contract.md)의 ExecutionInputs JSON 저장 형태를 따릅니다.
 
 ```jsonc
-{ "<서비스명>": { "image_ref": "ghcr.io/org/app:2311c0b", "image_digest": "sha256:..." } }
+{ "<서비스명>": { "image_ref": "docker.io/team/app:<전체 커밋 해시>", "digest": "sha256:<64자리 hex>", "commit_sha": "<전체 커밋 해시>" } }
 ```
 
 - 서비스가 **하나**면 `image` 에 그 `image_ref`, `image_digest` 에 그 digest 를 담습니다.
@@ -371,7 +379,7 @@ V10 이 핵심이었습니다. 나머지가 다 맞아도 여기서 새면 다�
 - **임의의 첫 서비스를 고르거나 digest 를 합쳐 하나로 만들지 않습니다.**
 - 모양이 다르거나 해독할 수 없으면 `image`·`images` 를 **null 로 두고 오류를 내지 않습니다.** 조회가 깨지는 것보다 그 필드만 비는 게 낫습니다.
 
-모양이 확정되면 평탄화 함수 하나만 바뀝니다.
+실제 Jenkins 수신 데이터는 이 저장 형태로 변환·검증해야 하며, 현재 인프라가 그대로 제공한다고 가정하지 않습니다.
 
 ### 후속 범위
 
@@ -412,4 +420,4 @@ V10 이 핵심이었습니다. 나머지가 다 맞아도 여기서 새면 다�
 
 - `deployed_to[]` 가 채워진 응답은 확인하지 못했습니다. `deployment` 모듈 조회 계약이 없습니다.
 - 빌드가 수천 건일 때의 커서 성능은 보지 않았습니다. 설계 5.5 의 `INDEX(project_id, received_at DESC, id)` 를 쓰는 질의라는 것만 확인했습니다.
-- `image_refs` 의 실제 모양은 승환 빌드 수신 서비스가 채우기 시작한 뒤에 다시 봐야 합니다. 지금은 가정한 모양과 다를 때 비는 것만 확인했습니다.
+- 실행 도메인에서 수용한 `image_refs`의 digest가 조회 projection까지 보존되는 회귀 테스트를 추가했습니다. 실제 Jenkins 수신부터 조회까지의 연결은 아직 검증하지 않았습니다.

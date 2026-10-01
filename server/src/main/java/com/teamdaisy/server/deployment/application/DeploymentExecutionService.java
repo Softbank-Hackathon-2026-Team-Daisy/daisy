@@ -593,7 +593,8 @@ public class DeploymentExecutionService {
     require(
         confirmed != null
             && Objects.equals(confirmed.sourceVersionId(), result.sourceVersionId())
-            && confirmed.commitSha().equals(result.commitSha())
+            && Objects.equals(confirmed.commitSha(), result.commitSha())
+            && confirmed.imageRefs() != null
             && confirmed.imageRefs().equals(result.imageRefs()),
         ErrorCode.STATE_CONFLICT);
     bindSource(deployment, targets, confirmed);
