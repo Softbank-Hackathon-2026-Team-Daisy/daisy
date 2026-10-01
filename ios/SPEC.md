@@ -156,7 +156,7 @@ View ──▶ Store(@Observable) ──▶ APIClient ────────�
 
 ## 4. 경계: 누가 무엇을 하나요
 
-| 영역 | 앱 (박승준) | 백엔드 (하은현 · 김승환) | CI (김도영) |
+| 영역 | 앱 (박승준) | 백엔드 (하은현 · 김승환) | 인프라 · CI (임채준 · 황지환, Jenkins) |
 |---|---|---|---|
 | 데이터 원천 | 표시만 | 저장 · 가공 · 제공 | 빌드 이벤트 전송 |
 | 배포 상태 | 구독 · 표시 | 상태 머신, SSE 발행 | — |
@@ -234,7 +234,7 @@ View ──▶ Store(@Observable) ──▶ APIClient ────────�
 | A-02 🆕 | `GET /projects/{id}/targets/status` | **현황** | 환경별 현재 상태 `TargetStatus[]` (§6-7) | M | 앱이 자주 부르는 화면이라 별도 엔드포인트로 둬요. **앱의 핵심 화면.** 앱은 목록 공통 봉투 `{ items, next_cursor }`로 받는다고 가정했어요 `(가칭)` |
 | A-03 | `GET /projects/{id}/deployments?state=&cursor=` | 배포 목록 | `Deployment` 요약 목록 | M | v0.1 제안과 같음 |
 | A-04 | `GET /deployments/{id}` | 배포 상세 | `Deployment` 스냅샷 | M | v0.1과 같음. 환경별 `attempt`와 현재 단계 포함. 한 환경이 3회 실패해도 다른 환경은 계속 진행해요. **`attempt`는 첫 생성을 포함한 총 시도 횟수**예요: `1/3`부터 시작하고 AI 수정은 최대 2번. 화면 문구는 "시도 n/3" |
-| A-05 | `GET /deployments/{id}/plan` | 승인 | `Plan` (환경별 개수 · 삭제 여부 · 위험 설정) + `ai_usage` | M | 서버의 `PlanSummary`(김승환) 그대로. AI 토큰 · 비용은 plan 안이 아니라 응답의 `ai_usage` 합계로 같이 와요. 원화 비용은 **고정 환율로 환산한 추정치**라, 앱은 "추정"과 적용 환율을 같이 보여줘요. 앱은 **요약 필드만** 써요 (리소스 전체 목록은 웹) |
+| A-05 | `GET /deployments/{id}/plan` | 승인 | `Plan` (환경별 개수 · 삭제 여부 · 위험 설정) + `ai_usage` | M | plan 요약은 인프라(Jenkins `daisy-cd-plan`의 `plan-summary.json`)가 만들고 서버가 받아 보관 · 조회해요 (10/1 역할 재분담, #33). AI 토큰 · 비용은 plan 안이 아니라 응답의 `ai_usage` 합계로 같이 와요. 원화 비용은 **고정 환율로 환산한 추정치**라, 앱은 "추정"과 적용 환율을 같이 보여줘요. 앱은 **요약 필드만** 써요 (리소스 전체 목록은 웹) |
 | A-06 🆕 | `GET /projects/{id}/builds?cursor=` | **W-03 이미지 빌드** | `Build[]` (§6-7) | M | Jenkins `daisy-ci`가 보낸 빌드 결과(9/30 회의: GitHub Actions 대신 Jenkins)를 저장해 두고 돌려주면 돼요. 커밋별 **배포된 환경 목록**까지 |
 | A-07 🆕 | `GET /deployments/{id}/logs?target_id=&tail=200` | W-07 로그 (200줄), W-08 "원인 보기" 로그 화면 (500줄) | 최근 로그 N줄 | S | SSE가 끊겼다 들어왔을 때 최근 로그 채우기용 |
 | A-08 | `GET /approvals?state=pending` | 승인 탭 배지 | 대기 중 승인 목록 | S | 만들지 않아요. A-03의 `awaiting_approval` 필터로 대신해요 (9/29 합의) |
@@ -428,7 +428,7 @@ API 모양보다 **이 정보가 어딘가에 저장되어 있는지**가 더 �
 
 - `Deployment`: `version`("v7"), `commit_message`
 - AI 호출 기록 (W-12): §6-7 "AI 호출 한 번" 모양. 재사용 환경은 기록이 없어서 앱이 `reused_script`로 "— 검증된 스크립트 재사용" 줄을 만들어요
-- `Deployment.targets[]`: `title`("home-lab · Docker"), `steps[]`(`{ name, state, duration_ms, started_at }`, W-05 검증 단계 · W-07 레인. **없으면 웹처럼 추정**: W-05 "Terraform 생성 (AI) · terraform validate · terraform plan · 위험 설정 검사", W-07 "이미지 pull · terraform apply · state 저장 · 헬스체크"), `health_summary`("200 OK · 120ms", 1회 측정), `image_digest`
+- `Deployment.targets[]`: `title`("home-lab · Docker"), `steps[]`(`{ name, state: waiting · running · done · failed · skipped(가칭), duration_ms, started_at }`, W-05 검증 단계 · W-07 레인. Jenkins 단계 이름: `daisy-cd-plan` Prepare → Infra code → Plan → Summary, `daisy-cd-apply` Verify → Apply → Health check. 실행 안 한 단계(`NOT_EXECUTED`)는 "건너뜀". **없으면 웹처럼 추정**: W-05 "Terraform 생성 (AI) · terraform validate · terraform plan · 위험 설정 검사", W-07 "이미지 pull · terraform apply · state 저장 · 헬스체크"), `health_summary`("200 OK · 120ms", 1회 측정), `image_digest`
 - `Plan.targets[]`: `reused_script`, `summary`, `plan_text`
 - `Build`: `branch`, `digest`, `steps[]` (W-03 Jenkins 단계)
 - `Project`: `branch`
@@ -447,7 +447,7 @@ API 모양보다 **이 정보가 어딘가에 저장되어 있는지**가 더 �
 | # | 담당 | 미정 항목 | 앱이 지금 가정하는 것 | 결정 안 나면 앱은 |
 |---|---|---|---|---|
 | S-1 | 서버 (하은현) | 목록 응답 봉투: 모든 목록(A-02 · WR-04 · 새 `ai-usage`)이 `{ items, next_cursor }`인지 | 모두 봉투 | 배열이 오면 디코딩 실패 → 한 줄 수정 |
-| S-2 | 서버 (김승환) | `ai-usage` 호출 한 줄 필드: 작업 설명 이름(`note` / `title`), `calls`를 A-05 합계에 넣는지 | `note` 또는 `title`, `calls` 있으면 씀 | 설명이 없으면 "Terraform 생성 (deploy.yaml)" · "Terraform 수정"으로 대신, 모르는 `status`는 "—" |
+| S-2 | 서버 (하은현 조회 · 김승환 기록) | `ai-usage` 호출 한 줄 필드 (10/1 #32: 호출 1건당 1행, 상세가 없으면 미확인 — 0원 아님): 작업 설명 이름(`note` / `title`), `calls`를 A-05 합계에 넣는지 | `note` 또는 `title`, `calls` 있으면 씀 | 설명이 없으면 "Terraform 생성 (deploy.yaml)" · "Terraform 수정"으로 대신, 모르는 `status`는 "—" |
 | S-3 | 서버 (하은현 · 김승환) | A-04 환경별 `image_digest` · `health_summary` · `steps[]` 제공 여부 (10/1 "제공 · 후순위 · 미제공으로 안내" 약속) | 오면 쓰고, 없으면 "—" · 웹처럼 단계 추정 | W-08 동일성 digest 줄이 "—" |
 | S-4 | 서버 (하은현) | 승인 `confirm_text` 검증 값 = 프로젝트 이름인지, 승인 대기 환경만 적용되는지 | 프로젝트 이름, 승인 대기 환경 전부 한 번에 | 서버가 다른 값을 요구하면 입력 안내만 바꿔요 |
 | S-5 | 서버 (하은현) | `POST /projects` 응답: `Project`만 / `{ project, manifest }` (웹 목업) | `Project` → `GET manifest` 따로 | 둘 다 받게 한 줄 수정 |
@@ -509,6 +509,7 @@ API 모양보다 **이 정보가 어딘가에 저장되어 있는지**가 더 �
 
 | 날짜 | 변경 | 작성 |
 |---|---|---|
+| 10/1 | 단계 상태 `skipped` "건너뜀" 추가 (W-03 Trigger CD는 운영에서 늘 건너뜀, 웹 #25와 같게), 예시 데이터 반영. 10/1 역할 재분담(#33): plan 요약은 인프라가 만들고 서버가 보관 · 조회, AI 사용량은 김승환 기록 · 하은현 조회, §4 CI 열을 인프라로 | 박승준 |
 | 10/1 | **ADR-007 확정 반영** (앱도 웹과 같은 전체 흐름, #33): §1-1 · §1-2 · §8. 서버 역할 `owner` · `viewer`, `ai_usage.attempt` = 생성 · 수정 회차(1–3)는 앱의 기존 처리와 같아요 (PR #32) | 박승준 |
 | 10/1 | 스펙 · 구현 대조로 오래된 문장 정리 (§1 화면 이름, §3 폴더 구조 · 최소 OS 이유, §4 앱이 하는 일, §5 DMG 버전, A-07 줄 수, A-11 봉투, Project.repository 전체 URL, TargetStatus `image_digest` · `health_summary`, 헬스 "200 OK · 120ms", W-05b 오류 로그 → 스크립트, WR-08 apply 도중 중단 없음(17:23 결정)). 코드: 이력 "롤백 · 롤백됨" 중복, 모르는 AI 호출 상태 "—", iPhone 배포 화면 "새 배포" 버튼 | 박승준 |
 | 10/1 | iPhone 아래 탭을 얇은 글래스 캡슐 아이콘 바로 (글씨 없음, "더 보기" 없음, 선택한 탭은 채운 아이콘, 환경 아이콘 `square.stack.3d.up`, AI 사용량 `chart.bar`). 화면 머리줄(루트 · 흐름 화면)을 뒤가 비치는 반투명 재질로, 모든 화면 끝까지 스크롤(탭 바 위 여백), W-05 아래 빈 공간 수정 | 박승준 |

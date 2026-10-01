@@ -96,7 +96,7 @@ extension StepState {
         case .running: .blue
         case .done: .green
         case .failed: .red
-        case .waiting, .unknown: .gray
+        case .waiting, .skipped, .unknown: .gray
         }
     }
 }
