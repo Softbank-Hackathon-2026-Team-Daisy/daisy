@@ -58,6 +58,8 @@ struct SampleDataTests {
         // Jenkins 화면은 외부에 공개하지 않아서 링크 없이, 단계는 daisy-ci 이름 그대로 (10/1 임채준 답)
         #expect(builds.allSatisfy { $0.pipeline.runUrl == nil })
         #expect(builds.first?.steps?.map(\.name) == ["Checkout", "Test", "Build & Push", "Trigger CD"])
+        // Trigger CD는 운영에서 늘 건너뜀 (10/1 웹 #25) → "건너뜀"
+        #expect(builds.first?.steps?.last?.state == .skipped)
     }
 
     /// 커밋은 실제 GitHub sample 레포에서 가져와요 (40자 SHA)

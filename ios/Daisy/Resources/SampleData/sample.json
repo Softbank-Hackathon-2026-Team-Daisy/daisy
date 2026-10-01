@@ -1,5 +1,5 @@
 {
- "generated_at": "2026-10-01T04:24:30Z",
+ "generated_at": "2026-10-01T11:00:12Z",
  "note": "예시 데이터 — 실제 GitHub 커밋 · deploy.yaml 위에 배포 상태를 예시로 채웠어요",
  "responses": {
   "deployments/dep_m2": {
@@ -10,13 +10,13 @@
     "exchange_rate": 1380,
     "tokens": 9000
    },
-   "commit": "839d8c02f701c3cce2db1edf2386d28fd79f654f",
-   "commit_message": "HelloCalc: portable reference workload",
-   "created_at": "2026-09-30T02:24:30Z",
+   "commit": "2311c0b683ec0f46d0be1c640591245ae8d1c093",
+   "commit_message": "feat(ci): Daisy 앱 연결 요구사항 추가 (deploy.yaml, /health, N-01 파이프라인)",
+   "created_at": "2026-09-30T09:00:12Z",
    "created_by": "Seungjun Park",
-   "finished_at": "2026-09-30T02:32:30Z",
+   "finished_at": "2026-09-30T09:08:12Z",
    "id": "dep_m2",
-   "image": "ghcr.io/team-daisy/sample-monolith:839d8c0",
+   "image": "ghcr.io/team-daisy/sample-monolith:2311c0b",
    "kind": null,
    "pending_approval": null,
    "project_id": "prj_monolith",
@@ -27,7 +27,7 @@
      "attempt": 1,
      "error_summary": null,
      "health_summary": "200 OK · 98ms",
-     "image_digest": "sha256:b9cde1069411",
+     "image_digest": "sha256:2177b5c728eb",
      "reused_script": false,
      "state": "succeeded",
      "step": "health_check",
@@ -54,7 +54,7 @@
      "attempt": 1,
      "error_summary": null,
      "health_summary": "200 OK · 131ms",
-     "image_digest": "sha256:b9cde1069411",
+     "image_digest": "sha256:2177b5c728eb",
      "reused_script": false,
      "state": "succeeded",
      "step": "health_check",
@@ -81,7 +81,7 @@
      "attempt": 1,
      "error_summary": "헬스체크 30초 안에 응답 없음 (/health)",
      "health_summary": null,
-     "image_digest": "sha256:b9cde1069411",
+     "image_digest": "sha256:2177b5c728eb",
      "reused_script": false,
      "state": "failed",
      "step": "health_check",
@@ -113,31 +113,31 @@
      "level": "info",
      "target_id": "tgt_aws",
      "text": "terraform init",
-     "ts": "2026-10-01T04:15:30Z"
+     "ts": "2026-10-01T10:51:12Z"
     },
     {
      "level": "info",
      "target_id": "tgt_aws",
      "text": "terraform validate: Success!",
-     "ts": "2026-10-01T04:15:30Z"
+     "ts": "2026-10-01T10:51:12Z"
     },
     {
      "level": "error",
      "target_id": "tgt_aws",
      "text": "Error: creating ECS Service: AccessDeniedException (ecs:CreateService)",
-     "ts": "2026-10-01T04:16:30Z"
+     "ts": "2026-10-01T10:52:12Z"
     },
     {
      "level": "info",
      "target_id": "tgt_aws",
      "text": "AI 수정 시도 2/3: IAM 정책에 ecs:CreateService 추가",
-     "ts": "2026-10-01T04:16:30Z"
+     "ts": "2026-10-01T10:52:12Z"
     },
     {
      "level": "info",
      "target_id": "tgt_aws",
      "text": "terraform plan: 2 to add, 1 to change, 1 to destroy",
-     "ts": "2026-10-01T04:17:30Z"
+     "ts": "2026-10-01T10:53:12Z"
     }
    ],
    "next_cursor": null
@@ -236,8 +236,8 @@
   "deployments/dep_m2/targets/tgt_aws/script": {
    "ai_tokens": 4200,
    "attempt": 1,
-   "base_commit": "839d8c02f701c3cce2db1edf2386d28fd79f654f",
-   "created_at": "2026-09-29T04:24:30Z",
+   "base_commit": "2311c0b683ec0f46d0be1c640591245ae8d1c093",
+   "created_at": "2026-09-29T11:00:12Z",
    "files": [
     {
      "content": "resource \"aws_ecs_service\" \"app\" {\n  name            = var.name\n  cluster         = aws_ecs_cluster.main.id\n  task_definition = aws_ecs_task_definition.app.arn\n  desired_count   = 1\n  launch_type     = \"FARGATE\"\n}\n",
@@ -263,8 +263,8 @@
   "deployments/dep_m2/targets/tgt_gcp/script": {
    "ai_tokens": 4200,
    "attempt": 1,
-   "base_commit": "839d8c02f701c3cce2db1edf2386d28fd79f654f",
-   "created_at": "2026-09-29T04:24:30Z",
+   "base_commit": "2311c0b683ec0f46d0be1c640591245ae8d1c093",
+   "created_at": "2026-09-29T11:00:12Z",
    "files": [
     {
      "content": "resource \"google_cloud_run_v2_service\" \"app\" {\n  name     = var.name\n  location = \"asia-northeast3\"\n  template {\n    containers { image = var.image }\n  }\n}\n",
@@ -290,8 +290,8 @@
   "deployments/dep_m2/targets/tgt_onprem/script": {
    "ai_tokens": 4200,
    "attempt": 1,
-   "base_commit": "839d8c02f701c3cce2db1edf2386d28fd79f654f",
-   "created_at": "2026-09-29T04:24:30Z",
+   "base_commit": "2311c0b683ec0f46d0be1c640591245ae8d1c093",
+   "created_at": "2026-09-29T11:00:12Z",
    "files": [
     {
      "content": "resource \"docker_container\" \"app\" {\n  name  = var.name\n  image = var.image\n  ports {\n    internal = 8080\n    external = 8080\n  }\n}\n",
@@ -322,13 +322,13 @@
     "exchange_rate": 1380,
     "tokens": 6050
    },
-   "commit": "2311c0b683ec0f46d0be1c640591245ae8d1c093",
-   "commit_message": "feat(ci): Daisy 앱 연결 요구사항 추가 (deploy.yaml, /health, N-01 파이프라인)",
-   "created_at": "2026-09-30T08:24:30Z",
+   "commit": "7b1578b0092229c7cf7cbf91f1b2b176c2ca583d",
+   "commit_message": "chore: Go 모듈 경로와 이미지 출처 레이블을 팀 레포로 변경",
+   "created_at": "2026-09-30T15:00:12Z",
    "created_by": "Seungjun Park",
-   "finished_at": "2026-09-30T08:30:30Z",
+   "finished_at": "2026-09-30T15:06:12Z",
    "id": "dep_m3",
-   "image": "ghcr.io/team-daisy/sample-monolith:2311c0b",
+   "image": "ghcr.io/team-daisy/sample-monolith:7b1578b",
    "kind": null,
    "pending_approval": null,
    "project_id": "prj_monolith",
@@ -339,7 +339,7 @@
      "attempt": 1,
      "error_summary": null,
      "health_summary": "200 OK · 120ms",
-     "image_digest": "sha256:2177b5c728eb",
+     "image_digest": "sha256:03806b3a0378",
      "reused_script": true,
      "state": "succeeded",
      "step": "health_check",
@@ -366,7 +366,7 @@
      "attempt": 1,
      "error_summary": null,
      "health_summary": "200 OK · 120ms",
-     "image_digest": "sha256:2177b5c728eb",
+     "image_digest": "sha256:03806b3a0378",
      "reused_script": false,
      "state": "succeeded",
      "step": "health_check",
@@ -393,7 +393,7 @@
      "attempt": 1,
      "error_summary": null,
      "health_summary": "200 OK · 120ms",
-     "image_digest": "sha256:2177b5c728eb",
+     "image_digest": "sha256:03806b3a0378",
      "reused_script": false,
      "state": "succeeded",
      "step": "health_check",
@@ -425,31 +425,31 @@
      "level": "info",
      "target_id": "tgt_aws",
      "text": "terraform init",
-     "ts": "2026-10-01T04:15:30Z"
+     "ts": "2026-10-01T10:51:12Z"
     },
     {
      "level": "info",
      "target_id": "tgt_aws",
      "text": "terraform validate: Success!",
-     "ts": "2026-10-01T04:15:30Z"
+     "ts": "2026-10-01T10:51:12Z"
     },
     {
      "level": "error",
      "target_id": "tgt_aws",
      "text": "Error: creating ECS Service: AccessDeniedException (ecs:CreateService)",
-     "ts": "2026-10-01T04:16:30Z"
+     "ts": "2026-10-01T10:52:12Z"
     },
     {
      "level": "info",
      "target_id": "tgt_aws",
      "text": "AI 수정 시도 2/3: IAM 정책에 ecs:CreateService 추가",
-     "ts": "2026-10-01T04:16:30Z"
+     "ts": "2026-10-01T10:52:12Z"
     },
     {
      "level": "info",
      "target_id": "tgt_aws",
      "text": "terraform plan: 2 to add, 1 to change, 1 to destroy",
-     "ts": "2026-10-01T04:17:30Z"
+     "ts": "2026-10-01T10:53:12Z"
     }
    ],
    "next_cursor": null
@@ -548,8 +548,8 @@
   "deployments/dep_m3/targets/tgt_aws/script": {
    "ai_tokens": 4200,
    "attempt": 1,
-   "base_commit": "2311c0b683ec0f46d0be1c640591245ae8d1c093",
-   "created_at": "2026-09-29T04:24:30Z",
+   "base_commit": "7b1578b0092229c7cf7cbf91f1b2b176c2ca583d",
+   "created_at": "2026-09-29T11:00:12Z",
    "files": [
     {
      "content": "resource \"aws_ecs_service\" \"app\" {\n  name            = var.name\n  cluster         = aws_ecs_cluster.main.id\n  task_definition = aws_ecs_task_definition.app.arn\n  desired_count   = 1\n  launch_type     = \"FARGATE\"\n}\n",
@@ -575,8 +575,8 @@
   "deployments/dep_m3/targets/tgt_gcp/script": {
    "ai_tokens": 4200,
    "attempt": 1,
-   "base_commit": "2311c0b683ec0f46d0be1c640591245ae8d1c093",
-   "created_at": "2026-09-29T04:24:30Z",
+   "base_commit": "7b1578b0092229c7cf7cbf91f1b2b176c2ca583d",
+   "created_at": "2026-09-29T11:00:12Z",
    "files": [
     {
      "content": "resource \"google_cloud_run_v2_service\" \"app\" {\n  name     = var.name\n  location = \"asia-northeast3\"\n  template {\n    containers { image = var.image }\n  }\n}\n",
@@ -602,8 +602,8 @@
   "deployments/dep_m3/targets/tgt_onprem/script": {
    "ai_tokens": 4200,
    "attempt": 1,
-   "base_commit": "2311c0b683ec0f46d0be1c640591245ae8d1c093",
-   "created_at": "2026-09-29T04:24:30Z",
+   "base_commit": "7b1578b0092229c7cf7cbf91f1b2b176c2ca583d",
+   "created_at": "2026-09-29T11:00:12Z",
    "files": [
     {
      "content": "resource \"docker_container\" \"app\" {\n  name  = var.name\n  image = var.image\n  ports {\n    internal = 8080\n    external = 8080\n  }\n}\n",
@@ -634,13 +634,13 @@
     "exchange_rate": 1380,
     "tokens": 9730
    },
-   "commit": "7b1578b0092229c7cf7cbf91f1b2b176c2ca583d",
-   "commit_message": "chore: Go 모듈 경로와 이미지 출처 레이블을 팀 레포로 변경",
-   "created_at": "2026-10-01T01:24:30Z",
+   "commit": "85ef7c5047eb6e444f5b3dd6e8add1df7390d0d0",
+   "commit_message": "docs: 레포 이름 기준으로 README 제목과 LICENSE 저작권자 정리",
+   "created_at": "2026-10-01T08:00:12Z",
    "created_by": "Seungjun Park",
    "finished_at": null,
    "id": "dep_m4",
-   "image": "ghcr.io/team-daisy/sample-monolith:7b1578b",
+   "image": "ghcr.io/team-daisy/sample-monolith:85ef7c5",
    "kind": null,
    "pending_approval": null,
    "project_id": "prj_monolith",
@@ -755,31 +755,31 @@
      "level": "info",
      "target_id": "tgt_aws",
      "text": "terraform init",
-     "ts": "2026-10-01T04:15:30Z"
+     "ts": "2026-10-01T10:51:12Z"
     },
     {
      "level": "info",
      "target_id": "tgt_aws",
      "text": "terraform validate: Success!",
-     "ts": "2026-10-01T04:15:30Z"
+     "ts": "2026-10-01T10:51:12Z"
     },
     {
      "level": "error",
      "target_id": "tgt_aws",
      "text": "Error: creating ECS Service: AccessDeniedException (ecs:CreateService)",
-     "ts": "2026-10-01T04:16:30Z"
+     "ts": "2026-10-01T10:52:12Z"
     },
     {
      "level": "info",
      "target_id": "tgt_aws",
      "text": "AI 수정 시도 2/3: IAM 정책에 ecs:CreateService 추가",
-     "ts": "2026-10-01T04:16:30Z"
+     "ts": "2026-10-01T10:52:12Z"
     },
     {
      "level": "info",
      "target_id": "tgt_aws",
      "text": "terraform plan: 2 to add, 1 to change, 1 to destroy",
-     "ts": "2026-10-01T04:17:30Z"
+     "ts": "2026-10-01T10:53:12Z"
     }
    ],
    "next_cursor": null
@@ -878,8 +878,8 @@
   "deployments/dep_m4/targets/tgt_aws/script": {
    "ai_tokens": 4200,
    "attempt": 1,
-   "base_commit": "7b1578b0092229c7cf7cbf91f1b2b176c2ca583d",
-   "created_at": "2026-09-29T04:24:30Z",
+   "base_commit": "85ef7c5047eb6e444f5b3dd6e8add1df7390d0d0",
+   "created_at": "2026-09-29T11:00:12Z",
    "files": [
     {
      "content": "resource \"aws_ecs_service\" \"app\" {\n  name            = var.name\n  cluster         = aws_ecs_cluster.main.id\n  task_definition = aws_ecs_task_definition.app.arn\n  desired_count   = 1\n  launch_type     = \"FARGATE\"\n}\n",
@@ -905,8 +905,8 @@
   "deployments/dep_m4/targets/tgt_gcp/script": {
    "ai_tokens": 4200,
    "attempt": 1,
-   "base_commit": "7b1578b0092229c7cf7cbf91f1b2b176c2ca583d",
-   "created_at": "2026-09-29T04:24:30Z",
+   "base_commit": "85ef7c5047eb6e444f5b3dd6e8add1df7390d0d0",
+   "created_at": "2026-09-29T11:00:12Z",
    "files": [
     {
      "content": "resource \"google_cloud_run_v2_service\" \"app\" {\n  name     = var.name\n  location = \"asia-northeast3\"\n  template {\n    containers { image = var.image }\n  }\n}\n",
@@ -932,8 +932,8 @@
   "deployments/dep_m4/targets/tgt_onprem/script": {
    "ai_tokens": 4200,
    "attempt": 1,
-   "base_commit": "7b1578b0092229c7cf7cbf91f1b2b176c2ca583d",
-   "created_at": "2026-09-29T04:24:30Z",
+   "base_commit": "85ef7c5047eb6e444f5b3dd6e8add1df7390d0d0",
+   "created_at": "2026-09-29T11:00:12Z",
    "files": [
     {
      "content": "resource \"docker_container\" \"app\" {\n  name  = var.name\n  image = var.image\n  ports {\n    internal = 8080\n    external = 8080\n  }\n}\n",
@@ -964,13 +964,13 @@
     "exchange_rate": 1380,
     "tokens": 0
    },
-   "commit": "85ef7c5047eb6e444f5b3dd6e8add1df7390d0d0",
-   "commit_message": "docs: 레포 이름 기준으로 README 제목과 LICENSE 저작권자 정리",
-   "created_at": "2026-10-01T03:24:30Z",
+   "commit": "574acd9980b8fba01c49a5cd0ad659639de3ebe0",
+   "commit_message": "chore(ci): 로컬 이미지 태그를 커밋 해시로 통일 (latest 제거) (#1)",
+   "created_at": "2026-10-01T10:00:12Z",
    "created_by": "Seungjun Park",
    "finished_at": null,
    "id": "dep_m5",
-   "image": "ghcr.io/team-daisy/sample-monolith:85ef7c5",
+   "image": "ghcr.io/team-daisy/sample-monolith:574acd9",
    "kind": null,
    "pending_approval": null,
    "project_id": "prj_monolith",
@@ -981,7 +981,7 @@
      "attempt": 1,
      "error_summary": null,
      "health_summary": null,
-     "image_digest": "sha256:6edc49cbcf2c",
+     "image_digest": "sha256:45f7dd2c3bd7",
      "reused_script": true,
      "state": "succeeded",
      "step": "health_check",
@@ -1067,31 +1067,31 @@
      "level": "info",
      "target_id": "tgt_aws",
      "text": "terraform init",
-     "ts": "2026-10-01T04:15:30Z"
+     "ts": "2026-10-01T10:51:12Z"
     },
     {
      "level": "info",
      "target_id": "tgt_aws",
      "text": "terraform validate: Success!",
-     "ts": "2026-10-01T04:15:30Z"
+     "ts": "2026-10-01T10:51:12Z"
     },
     {
      "level": "error",
      "target_id": "tgt_aws",
      "text": "Error: creating ECS Service: AccessDeniedException (ecs:CreateService)",
-     "ts": "2026-10-01T04:16:30Z"
+     "ts": "2026-10-01T10:52:12Z"
     },
     {
      "level": "info",
      "target_id": "tgt_aws",
      "text": "AI 수정 시도 2/3: IAM 정책에 ecs:CreateService 추가",
-     "ts": "2026-10-01T04:16:30Z"
+     "ts": "2026-10-01T10:52:12Z"
     },
     {
      "level": "info",
      "target_id": "tgt_aws",
      "text": "terraform plan: 2 to add, 1 to change, 1 to destroy",
-     "ts": "2026-10-01T04:17:30Z"
+     "ts": "2026-10-01T10:53:12Z"
     }
    ],
    "next_cursor": null
@@ -1190,8 +1190,8 @@
   "deployments/dep_m5/targets/tgt_aws/script": {
    "ai_tokens": 4200,
    "attempt": 1,
-   "base_commit": "85ef7c5047eb6e444f5b3dd6e8add1df7390d0d0",
-   "created_at": "2026-09-29T04:24:30Z",
+   "base_commit": "574acd9980b8fba01c49a5cd0ad659639de3ebe0",
+   "created_at": "2026-09-29T11:00:12Z",
    "files": [
     {
      "content": "resource \"aws_ecs_service\" \"app\" {\n  name            = var.name\n  cluster         = aws_ecs_cluster.main.id\n  task_definition = aws_ecs_task_definition.app.arn\n  desired_count   = 1\n  launch_type     = \"FARGATE\"\n}\n",
@@ -1217,8 +1217,8 @@
   "deployments/dep_m5/targets/tgt_gcp/script": {
    "ai_tokens": 4200,
    "attempt": 1,
-   "base_commit": "85ef7c5047eb6e444f5b3dd6e8add1df7390d0d0",
-   "created_at": "2026-09-29T04:24:30Z",
+   "base_commit": "574acd9980b8fba01c49a5cd0ad659639de3ebe0",
+   "created_at": "2026-09-29T11:00:12Z",
    "files": [
     {
      "content": "resource \"google_cloud_run_v2_service\" \"app\" {\n  name     = var.name\n  location = \"asia-northeast3\"\n  template {\n    containers { image = var.image }\n  }\n}\n",
@@ -1244,8 +1244,8 @@
   "deployments/dep_m5/targets/tgt_onprem/script": {
    "ai_tokens": 4200,
    "attempt": 1,
-   "base_commit": "85ef7c5047eb6e444f5b3dd6e8add1df7390d0d0",
-   "created_at": "2026-09-29T04:24:30Z",
+   "base_commit": "574acd9980b8fba01c49a5cd0ad659639de3ebe0",
+   "created_at": "2026-09-29T11:00:12Z",
    "files": [
     {
      "content": "resource \"docker_container\" \"app\" {\n  name  = var.name\n  image = var.image\n  ports {\n    internal = 8080\n    external = 8080\n  }\n}\n",
@@ -1276,13 +1276,13 @@
     "exchange_rate": 1380,
     "tokens": 7920
    },
-   "commit": "574acd9980b8fba01c49a5cd0ad659639de3ebe0",
-   "commit_message": "chore(ci): 로컬 이미지 태그를 커밋 해시로 통일 (latest 제거) (#1)",
-   "created_at": "2026-10-01T04:12:30Z",
-   "created_by": "Seungjun Park",
+   "commit": "5139b9353edb0a27061737f243483b23f65b43a6",
+   "commit_message": "feat(app): 실행 환경 이름을 화면과 /version에 표시 (v1.1.0) (#2)",
+   "created_at": "2026-10-01T10:48:12Z",
+   "created_by": "ChaeJun Lim",
    "finished_at": null,
    "id": "dep_m6",
-   "image": "ghcr.io/team-daisy/sample-monolith:574acd9",
+   "image": "ghcr.io/team-daisy/sample-monolith:5139b93",
    "kind": null,
    "pending_approval": {
     "approval_id": "apv_dep_m6",
@@ -1418,31 +1418,31 @@
      "level": "info",
      "target_id": "tgt_aws",
      "text": "terraform init",
-     "ts": "2026-10-01T04:15:30Z"
+     "ts": "2026-10-01T10:51:12Z"
     },
     {
      "level": "info",
      "target_id": "tgt_aws",
      "text": "terraform validate: Success!",
-     "ts": "2026-10-01T04:15:30Z"
+     "ts": "2026-10-01T10:51:12Z"
     },
     {
      "level": "error",
      "target_id": "tgt_aws",
      "text": "Error: creating ECS Service: AccessDeniedException (ecs:CreateService)",
-     "ts": "2026-10-01T04:16:30Z"
+     "ts": "2026-10-01T10:52:12Z"
     },
     {
      "level": "info",
      "target_id": "tgt_aws",
      "text": "AI 수정 시도 2/3: IAM 정책에 ecs:CreateService 추가",
-     "ts": "2026-10-01T04:16:30Z"
+     "ts": "2026-10-01T10:52:12Z"
     },
     {
      "level": "info",
      "target_id": "tgt_aws",
      "text": "terraform plan: 2 to add, 1 to change, 1 to destroy",
-     "ts": "2026-10-01T04:17:30Z"
+     "ts": "2026-10-01T10:53:12Z"
     }
    ],
    "next_cursor": null
@@ -1541,8 +1541,8 @@
   "deployments/dep_m6/targets/tgt_aws/script": {
    "ai_tokens": 4200,
    "attempt": 1,
-   "base_commit": "574acd9980b8fba01c49a5cd0ad659639de3ebe0",
-   "created_at": "2026-09-29T04:24:30Z",
+   "base_commit": "5139b9353edb0a27061737f243483b23f65b43a6",
+   "created_at": "2026-09-29T11:00:12Z",
    "files": [
     {
      "content": "resource \"aws_ecs_service\" \"app\" {\n  name            = var.name\n  cluster         = aws_ecs_cluster.main.id\n  task_definition = aws_ecs_task_definition.app.arn\n  desired_count   = 1\n  launch_type     = \"FARGATE\"\n}\n",
@@ -1568,8 +1568,8 @@
   "deployments/dep_m6/targets/tgt_gcp/script": {
    "ai_tokens": 4200,
    "attempt": 1,
-   "base_commit": "574acd9980b8fba01c49a5cd0ad659639de3ebe0",
-   "created_at": "2026-09-29T04:24:30Z",
+   "base_commit": "5139b9353edb0a27061737f243483b23f65b43a6",
+   "created_at": "2026-09-29T11:00:12Z",
    "files": [
     {
      "content": "resource \"google_cloud_run_v2_service\" \"app\" {\n  name     = var.name\n  location = \"asia-northeast3\"\n  template {\n    containers { image = var.image }\n  }\n}\n",
@@ -1595,8 +1595,8 @@
   "deployments/dep_m6/targets/tgt_onprem/script": {
    "ai_tokens": 4200,
    "attempt": 1,
-   "base_commit": "574acd9980b8fba01c49a5cd0ad659639de3ebe0",
-   "created_at": "2026-09-29T04:24:30Z",
+   "base_commit": "5139b9353edb0a27061737f243483b23f65b43a6",
+   "created_at": "2026-09-29T11:00:12Z",
    "files": [
     {
      "content": "resource \"docker_container\" \"app\" {\n  name  = var.name\n  image = var.image\n  ports {\n    internal = 8080\n    external = 8080\n  }\n}\n",
@@ -1629,9 +1629,9 @@
    },
    "commit": "5e250c0aad492a86faadd482c9534a9540ca13d2",
    "commit_message": "feat: HelloCalc MSA 샘플 추가 (frontend + backend) (#1)",
-   "created_at": "2026-09-30T22:24:30Z",
+   "created_at": "2026-10-01T05:00:12Z",
    "created_by": "Seungjun Park",
-   "finished_at": "2026-09-30T22:34:30Z",
+   "finished_at": "2026-10-01T05:10:12Z",
    "id": "dep_s1",
    "image": "ghcr.io/team-daisy/sample-msa:5e250c0",
    "kind": null,
@@ -1730,31 +1730,31 @@
      "level": "info",
      "target_id": "tgt_aws",
      "text": "terraform init",
-     "ts": "2026-10-01T04:15:30Z"
+     "ts": "2026-10-01T10:51:12Z"
     },
     {
      "level": "info",
      "target_id": "tgt_aws",
      "text": "terraform validate: Success!",
-     "ts": "2026-10-01T04:15:30Z"
+     "ts": "2026-10-01T10:51:12Z"
     },
     {
      "level": "error",
      "target_id": "tgt_aws",
      "text": "Error: creating ECS Service: AccessDeniedException (ecs:CreateService)",
-     "ts": "2026-10-01T04:16:30Z"
+     "ts": "2026-10-01T10:52:12Z"
     },
     {
      "level": "info",
      "target_id": "tgt_aws",
      "text": "AI 수정 시도 2/3: IAM 정책에 ecs:CreateService 추가",
-     "ts": "2026-10-01T04:16:30Z"
+     "ts": "2026-10-01T10:52:12Z"
     },
     {
      "level": "info",
      "target_id": "tgt_aws",
      "text": "terraform plan: 2 to add, 1 to change, 1 to destroy",
-     "ts": "2026-10-01T04:17:30Z"
+     "ts": "2026-10-01T10:53:12Z"
     }
    ],
    "next_cursor": null
@@ -1854,7 +1854,7 @@
    "ai_tokens": 4200,
    "attempt": 1,
    "base_commit": "5e250c0aad492a86faadd482c9534a9540ca13d2",
-   "created_at": "2026-09-29T04:24:30Z",
+   "created_at": "2026-09-29T11:00:12Z",
    "files": [
     {
      "content": "resource \"aws_ecs_service\" \"app\" {\n  name            = var.name\n  cluster         = aws_ecs_cluster.main.id\n  task_definition = aws_ecs_task_definition.app.arn\n  desired_count   = 1\n  launch_type     = \"FARGATE\"\n}\n",
@@ -1881,7 +1881,7 @@
    "ai_tokens": 4200,
    "attempt": 1,
    "base_commit": "5e250c0aad492a86faadd482c9534a9540ca13d2",
-   "created_at": "2026-09-29T04:24:30Z",
+   "created_at": "2026-09-29T11:00:12Z",
    "files": [
     {
      "content": "resource \"google_cloud_run_v2_service\" \"app\" {\n  name     = var.name\n  location = \"asia-northeast3\"\n  template {\n    containers { image = var.image }\n  }\n}\n",
@@ -1908,7 +1908,7 @@
    "ai_tokens": 4200,
    "attempt": 1,
    "base_commit": "5e250c0aad492a86faadd482c9534a9540ca13d2",
-   "created_at": "2026-09-29T04:24:30Z",
+   "created_at": "2026-09-29T11:00:12Z",
    "files": [
     {
      "content": "resource \"docker_container\" \"app\" {\n  name  = var.name\n  image = var.image\n  ports {\n    internal = 8080\n    external = 8080\n  }\n}\n",
@@ -1941,7 +1941,7 @@
    },
    "commit": "5a21c63803fba9f43a8a20839a98fccc238c881b",
    "commit_message": "docs: Cloud Run에서 backend 호출 인증 조건 안내, 로컬 이미지 태그를 커밋 해시로 통일 (#2)",
-   "created_at": "2026-10-01T04:20:30Z",
+   "created_at": "2026-10-01T10:56:12Z",
    "created_by": "Seungjun Park",
    "finished_at": null,
    "id": "dep_s2",
@@ -2042,31 +2042,31 @@
      "level": "info",
      "target_id": "tgt_aws",
      "text": "terraform init",
-     "ts": "2026-10-01T04:15:30Z"
+     "ts": "2026-10-01T10:51:12Z"
     },
     {
      "level": "info",
      "target_id": "tgt_aws",
      "text": "terraform validate: Success!",
-     "ts": "2026-10-01T04:15:30Z"
+     "ts": "2026-10-01T10:51:12Z"
     },
     {
      "level": "error",
      "target_id": "tgt_aws",
      "text": "Error: creating ECS Service: AccessDeniedException (ecs:CreateService)",
-     "ts": "2026-10-01T04:16:30Z"
+     "ts": "2026-10-01T10:52:12Z"
     },
     {
      "level": "info",
      "target_id": "tgt_aws",
      "text": "AI 수정 시도 2/3: IAM 정책에 ecs:CreateService 추가",
-     "ts": "2026-10-01T04:16:30Z"
+     "ts": "2026-10-01T10:52:12Z"
     },
     {
      "level": "info",
      "target_id": "tgt_aws",
      "text": "terraform plan: 2 to add, 1 to change, 1 to destroy",
-     "ts": "2026-10-01T04:17:30Z"
+     "ts": "2026-10-01T10:53:12Z"
     }
    ],
    "next_cursor": null
@@ -2166,7 +2166,7 @@
    "ai_tokens": 4200,
    "attempt": 1,
    "base_commit": "5a21c63803fba9f43a8a20839a98fccc238c881b",
-   "created_at": "2026-09-29T04:24:30Z",
+   "created_at": "2026-09-29T11:00:12Z",
    "files": [
     {
      "content": "resource \"aws_ecs_service\" \"app\" {\n  name            = var.name\n  cluster         = aws_ecs_cluster.main.id\n  task_definition = aws_ecs_task_definition.app.arn\n  desired_count   = 1\n  launch_type     = \"FARGATE\"\n}\n",
@@ -2193,7 +2193,7 @@
    "ai_tokens": 4200,
    "attempt": 1,
    "base_commit": "5a21c63803fba9f43a8a20839a98fccc238c881b",
-   "created_at": "2026-09-29T04:24:30Z",
+   "created_at": "2026-09-29T11:00:12Z",
    "files": [
     {
      "content": "resource \"google_cloud_run_v2_service\" \"app\" {\n  name     = var.name\n  location = \"asia-northeast3\"\n  template {\n    containers { image = var.image }\n  }\n}\n",
@@ -2220,7 +2220,7 @@
    "ai_tokens": 4200,
    "attempt": 1,
    "base_commit": "5a21c63803fba9f43a8a20839a98fccc238c881b",
-   "created_at": "2026-09-29T04:24:30Z",
+   "created_at": "2026-09-29T11:00:12Z",
    "files": [
     {
      "content": "resource \"docker_container\" \"app\" {\n  name  = var.name\n  image = var.image\n  ports {\n    internal = 8080\n    external = 8080\n  }\n}\n",
@@ -2267,12 +2267,12 @@
    "name": "sample-monolith",
    "registry": "ghcr.io/team-daisy",
    "repository": "https://github.com/Softbank-Hackathon-2026-Team-Daisy/sample-monolith",
-   "webhook_last_at": "2026-10-01T04:12:30Z"
+   "webhook_last_at": "2026-10-01T10:48:12Z"
   },
   "projects/prj_monolith/ai-usage": {
    "items": [
     {
-     "at": "2026-10-01T04:14:30Z",
+     "at": "2026-10-01T10:50:12Z",
      "attempt": 2,
      "cost_krw": 48,
      "deployment_id": "dep_m6",
@@ -2283,7 +2283,7 @@
      "tokens": 1860
     },
     {
-     "at": "2026-10-01T04:13:30Z",
+     "at": "2026-10-01T10:49:12Z",
      "attempt": 1,
      "cost_krw": 82,
      "deployment_id": "dep_m6",
@@ -2294,7 +2294,7 @@
      "tokens": 3120
     },
     {
-     "at": "2026-10-01T04:13:30Z",
+     "at": "2026-10-01T10:49:12Z",
      "attempt": 1,
      "cost_krw": 76,
      "deployment_id": "dep_m6",
@@ -2305,7 +2305,7 @@
      "tokens": 2940
     },
     {
-     "at": "2026-10-01T01:35:30Z",
+     "at": "2026-10-01T08:11:12Z",
      "attempt": 3,
      "cost_krw": 49,
      "deployment_id": "dep_m4",
@@ -2316,7 +2316,7 @@
      "tokens": 1880
     },
     {
-     "at": "2026-10-01T01:32:30Z",
+     "at": "2026-10-01T08:08:12Z",
      "attempt": 2,
      "cost_krw": 49,
      "deployment_id": "dep_m4",
@@ -2327,7 +2327,7 @@
      "tokens": 1900
     },
     {
-     "at": "2026-10-01T01:30:30Z",
+     "at": "2026-10-01T08:06:12Z",
      "attempt": 1,
      "cost_krw": 75,
      "deployment_id": "dep_m4",
@@ -2338,7 +2338,7 @@
      "tokens": 2900
     },
     {
-     "at": "2026-10-01T01:29:30Z",
+     "at": "2026-10-01T08:05:12Z",
      "attempt": 1,
      "cost_krw": 80,
      "deployment_id": "dep_m4",
@@ -2349,7 +2349,7 @@
      "tokens": 3050
     },
     {
-     "at": "2026-09-30T08:29:30Z",
+     "at": "2026-09-30T15:05:12Z",
      "attempt": 1,
      "cost_krw": 81,
      "deployment_id": "dep_m3",
@@ -2360,7 +2360,7 @@
      "tokens": 3100
     },
     {
-     "at": "2026-09-30T08:29:30Z",
+     "at": "2026-09-30T15:05:12Z",
      "attempt": 1,
      "cost_krw": 76,
      "deployment_id": "dep_m3",
@@ -2371,7 +2371,7 @@
      "tokens": 2950
     },
     {
-     "at": "2026-09-30T02:24:30Z",
+     "at": "2026-09-30T09:00:12Z",
      "attempt": 1,
      "cost_krw": 78,
      "deployment_id": "dep_m2",
@@ -2382,7 +2382,7 @@
      "tokens": 3000
     },
     {
-     "at": "2026-09-30T02:24:30Z",
+     "at": "2026-09-30T09:00:12Z",
      "attempt": 1,
      "cost_krw": 78,
      "deployment_id": "dep_m2",
@@ -2393,7 +2393,7 @@
      "tokens": 3000
     },
     {
-     "at": "2026-09-30T02:24:30Z",
+     "at": "2026-09-30T09:00:12Z",
      "attempt": 1,
      "cost_krw": 78,
      "deployment_id": "dep_m2",
@@ -2408,6 +2408,46 @@
   },
   "projects/prj_monolith/builds": {
    "items": [
+    {
+     "author": "ChaeJun Lim",
+     "branch": "main",
+     "commit": "5139b9353edb0a27061737f243483b23f65b43a6",
+     "committed_at": "2026-10-01T09:53:21Z",
+     "deployed_to": [],
+     "digest": null,
+     "image": "ghcr.io/team-daisy/sample-monolith:5139b93",
+     "message": "feat(app): 실행 환경 이름을 화면과 /version에 표시 (v1.1.0) (#2)",
+     "pipeline": {
+      "run_url": null,
+      "status": "success"
+     },
+     "steps": [
+      {
+       "duration_ms": 2000,
+       "name": "Checkout",
+       "started_at": null,
+       "state": "done"
+      },
+      {
+       "duration_ms": 21000,
+       "name": "Test",
+       "started_at": null,
+       "state": "done"
+      },
+      {
+       "duration_ms": 73000,
+       "name": "Build & Push",
+       "started_at": null,
+       "state": "done"
+      },
+      {
+       "duration_ms": null,
+       "name": "Trigger CD",
+       "started_at": null,
+       "state": "skipped"
+      }
+     ]
+    },
     {
      "author": "Seungjun Park",
      "branch": "main",
@@ -2441,10 +2481,10 @@
        "state": "done"
       },
       {
-       "duration_ms": 1000,
+       "duration_ms": null,
        "name": "Trigger CD",
        "started_at": null,
-       "state": "done"
+       "state": "skipped"
       }
      ]
     },
@@ -2481,10 +2521,10 @@
        "state": "done"
       },
       {
-       "duration_ms": 1000,
+       "duration_ms": null,
        "name": "Trigger CD",
        "started_at": null,
-       "state": "done"
+       "state": "skipped"
       }
      ]
     },
@@ -2521,10 +2561,10 @@
        "state": "done"
       },
       {
-       "duration_ms": 1000,
+       "duration_ms": null,
        "name": "Trigger CD",
        "started_at": null,
-       "state": "done"
+       "state": "skipped"
       }
      ]
     },
@@ -2561,10 +2601,10 @@
        "state": "done"
       },
       {
-       "duration_ms": 1000,
+       "duration_ms": null,
        "name": "Trigger CD",
        "started_at": null,
-       "state": "done"
+       "state": "skipped"
       }
      ]
     },
@@ -2601,10 +2641,10 @@
        "state": "done"
       },
       {
-       "duration_ms": 1000,
+       "duration_ms": null,
        "name": "Trigger CD",
        "started_at": null,
-       "state": "done"
+       "state": "skipped"
       }
      ]
     }
@@ -2621,13 +2661,13 @@
       "exchange_rate": 1380,
       "tokens": 7920
      },
-     "commit": "574acd9980b8fba01c49a5cd0ad659639de3ebe0",
-     "commit_message": "chore(ci): 로컬 이미지 태그를 커밋 해시로 통일 (latest 제거) (#1)",
-     "created_at": "2026-10-01T04:12:30Z",
-     "created_by": "Seungjun Park",
+     "commit": "5139b9353edb0a27061737f243483b23f65b43a6",
+     "commit_message": "feat(app): 실행 환경 이름을 화면과 /version에 표시 (v1.1.0) (#2)",
+     "created_at": "2026-10-01T10:48:12Z",
+     "created_by": "ChaeJun Lim",
      "finished_at": null,
      "id": "dep_m6",
-     "image": "ghcr.io/team-daisy/sample-monolith:574acd9",
+     "image": "ghcr.io/team-daisy/sample-monolith:5139b93",
      "kind": null,
      "pending_approval": {
       "approval_id": "apv_dep_m6",
@@ -2765,13 +2805,13 @@
       "exchange_rate": 1380,
       "tokens": 0
      },
-     "commit": "85ef7c5047eb6e444f5b3dd6e8add1df7390d0d0",
-     "commit_message": "docs: 레포 이름 기준으로 README 제목과 LICENSE 저작권자 정리",
-     "created_at": "2026-10-01T03:24:30Z",
+     "commit": "574acd9980b8fba01c49a5cd0ad659639de3ebe0",
+     "commit_message": "chore(ci): 로컬 이미지 태그를 커밋 해시로 통일 (latest 제거) (#1)",
+     "created_at": "2026-10-01T10:00:12Z",
      "created_by": "Seungjun Park",
      "finished_at": null,
      "id": "dep_m5",
-     "image": "ghcr.io/team-daisy/sample-monolith:85ef7c5",
+     "image": "ghcr.io/team-daisy/sample-monolith:574acd9",
      "kind": null,
      "pending_approval": null,
      "project_id": "prj_monolith",
@@ -2782,7 +2822,7 @@
        "attempt": 1,
        "error_summary": null,
        "health_summary": null,
-       "image_digest": "sha256:6edc49cbcf2c",
+       "image_digest": "sha256:45f7dd2c3bd7",
        "reused_script": true,
        "state": "succeeded",
        "step": "health_check",
@@ -2870,13 +2910,13 @@
       "exchange_rate": 1380,
       "tokens": 9730
      },
-     "commit": "7b1578b0092229c7cf7cbf91f1b2b176c2ca583d",
-     "commit_message": "chore: Go 모듈 경로와 이미지 출처 레이블을 팀 레포로 변경",
-     "created_at": "2026-10-01T01:24:30Z",
+     "commit": "85ef7c5047eb6e444f5b3dd6e8add1df7390d0d0",
+     "commit_message": "docs: 레포 이름 기준으로 README 제목과 LICENSE 저작권자 정리",
+     "created_at": "2026-10-01T08:00:12Z",
      "created_by": "Seungjun Park",
      "finished_at": null,
      "id": "dep_m4",
-     "image": "ghcr.io/team-daisy/sample-monolith:7b1578b",
+     "image": "ghcr.io/team-daisy/sample-monolith:85ef7c5",
      "kind": null,
      "pending_approval": null,
      "project_id": "prj_monolith",
@@ -2993,13 +3033,13 @@
       "exchange_rate": 1380,
       "tokens": 6050
      },
-     "commit": "2311c0b683ec0f46d0be1c640591245ae8d1c093",
-     "commit_message": "feat(ci): Daisy 앱 연결 요구사항 추가 (deploy.yaml, /health, N-01 파이프라인)",
-     "created_at": "2026-09-30T08:24:30Z",
+     "commit": "7b1578b0092229c7cf7cbf91f1b2b176c2ca583d",
+     "commit_message": "chore: Go 모듈 경로와 이미지 출처 레이블을 팀 레포로 변경",
+     "created_at": "2026-09-30T15:00:12Z",
      "created_by": "Seungjun Park",
-     "finished_at": "2026-09-30T08:30:30Z",
+     "finished_at": "2026-09-30T15:06:12Z",
      "id": "dep_m3",
-     "image": "ghcr.io/team-daisy/sample-monolith:2311c0b",
+     "image": "ghcr.io/team-daisy/sample-monolith:7b1578b",
      "kind": null,
      "pending_approval": null,
      "project_id": "prj_monolith",
@@ -3010,7 +3050,7 @@
        "attempt": 1,
        "error_summary": null,
        "health_summary": "200 OK · 120ms",
-       "image_digest": "sha256:2177b5c728eb",
+       "image_digest": "sha256:03806b3a0378",
        "reused_script": true,
        "state": "succeeded",
        "step": "health_check",
@@ -3037,7 +3077,7 @@
        "attempt": 1,
        "error_summary": null,
        "health_summary": "200 OK · 120ms",
-       "image_digest": "sha256:2177b5c728eb",
+       "image_digest": "sha256:03806b3a0378",
        "reused_script": false,
        "state": "succeeded",
        "step": "health_check",
@@ -3064,7 +3104,7 @@
        "attempt": 1,
        "error_summary": null,
        "health_summary": "200 OK · 120ms",
-       "image_digest": "sha256:2177b5c728eb",
+       "image_digest": "sha256:03806b3a0378",
        "reused_script": false,
        "state": "succeeded",
        "step": "health_check",
@@ -3098,13 +3138,13 @@
       "exchange_rate": 1380,
       "tokens": 9000
      },
-     "commit": "839d8c02f701c3cce2db1edf2386d28fd79f654f",
-     "commit_message": "HelloCalc: portable reference workload",
-     "created_at": "2026-09-30T02:24:30Z",
+     "commit": "2311c0b683ec0f46d0be1c640591245ae8d1c093",
+     "commit_message": "feat(ci): Daisy 앱 연결 요구사항 추가 (deploy.yaml, /health, N-01 파이프라인)",
+     "created_at": "2026-09-30T09:00:12Z",
      "created_by": "Seungjun Park",
-     "finished_at": "2026-09-30T02:32:30Z",
+     "finished_at": "2026-09-30T09:08:12Z",
      "id": "dep_m2",
-     "image": "ghcr.io/team-daisy/sample-monolith:839d8c0",
+     "image": "ghcr.io/team-daisy/sample-monolith:2311c0b",
      "kind": null,
      "pending_approval": null,
      "project_id": "prj_monolith",
@@ -3115,7 +3155,7 @@
        "attempt": 1,
        "error_summary": null,
        "health_summary": "200 OK · 98ms",
-       "image_digest": "sha256:b9cde1069411",
+       "image_digest": "sha256:2177b5c728eb",
        "reused_script": false,
        "state": "succeeded",
        "step": "health_check",
@@ -3142,7 +3182,7 @@
        "attempt": 1,
        "error_summary": null,
        "health_summary": "200 OK · 131ms",
-       "image_digest": "sha256:b9cde1069411",
+       "image_digest": "sha256:2177b5c728eb",
        "reused_script": false,
        "state": "succeeded",
        "step": "health_check",
@@ -3169,7 +3209,7 @@
        "attempt": 1,
        "error_summary": "헬스체크 30초 안에 응답 없음 (/health)",
        "health_summary": null,
-       "image_digest": "sha256:b9cde1069411",
+       "image_digest": "sha256:2177b5c728eb",
        "reused_script": false,
        "state": "failed",
        "step": "health_check",
@@ -3208,7 +3248,7 @@
    "healthcheck": "/health",
    "port": 8080,
    "raw": "# Daisy 배포 명세 (스키마: daisy/CLAUDE.md §5, 9/29 회의 초안)\nname: hellocalc\nport: 8080              # 컨테이너 안에서 앱이 요청을 받는 포트\nhealthcheck: /health    # 200 {\"status\":\"ok\"}\nenv:                    # 일반 환경변수 (모두 선택, 기본값 있음)\n  - LOG_LEVEL           # debug | info | warn | error (기본 info)\n  - SHUTDOWN_TIMEOUT    # 종료 시 처리 중 요청 대기 한도 (기본 15s)\nsecrets: []             # 비밀값 없음\ndatabase: false         # DB 불필요 (상태 없는 앱)\n",
-   "ref": "deploy.yaml · main@574acd9",
+   "ref": "deploy.yaml · main@5139b93",
    "secrets": []
   },
   "projects/prj_monolith/scripts": {
@@ -3216,8 +3256,8 @@
     {
      "ai_tokens": 5400,
      "attempt": 2,
-     "base_commit": "839d8c02f701c3cce2db1edf2386d28fd79f654f",
-     "created_at": "2026-09-29T04:24:30Z",
+     "base_commit": "2311c0b683ec0f46d0be1c640591245ae8d1c093",
+     "created_at": "2026-09-29T11:00:12Z",
      "files": [
       {
        "content": "resource \"aws_ecs_service\" \"app\" {\n  name            = var.name\n  cluster         = aws_ecs_cluster.main.id\n  task_definition = aws_ecs_task_definition.app.arn\n  desired_count   = 1\n  launch_type     = \"FARGATE\"\n}\n",
@@ -3225,7 +3265,7 @@
       }
      ],
      "input": "deploy.yaml + 기준 모듈",
-     "last_used_at": "2026-10-01T03:24:30Z",
+     "last_used_at": "2026-10-01T10:00:12Z",
      "note": "보안 그룹 수정",
      "origin": "ai_generated",
      "reuse_count": 4,
@@ -3243,8 +3283,8 @@
     {
      "ai_tokens": 4200,
      "attempt": 1,
-     "base_commit": "839d8c02f701c3cce2db1edf2386d28fd79f654f",
-     "created_at": "2026-09-28T04:24:30Z",
+     "base_commit": "2311c0b683ec0f46d0be1c640591245ae8d1c093",
+     "created_at": "2026-09-28T11:00:12Z",
      "files": [
       {
        "content": "resource \"docker_container\" \"app\" {\n  name  = var.name\n  image = var.image\n  ports {\n    internal = 8080\n    external = 8080\n  }\n}\n",
@@ -3252,7 +3292,7 @@
       }
      ],
      "input": "deploy.yaml + 기준 모듈",
-     "last_used_at": "2026-10-01T03:24:30Z",
+     "last_used_at": "2026-10-01T10:00:12Z",
      "note": null,
      "origin": "ai_generated",
      "reuse_count": 6,
@@ -3270,8 +3310,8 @@
     {
      "ai_tokens": 6600,
      "attempt": 3,
-     "base_commit": "839d8c02f701c3cce2db1edf2386d28fd79f654f",
-     "created_at": "2026-09-30T04:24:30Z",
+     "base_commit": "2311c0b683ec0f46d0be1c640591245ae8d1c093",
+     "created_at": "2026-09-30T11:00:12Z",
      "files": [
       {
        "content": "resource \"google_cloud_run_v2_service\" \"app\" {\n  name     = var.name\n  location = \"asia-northeast3\"\n  template {\n    containers { image = var.image }\n  }\n}\n",
@@ -3302,7 +3342,7 @@
     {
      "access_method": "사설망(VPN) + SSH",
      "connection": {
-      "checked_at": "2026-10-01T04:23:30Z",
+      "checked_at": "2026-10-01T10:59:12Z",
       "state": "ok"
      },
      "exposure": "팀 도메인 HTTPS",
@@ -3323,7 +3363,7 @@
     {
      "access_method": "IAM 역할",
      "connection": {
-      "checked_at": "2026-10-01T04:23:30Z",
+      "checked_at": "2026-10-01T10:59:12Z",
       "state": "ok"
      },
      "exposure": "ALB HTTPS",
@@ -3344,7 +3384,7 @@
     {
      "access_method": "서비스 계정",
      "connection": {
-      "checked_at": "2026-10-01T04:23:30Z",
+      "checked_at": "2026-10-01T10:59:12Z",
       "state": "ok"
      },
      "exposure": "Cloud Run URL",
@@ -3367,48 +3407,48 @@
   "projects/prj_monolith/targets/status": {
    "items": [
     {
-     "checked_at": "2026-10-01T04:23:50Z",
+     "checked_at": "2026-10-01T10:59:32Z",
      "current": {
-      "commit": "2311c0b683ec0f46d0be1c640591245ae8d1c093",
-      "deployed_at": "2026-09-30T08:30:30Z",
+      "commit": "7b1578b0092229c7cf7cbf91f1b2b176c2ca583d",
+      "deployed_at": "2026-09-30T15:06:12Z",
       "deployment_id": "dep_m3",
-      "image": "ghcr.io/team-daisy/sample-monolith:2311c0b"
+      "image": "ghcr.io/team-daisy/sample-monolith:7b1578b"
      },
      "health": "healthy",
      "health_summary": "200 OK · 120ms",
-     "image_digest": "sha256:2177b5c728eb",
+     "image_digest": "sha256:03806b3a0378",
      "name": "온프레미스",
      "target_id": "tgt_onprem",
      "type": "onprem",
      "url": "https://hellocalc.onprem.example.com"
     },
     {
-     "checked_at": "2026-10-01T04:23:50Z",
+     "checked_at": "2026-10-01T10:59:32Z",
      "current": {
-      "commit": "2311c0b683ec0f46d0be1c640591245ae8d1c093",
-      "deployed_at": "2026-09-30T08:30:30Z",
+      "commit": "7b1578b0092229c7cf7cbf91f1b2b176c2ca583d",
+      "deployed_at": "2026-09-30T15:06:12Z",
       "deployment_id": "dep_m3",
-      "image": "ghcr.io/team-daisy/sample-monolith:2311c0b"
+      "image": "ghcr.io/team-daisy/sample-monolith:7b1578b"
      },
      "health": "healthy",
      "health_summary": "200 OK · 120ms",
-     "image_digest": "sha256:2177b5c728eb",
+     "image_digest": "sha256:03806b3a0378",
      "name": "AWS",
      "target_id": "tgt_aws",
      "type": "aws",
      "url": "https://hellocalc.aws.example.com"
     },
     {
-     "checked_at": "2026-10-01T04:23:50Z",
+     "checked_at": "2026-10-01T10:59:32Z",
      "current": {
-      "commit": "2311c0b683ec0f46d0be1c640591245ae8d1c093",
-      "deployed_at": "2026-09-30T08:30:30Z",
+      "commit": "7b1578b0092229c7cf7cbf91f1b2b176c2ca583d",
+      "deployed_at": "2026-09-30T15:06:12Z",
       "deployment_id": "dep_m3",
-      "image": "ghcr.io/team-daisy/sample-monolith:2311c0b"
+      "image": "ghcr.io/team-daisy/sample-monolith:7b1578b"
      },
      "health": "healthy",
      "health_summary": "200 OK · 120ms",
-     "image_digest": "sha256:2177b5c728eb",
+     "image_digest": "sha256:03806b3a0378",
      "name": "GCP",
      "target_id": "tgt_gcp",
      "type": "gcp",
@@ -3424,12 +3464,12 @@
    "name": "sample-msa",
    "registry": "ghcr.io/team-daisy",
    "repository": "https://github.com/Softbank-Hackathon-2026-Team-Daisy/sample-msa",
-   "webhook_last_at": "2026-10-01T04:12:30Z"
+   "webhook_last_at": "2026-10-01T10:48:12Z"
   },
   "projects/prj_msa/ai-usage": {
    "items": [
     {
-     "at": "2026-10-01T04:22:30Z",
+     "at": "2026-10-01T10:58:12Z",
      "attempt": 2,
      "cost_krw": 52,
      "deployment_id": "dep_s2",
@@ -3440,7 +3480,7 @@
      "tokens": 2010
     },
     {
-     "at": "2026-10-01T04:21:30Z",
+     "at": "2026-10-01T10:57:12Z",
      "attempt": 1,
      "cost_krw": 88,
      "deployment_id": "dep_s2",
@@ -3451,7 +3491,7 @@
      "tokens": 3400
     },
     {
-     "at": "2026-09-30T22:26:30Z",
+     "at": "2026-10-01T05:02:12Z",
      "attempt": 1,
      "cost_krw": 85,
      "deployment_id": "dep_s1",
@@ -3462,7 +3502,7 @@
      "tokens": 3300
     },
     {
-     "at": "2026-09-30T22:26:30Z",
+     "at": "2026-10-01T05:02:12Z",
      "attempt": 1,
      "cost_krw": 85,
      "deployment_id": "dep_s1",
@@ -3473,7 +3513,7 @@
      "tokens": 3300
     },
     {
-     "at": "2026-09-30T22:26:30Z",
+     "at": "2026-10-01T05:02:12Z",
      "attempt": 1,
      "cost_krw": 85,
      "deployment_id": "dep_s1",
@@ -3521,10 +3561,10 @@
        "state": "done"
       },
       {
-       "duration_ms": 1000,
+       "duration_ms": null,
        "name": "Trigger CD",
        "started_at": null,
-       "state": "done"
+       "state": "skipped"
       }
      ]
     },
@@ -3561,10 +3601,10 @@
        "state": "done"
       },
       {
-       "duration_ms": 1000,
+       "duration_ms": null,
        "name": "Trigger CD",
        "started_at": null,
-       "state": "done"
+       "state": "skipped"
       }
      ]
     }
@@ -3583,7 +3623,7 @@
      },
      "commit": "5a21c63803fba9f43a8a20839a98fccc238c881b",
      "commit_message": "docs: Cloud Run에서 backend 호출 인증 조건 안내, 로컬 이미지 태그를 커밋 해시로 통일 (#2)",
-     "created_at": "2026-10-01T04:20:30Z",
+     "created_at": "2026-10-01T10:56:12Z",
      "created_by": "Seungjun Park",
      "finished_at": null,
      "id": "dep_s2",
@@ -3688,9 +3728,9 @@
      },
      "commit": "5e250c0aad492a86faadd482c9534a9540ca13d2",
      "commit_message": "feat: HelloCalc MSA 샘플 추가 (frontend + backend) (#1)",
-     "created_at": "2026-09-30T22:24:30Z",
+     "created_at": "2026-10-01T05:00:12Z",
      "created_by": "Seungjun Park",
-     "finished_at": "2026-09-30T22:34:30Z",
+     "finished_at": "2026-10-01T05:10:12Z",
      "id": "dep_s1",
      "image": "ghcr.io/team-daisy/sample-msa:5e250c0",
      "kind": null,
@@ -3805,7 +3845,7 @@
      "ai_tokens": 5400,
      "attempt": 2,
      "base_commit": "5e250c0aad492a86faadd482c9534a9540ca13d2",
-     "created_at": "2026-09-29T04:24:30Z",
+     "created_at": "2026-09-29T11:00:12Z",
      "files": [
       {
        "content": "resource \"aws_ecs_service\" \"app\" {\n  name            = var.name\n  cluster         = aws_ecs_cluster.main.id\n  task_definition = aws_ecs_task_definition.app.arn\n  desired_count   = 1\n  launch_type     = \"FARGATE\"\n}\n",
@@ -3813,7 +3853,7 @@
       }
      ],
      "input": "deploy.yaml + 기준 모듈",
-     "last_used_at": "2026-10-01T03:24:30Z",
+     "last_used_at": "2026-10-01T10:00:12Z",
      "note": "보안 그룹 수정",
      "origin": "ai_generated",
      "reuse_count": 4,
@@ -3832,7 +3872,7 @@
      "ai_tokens": 4200,
      "attempt": 1,
      "base_commit": "5e250c0aad492a86faadd482c9534a9540ca13d2",
-     "created_at": "2026-09-28T04:24:30Z",
+     "created_at": "2026-09-28T11:00:12Z",
      "files": [
       {
        "content": "resource \"docker_container\" \"app\" {\n  name  = var.name\n  image = var.image\n  ports {\n    internal = 8080\n    external = 8080\n  }\n}\n",
@@ -3840,7 +3880,7 @@
       }
      ],
      "input": "deploy.yaml + 기준 모듈",
-     "last_used_at": "2026-10-01T03:24:30Z",
+     "last_used_at": "2026-10-01T10:00:12Z",
      "note": null,
      "origin": "ai_generated",
      "reuse_count": 6,
@@ -3859,7 +3899,7 @@
      "ai_tokens": 6600,
      "attempt": 3,
      "base_commit": "5e250c0aad492a86faadd482c9534a9540ca13d2",
-     "created_at": "2026-09-30T04:24:30Z",
+     "created_at": "2026-09-30T11:00:12Z",
      "files": [
       {
        "content": "resource \"google_cloud_run_v2_service\" \"app\" {\n  name     = var.name\n  location = \"asia-northeast3\"\n  template {\n    containers { image = var.image }\n  }\n}\n",
@@ -3890,7 +3930,7 @@
     {
      "access_method": "사설망(VPN) + SSH",
      "connection": {
-      "checked_at": "2026-10-01T04:23:30Z",
+      "checked_at": "2026-10-01T10:59:12Z",
       "state": "ok"
      },
      "exposure": "팀 도메인 HTTPS",
@@ -3911,7 +3951,7 @@
     {
      "access_method": "IAM 역할",
      "connection": {
-      "checked_at": "2026-10-01T04:23:30Z",
+      "checked_at": "2026-10-01T10:59:12Z",
       "state": "ok"
      },
      "exposure": "ALB HTTPS",
@@ -3932,7 +3972,7 @@
     {
      "access_method": "서비스 계정",
      "connection": {
-      "checked_at": "2026-10-01T04:23:30Z",
+      "checked_at": "2026-10-01T10:59:12Z",
       "state": "ok"
      },
      "exposure": "Cloud Run URL",
@@ -3955,10 +3995,10 @@
   "projects/prj_msa/targets/status": {
    "items": [
     {
-     "checked_at": "2026-10-01T04:23:50Z",
+     "checked_at": "2026-10-01T10:59:32Z",
      "current": {
       "commit": "5e250c0aad492a86faadd482c9534a9540ca13d2",
-      "deployed_at": "2026-09-30T22:34:30Z",
+      "deployed_at": "2026-10-01T05:10:12Z",
       "deployment_id": "dep_s1",
       "image": "ghcr.io/team-daisy/sample-msa:5e250c0"
      },
@@ -3971,10 +4011,10 @@
      "url": "https://hellocalc-frontend.onprem.example.com"
     },
     {
-     "checked_at": "2026-10-01T04:23:50Z",
+     "checked_at": "2026-10-01T10:59:32Z",
      "current": {
       "commit": "5e250c0aad492a86faadd482c9534a9540ca13d2",
-      "deployed_at": "2026-09-30T22:34:30Z",
+      "deployed_at": "2026-10-01T05:10:12Z",
       "deployment_id": "dep_s1",
       "image": "ghcr.io/team-daisy/sample-msa:5e250c0"
      },
@@ -3987,10 +4027,10 @@
      "url": "https://hellocalc-frontend.aws.example.com"
     },
     {
-     "checked_at": "2026-10-01T04:23:50Z",
+     "checked_at": "2026-10-01T10:59:32Z",
      "current": {
       "commit": "5e250c0aad492a86faadd482c9534a9540ca13d2",
-      "deployed_at": "2026-09-30T22:34:30Z",
+      "deployed_at": "2026-10-01T05:10:12Z",
       "deployment_id": "dep_s1",
       "image": "ghcr.io/team-daisy/sample-msa:5e250c0"
      },

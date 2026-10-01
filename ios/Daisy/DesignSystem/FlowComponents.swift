@@ -183,6 +183,7 @@ struct StepItemRow: View {
         case .failed: Image(systemName: "xmark.circle.fill").foregroundStyle(.red)
         case .running: ProgressView().controlSize(.small)
         case .waiting, .unknown: Image(systemName: "clock").foregroundStyle(.secondary)
+        case .skipped: Image(systemName: "minus.circle").foregroundStyle(.secondary)
         }
     }
 
@@ -199,6 +200,8 @@ struct StepItemRow: View {
             }
         case .waiting, .unknown:
             Text("—")
+        case .skipped:
+            Text("건너뜀")
         case .done, .failed:
             Text(durationMs.map { Duration.milliseconds($0).daisyText } ?? "—")
         }

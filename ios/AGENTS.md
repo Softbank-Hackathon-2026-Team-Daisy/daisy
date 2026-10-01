@@ -8,7 +8,7 @@ Follow the root `AGENTS.md` first. This file adds rules for `ios/` only and neve
 
 A native SwiftUI app for Daisy on iPhone, iPad, and Mac. Since 9/30 it carries **every screen, text, and button of the web wireframe v1.0** (W-00 – W-13, L-01 – L-03), laid out in this app's own design (`SPEC.md` §2 has the screen map).
 
-- This goes beyond ADR-007 ("approve, progress, notify only") and 도영's memo (W-02 – W-04 and W-10 – W-13 web-only). The owner chose it; the team still has to confirm it (tier 4, `SPEC.md` §8). If the team decides against it, remove only the affected buttons.
+- **Confirmed 10/1: ADR-007 now says the app runs the same full flow as the web** (team lead decision, root `AGENTS.md` §12-4, PR #33). The earlier "approve, progress, notify only" scope and 도영's web-only memo no longer apply.
 - The app never calls GitHub, cloud APIs, or Terraform directly. All data and actions go through the Daisy server API (`SPEC.md` §4, §6-8).
 - Distribution goal: a public TestFlight link that judges install during the demo. The first build goes to Beta App Review on **10/1** (`SPEC.md` §5).
 
@@ -157,9 +157,9 @@ Tier per root §6. Tier 1 entries are final for this area.
 | 9/30 | Menu and wording follow the web: 개요 · 배포 · 환경 · 이력 · 스크립트 · AI 사용량 · 설정 (approval lives inside 배포); status labels from web `api/status.ts` (대기 중 · 진행 중 · 승인 대기 · 성공 · 일부 성공 · 실패 · 취소됨 · 롤백됨); `리소스 +6 ~0 −0`; W-00 login and error messages (updated 10/1) | Same product on two clients | 1 |
 | 9/30 | Tests use Swift Testing; test-only JSON lives in `DaisyTests`, and the only app-side sample data is the labeled bundle `Resources/SampleData/sample.json` (§4, updated 10/1) | No hidden mock data in the app | 1 |
 | 9/29 | ~~The app does not start deployments or change infrastructure~~ (replaced 9/30) | Kept the app inside ADR-007 | 1 |
-| 9/30 | The app carries every wireframe screen, text, and button (W-00 – W-13, L-01 – L-03) with the web sidebar's menu; new server requests are `SPEC.md` §6-8 `(가칭)` | Owner decision: feature UX identical to the web. Conflicts with ADR-007 and 도영's memo, so the team must confirm it | 4 (`(가칭)`) |
+| 9/30 | The app carries every wireframe screen, text, and button (W-00 – W-13, L-01 – L-03) with the web sidebar's menu; new server requests are `SPEC.md` §6-8 `(가칭)` | Owner decision: feature UX identical to the web. **Confirmed 10/1** by the team lead (ADR-007 widened, #33) | 4 (confirmed) |
 | 9/30 | For shared screens the app uses the web's `WR-xx` requests exactly as the server answered them (PR #9), plus the server's two-layer states. It asks the server only for what the web does not need (`SPEC.md` §6-8 R-09, A-10 – A-12). Retry = new deployment with the same commit; rollback = new deployment that needs approval | One contract for web and app; less server work | 1 (own code) · 3 (`(가칭)` requests via issue) |
-| 9/29 | Widen ADR-007: add overview, commit history, macOS | Proposed in `SPEC.md` §1-2; needs the team meeting | 4 (`(가칭)`) |
+| 9/29 | Widen ADR-007: add overview, commit history, macOS | Proposed in `SPEC.md` §1-2; **confirmed 10/1** as part of the full-flow decision (#33) | 4 (confirmed) |
 | 9/29 | Requests to server and CI | `SPEC.md` §6–§7; the server and CI owners decide names and shapes | 3 |
 | 9/29 | Server accepted the §6 names; unregister device with `DELETE /devices` + body | Token in a URL path leaks into access logs (server's request). Recorded in `SPEC.md` §6-0 | 3 (decided by server) |
 | 9/29 | Until server ships SSE and APNs (D3 or later): poll every 5 s and show local notifications | Agreed with server; keeps the app working on D2 | 1 |

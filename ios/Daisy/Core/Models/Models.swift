@@ -86,7 +86,8 @@ enum DeploymentStep: String, ServerEnum {
 }
 
 enum StepState: String, ServerEnum {
-    case running, done, failed, waiting, unknown
+    /// `skipped`: Jenkins가 실행하지 않은 단계(NOT_EXECUTED, 예: daisy-ci의 Trigger CD) → "건너뜀". 값 이름은 서버와 확인 중 (가칭, 웹 #25와 같아요)
+    case running, done, failed, waiting, skipped, unknown
     static let unknownCase = StepState.unknown
 }
 
