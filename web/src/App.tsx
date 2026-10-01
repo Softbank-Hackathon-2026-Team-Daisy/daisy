@@ -1,7 +1,7 @@
 import { Navigate, Route, Routes } from 'react-router'
 import { MOCK_PROJECTS } from './mocks/workspace.ts'
 import AppLayout from './pages/AppLayout.tsx'
-import BuildPage from './pages/build/BuildPage.tsx'
+import BuildPage from './pages/image-build/BuildPage.tsx'
 import AiUsagePage from './pages/ai-usage/AiUsagePage.tsx'
 import ApprovePage from './pages/approve/ApprovePage.tsx'
 import ConnectPage from './pages/connect/ConnectPage.tsx'
