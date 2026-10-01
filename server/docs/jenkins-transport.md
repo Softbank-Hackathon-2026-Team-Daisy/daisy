@@ -1,6 +1,6 @@
 # Jenkins HTTP 연결 제안
 
-이 문서는 백엔드 transport의 **제안**이다. 인프라 담당자의 확인 전에는 실제 Job 실행에 연결하지 않는다. 현재 인프라 `cd/Jenkinsfile`의 `DEPLOY_AWS/GCP`, `IMAGE_TAG`, `IMAGE_REPO`, `APP`, `APP_REPO` 및 Jenkins 내부 승인, `ci/Jenkinsfile`의 `TRIGGER_CD`는 아래 제안과 다르다. 이 transport는 해당 파이프라인과 이미 호환된다는 뜻이 아니다. Terraform·AI 구현은 인프라가 소유한다.
+이 문서는 백엔드 transport의 **제안**이다. 현재 인프라는 `daisy-cd-plan` / `daisy-cd-apply`를 분리하고 사용자 승인은 서버가 담당하는 방향이다. plan은 `DEPLOY_AWS/GCP`, `IMAGE_TAG`, `IMAGE_REPO`, `APP`, `APP_REPO` 등의 파라미터, apply는 `PLAN_BUILD`, `APPROVAL_ID`, `APP`, `APP_REPO`를 사용한다. 아래 백엔드의 초기 `request_id/payload` form과 같지 않다. **Job 이름만 맞았다고 활성화하지 않는다.** 실제 대상 집합·승인 N건·plan digest·입력 hash·원천 결과·request_id 연결은 #35 확인 후 adapter를 바꾼다. Terraform·AI 구현은 인프라가 소유한다.
 
 `daisy.jenkins.enabled` 기본값은 false다. 활성화 시 `base-url`(context 포함), `user`, `token`(API token), `jobs`(허용 Job 전체 이름, 쉼표 구분)를 모두 공급한다. 예: `DAISY_JENKINS_BASE_URL=https://jenkins.example.invalid/jenkins/`, `DAISY_JENKINS_JOBS=daisy/prepare,daisy/apply`. 비밀값은 환경변수로만 공급한다. `connect-timeout-ms` 기본 3000, `read-timeout-ms` 기본 15000, `max-response-bytes` 기본 262144(최대 1048576)이다. transport 자체는 기동 시 호출하거나 주기적으로 실행하지 않는다. 자동 요청 전달에는 아래 워커 활성화도 필요하다.
 
@@ -16,10 +16,10 @@ build `result=SUCCESS`와 stop/cancel ACK는 배포 성공·실제 종료를 뜻
 
 ## 명령 워커
 
-`daisy.jenkins.worker-enabled=true`와 transport 활성화가 모두 필요하다. `instance-id`와 `operation-jobs.prepare/replan/apply`는 인프라 확인 후 설정한다. 기본 Job 이름은 `daisy/{operation}`이라는 제안이며 실제 존재하는 Job으로 간주하지 않는다. STOP은 새 배포 Job을 만들지 않고 원본 queue/build의 제어 API를 호출한다.
+`daisy.jenkins.worker-enabled=true`와 transport 활성화가 모두 필요하다. `instance-id`와 Job 허용 목록은 실제 환경 확인 후 설정한다. 기본 매핑은 prepare/replan → `daisy-cd-plan`, apply → `daisy-cd-apply`이며 `operation-jobs.*`로 덮어쓸 수 있다. STOP은 새 Job을 만들지 않는다. prepare/replan의 queue/build 제어는 `daisy.jenkins.plan-stop-confirmed=true`일 때만 허용하며 기본 false다. apply STOP은 설정과 관계없이 거절한다. 과거 DB에 남은 apply STOP도 HTTP를 보내지 않고 명령만 rejected로 처리하며, 부모 실행 상태·락을 바꾸지 않는다.
 
 명령은 DB에 먼저 저장하며, SKIP LOCKED로 가져와 `dispatching`을 커밋한 다음 HTTP를 호출한다. 시작 시 미완료 `dispatching`을 `unknown`으로 복구하여 request_id 조회를 수행한다. **현재는 백엔드 워커 한 인스턴스 전제**이며, 여러 인스턴스에서 이 시작 복구를 실행하려면 워커 소유권·lease부터 추가해야 한다.
 
 HTTP 제출 거부가 확실한 명령만 실행 서비스에 거부 결과를 전달한다. 이 후속 처리가 실패해도 거부 기록과 다음 확인 시각이 DB에 남아 재처리한다. Jenkins queue가 build 번호 없이 취소됐다고 확인되면 남은 대상의 취소·락 해제를 별도 트랜잭션에서 처리하며, 처리 전까지 DB 재확인 대상으로 남긴다. 응답 유실은 거부와 구별하며 자동 재제출하지 않는다. 구조화된 대상 결과가 누락됐을 때 Jenkins build SUCCESS만으로 대상 성공을 만들어내지 않는다.
 
-로컬 HTTP 대역 테스트 소스만 작성했다. 사용자 요청에 따라 이 단계에서 테스트·Gradle·formatter·실제 Jenkins 호출은 실행하지 않았다.
+로컬 HTTP 대역·단위·실제 PostgreSQL 테스트는 실행했다. 실제 Jenkins 호출은 하지 않았다. 이전 ‘테스트 소스만 작성’ 단계의 기록과 현재 검증 상태를 혼동하지 않는다. 기존 callback은 기본 비활성인 내부 수신 초안이고, 실제 인프라의 주 수신 방식은 폴링이다. 구조화 산출물이 미확정인 동안 build SUCCESS나 콘솔 문구만으로 대상별 배포 성공·위험 검사 완료를 만들지 않는다.

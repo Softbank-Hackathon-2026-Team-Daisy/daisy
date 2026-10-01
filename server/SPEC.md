@@ -6,6 +6,18 @@
 
 ## 실행 기능 구현 2026-10-01
 
+### PR #19 후속 계약 반영
+
+사용자 수정 요청에 따라 기존 실행 브랜치에 다음을 반영한다. 공개 REST/OpenAPI는 은현의 연결 범위이며, 실제 Jenkins wire protocol은 #35 답변 전까지 미연결이다.
+
+- 배포 생성은 source_version_id를 필수 선택하고 관리 포트가 같은 프로젝트의 성공 빌드를 반환한다. commit·이미지는 그 빌드에서 도출한다. 선택 ID를 멱등 hash에 포함하고 뒤늦은 다른 빌드 수신으로 덮어쓰지 않는다.
+- 승인 대기 대상 전체·대상별 approval_id를 하나의 결정으로 처리한다. 누락·추가·옛 승인·불일치 snapshot은 전체 409. pending 생성 시 프로젝트 이름을 approval.confirmation_text에 고정하고 삭제 확인값과 비교한다. 제출 직전 SQL 검사도 같은 의미를 따른다.
+- apply가 외부에 제출됐거나 제출 여부가 불명확하면 취소 요청자·시각만 기록한다. STOP 생성과 워커의 기존 apply STOP 실행을 모두 차단한다. 미제출 전체 명령은 안전하게 취소하며 plan stop은 명시적인 인프라 확인 설정 전까지 비활성이다.
+- 롤백은 전체 성공 배포에서 선택한 target_ids만 복원한다. reason(필수, 최대 1000자, 비밀값 제외)·대상을 멱등 hash에 포함하고 사유는 생성 이벤트, 원본·대상은 lineage에 기록한다. 고정 실행 입력은 수정하지 않는다.
+- SSE에 선택적인 단일 event_type 필터를 추가한다. 원래 seq와 조회 cursor를 유지하며 heartbeat/resync는 필터링하지 않는다.
+- Job 기본 매핑은 prepare/replan → daisy-cd-plan, apply → daisy-cd-apply. 기존 request_id/payload adapter와 실제 Job 파라미터는 아직 달라 활성화하지 않는다. #35에서 승인 대상·단일 APPROVAL_ID·digest/입력·결과 형식을 확인한 뒤 연결한다.
+- V1·DB 구조 변경 없이 검증한다. 호출 계약과 현재 검증 근거는 [실행 서비스 계약](docs/execution-service-contract.md)·[작업 일지](docs/sh/2026-10-01-execution.md)에 기록한다.
+
 사용자 승인 범위는 김승환의 실행 서비스·Jenkins 연결·승인·이벤트·SSE·사용량 수신이다. `server/feat-deployment-execution`에서 기존 ERD/엔티티 초안 위에 구현한다. 아래는 구현 목표이며 완료 표시는 검증 후 작업 일지에 남긴다.
 
 - 배포 접수: 인증된 actor의 프로젝트 접근을 소유 서비스로 재검사하고, 커밋·대상·입력을 고정한다. 멱등 응답과 최초 prepare 명령은 배포 생성과 같은 트랜잭션으로 저장한다.

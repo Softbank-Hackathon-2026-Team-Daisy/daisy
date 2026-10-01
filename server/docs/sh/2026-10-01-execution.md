@@ -97,3 +97,22 @@
 | SSE 선택 필터 | openDeployment/openProject에 event_type 필터가 없음 | 필터 계약 확정 후 채널 seq를 그대로 유지하면서 추가 |
 
 테스트 통과는 현재 구현과 V1의 호환성을 확인한 것이며 위 계약 차이가 해소됐다는 의미는 아니다. API 표시(attempt null·image digest·사용량 합계)는 은현 조회 DTO와 맞춘다. 이전 실행 문서의 Jenkins 내부 승인·콜백 중심 설명은 현재 인프라 사실로 사용하지 말고 #19/#35를 우선한다.
+
+## 최신 계약 차이 수정 (2026-10-01)
+
+사용자의 후속 수정 요청으로 위 목록 중 서버가 구현할 수 있는 동작을 반영했다. 신규 테이블·V1 변경·외부 배포 실행은 하지 않았다.
+
+- `CreateRequest`와 관리 포트의 선택 키를 sourceVersionId로 변경했다. 반환된 성공 빌드 ID 일치 검사 후 commit·이미지를 고정하고 선택 ID를 멱등 hash에 포함한다. 같은 commit의 재빌드 두 건 선택과 옛 빌드 수신 차단을 실DB에서 검사했다.
+- 승인 대기 전체 집합과 approval_id를 확인하고 전부 같은 승인/거절 결정을 원자 처리한다. pending 생성 시 `ExecutionInputs.projectName`으로 프로젝트 이름을 고정하며 삭제 확인·Jenkins 제출 전 검사에 같은 의미를 적용했다. 프로젝트 이름 변경 뒤 기존 문구 유지, 누락·stale 승인 때 전체 rollback을 검사했다.
+- 미제출 전체 명령은 취소할 수 있지만 공유 pending 명령의 일부 대상만 취소하면 409다. 이미 제출되었거나 불명확한 apply는 선택 대상의 요청자·시각만 기록하며 STOP·상태 종료·락 해제가 없다. 명령 서비스도 apply STOP을 거절하고 워커는 과거 apply STOP까지 차단한다. plan STOP은 `daisy.jenkins.plan-stop-confirmed` 기본 false로 인프라 확인 전 외부 호출을 막는다.
+- 롤백은 전체 성공 원본에서 선택한 대상만 복원한다. 사유(필수·최대 1000자·비밀값 거절)와 선택 대상을 요청 hash에 포함하고 사유는 생성 이벤트, 대상·원본은 lineage 행에 기록한다. 이벤트에 임의 요청 객체를 허용하거나 실행 입력을 변형하지 않는다. 같은 키로 대상/사유를 바꾸면 409이며 원본은 변하지 않는다.
+- SSE의 선택적 단일 eventType 필터를 추가했다. 제외한 사건은 내부 cursor만 전진하며 전송 ID는 원래 seq다. heartbeat/resync와 권한 검사·재연결 규칙은 유지한다. 기존 필터 없는 호출도 유지한다.
+- Jenkins Job 기본명은 확인된 daisy-cd-plan/apply로 매핑했다. **#35 답변은 아직 없으며 기존 request_id/payload 전송·구조화 callback을 실제 Job 계약으로 간주하지 않는다.** 실제 파라미터 adapter·산출물 폴링 연결·대상/승인 집합 대조는 남아 있다. 기본 비활성은 유지했다.
+
+### 연결 담당자에게 전달할 변경
+
+은현 구현의 `ExecutionInputs.capture`는 선택 빌드 ID의 프로젝트 소속·성공 상태를 검사한 BuildInput을 반드시 반환해야 한다. 새 `projectName(projectId)`도 같은 트랜잭션에서 제공한다. 사용자 API는 단일 삭제 확인 문구를 대상별 내부 Decision에 동일하게 전달하고, 롤백의 선택 대상·사유를 새 요청 인자에 연결한다. 공개 DTO·OpenAPI와 인프라 파일은 이번 작업에서 수정하지 않았다.
+
+### 검증
+
+Java 21·PostgreSQL 17.11의 독립 DB에서 `spotlessApply check build --no-daemon --offline` 실행. 정식 Flyway V1을 사용하는 실DB 테스트 14개를 포함해 전체 99개 통과, skip/failure/error 0. 테스트는 새 schema만 생성·정리하며 관리/인가 포트는 표시된 테스트 대역이다. 실제 Jenkins·클라우드·실제 인증·웹/앱 E2E는 미검증이다. 기능 브랜치는 로컬 커밋으로 유지하고 push·새 PR 게시를 하지 않는다.
