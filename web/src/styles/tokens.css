@@ -1,0 +1,109 @@
+/*
+ * 디자인 토큰 — Figma 「디자인 시스템 · 01 Foundations」 변수와 1:1 (AGENTS.md §5)
+ * 색은 여기 토큰으로만 써요. 컴포넌트에서 색을 하드코딩하지 않아요.
+ * 테마: 기본은 OS 설정(prefers-color-scheme)을 따르고, <html data-theme="light|dark">로 덮어써요.
+ */
+
+:root {
+  color-scheme: light;
+
+  /* Color · Light */
+  --color-bg: #ffffff;
+  --color-surface: #f4f5f7;
+  --color-surface-strong: #e9ebef;
+  --color-line: #d8dce3;
+  --color-ink: #0b1026;
+  --color-ink-muted: #5b6275;
+  --color-primary: #ffd23f; /* 배포 버튼 · 현재 단계에만 */
+  --color-on-primary: #0b1026;
+  --color-focus: #0b1026;
+  --color-success: #0f8a5f;
+  --color-danger: #d92d20;
+  --color-warning: #b54708;
+  --color-running: #1f4fd8;
+  --color-rolledback: #6b4fbb;
+  --color-env-onprem: #14b8a6;
+  --color-env-aws: #f97316;
+  --color-env-gcp: #3b82f6;
+  --color-env-azure: #0ea5e9;
+  --color-primary-hover: #f5b301;
+
+  /* 컴포넌트용 의미 토큰 — Figma Color 컬렉션의 별칭. 기본 토큰을 가리켜서 테마를 따라가요 */
+  --color-card: var(--color-bg);
+  --color-card-foreground: var(--color-ink);
+  --color-input: var(--color-line);
+  --color-secondary-foreground: var(--color-ink);
+  --color-accent: var(--color-ink);
+  --color-accent-foreground: var(--color-bg);
+  --color-destructive-foreground: var(--color-bg);
+  --color-status-bg: var(--color-surface);
+  --color-status-queued: var(--color-ink-muted);
+  --color-status-running: var(--color-running);
+  --color-status-success: var(--color-success);
+  --color-status-failed: var(--color-danger);
+  --color-status-warning: var(--color-warning);
+  --color-status-rolledback: var(--color-rolledback);
+
+  /* Typography */
+  --font-sans: 'IBM Plex Sans KR', system-ui, -apple-system, sans-serif;
+  --font-mono: 'IBM Plex Mono', ui-monospace, 'SF Mono', Menlo, monospace;
+
+  /* Spacing · base 4 */
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-6: 24px;
+  --space-8: 32px;
+  --space-12: 48px;
+  --space-16: 64px;
+
+  /* Radius · 4 초과 금지 */
+  --radius-none: 0;
+  --radius-sm: 2px; /* 배지 · 태그 */
+  --radius-md: 4px; /* 버튼 · 카드 */
+
+  /* Border */
+  --border: 1px solid var(--color-line);
+  --border-overlay: 1px solid var(--color-ink); /* 그림자 대신: 메뉴 · Dialog · Toast */
+  --color-backdrop: rgb(11 16 38 / 0.4); /* navy/950 40% — Dialog 뒤 화면, 테마와 상관없이 같아요 */
+  --border-focus: 2px solid var(--color-focus);
+}
+
+/* Color · Dark — OS가 다크이고 사용자가 라이트로 고정하지 않았을 때 */
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme='light']) {
+    color-scheme: dark;
+    --color-bg: #0b1026;
+    --color-surface: #141c3f;
+    --color-surface-strong: #1e2a5a;
+    --color-line: #2f3f82;
+    --color-ink: #f4f5f7;
+    --color-ink-muted: #9aa3bd;
+    --color-focus: #f4f5f7;
+    --color-success: #4ade9b;
+    --color-danger: #f97066;
+    --color-warning: #fdb022;
+    --color-running: #7fa8ff;
+    --color-rolledback: #b9a6f2;
+    --color-primary-hover: #ffdc57;
+  }
+}
+
+/* Color · Dark — 사용자가 다크로 고정했을 때 */
+:root[data-theme='dark'] {
+  color-scheme: dark;
+  --color-bg: #0b1026;
+  --color-surface: #141c3f;
+  --color-surface-strong: #1e2a5a;
+  --color-line: #2f3f82;
+  --color-ink: #f4f5f7;
+  --color-ink-muted: #9aa3bd;
+  --color-focus: #f4f5f7;
+  --color-success: #4ade9b;
+  --color-danger: #f97066;
+  --color-warning: #fdb022;
+  --color-running: #7fa8ff;
+  --color-rolledback: #b9a6f2;
+  --color-primary-hover: #ffdc57;
+}

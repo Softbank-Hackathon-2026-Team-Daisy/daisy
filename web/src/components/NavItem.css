@@ -1,0 +1,83 @@
+.nav-item {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  width: 100%;
+  padding: var(--space-2) var(--space-2) var(--space-2) var(--space-3);
+  border: 0;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--color-ink-muted);
+  font-size: 13px;
+  line-height: 18px;
+  font-weight: 500;
+  text-align: left;
+  text-decoration: none;
+  cursor: pointer;
+}
+
+.nav-item:hover {
+  background: var(--color-surface-strong);
+}
+
+.nav-item--active {
+  background: var(--color-surface-strong);
+  color: var(--color-ink);
+}
+
+/* 활성 막대 — 왼쪽 2px ink */
+.nav-item--active::before {
+  content: '';
+  position: absolute;
+  top: 8px;
+  left: 0;
+  width: 2px;
+  height: 20px;
+  background: var(--color-ink);
+}
+
+.nav-item__label {
+  flex: 1;
+}
+
+.nav-item__badge {
+  min-width: 20px;
+  padding: 1px 6px;
+  border-radius: var(--radius-sm);
+  background: var(--color-ink);
+  color: var(--color-bg);
+  font-family: var(--font-mono);
+  font-size: 12px;
+  line-height: 18px;
+  text-align: center;
+}
+
+.nav-item--collapsed {
+  justify-content: center;
+  width: 40px;
+  height: 40px;
+  padding: 0;
+}
+
+.nav-item--collapsed.nav-item--active::before {
+  top: 10px;
+}
+
+.nav-item__dot {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--color-ink);
+}
+
+/* 접힌 사이드바의 툴팁은 오른쪽에 띄워요 */
+.sidebar--collapsed .tooltip__bubble {
+  top: 50%;
+  bottom: auto;
+  left: calc(100% + var(--space-2));
+  transform: translateY(-50%);
+}

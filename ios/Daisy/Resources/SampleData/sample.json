@@ -1,0 +1,4137 @@
+{
+ "generated_at": "2026-09-30T11:22:54Z",
+ "note": "예시 데이터 — 실제 GitHub 커밋 · deploy.yaml 위에 배포 상태를 예시로 채웠어요",
+ "responses": {
+  "deployments/dep_m2": {
+   "ai_usage": {
+    "calls": 3,
+    "cost_krw": 234,
+    "estimated": true,
+    "exchange_rate": 1380,
+    "items": [
+     {
+      "at": "2026-09-29T09:22:54Z",
+      "attempt": 1,
+      "cost_krw": 78,
+      "note": null,
+      "status": "succeeded",
+      "step": "generate",
+      "target_id": "tgt_onprem",
+      "tokens": 3000
+     },
+     {
+      "at": "2026-09-29T09:22:54Z",
+      "attempt": 1,
+      "cost_krw": 78,
+      "note": null,
+      "status": "succeeded",
+      "step": "generate",
+      "target_id": "tgt_aws",
+      "tokens": 3000
+     },
+     {
+      "at": "2026-09-29T09:22:54Z",
+      "attempt": 1,
+      "cost_krw": 78,
+      "note": null,
+      "status": "succeeded",
+      "step": "generate",
+      "target_id": "tgt_gcp",
+      "tokens": 3000
+     }
+    ],
+    "tokens": 9000
+   },
+   "commit": "839d8c02f701c3cce2db1edf2386d28fd79f654f",
+   "commit_message": "HelloCalc: portable reference workload",
+   "created_at": "2026-09-29T09:22:54Z",
+   "created_by": "Seungjun Park",
+   "finished_at": "2026-09-29T09:30:54Z",
+   "id": "dep_m2",
+   "image": "ghcr.io/team-daisy/sample-monolith:839d8c0",
+   "kind": null,
+   "pending_approval": null,
+   "project_id": "prj_monolith",
+   "rolled_back_from": null,
+   "state": "partially_succeeded",
+   "targets": [
+    {
+     "attempt": 1,
+     "error_summary": null,
+     "health_summary": "200 OK · p95 98ms",
+     "reused_script": false,
+     "state": "succeeded",
+     "step": "health_check",
+     "step_state": "done",
+     "steps": [
+      {
+       "duration_ms": 63000,
+       "name": "apply",
+       "started_at": null,
+       "state": "done"
+      },
+      {
+       "duration_ms": 4000,
+       "name": "health_check",
+       "started_at": null,
+       "state": "done"
+      }
+     ],
+     "target_id": "tgt_onprem",
+     "title": "home-lab · Docker Compose",
+     "url": "https://hellocalc.onprem.example.com"
+    },
+    {
+     "attempt": 1,
+     "error_summary": null,
+     "health_summary": "200 OK · p95 131ms",
+     "reused_script": false,
+     "state": "succeeded",
+     "step": "health_check",
+     "step_state": "done",
+     "steps": [
+      {
+       "duration_ms": 63000,
+       "name": "apply",
+       "started_at": null,
+       "state": "done"
+      },
+      {
+       "duration_ms": 4000,
+       "name": "health_check",
+       "started_at": null,
+       "state": "done"
+      }
+     ],
+     "target_id": "tgt_aws",
+     "title": "ap-northeast-2 · ECS Fargate",
+     "url": "https://hellocalc.aws.example.com"
+    },
+    {
+     "attempt": 1,
+     "error_summary": "헬스체크 30초 안에 응답 없음 (/health)",
+     "health_summary": null,
+     "reused_script": false,
+     "state": "failed",
+     "step": "health_check",
+     "step_state": "failed",
+     "steps": [
+      {
+       "duration_ms": 58000,
+       "name": "apply",
+       "started_at": null,
+       "state": "done"
+      },
+      {
+       "duration_ms": 30000,
+       "name": "health_check",
+       "started_at": null,
+       "state": "failed"
+      }
+     ],
+     "target_id": "tgt_gcp",
+     "title": "asia-northeast3 · Cloud Run",
+     "url": "https://hellocalc.run.example.com"
+    }
+   ],
+   "version": "v2"
+  },
+  "deployments/dep_m2/logs": {
+   "items": [
+    {
+     "level": "info",
+     "target_id": "tgt_aws",
+     "text": "terraform init",
+     "ts": "2026-09-30T11:13:54Z"
+    },
+    {
+     "level": "info",
+     "target_id": "tgt_aws",
+     "text": "terraform validate: Success!",
+     "ts": "2026-09-30T11:13:54Z"
+    },
+    {
+     "level": "error",
+     "target_id": "tgt_aws",
+     "text": "Error: creating ECS Service: AccessDeniedException (ecs:CreateService)",
+     "ts": "2026-09-30T11:14:54Z"
+    },
+    {
+     "level": "info",
+     "target_id": "tgt_aws",
+     "text": "AI 수정 시도 2/3: IAM 정책에 ecs:CreateService 추가",
+     "ts": "2026-09-30T11:14:54Z"
+    },
+    {
+     "level": "info",
+     "target_id": "tgt_aws",
+     "text": "terraform plan: 2 to add, 1 to change, 1 to destroy",
+     "ts": "2026-09-30T11:15:54Z"
+    }
+   ],
+   "next_cursor": null
+  },
+  "deployments/dep_m2/plan": {
+   "ai_usage": {
+    "cost_krw": 234,
+    "estimated": true,
+    "exchange_rate": 1380,
+    "tokens": 9000
+   },
+   "deployment_id": "dep_m2",
+   "targets": [
+    {
+     "counts": {
+      "create": 0,
+      "delete": 0,
+      "update": 1
+     },
+     "has_delete": false,
+     "resources": [
+      {
+       "action": "update",
+       "address": "docker_container.app",
+       "monthly_cost_krw": null
+      }
+     ],
+     "reused_script": false,
+     "risks": [],
+     "target_id": "tgt_onprem"
+    },
+    {
+     "counts": {
+      "create": 2,
+      "delete": 1,
+      "update": 1
+     },
+     "has_delete": true,
+     "resources": [
+      {
+       "action": "create",
+       "address": "aws_ecs_service.app",
+       "monthly_cost_krw": null
+      },
+      {
+       "action": "create",
+       "address": "aws_lb_target_group.app",
+       "monthly_cost_krw": null
+      },
+      {
+       "action": "update",
+       "address": "aws_ecs_task_definition.app",
+       "monthly_cost_krw": null
+      },
+      {
+       "action": "replace",
+       "address": "aws_lb_listener_rule.app",
+       "monthly_cost_krw": null
+      }
+     ],
+     "reused_script": false,
+     "risks": [
+      {
+       "level": "medium",
+       "message": "443 포트가 0.0.0.0/0에 열려 있어요 (ALB 공개용이라 허용)",
+       "resource": "aws_security_group.alb",
+       "rule": "open_ingress"
+      }
+     ],
+     "target_id": "tgt_aws"
+    },
+    {
+     "counts": {
+      "create": 1,
+      "delete": 0,
+      "update": 0
+     },
+     "has_delete": false,
+     "resources": [
+      {
+       "action": "create",
+       "address": "google_cloud_run_v2_service.app",
+       "monthly_cost_krw": null
+      }
+     ],
+     "reused_script": false,
+     "risks": [],
+     "target_id": "tgt_gcp"
+    }
+   ]
+  },
+  "deployments/dep_m2/targets/tgt_aws/script": {
+   "ai_tokens": 4200,
+   "attempt": 1,
+   "base_commit": "839d8c02f701c3cce2db1edf2386d28fd79f654f",
+   "created_at": "2026-09-28T11:22:54Z",
+   "files": [
+    {
+     "content": "resource \"aws_ecs_service\" \"app\" {\n  name            = var.name\n  cluster         = aws_ecs_cluster.main.id\n  task_definition = aws_ecs_task_definition.app.arn\n  desired_count   = 1\n  launch_type     = \"FARGATE\"\n}\n",
+     "path": "aws/main.tf"
+    }
+   ],
+   "input": "deploy.yaml + 기준 모듈",
+   "last_used_at": null,
+   "note": null,
+   "origin": "ai_generated",
+   "reuse_count": 0,
+   "script_id": "scr_dep_m2_aws",
+   "status": "verified",
+   "storage": "scripts/aws/s2",
+   "target_id": "tgt_aws",
+   "validation": {
+    "plan": true,
+    "risks": 0,
+    "validate": true
+   },
+   "version": "s2"
+  },
+  "deployments/dep_m2/targets/tgt_gcp/script": {
+   "ai_tokens": 4200,
+   "attempt": 1,
+   "base_commit": "839d8c02f701c3cce2db1edf2386d28fd79f654f",
+   "created_at": "2026-09-28T11:22:54Z",
+   "files": [
+    {
+     "content": "resource \"google_cloud_run_v2_service\" \"app\" {\n  name     = var.name\n  location = \"asia-northeast3\"\n  template {\n    containers { image = var.image }\n  }\n}\n",
+     "path": "gcp/main.tf"
+    }
+   ],
+   "input": "deploy.yaml + 기준 모듈",
+   "last_used_at": null,
+   "note": null,
+   "origin": "ai_generated",
+   "reuse_count": 0,
+   "script_id": "scr_dep_m2_gcp",
+   "status": "verified",
+   "storage": "scripts/gcp/s1",
+   "target_id": "tgt_gcp",
+   "validation": {
+    "plan": true,
+    "risks": 0,
+    "validate": true
+   },
+   "version": "s1"
+  },
+  "deployments/dep_m2/targets/tgt_onprem/script": {
+   "ai_tokens": 4200,
+   "attempt": 1,
+   "base_commit": "839d8c02f701c3cce2db1edf2386d28fd79f654f",
+   "created_at": "2026-09-28T11:22:54Z",
+   "files": [
+    {
+     "content": "resource \"docker_container\" \"app\" {\n  name  = var.name\n  image = var.image\n  ports {\n    internal = 8080\n    external = 8080\n  }\n}\n",
+     "path": "onprem/main.tf"
+    }
+   ],
+   "input": "deploy.yaml + 기준 모듈",
+   "last_used_at": null,
+   "note": null,
+   "origin": "ai_generated",
+   "reuse_count": 0,
+   "script_id": "scr_dep_m2_onprem",
+   "status": "verified",
+   "storage": "scripts/onprem/s1",
+   "target_id": "tgt_onprem",
+   "validation": {
+    "plan": true,
+    "risks": 0,
+    "validate": true
+   },
+   "version": "s1"
+  },
+  "deployments/dep_m3": {
+   "ai_usage": {
+    "calls": 2,
+    "cost_krw": 157,
+    "estimated": true,
+    "exchange_rate": 1380,
+    "items": [
+     {
+      "at": "2026-09-29T15:27:54Z",
+      "attempt": 1,
+      "cost_krw": 81,
+      "note": null,
+      "status": "succeeded",
+      "step": "generate",
+      "target_id": "tgt_aws",
+      "tokens": 3100
+     },
+     {
+      "at": "2026-09-29T15:27:54Z",
+      "attempt": 1,
+      "cost_krw": 76,
+      "note": null,
+      "status": "succeeded",
+      "step": "generate",
+      "target_id": "tgt_gcp",
+      "tokens": 2950
+     }
+    ],
+    "tokens": 6050
+   },
+   "commit": "2311c0b683ec0f46d0be1c640591245ae8d1c093",
+   "commit_message": "feat(ci): Daisy 앱 연결 요구사항 추가 (deploy.yaml, /health, N-01 파이프라인)",
+   "created_at": "2026-09-29T15:22:54Z",
+   "created_by": "Seungjun Park",
+   "finished_at": "2026-09-29T15:28:54Z",
+   "id": "dep_m3",
+   "image": "ghcr.io/team-daisy/sample-monolith:2311c0b",
+   "kind": null,
+   "pending_approval": null,
+   "project_id": "prj_monolith",
+   "rolled_back_from": null,
+   "state": "succeeded",
+   "targets": [
+    {
+     "attempt": 1,
+     "error_summary": null,
+     "health_summary": "200 OK · p95 120ms",
+     "reused_script": true,
+     "state": "succeeded",
+     "step": "health_check",
+     "step_state": "done",
+     "steps": [
+      {
+       "duration_ms": 63000,
+       "name": "apply",
+       "started_at": null,
+       "state": "done"
+      },
+      {
+       "duration_ms": 4000,
+       "name": "health_check",
+       "started_at": null,
+       "state": "done"
+      }
+     ],
+     "target_id": "tgt_onprem",
+     "title": "home-lab · Docker Compose",
+     "url": "https://hellocalc.onprem.example.com"
+    },
+    {
+     "attempt": 1,
+     "error_summary": null,
+     "health_summary": "200 OK · p95 120ms",
+     "reused_script": false,
+     "state": "succeeded",
+     "step": "health_check",
+     "step_state": "done",
+     "steps": [
+      {
+       "duration_ms": 63000,
+       "name": "apply",
+       "started_at": null,
+       "state": "done"
+      },
+      {
+       "duration_ms": 4000,
+       "name": "health_check",
+       "started_at": null,
+       "state": "done"
+      }
+     ],
+     "target_id": "tgt_aws",
+     "title": "ap-northeast-2 · ECS Fargate",
+     "url": "https://hellocalc.aws.example.com"
+    },
+    {
+     "attempt": 1,
+     "error_summary": null,
+     "health_summary": "200 OK · p95 120ms",
+     "reused_script": false,
+     "state": "succeeded",
+     "step": "health_check",
+     "step_state": "done",
+     "steps": [
+      {
+       "duration_ms": 63000,
+       "name": "apply",
+       "started_at": null,
+       "state": "done"
+      },
+      {
+       "duration_ms": 4000,
+       "name": "health_check",
+       "started_at": null,
+       "state": "done"
+      }
+     ],
+     "target_id": "tgt_gcp",
+     "title": "asia-northeast3 · Cloud Run",
+     "url": "https://hellocalc.run.example.com"
+    }
+   ],
+   "version": "v3"
+  },
+  "deployments/dep_m3/logs": {
+   "items": [
+    {
+     "level": "info",
+     "target_id": "tgt_aws",
+     "text": "terraform init",
+     "ts": "2026-09-30T11:13:54Z"
+    },
+    {
+     "level": "info",
+     "target_id": "tgt_aws",
+     "text": "terraform validate: Success!",
+     "ts": "2026-09-30T11:13:54Z"
+    },
+    {
+     "level": "error",
+     "target_id": "tgt_aws",
+     "text": "Error: creating ECS Service: AccessDeniedException (ecs:CreateService)",
+     "ts": "2026-09-30T11:14:54Z"
+    },
+    {
+     "level": "info",
+     "target_id": "tgt_aws",
+     "text": "AI 수정 시도 2/3: IAM 정책에 ecs:CreateService 추가",
+     "ts": "2026-09-30T11:14:54Z"
+    },
+    {
+     "level": "info",
+     "target_id": "tgt_aws",
+     "text": "terraform plan: 2 to add, 1 to change, 1 to destroy",
+     "ts": "2026-09-30T11:15:54Z"
+    }
+   ],
+   "next_cursor": null
+  },
+  "deployments/dep_m3/plan": {
+   "ai_usage": {
+    "cost_krw": 157,
+    "estimated": true,
+    "exchange_rate": 1380,
+    "tokens": 6050
+   },
+   "deployment_id": "dep_m3",
+   "targets": [
+    {
+     "counts": {
+      "create": 0,
+      "delete": 0,
+      "update": 1
+     },
+     "has_delete": false,
+     "resources": [
+      {
+       "action": "update",
+       "address": "docker_container.app",
+       "monthly_cost_krw": null
+      }
+     ],
+     "reused_script": true,
+     "risks": [],
+     "target_id": "tgt_onprem"
+    },
+    {
+     "counts": {
+      "create": 2,
+      "delete": 1,
+      "update": 1
+     },
+     "has_delete": true,
+     "resources": [
+      {
+       "action": "create",
+       "address": "aws_ecs_service.app",
+       "monthly_cost_krw": null
+      },
+      {
+       "action": "create",
+       "address": "aws_lb_target_group.app",
+       "monthly_cost_krw": null
+      },
+      {
+       "action": "update",
+       "address": "aws_ecs_task_definition.app",
+       "monthly_cost_krw": null
+      },
+      {
+       "action": "replace",
+       "address": "aws_lb_listener_rule.app",
+       "monthly_cost_krw": null
+      }
+     ],
+     "reused_script": false,
+     "risks": [
+      {
+       "level": "medium",
+       "message": "443 포트가 0.0.0.0/0에 열려 있어요 (ALB 공개용이라 허용)",
+       "resource": "aws_security_group.alb",
+       "rule": "open_ingress"
+      }
+     ],
+     "target_id": "tgt_aws"
+    },
+    {
+     "counts": {
+      "create": 1,
+      "delete": 0,
+      "update": 0
+     },
+     "has_delete": false,
+     "resources": [
+      {
+       "action": "create",
+       "address": "google_cloud_run_v2_service.app",
+       "monthly_cost_krw": null
+      }
+     ],
+     "reused_script": false,
+     "risks": [],
+     "target_id": "tgt_gcp"
+    }
+   ]
+  },
+  "deployments/dep_m3/targets/tgt_aws/script": {
+   "ai_tokens": 4200,
+   "attempt": 1,
+   "base_commit": "2311c0b683ec0f46d0be1c640591245ae8d1c093",
+   "created_at": "2026-09-28T11:22:54Z",
+   "files": [
+    {
+     "content": "resource \"aws_ecs_service\" \"app\" {\n  name            = var.name\n  cluster         = aws_ecs_cluster.main.id\n  task_definition = aws_ecs_task_definition.app.arn\n  desired_count   = 1\n  launch_type     = \"FARGATE\"\n}\n",
+     "path": "aws/main.tf"
+    }
+   ],
+   "input": "deploy.yaml + 기준 모듈",
+   "last_used_at": null,
+   "note": null,
+   "origin": "ai_generated",
+   "reuse_count": 0,
+   "script_id": "scr_dep_m3_aws",
+   "status": "verified",
+   "storage": "scripts/aws/s2",
+   "target_id": "tgt_aws",
+   "validation": {
+    "plan": true,
+    "risks": 0,
+    "validate": true
+   },
+   "version": "s2"
+  },
+  "deployments/dep_m3/targets/tgt_gcp/script": {
+   "ai_tokens": 4200,
+   "attempt": 1,
+   "base_commit": "2311c0b683ec0f46d0be1c640591245ae8d1c093",
+   "created_at": "2026-09-28T11:22:54Z",
+   "files": [
+    {
+     "content": "resource \"google_cloud_run_v2_service\" \"app\" {\n  name     = var.name\n  location = \"asia-northeast3\"\n  template {\n    containers { image = var.image }\n  }\n}\n",
+     "path": "gcp/main.tf"
+    }
+   ],
+   "input": "deploy.yaml + 기준 모듈",
+   "last_used_at": null,
+   "note": null,
+   "origin": "ai_generated",
+   "reuse_count": 0,
+   "script_id": "scr_dep_m3_gcp",
+   "status": "verified",
+   "storage": "scripts/gcp/s1",
+   "target_id": "tgt_gcp",
+   "validation": {
+    "plan": true,
+    "risks": 0,
+    "validate": true
+   },
+   "version": "s1"
+  },
+  "deployments/dep_m3/targets/tgt_onprem/script": {
+   "ai_tokens": 4200,
+   "attempt": 1,
+   "base_commit": "2311c0b683ec0f46d0be1c640591245ae8d1c093",
+   "created_at": "2026-09-28T11:22:54Z",
+   "files": [
+    {
+     "content": "resource \"docker_container\" \"app\" {\n  name  = var.name\n  image = var.image\n  ports {\n    internal = 8080\n    external = 8080\n  }\n}\n",
+     "path": "onprem/main.tf"
+    }
+   ],
+   "input": "deploy.yaml + 기준 모듈",
+   "last_used_at": null,
+   "note": null,
+   "origin": "ai_generated",
+   "reuse_count": 0,
+   "script_id": "scr_dep_m3_onprem",
+   "status": "verified",
+   "storage": "scripts/onprem/s1",
+   "target_id": "tgt_onprem",
+   "validation": {
+    "plan": true,
+    "risks": 0,
+    "validate": true
+   },
+   "version": "s1"
+  },
+  "deployments/dep_m4": {
+   "ai_usage": {
+    "calls": 4,
+    "cost_krw": 253,
+    "estimated": true,
+    "exchange_rate": 1380,
+    "items": [
+     {
+      "at": "2026-09-30T08:27:54Z",
+      "attempt": 1,
+      "cost_krw": 80,
+      "note": null,
+      "status": "failed",
+      "step": "generate",
+      "target_id": "tgt_aws",
+      "tokens": 3050
+     },
+     {
+      "at": "2026-09-30T08:30:54Z",
+      "attempt": 2,
+      "cost_krw": 49,
+      "note": null,
+      "status": "failed",
+      "step": "fix",
+      "target_id": "tgt_aws",
+      "tokens": 1900
+     },
+     {
+      "at": "2026-09-30T08:33:54Z",
+      "attempt": 3,
+      "cost_krw": 49,
+      "note": null,
+      "status": "failed",
+      "step": "fix",
+      "target_id": "tgt_aws",
+      "tokens": 1880
+     },
+     {
+      "at": "2026-09-30T08:28:54Z",
+      "attempt": 1,
+      "cost_krw": 75,
+      "note": null,
+      "status": "failed",
+      "step": "generate",
+      "target_id": "tgt_gcp",
+      "tokens": 2900
+     }
+    ],
+    "tokens": 9730
+   },
+   "commit": "7b1578b0092229c7cf7cbf91f1b2b176c2ca583d",
+   "commit_message": "chore: Go 모듈 경로와 이미지 출처 레이블을 팀 레포로 변경",
+   "created_at": "2026-09-30T08:22:54Z",
+   "created_by": "Seungjun Park",
+   "finished_at": null,
+   "id": "dep_m4",
+   "image": "ghcr.io/team-daisy/sample-monolith:7b1578b",
+   "kind": null,
+   "pending_approval": null,
+   "project_id": "prj_monolith",
+   "rolled_back_from": null,
+   "state": "running",
+   "targets": [
+    {
+     "attempt": 1,
+     "error_summary": null,
+     "health_summary": null,
+     "reused_script": true,
+     "state": "awaiting_approval",
+     "step": "risk_check",
+     "step_state": "done",
+     "steps": [
+      {
+       "duration_ms": 41000,
+       "name": "generate",
+       "started_at": null,
+       "state": "done"
+      },
+      {
+       "duration_ms": 3100,
+       "name": "validate",
+       "started_at": null,
+       "state": "done"
+      },
+      {
+       "duration_ms": 8200,
+       "name": "plan",
+       "started_at": null,
+       "state": "done"
+      },
+      {
+       "duration_ms": 900,
+       "name": "risk_check",
+       "started_at": null,
+       "state": "done"
+      }
+     ],
+     "target_id": "tgt_onprem",
+     "title": "home-lab · Docker Compose",
+     "url": null
+    },
+    {
+     "attempt": 3,
+     "error_summary": "terraform plan 오류: IAM 권한 부족 (ecs:CreateService)",
+     "health_summary": null,
+     "reused_script": false,
+     "state": "failed",
+     "step": "plan",
+     "step_state": "failed",
+     "steps": [
+      {
+       "duration_ms": 41000,
+       "name": "generate",
+       "started_at": null,
+       "state": "done"
+      },
+      {
+       "duration_ms": 2900,
+       "name": "validate",
+       "started_at": null,
+       "state": "done"
+      },
+      {
+       "duration_ms": 8000,
+       "name": "plan",
+       "started_at": null,
+       "state": "failed"
+      }
+     ],
+     "target_id": "tgt_aws",
+     "title": "ap-northeast-2 · ECS Fargate",
+     "url": null
+    },
+    {
+     "attempt": 2,
+     "error_summary": null,
+     "health_summary": null,
+     "reused_script": false,
+     "state": "validating",
+     "step": "validate",
+     "step_state": "running",
+     "steps": [
+      {
+       "duration_ms": 40000,
+       "name": "generate",
+       "started_at": null,
+       "state": "done"
+      },
+      {
+       "duration_ms": null,
+       "name": "validate",
+       "started_at": null,
+       "state": "running"
+      }
+     ],
+     "target_id": "tgt_gcp",
+     "title": "asia-northeast3 · Cloud Run",
+     "url": null
+    }
+   ],
+   "version": "v4"
+  },
+  "deployments/dep_m4/logs": {
+   "items": [
+    {
+     "level": "info",
+     "target_id": "tgt_aws",
+     "text": "terraform init",
+     "ts": "2026-09-30T11:13:54Z"
+    },
+    {
+     "level": "info",
+     "target_id": "tgt_aws",
+     "text": "terraform validate: Success!",
+     "ts": "2026-09-30T11:13:54Z"
+    },
+    {
+     "level": "error",
+     "target_id": "tgt_aws",
+     "text": "Error: creating ECS Service: AccessDeniedException (ecs:CreateService)",
+     "ts": "2026-09-30T11:14:54Z"
+    },
+    {
+     "level": "info",
+     "target_id": "tgt_aws",
+     "text": "AI 수정 시도 2/3: IAM 정책에 ecs:CreateService 추가",
+     "ts": "2026-09-30T11:14:54Z"
+    },
+    {
+     "level": "info",
+     "target_id": "tgt_aws",
+     "text": "terraform plan: 2 to add, 1 to change, 1 to destroy",
+     "ts": "2026-09-30T11:15:54Z"
+    }
+   ],
+   "next_cursor": null
+  },
+  "deployments/dep_m4/plan": {
+   "ai_usage": {
+    "cost_krw": 253,
+    "estimated": true,
+    "exchange_rate": 1380,
+    "tokens": 9730
+   },
+   "deployment_id": "dep_m4",
+   "targets": [
+    {
+     "counts": {
+      "create": 0,
+      "delete": 0,
+      "update": 1
+     },
+     "has_delete": false,
+     "resources": [
+      {
+       "action": "update",
+       "address": "docker_container.app",
+       "monthly_cost_krw": null
+      }
+     ],
+     "reused_script": true,
+     "risks": [],
+     "target_id": "tgt_onprem"
+    },
+    {
+     "counts": {
+      "create": 2,
+      "delete": 1,
+      "update": 1
+     },
+     "has_delete": true,
+     "resources": [
+      {
+       "action": "create",
+       "address": "aws_ecs_service.app",
+       "monthly_cost_krw": null
+      },
+      {
+       "action": "create",
+       "address": "aws_lb_target_group.app",
+       "monthly_cost_krw": null
+      },
+      {
+       "action": "update",
+       "address": "aws_ecs_task_definition.app",
+       "monthly_cost_krw": null
+      },
+      {
+       "action": "replace",
+       "address": "aws_lb_listener_rule.app",
+       "monthly_cost_krw": null
+      }
+     ],
+     "reused_script": false,
+     "risks": [
+      {
+       "level": "medium",
+       "message": "443 포트가 0.0.0.0/0에 열려 있어요 (ALB 공개용이라 허용)",
+       "resource": "aws_security_group.alb",
+       "rule": "open_ingress"
+      }
+     ],
+     "target_id": "tgt_aws"
+    },
+    {
+     "counts": {
+      "create": 1,
+      "delete": 0,
+      "update": 0
+     },
+     "has_delete": false,
+     "resources": [
+      {
+       "action": "create",
+       "address": "google_cloud_run_v2_service.app",
+       "monthly_cost_krw": null
+      }
+     ],
+     "reused_script": false,
+     "risks": [],
+     "target_id": "tgt_gcp"
+    }
+   ]
+  },
+  "deployments/dep_m4/targets/tgt_aws/script": {
+   "ai_tokens": 4200,
+   "attempt": 1,
+   "base_commit": "7b1578b0092229c7cf7cbf91f1b2b176c2ca583d",
+   "created_at": "2026-09-28T11:22:54Z",
+   "files": [
+    {
+     "content": "resource \"aws_ecs_service\" \"app\" {\n  name            = var.name\n  cluster         = aws_ecs_cluster.main.id\n  task_definition = aws_ecs_task_definition.app.arn\n  desired_count   = 1\n  launch_type     = \"FARGATE\"\n}\n",
+     "path": "aws/main.tf"
+    }
+   ],
+   "input": "deploy.yaml + 기준 모듈",
+   "last_used_at": null,
+   "note": null,
+   "origin": "ai_generated",
+   "reuse_count": 0,
+   "script_id": "scr_dep_m4_aws",
+   "status": "verified",
+   "storage": "scripts/aws/s2",
+   "target_id": "tgt_aws",
+   "validation": {
+    "plan": true,
+    "risks": 0,
+    "validate": true
+   },
+   "version": "s2"
+  },
+  "deployments/dep_m4/targets/tgt_gcp/script": {
+   "ai_tokens": 4200,
+   "attempt": 1,
+   "base_commit": "7b1578b0092229c7cf7cbf91f1b2b176c2ca583d",
+   "created_at": "2026-09-28T11:22:54Z",
+   "files": [
+    {
+     "content": "resource \"google_cloud_run_v2_service\" \"app\" {\n  name     = var.name\n  location = \"asia-northeast3\"\n  template {\n    containers { image = var.image }\n  }\n}\n",
+     "path": "gcp/main.tf"
+    }
+   ],
+   "input": "deploy.yaml + 기준 모듈",
+   "last_used_at": null,
+   "note": null,
+   "origin": "ai_generated",
+   "reuse_count": 0,
+   "script_id": "scr_dep_m4_gcp",
+   "status": "verified",
+   "storage": "scripts/gcp/s1",
+   "target_id": "tgt_gcp",
+   "validation": {
+    "plan": true,
+    "risks": 0,
+    "validate": true
+   },
+   "version": "s1"
+  },
+  "deployments/dep_m4/targets/tgt_onprem/script": {
+   "ai_tokens": 4200,
+   "attempt": 1,
+   "base_commit": "7b1578b0092229c7cf7cbf91f1b2b176c2ca583d",
+   "created_at": "2026-09-28T11:22:54Z",
+   "files": [
+    {
+     "content": "resource \"docker_container\" \"app\" {\n  name  = var.name\n  image = var.image\n  ports {\n    internal = 8080\n    external = 8080\n  }\n}\n",
+     "path": "onprem/main.tf"
+    }
+   ],
+   "input": "deploy.yaml + 기준 모듈",
+   "last_used_at": null,
+   "note": null,
+   "origin": "ai_generated",
+   "reuse_count": 0,
+   "script_id": "scr_dep_m4_onprem",
+   "status": "verified",
+   "storage": "scripts/onprem/s1",
+   "target_id": "tgt_onprem",
+   "validation": {
+    "plan": true,
+    "risks": 0,
+    "validate": true
+   },
+   "version": "s1"
+  },
+  "deployments/dep_m5": {
+   "ai_usage": {
+    "calls": 0,
+    "cost_krw": 0,
+    "estimated": true,
+    "exchange_rate": 1380,
+    "items": [],
+    "tokens": 0
+   },
+   "commit": "85ef7c5047eb6e444f5b3dd6e8add1df7390d0d0",
+   "commit_message": "docs: 레포 이름 기준으로 README 제목과 LICENSE 저작권자 정리",
+   "created_at": "2026-09-30T10:22:54Z",
+   "created_by": "Seungjun Park",
+   "finished_at": null,
+   "id": "dep_m5",
+   "image": "ghcr.io/team-daisy/sample-monolith:85ef7c5",
+   "kind": null,
+   "pending_approval": null,
+   "project_id": "prj_monolith",
+   "rolled_back_from": null,
+   "state": "running",
+   "targets": [
+    {
+     "attempt": 1,
+     "error_summary": null,
+     "health_summary": null,
+     "reused_script": true,
+     "state": "succeeded",
+     "step": "health_check",
+     "step_state": "done",
+     "steps": [
+      {
+       "duration_ms": 63000,
+       "name": "apply",
+       "started_at": null,
+       "state": "done"
+      },
+      {
+       "duration_ms": 4000,
+       "name": "health_check",
+       "started_at": null,
+       "state": "done"
+      }
+     ],
+     "target_id": "tgt_onprem",
+     "title": "home-lab · Docker Compose",
+     "url": "https://hellocalc.onprem.example.com"
+    },
+    {
+     "attempt": 1,
+     "error_summary": null,
+     "health_summary": null,
+     "reused_script": false,
+     "state": "applying",
+     "step": "apply",
+     "step_state": "running",
+     "steps": [
+      {
+       "duration_ms": null,
+       "name": "apply",
+       "started_at": null,
+       "state": "running"
+      },
+      {
+       "duration_ms": null,
+       "name": "health_check",
+       "started_at": null,
+       "state": "waiting"
+      }
+     ],
+     "target_id": "tgt_aws",
+     "title": "ap-northeast-2 · ECS Fargate",
+     "url": null
+    },
+    {
+     "attempt": 1,
+     "error_summary": null,
+     "health_summary": null,
+     "reused_script": false,
+     "state": "applying",
+     "step": "apply",
+     "step_state": "running",
+     "steps": [
+      {
+       "duration_ms": null,
+       "name": "apply",
+       "started_at": null,
+       "state": "running"
+      },
+      {
+       "duration_ms": null,
+       "name": "health_check",
+       "started_at": null,
+       "state": "waiting"
+      }
+     ],
+     "target_id": "tgt_gcp",
+     "title": "asia-northeast3 · Cloud Run",
+     "url": null
+    }
+   ],
+   "version": "v5"
+  },
+  "deployments/dep_m5/logs": {
+   "items": [
+    {
+     "level": "info",
+     "target_id": "tgt_aws",
+     "text": "terraform init",
+     "ts": "2026-09-30T11:13:54Z"
+    },
+    {
+     "level": "info",
+     "target_id": "tgt_aws",
+     "text": "terraform validate: Success!",
+     "ts": "2026-09-30T11:13:54Z"
+    },
+    {
+     "level": "error",
+     "target_id": "tgt_aws",
+     "text": "Error: creating ECS Service: AccessDeniedException (ecs:CreateService)",
+     "ts": "2026-09-30T11:14:54Z"
+    },
+    {
+     "level": "info",
+     "target_id": "tgt_aws",
+     "text": "AI 수정 시도 2/3: IAM 정책에 ecs:CreateService 추가",
+     "ts": "2026-09-30T11:14:54Z"
+    },
+    {
+     "level": "info",
+     "target_id": "tgt_aws",
+     "text": "terraform plan: 2 to add, 1 to change, 1 to destroy",
+     "ts": "2026-09-30T11:15:54Z"
+    }
+   ],
+   "next_cursor": null
+  },
+  "deployments/dep_m5/plan": {
+   "ai_usage": {
+    "cost_krw": 0,
+    "estimated": true,
+    "exchange_rate": 1380,
+    "tokens": 0
+   },
+   "deployment_id": "dep_m5",
+   "targets": [
+    {
+     "counts": {
+      "create": 0,
+      "delete": 0,
+      "update": 1
+     },
+     "has_delete": false,
+     "resources": [
+      {
+       "action": "update",
+       "address": "docker_container.app",
+       "monthly_cost_krw": null
+      }
+     ],
+     "reused_script": true,
+     "risks": [],
+     "target_id": "tgt_onprem"
+    },
+    {
+     "counts": {
+      "create": 2,
+      "delete": 1,
+      "update": 1
+     },
+     "has_delete": true,
+     "resources": [
+      {
+       "action": "create",
+       "address": "aws_ecs_service.app",
+       "monthly_cost_krw": null
+      },
+      {
+       "action": "create",
+       "address": "aws_lb_target_group.app",
+       "monthly_cost_krw": null
+      },
+      {
+       "action": "update",
+       "address": "aws_ecs_task_definition.app",
+       "monthly_cost_krw": null
+      },
+      {
+       "action": "replace",
+       "address": "aws_lb_listener_rule.app",
+       "monthly_cost_krw": null
+      }
+     ],
+     "reused_script": false,
+     "risks": [
+      {
+       "level": "medium",
+       "message": "443 포트가 0.0.0.0/0에 열려 있어요 (ALB 공개용이라 허용)",
+       "resource": "aws_security_group.alb",
+       "rule": "open_ingress"
+      }
+     ],
+     "target_id": "tgt_aws"
+    },
+    {
+     "counts": {
+      "create": 1,
+      "delete": 0,
+      "update": 0
+     },
+     "has_delete": false,
+     "resources": [
+      {
+       "action": "create",
+       "address": "google_cloud_run_v2_service.app",
+       "monthly_cost_krw": null
+      }
+     ],
+     "reused_script": false,
+     "risks": [],
+     "target_id": "tgt_gcp"
+    }
+   ]
+  },
+  "deployments/dep_m5/targets/tgt_aws/script": {
+   "ai_tokens": 4200,
+   "attempt": 1,
+   "base_commit": "85ef7c5047eb6e444f5b3dd6e8add1df7390d0d0",
+   "created_at": "2026-09-28T11:22:54Z",
+   "files": [
+    {
+     "content": "resource \"aws_ecs_service\" \"app\" {\n  name            = var.name\n  cluster         = aws_ecs_cluster.main.id\n  task_definition = aws_ecs_task_definition.app.arn\n  desired_count   = 1\n  launch_type     = \"FARGATE\"\n}\n",
+     "path": "aws/main.tf"
+    }
+   ],
+   "input": "deploy.yaml + 기준 모듈",
+   "last_used_at": null,
+   "note": null,
+   "origin": "ai_generated",
+   "reuse_count": 0,
+   "script_id": "scr_dep_m5_aws",
+   "status": "verified",
+   "storage": "scripts/aws/s2",
+   "target_id": "tgt_aws",
+   "validation": {
+    "plan": true,
+    "risks": 0,
+    "validate": true
+   },
+   "version": "s2"
+  },
+  "deployments/dep_m5/targets/tgt_gcp/script": {
+   "ai_tokens": 4200,
+   "attempt": 1,
+   "base_commit": "85ef7c5047eb6e444f5b3dd6e8add1df7390d0d0",
+   "created_at": "2026-09-28T11:22:54Z",
+   "files": [
+    {
+     "content": "resource \"google_cloud_run_v2_service\" \"app\" {\n  name     = var.name\n  location = \"asia-northeast3\"\n  template {\n    containers { image = var.image }\n  }\n}\n",
+     "path": "gcp/main.tf"
+    }
+   ],
+   "input": "deploy.yaml + 기준 모듈",
+   "last_used_at": null,
+   "note": null,
+   "origin": "ai_generated",
+   "reuse_count": 0,
+   "script_id": "scr_dep_m5_gcp",
+   "status": "verified",
+   "storage": "scripts/gcp/s1",
+   "target_id": "tgt_gcp",
+   "validation": {
+    "plan": true,
+    "risks": 0,
+    "validate": true
+   },
+   "version": "s1"
+  },
+  "deployments/dep_m5/targets/tgt_onprem/script": {
+   "ai_tokens": 4200,
+   "attempt": 1,
+   "base_commit": "85ef7c5047eb6e444f5b3dd6e8add1df7390d0d0",
+   "created_at": "2026-09-28T11:22:54Z",
+   "files": [
+    {
+     "content": "resource \"docker_container\" \"app\" {\n  name  = var.name\n  image = var.image\n  ports {\n    internal = 8080\n    external = 8080\n  }\n}\n",
+     "path": "onprem/main.tf"
+    }
+   ],
+   "input": "deploy.yaml + 기준 모듈",
+   "last_used_at": null,
+   "note": null,
+   "origin": "ai_generated",
+   "reuse_count": 0,
+   "script_id": "scr_dep_m5_onprem",
+   "status": "verified",
+   "storage": "scripts/onprem/s1",
+   "target_id": "tgt_onprem",
+   "validation": {
+    "plan": true,
+    "risks": 0,
+    "validate": true
+   },
+   "version": "s1"
+  },
+  "deployments/dep_m6": {
+   "ai_usage": {
+    "calls": 3,
+    "cost_krw": 206,
+    "estimated": true,
+    "exchange_rate": 1380,
+    "items": [
+     {
+      "at": "2026-09-30T11:11:54Z",
+      "attempt": 1,
+      "cost_krw": 82,
+      "note": null,
+      "status": "failed",
+      "step": "generate",
+      "target_id": "tgt_aws",
+      "tokens": 3120
+     },
+     {
+      "at": "2026-09-30T11:12:54Z",
+      "attempt": 2,
+      "cost_krw": 48,
+      "note": "보안 그룹 0.0.0.0/0 수정",
+      "status": "succeeded",
+      "step": "fix",
+      "target_id": "tgt_aws",
+      "tokens": 1860
+     },
+     {
+      "at": "2026-09-30T11:11:54Z",
+      "attempt": 1,
+      "cost_krw": 76,
+      "note": null,
+      "status": "succeeded",
+      "step": "generate",
+      "target_id": "tgt_gcp",
+      "tokens": 2940
+     }
+    ],
+    "tokens": 7920
+   },
+   "commit": "574acd9980b8fba01c49a5cd0ad659639de3ebe0",
+   "commit_message": "chore(ci): 로컬 이미지 태그를 커밋 해시로 통일 (latest 제거) (#1)",
+   "created_at": "2026-09-30T11:10:54Z",
+   "created_by": "Seungjun Park",
+   "finished_at": null,
+   "id": "dep_m6",
+   "image": "ghcr.io/team-daisy/sample-monolith:574acd9",
+   "kind": null,
+   "pending_approval": {
+    "approval_id": "apv_dep_m6",
+    "kind": "plan"
+   },
+   "project_id": "prj_monolith",
+   "rolled_back_from": null,
+   "state": "awaiting_approval",
+   "targets": [
+    {
+     "attempt": 1,
+     "error_summary": null,
+     "health_summary": null,
+     "reused_script": true,
+     "state": "awaiting_approval",
+     "step": "risk_check",
+     "step_state": "done",
+     "steps": [
+      {
+       "duration_ms": 41000,
+       "name": "generate",
+       "started_at": null,
+       "state": "done"
+      },
+      {
+       "duration_ms": 3100,
+       "name": "validate",
+       "started_at": null,
+       "state": "done"
+      },
+      {
+       "duration_ms": 8200,
+       "name": "plan",
+       "started_at": null,
+       "state": "done"
+      },
+      {
+       "duration_ms": 900,
+       "name": "risk_check",
+       "started_at": null,
+       "state": "done"
+      }
+     ],
+     "target_id": "tgt_onprem",
+     "title": "home-lab · Docker Compose",
+     "url": null
+    },
+    {
+     "attempt": 2,
+     "error_summary": null,
+     "health_summary": null,
+     "reused_script": false,
+     "state": "awaiting_approval",
+     "step": "risk_check",
+     "step_state": "done",
+     "steps": [
+      {
+       "duration_ms": 41000,
+       "name": "generate",
+       "started_at": null,
+       "state": "done"
+      },
+      {
+       "duration_ms": 3100,
+       "name": "validate",
+       "started_at": null,
+       "state": "done"
+      },
+      {
+       "duration_ms": 8200,
+       "name": "plan",
+       "started_at": null,
+       "state": "done"
+      },
+      {
+       "duration_ms": 900,
+       "name": "risk_check",
+       "started_at": null,
+       "state": "done"
+      }
+     ],
+     "target_id": "tgt_aws",
+     "title": "ap-northeast-2 · ECS Fargate",
+     "url": null
+    },
+    {
+     "attempt": 1,
+     "error_summary": null,
+     "health_summary": null,
+     "reused_script": false,
+     "state": "awaiting_approval",
+     "step": "risk_check",
+     "step_state": "done",
+     "steps": [
+      {
+       "duration_ms": 41000,
+       "name": "generate",
+       "started_at": null,
+       "state": "done"
+      },
+      {
+       "duration_ms": 3100,
+       "name": "validate",
+       "started_at": null,
+       "state": "done"
+      },
+      {
+       "duration_ms": 8200,
+       "name": "plan",
+       "started_at": null,
+       "state": "done"
+      },
+      {
+       "duration_ms": 900,
+       "name": "risk_check",
+       "started_at": null,
+       "state": "done"
+      }
+     ],
+     "target_id": "tgt_gcp",
+     "title": "asia-northeast3 · Cloud Run",
+     "url": null
+    }
+   ],
+   "version": "v6"
+  },
+  "deployments/dep_m6/logs": {
+   "items": [
+    {
+     "level": "info",
+     "target_id": "tgt_aws",
+     "text": "terraform init",
+     "ts": "2026-09-30T11:13:54Z"
+    },
+    {
+     "level": "info",
+     "target_id": "tgt_aws",
+     "text": "terraform validate: Success!",
+     "ts": "2026-09-30T11:13:54Z"
+    },
+    {
+     "level": "error",
+     "target_id": "tgt_aws",
+     "text": "Error: creating ECS Service: AccessDeniedException (ecs:CreateService)",
+     "ts": "2026-09-30T11:14:54Z"
+    },
+    {
+     "level": "info",
+     "target_id": "tgt_aws",
+     "text": "AI 수정 시도 2/3: IAM 정책에 ecs:CreateService 추가",
+     "ts": "2026-09-30T11:14:54Z"
+    },
+    {
+     "level": "info",
+     "target_id": "tgt_aws",
+     "text": "terraform plan: 2 to add, 1 to change, 1 to destroy",
+     "ts": "2026-09-30T11:15:54Z"
+    }
+   ],
+   "next_cursor": null
+  },
+  "deployments/dep_m6/plan": {
+   "ai_usage": {
+    "cost_krw": 206,
+    "estimated": true,
+    "exchange_rate": 1380,
+    "tokens": 7920
+   },
+   "deployment_id": "dep_m6",
+   "targets": [
+    {
+     "counts": {
+      "create": 0,
+      "delete": 0,
+      "update": 1
+     },
+     "has_delete": false,
+     "resources": [
+      {
+       "action": "update",
+       "address": "docker_container.app",
+       "monthly_cost_krw": null
+      }
+     ],
+     "reused_script": true,
+     "risks": [],
+     "target_id": "tgt_onprem"
+    },
+    {
+     "counts": {
+      "create": 2,
+      "delete": 1,
+      "update": 1
+     },
+     "has_delete": true,
+     "resources": [
+      {
+       "action": "create",
+       "address": "aws_ecs_service.app",
+       "monthly_cost_krw": null
+      },
+      {
+       "action": "create",
+       "address": "aws_lb_target_group.app",
+       "monthly_cost_krw": null
+      },
+      {
+       "action": "update",
+       "address": "aws_ecs_task_definition.app",
+       "monthly_cost_krw": null
+      },
+      {
+       "action": "replace",
+       "address": "aws_lb_listener_rule.app",
+       "monthly_cost_krw": null
+      }
+     ],
+     "reused_script": false,
+     "risks": [
+      {
+       "level": "medium",
+       "message": "443 포트가 0.0.0.0/0에 열려 있어요 (ALB 공개용이라 허용)",
+       "resource": "aws_security_group.alb",
+       "rule": "open_ingress"
+      }
+     ],
+     "target_id": "tgt_aws"
+    },
+    {
+     "counts": {
+      "create": 1,
+      "delete": 0,
+      "update": 0
+     },
+     "has_delete": false,
+     "resources": [
+      {
+       "action": "create",
+       "address": "google_cloud_run_v2_service.app",
+       "monthly_cost_krw": null
+      }
+     ],
+     "reused_script": false,
+     "risks": [],
+     "target_id": "tgt_gcp"
+    }
+   ]
+  },
+  "deployments/dep_m6/targets/tgt_aws/script": {
+   "ai_tokens": 4200,
+   "attempt": 1,
+   "base_commit": "574acd9980b8fba01c49a5cd0ad659639de3ebe0",
+   "created_at": "2026-09-28T11:22:54Z",
+   "files": [
+    {
+     "content": "resource \"aws_ecs_service\" \"app\" {\n  name            = var.name\n  cluster         = aws_ecs_cluster.main.id\n  task_definition = aws_ecs_task_definition.app.arn\n  desired_count   = 1\n  launch_type     = \"FARGATE\"\n}\n",
+     "path": "aws/main.tf"
+    }
+   ],
+   "input": "deploy.yaml + 기준 모듈",
+   "last_used_at": null,
+   "note": null,
+   "origin": "ai_generated",
+   "reuse_count": 0,
+   "script_id": "scr_dep_m6_aws",
+   "status": "verified",
+   "storage": "scripts/aws/s2",
+   "target_id": "tgt_aws",
+   "validation": {
+    "plan": true,
+    "risks": 0,
+    "validate": true
+   },
+   "version": "s2"
+  },
+  "deployments/dep_m6/targets/tgt_gcp/script": {
+   "ai_tokens": 4200,
+   "attempt": 1,
+   "base_commit": "574acd9980b8fba01c49a5cd0ad659639de3ebe0",
+   "created_at": "2026-09-28T11:22:54Z",
+   "files": [
+    {
+     "content": "resource \"google_cloud_run_v2_service\" \"app\" {\n  name     = var.name\n  location = \"asia-northeast3\"\n  template {\n    containers { image = var.image }\n  }\n}\n",
+     "path": "gcp/main.tf"
+    }
+   ],
+   "input": "deploy.yaml + 기준 모듈",
+   "last_used_at": null,
+   "note": null,
+   "origin": "ai_generated",
+   "reuse_count": 0,
+   "script_id": "scr_dep_m6_gcp",
+   "status": "verified",
+   "storage": "scripts/gcp/s1",
+   "target_id": "tgt_gcp",
+   "validation": {
+    "plan": true,
+    "risks": 0,
+    "validate": true
+   },
+   "version": "s1"
+  },
+  "deployments/dep_m6/targets/tgt_onprem/script": {
+   "ai_tokens": 4200,
+   "attempt": 1,
+   "base_commit": "574acd9980b8fba01c49a5cd0ad659639de3ebe0",
+   "created_at": "2026-09-28T11:22:54Z",
+   "files": [
+    {
+     "content": "resource \"docker_container\" \"app\" {\n  name  = var.name\n  image = var.image\n  ports {\n    internal = 8080\n    external = 8080\n  }\n}\n",
+     "path": "onprem/main.tf"
+    }
+   ],
+   "input": "deploy.yaml + 기준 모듈",
+   "last_used_at": null,
+   "note": null,
+   "origin": "ai_generated",
+   "reuse_count": 0,
+   "script_id": "scr_dep_m6_onprem",
+   "status": "verified",
+   "storage": "scripts/onprem/s1",
+   "target_id": "tgt_onprem",
+   "validation": {
+    "plan": true,
+    "risks": 0,
+    "validate": true
+   },
+   "version": "s1"
+  },
+  "deployments/dep_s1": {
+   "ai_usage": {
+    "calls": 3,
+    "cost_krw": 255,
+    "estimated": true,
+    "exchange_rate": 1380,
+    "items": [
+     {
+      "at": "2026-09-30T05:24:54Z",
+      "attempt": 1,
+      "cost_krw": 85,
+      "note": null,
+      "status": "succeeded",
+      "step": "generate",
+      "target_id": "tgt_onprem",
+      "tokens": 3300
+     },
+     {
+      "at": "2026-09-30T05:24:54Z",
+      "attempt": 1,
+      "cost_krw": 85,
+      "note": null,
+      "status": "succeeded",
+      "step": "generate",
+      "target_id": "tgt_aws",
+      "tokens": 3300
+     },
+     {
+      "at": "2026-09-30T05:24:54Z",
+      "attempt": 1,
+      "cost_krw": 85,
+      "note": null,
+      "status": "succeeded",
+      "step": "generate",
+      "target_id": "tgt_gcp",
+      "tokens": 3300
+     }
+    ],
+    "tokens": 9900
+   },
+   "commit": "5e250c0aad492a86faadd482c9534a9540ca13d2",
+   "commit_message": "feat: HelloCalc MSA 샘플 추가 (frontend + backend) (#1)",
+   "created_at": "2026-09-30T05:22:54Z",
+   "created_by": "Seungjun Park",
+   "finished_at": "2026-09-30T05:32:54Z",
+   "id": "dep_s1",
+   "image": "ghcr.io/team-daisy/sample-msa:5e250c0",
+   "kind": null,
+   "pending_approval": null,
+   "project_id": "prj_msa",
+   "rolled_back_from": null,
+   "state": "succeeded",
+   "targets": [
+    {
+     "attempt": 1,
+     "error_summary": null,
+     "health_summary": "200 OK · p95 140ms",
+     "reused_script": false,
+     "state": "succeeded",
+     "step": "health_check",
+     "step_state": "done",
+     "steps": [
+      {
+       "duration_ms": 63000,
+       "name": "apply",
+       "started_at": null,
+       "state": "done"
+      },
+      {
+       "duration_ms": 4000,
+       "name": "health_check",
+       "started_at": null,
+       "state": "done"
+      }
+     ],
+     "target_id": "tgt_onprem",
+     "title": "home-lab · Docker Compose",
+     "url": "https://hellocalc-frontend.onprem.example.com"
+    },
+    {
+     "attempt": 1,
+     "error_summary": null,
+     "health_summary": "200 OK · p95 140ms",
+     "reused_script": false,
+     "state": "succeeded",
+     "step": "health_check",
+     "step_state": "done",
+     "steps": [
+      {
+       "duration_ms": 63000,
+       "name": "apply",
+       "started_at": null,
+       "state": "done"
+      },
+      {
+       "duration_ms": 4000,
+       "name": "health_check",
+       "started_at": null,
+       "state": "done"
+      }
+     ],
+     "target_id": "tgt_aws",
+     "title": "ap-northeast-2 · ECS Fargate",
+     "url": "https://hellocalc-frontend.aws.example.com"
+    },
+    {
+     "attempt": 1,
+     "error_summary": null,
+     "health_summary": "200 OK · p95 140ms",
+     "reused_script": false,
+     "state": "succeeded",
+     "step": "health_check",
+     "step_state": "done",
+     "steps": [
+      {
+       "duration_ms": 63000,
+       "name": "apply",
+       "started_at": null,
+       "state": "done"
+      },
+      {
+       "duration_ms": 4000,
+       "name": "health_check",
+       "started_at": null,
+       "state": "done"
+      }
+     ],
+     "target_id": "tgt_gcp",
+     "title": "asia-northeast3 · Cloud Run",
+     "url": "https://hellocalc-frontend.run.example.com"
+    }
+   ],
+   "version": "v1"
+  },
+  "deployments/dep_s1/logs": {
+   "items": [
+    {
+     "level": "info",
+     "target_id": "tgt_aws",
+     "text": "terraform init",
+     "ts": "2026-09-30T11:13:54Z"
+    },
+    {
+     "level": "info",
+     "target_id": "tgt_aws",
+     "text": "terraform validate: Success!",
+     "ts": "2026-09-30T11:13:54Z"
+    },
+    {
+     "level": "error",
+     "target_id": "tgt_aws",
+     "text": "Error: creating ECS Service: AccessDeniedException (ecs:CreateService)",
+     "ts": "2026-09-30T11:14:54Z"
+    },
+    {
+     "level": "info",
+     "target_id": "tgt_aws",
+     "text": "AI 수정 시도 2/3: IAM 정책에 ecs:CreateService 추가",
+     "ts": "2026-09-30T11:14:54Z"
+    },
+    {
+     "level": "info",
+     "target_id": "tgt_aws",
+     "text": "terraform plan: 2 to add, 1 to change, 1 to destroy",
+     "ts": "2026-09-30T11:15:54Z"
+    }
+   ],
+   "next_cursor": null
+  },
+  "deployments/dep_s1/plan": {
+   "ai_usage": {
+    "cost_krw": 255,
+    "estimated": true,
+    "exchange_rate": 1380,
+    "tokens": 9900
+   },
+   "deployment_id": "dep_s1",
+   "targets": [
+    {
+     "counts": {
+      "create": 0,
+      "delete": 0,
+      "update": 1
+     },
+     "has_delete": false,
+     "resources": [
+      {
+       "action": "update",
+       "address": "docker_container.app",
+       "monthly_cost_krw": null
+      }
+     ],
+     "reused_script": false,
+     "risks": [],
+     "target_id": "tgt_onprem"
+    },
+    {
+     "counts": {
+      "create": 2,
+      "delete": 1,
+      "update": 1
+     },
+     "has_delete": true,
+     "resources": [
+      {
+       "action": "create",
+       "address": "aws_ecs_service.app",
+       "monthly_cost_krw": null
+      },
+      {
+       "action": "create",
+       "address": "aws_lb_target_group.app",
+       "monthly_cost_krw": null
+      },
+      {
+       "action": "update",
+       "address": "aws_ecs_task_definition.app",
+       "monthly_cost_krw": null
+      },
+      {
+       "action": "replace",
+       "address": "aws_lb_listener_rule.app",
+       "monthly_cost_krw": null
+      }
+     ],
+     "reused_script": false,
+     "risks": [
+      {
+       "level": "medium",
+       "message": "443 포트가 0.0.0.0/0에 열려 있어요 (ALB 공개용이라 허용)",
+       "resource": "aws_security_group.alb",
+       "rule": "open_ingress"
+      }
+     ],
+     "target_id": "tgt_aws"
+    },
+    {
+     "counts": {
+      "create": 1,
+      "delete": 0,
+      "update": 0
+     },
+     "has_delete": false,
+     "resources": [
+      {
+       "action": "create",
+       "address": "google_cloud_run_v2_service.app",
+       "monthly_cost_krw": null
+      }
+     ],
+     "reused_script": false,
+     "risks": [],
+     "target_id": "tgt_gcp"
+    }
+   ]
+  },
+  "deployments/dep_s1/targets/tgt_aws/script": {
+   "ai_tokens": 4200,
+   "attempt": 1,
+   "base_commit": "5e250c0aad492a86faadd482c9534a9540ca13d2",
+   "created_at": "2026-09-28T11:22:54Z",
+   "files": [
+    {
+     "content": "resource \"aws_ecs_service\" \"app\" {\n  name            = var.name\n  cluster         = aws_ecs_cluster.main.id\n  task_definition = aws_ecs_task_definition.app.arn\n  desired_count   = 1\n  launch_type     = \"FARGATE\"\n}\n",
+     "path": "aws/main.tf"
+    }
+   ],
+   "input": "deploy.yaml + 기준 모듈",
+   "last_used_at": null,
+   "note": null,
+   "origin": "ai_generated",
+   "reuse_count": 0,
+   "script_id": "scr_dep_s1_aws",
+   "status": "verified",
+   "storage": "scripts/aws/s2",
+   "target_id": "tgt_aws",
+   "validation": {
+    "plan": true,
+    "risks": 0,
+    "validate": true
+   },
+   "version": "s2"
+  },
+  "deployments/dep_s1/targets/tgt_gcp/script": {
+   "ai_tokens": 4200,
+   "attempt": 1,
+   "base_commit": "5e250c0aad492a86faadd482c9534a9540ca13d2",
+   "created_at": "2026-09-28T11:22:54Z",
+   "files": [
+    {
+     "content": "resource \"google_cloud_run_v2_service\" \"app\" {\n  name     = var.name\n  location = \"asia-northeast3\"\n  template {\n    containers { image = var.image }\n  }\n}\n",
+     "path": "gcp/main.tf"
+    }
+   ],
+   "input": "deploy.yaml + 기준 모듈",
+   "last_used_at": null,
+   "note": null,
+   "origin": "ai_generated",
+   "reuse_count": 0,
+   "script_id": "scr_dep_s1_gcp",
+   "status": "verified",
+   "storage": "scripts/gcp/s1",
+   "target_id": "tgt_gcp",
+   "validation": {
+    "plan": true,
+    "risks": 0,
+    "validate": true
+   },
+   "version": "s1"
+  },
+  "deployments/dep_s1/targets/tgt_onprem/script": {
+   "ai_tokens": 4200,
+   "attempt": 1,
+   "base_commit": "5e250c0aad492a86faadd482c9534a9540ca13d2",
+   "created_at": "2026-09-28T11:22:54Z",
+   "files": [
+    {
+     "content": "resource \"docker_container\" \"app\" {\n  name  = var.name\n  image = var.image\n  ports {\n    internal = 8080\n    external = 8080\n  }\n}\n",
+     "path": "onprem/main.tf"
+    }
+   ],
+   "input": "deploy.yaml + 기준 모듈",
+   "last_used_at": null,
+   "note": null,
+   "origin": "ai_generated",
+   "reuse_count": 0,
+   "script_id": "scr_dep_s1_onprem",
+   "status": "verified",
+   "storage": "scripts/onprem/s1",
+   "target_id": "tgt_onprem",
+   "validation": {
+    "plan": true,
+    "risks": 0,
+    "validate": true
+   },
+   "version": "s1"
+  },
+  "deployments/dep_s2": {
+   "ai_usage": {
+    "calls": 2,
+    "cost_krw": 140,
+    "estimated": true,
+    "exchange_rate": 1380,
+    "items": [
+     {
+      "at": "2026-09-30T11:19:54Z",
+      "attempt": 1,
+      "cost_krw": 88,
+      "note": null,
+      "status": "failed",
+      "step": "generate",
+      "target_id": "tgt_aws",
+      "tokens": 3400
+     },
+     {
+      "at": "2026-09-30T11:20:54Z",
+      "attempt": 2,
+      "cost_krw": 52,
+      "note": "backend 내부 ingress 규칙 추가",
+      "status": "succeeded",
+      "step": "fix",
+      "target_id": "tgt_aws",
+      "tokens": 2010
+     }
+    ],
+    "tokens": 5410
+   },
+   "commit": "5a21c63803fba9f43a8a20839a98fccc238c881b",
+   "commit_message": "docs: Cloud Run에서 backend 호출 인증 조건 안내, 로컬 이미지 태그를 커밋 해시로 통일 (#2)",
+   "created_at": "2026-09-30T11:18:54Z",
+   "created_by": "Seungjun Park",
+   "finished_at": null,
+   "id": "dep_s2",
+   "image": "ghcr.io/team-daisy/sample-msa:5a21c63",
+   "kind": null,
+   "pending_approval": null,
+   "project_id": "prj_msa",
+   "rolled_back_from": null,
+   "state": "running",
+   "targets": [
+    {
+     "attempt": 1,
+     "error_summary": null,
+     "health_summary": null,
+     "reused_script": true,
+     "state": "validating",
+     "step": "plan",
+     "step_state": "done",
+     "steps": [
+      {
+       "duration_ms": 41000,
+       "name": "generate",
+       "started_at": null,
+       "state": "done"
+      },
+      {
+       "duration_ms": 3100,
+       "name": "validate",
+       "started_at": null,
+       "state": "done"
+      },
+      {
+       "duration_ms": 8200,
+       "name": "plan",
+       "started_at": null,
+       "state": "done"
+      }
+     ],
+     "target_id": "tgt_onprem",
+     "title": "home-lab · Docker Compose",
+     "url": null
+    },
+    {
+     "attempt": 2,
+     "error_summary": null,
+     "health_summary": null,
+     "reused_script": false,
+     "state": "validating",
+     "step": "validate",
+     "step_state": "running",
+     "steps": [
+      {
+       "duration_ms": 44000,
+       "name": "generate",
+       "started_at": null,
+       "state": "done"
+      },
+      {
+       "duration_ms": null,
+       "name": "validate",
+       "started_at": null,
+       "state": "running"
+      }
+     ],
+     "target_id": "tgt_aws",
+     "title": "ap-northeast-2 · ECS Fargate",
+     "url": null
+    },
+    {
+     "attempt": 1,
+     "error_summary": null,
+     "health_summary": null,
+     "reused_script": false,
+     "state": "generating",
+     "step": "generate",
+     "step_state": "running",
+     "steps": [
+      {
+       "duration_ms": null,
+       "name": "generate",
+       "started_at": null,
+       "state": "running"
+      }
+     ],
+     "target_id": "tgt_gcp",
+     "title": "asia-northeast3 · Cloud Run",
+     "url": null
+    }
+   ],
+   "version": "v2"
+  },
+  "deployments/dep_s2/logs": {
+   "items": [
+    {
+     "level": "info",
+     "target_id": "tgt_aws",
+     "text": "terraform init",
+     "ts": "2026-09-30T11:13:54Z"
+    },
+    {
+     "level": "info",
+     "target_id": "tgt_aws",
+     "text": "terraform validate: Success!",
+     "ts": "2026-09-30T11:13:54Z"
+    },
+    {
+     "level": "error",
+     "target_id": "tgt_aws",
+     "text": "Error: creating ECS Service: AccessDeniedException (ecs:CreateService)",
+     "ts": "2026-09-30T11:14:54Z"
+    },
+    {
+     "level": "info",
+     "target_id": "tgt_aws",
+     "text": "AI 수정 시도 2/3: IAM 정책에 ecs:CreateService 추가",
+     "ts": "2026-09-30T11:14:54Z"
+    },
+    {
+     "level": "info",
+     "target_id": "tgt_aws",
+     "text": "terraform plan: 2 to add, 1 to change, 1 to destroy",
+     "ts": "2026-09-30T11:15:54Z"
+    }
+   ],
+   "next_cursor": null
+  },
+  "deployments/dep_s2/plan": {
+   "ai_usage": {
+    "cost_krw": 140,
+    "estimated": true,
+    "exchange_rate": 1380,
+    "tokens": 5410
+   },
+   "deployment_id": "dep_s2",
+   "targets": [
+    {
+     "counts": {
+      "create": 0,
+      "delete": 0,
+      "update": 1
+     },
+     "has_delete": false,
+     "resources": [
+      {
+       "action": "update",
+       "address": "docker_container.app",
+       "monthly_cost_krw": null
+      }
+     ],
+     "reused_script": true,
+     "risks": [],
+     "target_id": "tgt_onprem"
+    },
+    {
+     "counts": {
+      "create": 2,
+      "delete": 1,
+      "update": 1
+     },
+     "has_delete": true,
+     "resources": [
+      {
+       "action": "create",
+       "address": "aws_ecs_service.app",
+       "monthly_cost_krw": null
+      },
+      {
+       "action": "create",
+       "address": "aws_lb_target_group.app",
+       "monthly_cost_krw": null
+      },
+      {
+       "action": "update",
+       "address": "aws_ecs_task_definition.app",
+       "monthly_cost_krw": null
+      },
+      {
+       "action": "replace",
+       "address": "aws_lb_listener_rule.app",
+       "monthly_cost_krw": null
+      }
+     ],
+     "reused_script": false,
+     "risks": [
+      {
+       "level": "medium",
+       "message": "443 포트가 0.0.0.0/0에 열려 있어요 (ALB 공개용이라 허용)",
+       "resource": "aws_security_group.alb",
+       "rule": "open_ingress"
+      }
+     ],
+     "target_id": "tgt_aws"
+    },
+    {
+     "counts": {
+      "create": 1,
+      "delete": 0,
+      "update": 0
+     },
+     "has_delete": false,
+     "resources": [
+      {
+       "action": "create",
+       "address": "google_cloud_run_v2_service.app",
+       "monthly_cost_krw": null
+      }
+     ],
+     "reused_script": false,
+     "risks": [],
+     "target_id": "tgt_gcp"
+    }
+   ]
+  },
+  "deployments/dep_s2/targets/tgt_aws/script": {
+   "ai_tokens": 4200,
+   "attempt": 1,
+   "base_commit": "5a21c63803fba9f43a8a20839a98fccc238c881b",
+   "created_at": "2026-09-28T11:22:54Z",
+   "files": [
+    {
+     "content": "resource \"aws_ecs_service\" \"app\" {\n  name            = var.name\n  cluster         = aws_ecs_cluster.main.id\n  task_definition = aws_ecs_task_definition.app.arn\n  desired_count   = 1\n  launch_type     = \"FARGATE\"\n}\n",
+     "path": "aws/main.tf"
+    }
+   ],
+   "input": "deploy.yaml + 기준 모듈",
+   "last_used_at": null,
+   "note": null,
+   "origin": "ai_generated",
+   "reuse_count": 0,
+   "script_id": "scr_dep_s2_aws",
+   "status": "verified",
+   "storage": "scripts/aws/s2",
+   "target_id": "tgt_aws",
+   "validation": {
+    "plan": true,
+    "risks": 0,
+    "validate": true
+   },
+   "version": "s2"
+  },
+  "deployments/dep_s2/targets/tgt_gcp/script": {
+   "ai_tokens": 4200,
+   "attempt": 1,
+   "base_commit": "5a21c63803fba9f43a8a20839a98fccc238c881b",
+   "created_at": "2026-09-28T11:22:54Z",
+   "files": [
+    {
+     "content": "resource \"google_cloud_run_v2_service\" \"app\" {\n  name     = var.name\n  location = \"asia-northeast3\"\n  template {\n    containers { image = var.image }\n  }\n}\n",
+     "path": "gcp/main.tf"
+    }
+   ],
+   "input": "deploy.yaml + 기준 모듈",
+   "last_used_at": null,
+   "note": null,
+   "origin": "ai_generated",
+   "reuse_count": 0,
+   "script_id": "scr_dep_s2_gcp",
+   "status": "verified",
+   "storage": "scripts/gcp/s1",
+   "target_id": "tgt_gcp",
+   "validation": {
+    "plan": true,
+    "risks": 0,
+    "validate": true
+   },
+   "version": "s1"
+  },
+  "deployments/dep_s2/targets/tgt_onprem/script": {
+   "ai_tokens": 4200,
+   "attempt": 1,
+   "base_commit": "5a21c63803fba9f43a8a20839a98fccc238c881b",
+   "created_at": "2026-09-28T11:22:54Z",
+   "files": [
+    {
+     "content": "resource \"docker_container\" \"app\" {\n  name  = var.name\n  image = var.image\n  ports {\n    internal = 8080\n    external = 8080\n  }\n}\n",
+     "path": "onprem/main.tf"
+    }
+   ],
+   "input": "deploy.yaml + 기준 모듈",
+   "last_used_at": null,
+   "note": null,
+   "origin": "ai_generated",
+   "reuse_count": 0,
+   "script_id": "scr_dep_s2_onprem",
+   "status": "verified",
+   "storage": "scripts/onprem/s1",
+   "target_id": "tgt_onprem",
+   "validation": {
+    "plan": true,
+    "risks": 0,
+    "validate": true
+   },
+   "version": "s1"
+  },
+  "projects": {
+   "items": [
+    {
+     "branch": "main",
+     "id": "prj_monolith",
+     "name": "sample-monolith",
+     "repository": "https://github.com/Softbank-Hackathon-2026-Team-Daisy/sample-monolith"
+    },
+    {
+     "branch": "main",
+     "id": "prj_msa",
+     "name": "sample-msa",
+     "repository": "https://github.com/Softbank-Hackathon-2026-Team-Daisy/sample-msa"
+    }
+   ],
+   "next_cursor": null
+  },
+  "projects/prj_monolith": {
+   "branch": "main",
+   "build": "GitHub Actions · docker build",
+   "id": "prj_monolith",
+   "name": "sample-monolith",
+   "registry": "ghcr.io/team-daisy",
+   "repository": "https://github.com/Softbank-Hackathon-2026-Team-Daisy/sample-monolith",
+   "webhook_last_at": "2026-09-30T11:10:54Z"
+  },
+  "projects/prj_monolith/builds": {
+   "items": [
+    {
+     "author": "Seungjun Park",
+     "branch": "main",
+     "commit": "574acd9980b8fba01c49a5cd0ad659639de3ebe0",
+     "committed_at": "2026-09-30T08:33:30Z",
+     "deployed_to": [],
+     "digest": null,
+     "image": "ghcr.io/team-daisy/sample-monolith:574acd9",
+     "message": "chore(ci): 로컬 이미지 태그를 커밋 해시로 통일 (latest 제거) (#1)",
+     "pipeline": {
+      "run_url": "https://github.com/Softbank-Hackathon-2026-Team-Daisy/sample-monolith/actions",
+      "status": "success"
+     },
+     "steps": [
+      {
+       "duration_ms": 2000,
+       "name": "checkout",
+       "started_at": null,
+       "state": "done"
+      },
+      {
+       "duration_ms": 21000,
+       "name": "test",
+       "started_at": null,
+       "state": "done"
+      },
+      {
+       "duration_ms": 64000,
+       "name": "docker build",
+       "started_at": null,
+       "state": "done"
+      },
+      {
+       "duration_ms": 9000,
+       "name": "push",
+       "started_at": null,
+       "state": "done"
+      }
+     ]
+    },
+    {
+     "author": "Seungjun Park",
+     "branch": "main",
+     "commit": "85ef7c5047eb6e444f5b3dd6e8add1df7390d0d0",
+     "committed_at": "2026-09-29T04:30:53Z",
+     "deployed_to": [],
+     "digest": null,
+     "image": "ghcr.io/team-daisy/sample-monolith:85ef7c5",
+     "message": "docs: 레포 이름 기준으로 README 제목과 LICENSE 저작권자 정리",
+     "pipeline": {
+      "run_url": "https://github.com/Softbank-Hackathon-2026-Team-Daisy/sample-monolith/actions",
+      "status": "success"
+     },
+     "steps": [
+      {
+       "duration_ms": 2000,
+       "name": "checkout",
+       "started_at": null,
+       "state": "done"
+      },
+      {
+       "duration_ms": 21000,
+       "name": "test",
+       "started_at": null,
+       "state": "done"
+      },
+      {
+       "duration_ms": 64000,
+       "name": "docker build",
+       "started_at": null,
+       "state": "done"
+      },
+      {
+       "duration_ms": 9000,
+       "name": "push",
+       "started_at": null,
+       "state": "done"
+      }
+     ]
+    },
+    {
+     "author": "Seungjun Park",
+     "branch": "main",
+     "commit": "7b1578b0092229c7cf7cbf91f1b2b176c2ca583d",
+     "committed_at": "2026-09-29T04:28:24Z",
+     "deployed_to": [],
+     "digest": null,
+     "image": "ghcr.io/team-daisy/sample-monolith:7b1578b",
+     "message": "chore: Go 모듈 경로와 이미지 출처 레이블을 팀 레포로 변경",
+     "pipeline": {
+      "run_url": "https://github.com/Softbank-Hackathon-2026-Team-Daisy/sample-monolith/actions",
+      "status": "success"
+     },
+     "steps": [
+      {
+       "duration_ms": 2000,
+       "name": "checkout",
+       "started_at": null,
+       "state": "done"
+      },
+      {
+       "duration_ms": 21000,
+       "name": "test",
+       "started_at": null,
+       "state": "done"
+      },
+      {
+       "duration_ms": 64000,
+       "name": "docker build",
+       "started_at": null,
+       "state": "done"
+      },
+      {
+       "duration_ms": 9000,
+       "name": "push",
+       "started_at": null,
+       "state": "done"
+      }
+     ]
+    },
+    {
+     "author": "Seungjun Park",
+     "branch": "main",
+     "commit": "2311c0b683ec0f46d0be1c640591245ae8d1c093",
+     "committed_at": "2026-09-29T04:06:35Z",
+     "deployed_to": [],
+     "digest": null,
+     "image": "ghcr.io/team-daisy/sample-monolith:2311c0b",
+     "message": "feat(ci): Daisy 앱 연결 요구사항 추가 (deploy.yaml, /health, N-01 파이프라인)",
+     "pipeline": {
+      "run_url": "https://github.com/Softbank-Hackathon-2026-Team-Daisy/sample-monolith/actions",
+      "status": "success"
+     },
+     "steps": [
+      {
+       "duration_ms": 2000,
+       "name": "checkout",
+       "started_at": null,
+       "state": "done"
+      },
+      {
+       "duration_ms": 21000,
+       "name": "test",
+       "started_at": null,
+       "state": "done"
+      },
+      {
+       "duration_ms": 64000,
+       "name": "docker build",
+       "started_at": null,
+       "state": "done"
+      },
+      {
+       "duration_ms": 9000,
+       "name": "push",
+       "started_at": null,
+       "state": "done"
+      }
+     ]
+    },
+    {
+     "author": "Seungjun Park",
+     "branch": "main",
+     "commit": "839d8c02f701c3cce2db1edf2386d28fd79f654f",
+     "committed_at": "2026-09-29T03:25:44Z",
+     "deployed_to": [],
+     "digest": null,
+     "image": "ghcr.io/team-daisy/sample-monolith:839d8c0",
+     "message": "HelloCalc: portable reference workload",
+     "pipeline": {
+      "run_url": "https://github.com/Softbank-Hackathon-2026-Team-Daisy/sample-monolith/actions",
+      "status": "success"
+     },
+     "steps": [
+      {
+       "duration_ms": 2000,
+       "name": "checkout",
+       "started_at": null,
+       "state": "done"
+      },
+      {
+       "duration_ms": 21000,
+       "name": "test",
+       "started_at": null,
+       "state": "done"
+      },
+      {
+       "duration_ms": 64000,
+       "name": "docker build",
+       "started_at": null,
+       "state": "done"
+      },
+      {
+       "duration_ms": 9000,
+       "name": "push",
+       "started_at": null,
+       "state": "done"
+      }
+     ]
+    }
+   ],
+   "next_cursor": null
+  },
+  "projects/prj_monolith/deployments": {
+   "items": [
+    {
+     "ai_usage": {
+      "calls": 3,
+      "cost_krw": 206,
+      "estimated": true,
+      "exchange_rate": 1380,
+      "items": [
+       {
+        "at": "2026-09-30T11:11:54Z",
+        "attempt": 1,
+        "cost_krw": 82,
+        "note": null,
+        "status": "failed",
+        "step": "generate",
+        "target_id": "tgt_aws",
+        "tokens": 3120
+       },
+       {
+        "at": "2026-09-30T11:12:54Z",
+        "attempt": 2,
+        "cost_krw": 48,
+        "note": "보안 그룹 0.0.0.0/0 수정",
+        "status": "succeeded",
+        "step": "fix",
+        "target_id": "tgt_aws",
+        "tokens": 1860
+       },
+       {
+        "at": "2026-09-30T11:11:54Z",
+        "attempt": 1,
+        "cost_krw": 76,
+        "note": null,
+        "status": "succeeded",
+        "step": "generate",
+        "target_id": "tgt_gcp",
+        "tokens": 2940
+       }
+      ],
+      "tokens": 7920
+     },
+     "commit": "574acd9980b8fba01c49a5cd0ad659639de3ebe0",
+     "commit_message": "chore(ci): 로컬 이미지 태그를 커밋 해시로 통일 (latest 제거) (#1)",
+     "created_at": "2026-09-30T11:10:54Z",
+     "created_by": "Seungjun Park",
+     "finished_at": null,
+     "id": "dep_m6",
+     "image": "ghcr.io/team-daisy/sample-monolith:574acd9",
+     "kind": null,
+     "pending_approval": {
+      "approval_id": "apv_dep_m6",
+      "kind": "plan"
+     },
+     "project_id": "prj_monolith",
+     "rolled_back_from": null,
+     "state": "awaiting_approval",
+     "targets": [
+      {
+       "attempt": 1,
+       "error_summary": null,
+       "health_summary": null,
+       "reused_script": true,
+       "state": "awaiting_approval",
+       "step": "risk_check",
+       "step_state": "done",
+       "steps": [
+        {
+         "duration_ms": 41000,
+         "name": "generate",
+         "started_at": null,
+         "state": "done"
+        },
+        {
+         "duration_ms": 3100,
+         "name": "validate",
+         "started_at": null,
+         "state": "done"
+        },
+        {
+         "duration_ms": 8200,
+         "name": "plan",
+         "started_at": null,
+         "state": "done"
+        },
+        {
+         "duration_ms": 900,
+         "name": "risk_check",
+         "started_at": null,
+         "state": "done"
+        }
+       ],
+       "target_id": "tgt_onprem",
+       "title": "home-lab · Docker Compose",
+       "url": null
+      },
+      {
+       "attempt": 2,
+       "error_summary": null,
+       "health_summary": null,
+       "reused_script": false,
+       "state": "awaiting_approval",
+       "step": "risk_check",
+       "step_state": "done",
+       "steps": [
+        {
+         "duration_ms": 41000,
+         "name": "generate",
+         "started_at": null,
+         "state": "done"
+        },
+        {
+         "duration_ms": 3100,
+         "name": "validate",
+         "started_at": null,
+         "state": "done"
+        },
+        {
+         "duration_ms": 8200,
+         "name": "plan",
+         "started_at": null,
+         "state": "done"
+        },
+        {
+         "duration_ms": 900,
+         "name": "risk_check",
+         "started_at": null,
+         "state": "done"
+        }
+       ],
+       "target_id": "tgt_aws",
+       "title": "ap-northeast-2 · ECS Fargate",
+       "url": null
+      },
+      {
+       "attempt": 1,
+       "error_summary": null,
+       "health_summary": null,
+       "reused_script": false,
+       "state": "awaiting_approval",
+       "step": "risk_check",
+       "step_state": "done",
+       "steps": [
+        {
+         "duration_ms": 41000,
+         "name": "generate",
+         "started_at": null,
+         "state": "done"
+        },
+        {
+         "duration_ms": 3100,
+         "name": "validate",
+         "started_at": null,
+         "state": "done"
+        },
+        {
+         "duration_ms": 8200,
+         "name": "plan",
+         "started_at": null,
+         "state": "done"
+        },
+        {
+         "duration_ms": 900,
+         "name": "risk_check",
+         "started_at": null,
+         "state": "done"
+        }
+       ],
+       "target_id": "tgt_gcp",
+       "title": "asia-northeast3 · Cloud Run",
+       "url": null
+      }
+     ],
+     "version": "v6"
+    },
+    {
+     "ai_usage": {
+      "calls": 0,
+      "cost_krw": 0,
+      "estimated": true,
+      "exchange_rate": 1380,
+      "items": [],
+      "tokens": 0
+     },
+     "commit": "85ef7c5047eb6e444f5b3dd6e8add1df7390d0d0",
+     "commit_message": "docs: 레포 이름 기준으로 README 제목과 LICENSE 저작권자 정리",
+     "created_at": "2026-09-30T10:22:54Z",
+     "created_by": "Seungjun Park",
+     "finished_at": null,
+     "id": "dep_m5",
+     "image": "ghcr.io/team-daisy/sample-monolith:85ef7c5",
+     "kind": null,
+     "pending_approval": null,
+     "project_id": "prj_monolith",
+     "rolled_back_from": null,
+     "state": "running",
+     "targets": [
+      {
+       "attempt": 1,
+       "error_summary": null,
+       "health_summary": null,
+       "reused_script": true,
+       "state": "succeeded",
+       "step": "health_check",
+       "step_state": "done",
+       "steps": [
+        {
+         "duration_ms": 63000,
+         "name": "apply",
+         "started_at": null,
+         "state": "done"
+        },
+        {
+         "duration_ms": 4000,
+         "name": "health_check",
+         "started_at": null,
+         "state": "done"
+        }
+       ],
+       "target_id": "tgt_onprem",
+       "title": "home-lab · Docker Compose",
+       "url": "https://hellocalc.onprem.example.com"
+      },
+      {
+       "attempt": 1,
+       "error_summary": null,
+       "health_summary": null,
+       "reused_script": false,
+       "state": "applying",
+       "step": "apply",
+       "step_state": "running",
+       "steps": [
+        {
+         "duration_ms": null,
+         "name": "apply",
+         "started_at": null,
+         "state": "running"
+        },
+        {
+         "duration_ms": null,
+         "name": "health_check",
+         "started_at": null,
+         "state": "waiting"
+        }
+       ],
+       "target_id": "tgt_aws",
+       "title": "ap-northeast-2 · ECS Fargate",
+       "url": null
+      },
+      {
+       "attempt": 1,
+       "error_summary": null,
+       "health_summary": null,
+       "reused_script": false,
+       "state": "applying",
+       "step": "apply",
+       "step_state": "running",
+       "steps": [
+        {
+         "duration_ms": null,
+         "name": "apply",
+         "started_at": null,
+         "state": "running"
+        },
+        {
+         "duration_ms": null,
+         "name": "health_check",
+         "started_at": null,
+         "state": "waiting"
+        }
+       ],
+       "target_id": "tgt_gcp",
+       "title": "asia-northeast3 · Cloud Run",
+       "url": null
+      }
+     ],
+     "version": "v5"
+    },
+    {
+     "ai_usage": {
+      "calls": 4,
+      "cost_krw": 253,
+      "estimated": true,
+      "exchange_rate": 1380,
+      "items": [
+       {
+        "at": "2026-09-30T08:27:54Z",
+        "attempt": 1,
+        "cost_krw": 80,
+        "note": null,
+        "status": "failed",
+        "step": "generate",
+        "target_id": "tgt_aws",
+        "tokens": 3050
+       },
+       {
+        "at": "2026-09-30T08:30:54Z",
+        "attempt": 2,
+        "cost_krw": 49,
+        "note": null,
+        "status": "failed",
+        "step": "fix",
+        "target_id": "tgt_aws",
+        "tokens": 1900
+       },
+       {
+        "at": "2026-09-30T08:33:54Z",
+        "attempt": 3,
+        "cost_krw": 49,
+        "note": null,
+        "status": "failed",
+        "step": "fix",
+        "target_id": "tgt_aws",
+        "tokens": 1880
+       },
+       {
+        "at": "2026-09-30T08:28:54Z",
+        "attempt": 1,
+        "cost_krw": 75,
+        "note": null,
+        "status": "failed",
+        "step": "generate",
+        "target_id": "tgt_gcp",
+        "tokens": 2900
+       }
+      ],
+      "tokens": 9730
+     },
+     "commit": "7b1578b0092229c7cf7cbf91f1b2b176c2ca583d",
+     "commit_message": "chore: Go 모듈 경로와 이미지 출처 레이블을 팀 레포로 변경",
+     "created_at": "2026-09-30T08:22:54Z",
+     "created_by": "Seungjun Park",
+     "finished_at": null,
+     "id": "dep_m4",
+     "image": "ghcr.io/team-daisy/sample-monolith:7b1578b",
+     "kind": null,
+     "pending_approval": null,
+     "project_id": "prj_monolith",
+     "rolled_back_from": null,
+     "state": "running",
+     "targets": [
+      {
+       "attempt": 1,
+       "error_summary": null,
+       "health_summary": null,
+       "reused_script": true,
+       "state": "awaiting_approval",
+       "step": "risk_check",
+       "step_state": "done",
+       "steps": [
+        {
+         "duration_ms": 41000,
+         "name": "generate",
+         "started_at": null,
+         "state": "done"
+        },
+        {
+         "duration_ms": 3100,
+         "name": "validate",
+         "started_at": null,
+         "state": "done"
+        },
+        {
+         "duration_ms": 8200,
+         "name": "plan",
+         "started_at": null,
+         "state": "done"
+        },
+        {
+         "duration_ms": 900,
+         "name": "risk_check",
+         "started_at": null,
+         "state": "done"
+        }
+       ],
+       "target_id": "tgt_onprem",
+       "title": "home-lab · Docker Compose",
+       "url": null
+      },
+      {
+       "attempt": 3,
+       "error_summary": "terraform plan 오류: IAM 권한 부족 (ecs:CreateService)",
+       "health_summary": null,
+       "reused_script": false,
+       "state": "failed",
+       "step": "plan",
+       "step_state": "failed",
+       "steps": [
+        {
+         "duration_ms": 41000,
+         "name": "generate",
+         "started_at": null,
+         "state": "done"
+        },
+        {
+         "duration_ms": 2900,
+         "name": "validate",
+         "started_at": null,
+         "state": "done"
+        },
+        {
+         "duration_ms": 8000,
+         "name": "plan",
+         "started_at": null,
+         "state": "failed"
+        }
+       ],
+       "target_id": "tgt_aws",
+       "title": "ap-northeast-2 · ECS Fargate",
+       "url": null
+      },
+      {
+       "attempt": 2,
+       "error_summary": null,
+       "health_summary": null,
+       "reused_script": false,
+       "state": "validating",
+       "step": "validate",
+       "step_state": "running",
+       "steps": [
+        {
+         "duration_ms": 40000,
+         "name": "generate",
+         "started_at": null,
+         "state": "done"
+        },
+        {
+         "duration_ms": null,
+         "name": "validate",
+         "started_at": null,
+         "state": "running"
+        }
+       ],
+       "target_id": "tgt_gcp",
+       "title": "asia-northeast3 · Cloud Run",
+       "url": null
+      }
+     ],
+     "version": "v4"
+    },
+    {
+     "ai_usage": {
+      "calls": 2,
+      "cost_krw": 157,
+      "estimated": true,
+      "exchange_rate": 1380,
+      "items": [
+       {
+        "at": "2026-09-29T15:27:54Z",
+        "attempt": 1,
+        "cost_krw": 81,
+        "note": null,
+        "status": "succeeded",
+        "step": "generate",
+        "target_id": "tgt_aws",
+        "tokens": 3100
+       },
+       {
+        "at": "2026-09-29T15:27:54Z",
+        "attempt": 1,
+        "cost_krw": 76,
+        "note": null,
+        "status": "succeeded",
+        "step": "generate",
+        "target_id": "tgt_gcp",
+        "tokens": 2950
+       }
+      ],
+      "tokens": 6050
+     },
+     "commit": "2311c0b683ec0f46d0be1c640591245ae8d1c093",
+     "commit_message": "feat(ci): Daisy 앱 연결 요구사항 추가 (deploy.yaml, /health, N-01 파이프라인)",
+     "created_at": "2026-09-29T15:22:54Z",
+     "created_by": "Seungjun Park",
+     "finished_at": "2026-09-29T15:28:54Z",
+     "id": "dep_m3",
+     "image": "ghcr.io/team-daisy/sample-monolith:2311c0b",
+     "kind": null,
+     "pending_approval": null,
+     "project_id": "prj_monolith",
+     "rolled_back_from": null,
+     "state": "succeeded",
+     "targets": [
+      {
+       "attempt": 1,
+       "error_summary": null,
+       "health_summary": "200 OK · p95 120ms",
+       "reused_script": true,
+       "state": "succeeded",
+       "step": "health_check",
+       "step_state": "done",
+       "steps": [
+        {
+         "duration_ms": 63000,
+         "name": "apply",
+         "started_at": null,
+         "state": "done"
+        },
+        {
+         "duration_ms": 4000,
+         "name": "health_check",
+         "started_at": null,
+         "state": "done"
+        }
+       ],
+       "target_id": "tgt_onprem",
+       "title": "home-lab · Docker Compose",
+       "url": "https://hellocalc.onprem.example.com"
+      },
+      {
+       "attempt": 1,
+       "error_summary": null,
+       "health_summary": "200 OK · p95 120ms",
+       "reused_script": false,
+       "state": "succeeded",
+       "step": "health_check",
+       "step_state": "done",
+       "steps": [
+        {
+         "duration_ms": 63000,
+         "name": "apply",
+         "started_at": null,
+         "state": "done"
+        },
+        {
+         "duration_ms": 4000,
+         "name": "health_check",
+         "started_at": null,
+         "state": "done"
+        }
+       ],
+       "target_id": "tgt_aws",
+       "title": "ap-northeast-2 · ECS Fargate",
+       "url": "https://hellocalc.aws.example.com"
+      },
+      {
+       "attempt": 1,
+       "error_summary": null,
+       "health_summary": "200 OK · p95 120ms",
+       "reused_script": false,
+       "state": "succeeded",
+       "step": "health_check",
+       "step_state": "done",
+       "steps": [
+        {
+         "duration_ms": 63000,
+         "name": "apply",
+         "started_at": null,
+         "state": "done"
+        },
+        {
+         "duration_ms": 4000,
+         "name": "health_check",
+         "started_at": null,
+         "state": "done"
+        }
+       ],
+       "target_id": "tgt_gcp",
+       "title": "asia-northeast3 · Cloud Run",
+       "url": "https://hellocalc.run.example.com"
+      }
+     ],
+     "version": "v3"
+    },
+    {
+     "ai_usage": {
+      "calls": 3,
+      "cost_krw": 234,
+      "estimated": true,
+      "exchange_rate": 1380,
+      "items": [
+       {
+        "at": "2026-09-29T09:22:54Z",
+        "attempt": 1,
+        "cost_krw": 78,
+        "note": null,
+        "status": "succeeded",
+        "step": "generate",
+        "target_id": "tgt_onprem",
+        "tokens": 3000
+       },
+       {
+        "at": "2026-09-29T09:22:54Z",
+        "attempt": 1,
+        "cost_krw": 78,
+        "note": null,
+        "status": "succeeded",
+        "step": "generate",
+        "target_id": "tgt_aws",
+        "tokens": 3000
+       },
+       {
+        "at": "2026-09-29T09:22:54Z",
+        "attempt": 1,
+        "cost_krw": 78,
+        "note": null,
+        "status": "succeeded",
+        "step": "generate",
+        "target_id": "tgt_gcp",
+        "tokens": 3000
+       }
+      ],
+      "tokens": 9000
+     },
+     "commit": "839d8c02f701c3cce2db1edf2386d28fd79f654f",
+     "commit_message": "HelloCalc: portable reference workload",
+     "created_at": "2026-09-29T09:22:54Z",
+     "created_by": "Seungjun Park",
+     "finished_at": "2026-09-29T09:30:54Z",
+     "id": "dep_m2",
+     "image": "ghcr.io/team-daisy/sample-monolith:839d8c0",
+     "kind": null,
+     "pending_approval": null,
+     "project_id": "prj_monolith",
+     "rolled_back_from": null,
+     "state": "partially_succeeded",
+     "targets": [
+      {
+       "attempt": 1,
+       "error_summary": null,
+       "health_summary": "200 OK · p95 98ms",
+       "reused_script": false,
+       "state": "succeeded",
+       "step": "health_check",
+       "step_state": "done",
+       "steps": [
+        {
+         "duration_ms": 63000,
+         "name": "apply",
+         "started_at": null,
+         "state": "done"
+        },
+        {
+         "duration_ms": 4000,
+         "name": "health_check",
+         "started_at": null,
+         "state": "done"
+        }
+       ],
+       "target_id": "tgt_onprem",
+       "title": "home-lab · Docker Compose",
+       "url": "https://hellocalc.onprem.example.com"
+      },
+      {
+       "attempt": 1,
+       "error_summary": null,
+       "health_summary": "200 OK · p95 131ms",
+       "reused_script": false,
+       "state": "succeeded",
+       "step": "health_check",
+       "step_state": "done",
+       "steps": [
+        {
+         "duration_ms": 63000,
+         "name": "apply",
+         "started_at": null,
+         "state": "done"
+        },
+        {
+         "duration_ms": 4000,
+         "name": "health_check",
+         "started_at": null,
+         "state": "done"
+        }
+       ],
+       "target_id": "tgt_aws",
+       "title": "ap-northeast-2 · ECS Fargate",
+       "url": "https://hellocalc.aws.example.com"
+      },
+      {
+       "attempt": 1,
+       "error_summary": "헬스체크 30초 안에 응답 없음 (/health)",
+       "health_summary": null,
+       "reused_script": false,
+       "state": "failed",
+       "step": "health_check",
+       "step_state": "failed",
+       "steps": [
+        {
+         "duration_ms": 58000,
+         "name": "apply",
+         "started_at": null,
+         "state": "done"
+        },
+        {
+         "duration_ms": 30000,
+         "name": "health_check",
+         "started_at": null,
+         "state": "failed"
+        }
+       ],
+       "target_id": "tgt_gcp",
+       "title": "asia-northeast3 · Cloud Run",
+       "url": "https://hellocalc.run.example.com"
+      }
+     ],
+     "version": "v2"
+    }
+   ],
+   "next_cursor": null
+  },
+  "projects/prj_monolith/manifest": {
+   "database": false,
+   "env": [
+    "LOG_LEVEL",
+    "SHUTDOWN_TIMEOUT"
+   ],
+   "errors": [],
+   "healthcheck": "/health",
+   "port": 8080,
+   "raw": "# Daisy 배포 명세 (스키마: daisy/CLAUDE.md §5, 9/29 회의 초안)\nname: hellocalc\nport: 8080              # 컨테이너 안에서 앱이 요청을 받는 포트\nhealthcheck: /health    # 200 {\"status\":\"ok\"}\nenv:                    # 일반 환경변수 (모두 선택, 기본값 있음)\n  - LOG_LEVEL           # debug | info | warn | error (기본 info)\n  - SHUTDOWN_TIMEOUT    # 종료 시 처리 중 요청 대기 한도 (기본 15s)\nsecrets: []             # 비밀값 없음\ndatabase: false         # DB 불필요 (상태 없는 앱)\n",
+   "ref": "deploy.yaml · main@574acd9",
+   "secrets": []
+  },
+  "projects/prj_monolith/scripts": {
+   "items": [
+    {
+     "ai_tokens": 5400,
+     "attempt": 2,
+     "base_commit": "839d8c02f701c3cce2db1edf2386d28fd79f654f",
+     "created_at": "2026-09-28T11:22:54Z",
+     "files": [
+      {
+       "content": "resource \"aws_ecs_service\" \"app\" {\n  name            = var.name\n  cluster         = aws_ecs_cluster.main.id\n  task_definition = aws_ecs_task_definition.app.arn\n  desired_count   = 1\n  launch_type     = \"FARGATE\"\n}\n",
+       "path": "aws/main.tf"
+      }
+     ],
+     "input": "deploy.yaml + 기준 모듈",
+     "last_used_at": "2026-09-30T10:22:54Z",
+     "note": "보안 그룹 수정",
+     "origin": "ai_generated",
+     "reuse_count": 4,
+     "script_id": "scr_aws_prj_monolith",
+     "status": "verified",
+     "storage": "scripts/aws/s2",
+     "target_id": "tgt_aws",
+     "validation": {
+      "plan": true,
+      "risks": 0,
+      "validate": true
+     },
+     "version": "s2"
+    },
+    {
+     "ai_tokens": 4200,
+     "attempt": 1,
+     "base_commit": "839d8c02f701c3cce2db1edf2386d28fd79f654f",
+     "created_at": "2026-09-27T11:22:54Z",
+     "files": [
+      {
+       "content": "resource \"docker_container\" \"app\" {\n  name  = var.name\n  image = var.image\n  ports {\n    internal = 8080\n    external = 8080\n  }\n}\n",
+       "path": "onprem/main.tf"
+      }
+     ],
+     "input": "deploy.yaml + 기준 모듈",
+     "last_used_at": "2026-09-30T10:22:54Z",
+     "note": null,
+     "origin": "ai_generated",
+     "reuse_count": 6,
+     "script_id": "scr_onprem_prj_monolith",
+     "status": "verified",
+     "storage": "scripts/onprem/s1",
+     "target_id": "tgt_onprem",
+     "validation": {
+      "plan": true,
+      "risks": 0,
+      "validate": true
+     },
+     "version": "s1"
+    },
+    {
+     "ai_tokens": 6600,
+     "attempt": 3,
+     "base_commit": "839d8c02f701c3cce2db1edf2386d28fd79f654f",
+     "created_at": "2026-09-29T11:22:54Z",
+     "files": [
+      {
+       "content": "resource \"google_cloud_run_v2_service\" \"app\" {\n  name     = var.name\n  location = \"asia-northeast3\"\n  template {\n    containers { image = var.image }\n  }\n}\n",
+       "path": "gcp/main.tf"
+      }
+     ],
+     "input": "deploy.yaml + 기준 모듈",
+     "last_used_at": null,
+     "note": null,
+     "origin": "ai_generated",
+     "reuse_count": 0,
+     "script_id": "scr_gcp_prj_monolith",
+     "status": "discarded",
+     "storage": "scripts/gcp/s1",
+     "target_id": "tgt_gcp",
+     "validation": {
+      "plan": false,
+      "risks": 0,
+      "validate": true
+     },
+     "version": "s1"
+    }
+   ],
+   "next_cursor": null
+  },
+  "projects/prj_monolith/targets": {
+   "items": [
+    {
+     "access_method": "사설망(VPN) + SSH",
+     "connection": {
+      "checked_at": "2026-09-30T11:21:54Z",
+      "state": "ok"
+     },
+     "exposure": "팀 도메인 HTTPS",
+     "location": "home-lab (서울)",
+     "name": "온프레미스",
+     "reuse": {
+      "available": true,
+      "reason": "검증된 스크립트 s1이 있어요",
+      "script_id": "scr_onprem_s1"
+     },
+     "runtime": "Proxmox VM · Docker Compose",
+     "state_backend": null,
+     "target_id": "tgt_onprem",
+     "title": "온프레미스 · Docker Compose",
+     "type": "onprem"
+    },
+    {
+     "access_method": "IAM 역할",
+     "connection": {
+      "checked_at": "2026-09-30T11:21:54Z",
+      "state": "ok"
+     },
+     "exposure": "ALB HTTPS",
+     "location": "ap-northeast-2",
+     "name": "AWS",
+     "reuse": {
+      "available": true,
+      "reason": "검증된 스크립트 s2가 있어요",
+      "script_id": "scr_aws_s2"
+     },
+     "runtime": "ECS Fargate + ALB",
+     "state_backend": "S3 (네이티브 잠금)",
+     "target_id": "tgt_aws",
+     "title": "AWS · ECS + ALB",
+     "type": "aws"
+    },
+    {
+     "access_method": "서비스 계정",
+     "connection": {
+      "checked_at": "2026-09-30T11:21:54Z",
+      "state": "ok"
+     },
+     "exposure": "Cloud Run URL",
+     "location": "asia-northeast3",
+     "name": "GCP",
+     "reuse": {
+      "available": false
+     },
+     "runtime": "Cloud Run",
+     "state_backend": "GCS",
+     "target_id": "tgt_gcp",
+     "title": "GCP · Cloud Run",
+     "type": "gcp"
+    }
+   ],
+   "next_cursor": null
+  },
+  "projects/prj_monolith/targets/status": {
+   "items": [
+    {
+     "checked_at": "2026-09-30T11:22:14Z",
+     "current": {
+      "commit": "2311c0b683ec0f46d0be1c640591245ae8d1c093",
+      "deployed_at": "2026-09-29T15:28:54Z",
+      "deployment_id": "dep_m3",
+      "image": "ghcr.io/team-daisy/sample-monolith:2311c0b"
+     },
+     "health": "healthy",
+     "image_digest": "sha256:3f9ac21e7b04",
+     "name": "온프레미스",
+     "target_id": "tgt_onprem",
+     "type": "onprem",
+     "url": "https://hellocalc.onprem.example.com"
+    },
+    {
+     "checked_at": "2026-09-30T11:22:14Z",
+     "current": {
+      "commit": "2311c0b683ec0f46d0be1c640591245ae8d1c093",
+      "deployed_at": "2026-09-29T15:28:54Z",
+      "deployment_id": "dep_m3",
+      "image": "ghcr.io/team-daisy/sample-monolith:2311c0b"
+     },
+     "health": "healthy",
+     "image_digest": "sha256:3f9ac21e7b04",
+     "name": "AWS",
+     "target_id": "tgt_aws",
+     "type": "aws",
+     "url": "https://hellocalc.aws.example.com"
+    },
+    {
+     "checked_at": "2026-09-30T11:22:14Z",
+     "current": {
+      "commit": "2311c0b683ec0f46d0be1c640591245ae8d1c093",
+      "deployed_at": "2026-09-29T15:28:54Z",
+      "deployment_id": "dep_m3",
+      "image": "ghcr.io/team-daisy/sample-monolith:2311c0b"
+     },
+     "health": "healthy",
+     "image_digest": "sha256:3f9ac21e7b04",
+     "name": "GCP",
+     "target_id": "tgt_gcp",
+     "type": "gcp",
+     "url": "https://hellocalc.run.example.com"
+    }
+   ],
+   "next_cursor": null
+  },
+  "projects/prj_msa": {
+   "branch": "main",
+   "build": "GitHub Actions · docker build",
+   "id": "prj_msa",
+   "name": "sample-msa",
+   "registry": "ghcr.io/team-daisy",
+   "repository": "https://github.com/Softbank-Hackathon-2026-Team-Daisy/sample-msa",
+   "webhook_last_at": "2026-09-30T11:10:54Z"
+  },
+  "projects/prj_msa/builds": {
+   "items": [
+    {
+     "author": "Seungjun Park",
+     "branch": "main",
+     "commit": "5a21c63803fba9f43a8a20839a98fccc238c881b",
+     "committed_at": "2026-09-30T08:33:24Z",
+     "deployed_to": [],
+     "digest": null,
+     "image": "ghcr.io/team-daisy/sample-msa:5a21c63",
+     "message": "docs: Cloud Run에서 backend 호출 인증 조건 안내, 로컬 이미지 태그를 커밋 해시로 통일 (#2)",
+     "pipeline": {
+      "run_url": "https://github.com/Softbank-Hackathon-2026-Team-Daisy/sample-msa/actions",
+      "status": "success"
+     },
+     "steps": [
+      {
+       "duration_ms": 2000,
+       "name": "checkout",
+       "started_at": null,
+       "state": "done"
+      },
+      {
+       "duration_ms": 21000,
+       "name": "test",
+       "started_at": null,
+       "state": "done"
+      },
+      {
+       "duration_ms": 64000,
+       "name": "docker build",
+       "started_at": null,
+       "state": "done"
+      },
+      {
+       "duration_ms": 9000,
+       "name": "push",
+       "started_at": null,
+       "state": "done"
+      }
+     ]
+    },
+    {
+     "author": "Seungjun Park",
+     "branch": "main",
+     "commit": "5e250c0aad492a86faadd482c9534a9540ca13d2",
+     "committed_at": "2026-09-30T05:31:27Z",
+     "deployed_to": [],
+     "digest": null,
+     "image": "ghcr.io/team-daisy/sample-msa:5e250c0",
+     "message": "feat: HelloCalc MSA 샘플 추가 (frontend + backend) (#1)",
+     "pipeline": {
+      "run_url": "https://github.com/Softbank-Hackathon-2026-Team-Daisy/sample-msa/actions",
+      "status": "success"
+     },
+     "steps": [
+      {
+       "duration_ms": 2000,
+       "name": "checkout",
+       "started_at": null,
+       "state": "done"
+      },
+      {
+       "duration_ms": 21000,
+       "name": "test",
+       "started_at": null,
+       "state": "done"
+      },
+      {
+       "duration_ms": 64000,
+       "name": "docker build",
+       "started_at": null,
+       "state": "done"
+      },
+      {
+       "duration_ms": 9000,
+       "name": "push",
+       "started_at": null,
+       "state": "done"
+      }
+     ]
+    }
+   ],
+   "next_cursor": null
+  },
+  "projects/prj_msa/deployments": {
+   "items": [
+    {
+     "ai_usage": {
+      "calls": 2,
+      "cost_krw": 140,
+      "estimated": true,
+      "exchange_rate": 1380,
+      "items": [
+       {
+        "at": "2026-09-30T11:19:54Z",
+        "attempt": 1,
+        "cost_krw": 88,
+        "note": null,
+        "status": "failed",
+        "step": "generate",
+        "target_id": "tgt_aws",
+        "tokens": 3400
+       },
+       {
+        "at": "2026-09-30T11:20:54Z",
+        "attempt": 2,
+        "cost_krw": 52,
+        "note": "backend 내부 ingress 규칙 추가",
+        "status": "succeeded",
+        "step": "fix",
+        "target_id": "tgt_aws",
+        "tokens": 2010
+       }
+      ],
+      "tokens": 5410
+     },
+     "commit": "5a21c63803fba9f43a8a20839a98fccc238c881b",
+     "commit_message": "docs: Cloud Run에서 backend 호출 인증 조건 안내, 로컬 이미지 태그를 커밋 해시로 통일 (#2)",
+     "created_at": "2026-09-30T11:18:54Z",
+     "created_by": "Seungjun Park",
+     "finished_at": null,
+     "id": "dep_s2",
+     "image": "ghcr.io/team-daisy/sample-msa:5a21c63",
+     "kind": null,
+     "pending_approval": null,
+     "project_id": "prj_msa",
+     "rolled_back_from": null,
+     "state": "running",
+     "targets": [
+      {
+       "attempt": 1,
+       "error_summary": null,
+       "health_summary": null,
+       "reused_script": true,
+       "state": "validating",
+       "step": "plan",
+       "step_state": "done",
+       "steps": [
+        {
+         "duration_ms": 41000,
+         "name": "generate",
+         "started_at": null,
+         "state": "done"
+        },
+        {
+         "duration_ms": 3100,
+         "name": "validate",
+         "started_at": null,
+         "state": "done"
+        },
+        {
+         "duration_ms": 8200,
+         "name": "plan",
+         "started_at": null,
+         "state": "done"
+        }
+       ],
+       "target_id": "tgt_onprem",
+       "title": "home-lab · Docker Compose",
+       "url": null
+      },
+      {
+       "attempt": 2,
+       "error_summary": null,
+       "health_summary": null,
+       "reused_script": false,
+       "state": "validating",
+       "step": "validate",
+       "step_state": "running",
+       "steps": [
+        {
+         "duration_ms": 44000,
+         "name": "generate",
+         "started_at": null,
+         "state": "done"
+        },
+        {
+         "duration_ms": null,
+         "name": "validate",
+         "started_at": null,
+         "state": "running"
+        }
+       ],
+       "target_id": "tgt_aws",
+       "title": "ap-northeast-2 · ECS Fargate",
+       "url": null
+      },
+      {
+       "attempt": 1,
+       "error_summary": null,
+       "health_summary": null,
+       "reused_script": false,
+       "state": "generating",
+       "step": "generate",
+       "step_state": "running",
+       "steps": [
+        {
+         "duration_ms": null,
+         "name": "generate",
+         "started_at": null,
+         "state": "running"
+        }
+       ],
+       "target_id": "tgt_gcp",
+       "title": "asia-northeast3 · Cloud Run",
+       "url": null
+      }
+     ],
+     "version": "v2"
+    },
+    {
+     "ai_usage": {
+      "calls": 3,
+      "cost_krw": 255,
+      "estimated": true,
+      "exchange_rate": 1380,
+      "items": [
+       {
+        "at": "2026-09-30T05:24:54Z",
+        "attempt": 1,
+        "cost_krw": 85,
+        "note": null,
+        "status": "succeeded",
+        "step": "generate",
+        "target_id": "tgt_onprem",
+        "tokens": 3300
+       },
+       {
+        "at": "2026-09-30T05:24:54Z",
+        "attempt": 1,
+        "cost_krw": 85,
+        "note": null,
+        "status": "succeeded",
+        "step": "generate",
+        "target_id": "tgt_aws",
+        "tokens": 3300
+       },
+       {
+        "at": "2026-09-30T05:24:54Z",
+        "attempt": 1,
+        "cost_krw": 85,
+        "note": null,
+        "status": "succeeded",
+        "step": "generate",
+        "target_id": "tgt_gcp",
+        "tokens": 3300
+       }
+      ],
+      "tokens": 9900
+     },
+     "commit": "5e250c0aad492a86faadd482c9534a9540ca13d2",
+     "commit_message": "feat: HelloCalc MSA 샘플 추가 (frontend + backend) (#1)",
+     "created_at": "2026-09-30T05:22:54Z",
+     "created_by": "Seungjun Park",
+     "finished_at": "2026-09-30T05:32:54Z",
+     "id": "dep_s1",
+     "image": "ghcr.io/team-daisy/sample-msa:5e250c0",
+     "kind": null,
+     "pending_approval": null,
+     "project_id": "prj_msa",
+     "rolled_back_from": null,
+     "state": "succeeded",
+     "targets": [
+      {
+       "attempt": 1,
+       "error_summary": null,
+       "health_summary": "200 OK · p95 140ms",
+       "reused_script": false,
+       "state": "succeeded",
+       "step": "health_check",
+       "step_state": "done",
+       "steps": [
+        {
+         "duration_ms": 63000,
+         "name": "apply",
+         "started_at": null,
+         "state": "done"
+        },
+        {
+         "duration_ms": 4000,
+         "name": "health_check",
+         "started_at": null,
+         "state": "done"
+        }
+       ],
+       "target_id": "tgt_onprem",
+       "title": "home-lab · Docker Compose",
+       "url": "https://hellocalc-frontend.onprem.example.com"
+      },
+      {
+       "attempt": 1,
+       "error_summary": null,
+       "health_summary": "200 OK · p95 140ms",
+       "reused_script": false,
+       "state": "succeeded",
+       "step": "health_check",
+       "step_state": "done",
+       "steps": [
+        {
+         "duration_ms": 63000,
+         "name": "apply",
+         "started_at": null,
+         "state": "done"
+        },
+        {
+         "duration_ms": 4000,
+         "name": "health_check",
+         "started_at": null,
+         "state": "done"
+        }
+       ],
+       "target_id": "tgt_aws",
+       "title": "ap-northeast-2 · ECS Fargate",
+       "url": "https://hellocalc-frontend.aws.example.com"
+      },
+      {
+       "attempt": 1,
+       "error_summary": null,
+       "health_summary": "200 OK · p95 140ms",
+       "reused_script": false,
+       "state": "succeeded",
+       "step": "health_check",
+       "step_state": "done",
+       "steps": [
+        {
+         "duration_ms": 63000,
+         "name": "apply",
+         "started_at": null,
+         "state": "done"
+        },
+        {
+         "duration_ms": 4000,
+         "name": "health_check",
+         "started_at": null,
+         "state": "done"
+        }
+       ],
+       "target_id": "tgt_gcp",
+       "title": "asia-northeast3 · Cloud Run",
+       "url": "https://hellocalc-frontend.run.example.com"
+      }
+     ],
+     "version": "v1"
+    }
+   ],
+   "next_cursor": null
+  },
+  "projects/prj_msa/manifest": {
+   "database": false,
+   "env": [
+    "LOG_LEVEL",
+    "SHUTDOWN_TIMEOUT"
+   ],
+   "errors": [],
+   "healthcheck": "/health",
+   "port": 8080,
+   "raw": "# Daisy 배포 명세 (스키마: daisy/CLAUDE.md §5, 9/29 회의 초안)\n# 빌드: 레포 루트에서 docker build -f services/frontend/Dockerfile .\nname: hellocalc-frontend\nport: 8080              # 컨테이너 안에서 앱이 요청을 받는 포트\nhealthcheck: /health    # 200 {\"status\":\"ok\"} (backend 상태와 무관)\nenv:\n  - BACKEND_URL         # 필수. backend 주소 (예: http://hellocalc-backend:8080). 배포 시스템이 주입\n  - LOG_LEVEL           # debug | info | warn | error (기본 info)\n  - SHUTDOWN_TIMEOUT    # 종료 시 처리 중 요청 대기 한도 (기본 15s)\nsecrets: []             # 비밀값 없음\ndatabase: false         # DB 불필요 (상태 없는 서비스)\n# 공개 여부: 외부 공개. 사용자는 frontend로만 접속해요.\n# 의존성: hellocalc-backend를 먼저 배포하고 그 주소를 BACKEND_URL로 넘겨요.\n",
+   "ref": "services/frontend/deploy.yaml · main@5a21c63",
+   "secrets": []
+  },
+  "projects/prj_msa/scripts": {
+   "items": [
+    {
+     "ai_tokens": 5400,
+     "attempt": 2,
+     "base_commit": "5e250c0aad492a86faadd482c9534a9540ca13d2",
+     "created_at": "2026-09-28T11:22:54Z",
+     "files": [
+      {
+       "content": "resource \"aws_ecs_service\" \"app\" {\n  name            = var.name\n  cluster         = aws_ecs_cluster.main.id\n  task_definition = aws_ecs_task_definition.app.arn\n  desired_count   = 1\n  launch_type     = \"FARGATE\"\n}\n",
+       "path": "aws/main.tf"
+      }
+     ],
+     "input": "deploy.yaml + 기준 모듈",
+     "last_used_at": "2026-09-30T10:22:54Z",
+     "note": "보안 그룹 수정",
+     "origin": "ai_generated",
+     "reuse_count": 4,
+     "script_id": "scr_aws_prj_msa",
+     "status": "verified",
+     "storage": "scripts/aws/s2",
+     "target_id": "tgt_aws",
+     "validation": {
+      "plan": true,
+      "risks": 0,
+      "validate": true
+     },
+     "version": "s2"
+    },
+    {
+     "ai_tokens": 4200,
+     "attempt": 1,
+     "base_commit": "5e250c0aad492a86faadd482c9534a9540ca13d2",
+     "created_at": "2026-09-27T11:22:54Z",
+     "files": [
+      {
+       "content": "resource \"docker_container\" \"app\" {\n  name  = var.name\n  image = var.image\n  ports {\n    internal = 8080\n    external = 8080\n  }\n}\n",
+       "path": "onprem/main.tf"
+      }
+     ],
+     "input": "deploy.yaml + 기준 모듈",
+     "last_used_at": "2026-09-30T10:22:54Z",
+     "note": null,
+     "origin": "ai_generated",
+     "reuse_count": 6,
+     "script_id": "scr_onprem_prj_msa",
+     "status": "verified",
+     "storage": "scripts/onprem/s1",
+     "target_id": "tgt_onprem",
+     "validation": {
+      "plan": true,
+      "risks": 0,
+      "validate": true
+     },
+     "version": "s1"
+    },
+    {
+     "ai_tokens": 6600,
+     "attempt": 3,
+     "base_commit": "5e250c0aad492a86faadd482c9534a9540ca13d2",
+     "created_at": "2026-09-29T11:22:54Z",
+     "files": [
+      {
+       "content": "resource \"google_cloud_run_v2_service\" \"app\" {\n  name     = var.name\n  location = \"asia-northeast3\"\n  template {\n    containers { image = var.image }\n  }\n}\n",
+       "path": "gcp/main.tf"
+      }
+     ],
+     "input": "deploy.yaml + 기준 모듈",
+     "last_used_at": null,
+     "note": null,
+     "origin": "ai_generated",
+     "reuse_count": 0,
+     "script_id": "scr_gcp_prj_msa",
+     "status": "discarded",
+     "storage": "scripts/gcp/s1",
+     "target_id": "tgt_gcp",
+     "validation": {
+      "plan": false,
+      "risks": 0,
+      "validate": true
+     },
+     "version": "s1"
+    }
+   ],
+   "next_cursor": null
+  },
+  "projects/prj_msa/targets": {
+   "items": [
+    {
+     "access_method": "사설망(VPN) + SSH",
+     "connection": {
+      "checked_at": "2026-09-30T11:21:54Z",
+      "state": "ok"
+     },
+     "exposure": "팀 도메인 HTTPS",
+     "location": "home-lab (서울)",
+     "name": "온프레미스",
+     "reuse": {
+      "available": true,
+      "reason": "검증된 스크립트 s1이 있어요",
+      "script_id": "scr_onprem_s1"
+     },
+     "runtime": "Proxmox VM · Docker Compose",
+     "state_backend": null,
+     "target_id": "tgt_onprem",
+     "title": "온프레미스 · Docker Compose",
+     "type": "onprem"
+    },
+    {
+     "access_method": "IAM 역할",
+     "connection": {
+      "checked_at": "2026-09-30T11:21:54Z",
+      "state": "ok"
+     },
+     "exposure": "ALB HTTPS",
+     "location": "ap-northeast-2",
+     "name": "AWS",
+     "reuse": {
+      "available": true,
+      "reason": "검증된 스크립트 s2가 있어요",
+      "script_id": "scr_aws_s2"
+     },
+     "runtime": "ECS Fargate + ALB",
+     "state_backend": "S3 (네이티브 잠금)",
+     "target_id": "tgt_aws",
+     "title": "AWS · ECS + ALB",
+     "type": "aws"
+    },
+    {
+     "access_method": "서비스 계정",
+     "connection": {
+      "checked_at": "2026-09-30T11:21:54Z",
+      "state": "ok"
+     },
+     "exposure": "Cloud Run URL",
+     "location": "asia-northeast3",
+     "name": "GCP",
+     "reuse": {
+      "available": false
+     },
+     "runtime": "Cloud Run",
+     "state_backend": "GCS",
+     "target_id": "tgt_gcp",
+     "title": "GCP · Cloud Run",
+     "type": "gcp"
+    }
+   ],
+   "next_cursor": null
+  },
+  "projects/prj_msa/targets/status": {
+   "items": [
+    {
+     "checked_at": "2026-09-30T11:22:14Z",
+     "current": {
+      "commit": "5e250c0aad492a86faadd482c9534a9540ca13d2",
+      "deployed_at": "2026-09-30T05:32:54Z",
+      "deployment_id": "dep_s1",
+      "image": "ghcr.io/team-daisy/sample-msa:5e250c0"
+     },
+     "health": "healthy",
+     "image_digest": "sha256:9a1c07d2e55f",
+     "name": "온프레미스",
+     "target_id": "tgt_onprem",
+     "type": "onprem",
+     "url": "https://hellocalc-frontend.onprem.example.com"
+    },
+    {
+     "checked_at": "2026-09-30T11:22:14Z",
+     "current": {
+      "commit": "5e250c0aad492a86faadd482c9534a9540ca13d2",
+      "deployed_at": "2026-09-30T05:32:54Z",
+      "deployment_id": "dep_s1",
+      "image": "ghcr.io/team-daisy/sample-msa:5e250c0"
+     },
+     "health": "healthy",
+     "image_digest": "sha256:9a1c07d2e55f",
+     "name": "AWS",
+     "target_id": "tgt_aws",
+     "type": "aws",
+     "url": "https://hellocalc-frontend.aws.example.com"
+    },
+    {
+     "checked_at": "2026-09-30T11:22:14Z",
+     "current": {
+      "commit": "5e250c0aad492a86faadd482c9534a9540ca13d2",
+      "deployed_at": "2026-09-30T05:32:54Z",
+      "deployment_id": "dep_s1",
+      "image": "ghcr.io/team-daisy/sample-msa:5e250c0"
+     },
+     "health": "healthy",
+     "image_digest": "sha256:9a1c07d2e55f",
+     "name": "GCP",
+     "target_id": "tgt_gcp",
+     "type": "gcp",
+     "url": "https://hellocalc-frontend.run.example.com"
+    }
+   ],
+   "next_cursor": null
+  },
+  "targets/tgt_aws/resources": {
+   "items": [
+    {
+     "address": "aws_ecs_service.app",
+     "type": "aws_ecs_service"
+    },
+    {
+     "address": "aws_lb.app",
+     "type": "aws_lb"
+    },
+    {
+     "address": "aws_lb_target_group.app",
+     "type": "aws_lb_target_group"
+    },
+    {
+     "address": "aws_ecs_cluster.main",
+     "type": "aws_ecs_cluster"
+    }
+   ],
+   "next_cursor": null
+  },
+  "targets/tgt_gcp/resources": {
+   "items": [
+    {
+     "address": "google_cloud_run_v2_service.app",
+     "type": "google_cloud_run_v2_service"
+    }
+   ],
+   "next_cursor": null
+  },
+  "targets/tgt_onprem/resources": {
+   "items": [
+    {
+     "address": "docker_container.app",
+     "type": "docker_container"
+    },
+    {
+     "address": "docker_network.daisy",
+     "type": "docker_network"
+    }
+   ],
+   "next_cursor": null
+  }
+ }
+}

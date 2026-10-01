@@ -1,0 +1,12 @@
+.scripts__bottom {
+  display: grid;
+  grid-template-columns: minmax(0, 752fr) minmax(0, 360fr);
+  gap: var(--space-6);
+  align-items: start;
+}
+
+@media (max-width: 1000px) {
+  .scripts__bottom {
+    grid-template-columns: 1fr;
+  }
+}

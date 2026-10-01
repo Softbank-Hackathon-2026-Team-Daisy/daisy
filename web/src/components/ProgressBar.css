@@ -1,0 +1,25 @@
+.progress {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  width: 100%;
+}
+
+.progress__head {
+  display: flex;
+  justify-content: space-between;
+}
+
+.progress__track {
+  height: 8px;
+  border-radius: var(--radius-sm);
+  background: var(--color-surface);
+  overflow: hidden;
+}
+
+.progress__bar {
+  height: 100%;
+  border-radius: var(--radius-sm);
+  background: var(--color-ink);
+  transition: width 200ms ease;
+}

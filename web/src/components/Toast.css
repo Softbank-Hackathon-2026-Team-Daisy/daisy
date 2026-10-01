@@ -1,0 +1,57 @@
+/* 겹치는 요소라 그림자 대신 1px ink 테두리 */
+.toast {
+  display: flex;
+  gap: var(--space-3);
+  width: 360px;
+  padding: var(--space-3) var(--space-4);
+  border: var(--border-overlay);
+  border-radius: var(--radius-md);
+  background: var(--color-card);
+}
+
+.toast--success {
+  --toast-fg: var(--color-status-success);
+}
+
+.toast--error {
+  --toast-fg: var(--color-status-failed);
+}
+
+.toast--info {
+  --toast-fg: var(--color-status-running);
+}
+
+.toast__icon {
+  display: inline-flex;
+  color: var(--toast-fg);
+}
+
+.toast__content {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  gap: var(--space-1);
+}
+
+.toast__title {
+  color: var(--color-card-foreground);
+  font-size: 13px;
+  line-height: 18px;
+  font-weight: 500;
+}
+
+.toast__desc {
+  color: var(--color-ink-muted);
+  font-size: 13px;
+  line-height: 20px;
+}
+
+.toast__close {
+  display: inline-flex;
+  align-self: flex-start;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--color-ink-muted);
+  cursor: pointer;
+}

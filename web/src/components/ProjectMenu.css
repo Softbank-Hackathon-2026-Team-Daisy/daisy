@@ -1,0 +1,61 @@
+.project-menu {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  width: 240px;
+  padding: 6px;
+  border: var(--border-overlay);
+  border-radius: var(--radius-md);
+  background: var(--color-bg);
+}
+
+.project-menu__title {
+  padding: 6px 0 4px 10px;
+}
+
+.project-menu__item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: var(--space-2) 10px;
+  border: 0;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--color-ink);
+  text-align: left;
+  cursor: pointer;
+}
+
+.project-menu__item:hover,
+.project-menu__item[aria-checked='true'] {
+  background: var(--color-surface-strong);
+}
+
+.project-menu__text {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+}
+
+.project-menu__divider {
+  width: 100%;
+  margin: 0;
+  border: 0;
+  border-top: var(--border);
+}
+
+/* 프로젝트 이니셜 네모 — 사이드바 전환 버튼과 메뉴가 같이 써요 */
+.project-initials {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  border-radius: var(--radius-sm);
+  background: var(--color-ink);
+  color: var(--color-bg);
+  font-family: var(--font-mono);
+  font-size: 12px;
+  line-height: 18px;
+}

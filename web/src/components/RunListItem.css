@@ -1,0 +1,25 @@
+.run-item {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  padding: var(--space-3) var(--space-4);
+  border-bottom: var(--border);
+  color: var(--color-ink);
+  text-decoration: none;
+}
+
+.run-item--link:hover {
+  background: var(--color-surface);
+}
+
+.run-item__message {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.run-item__time {
+  flex: none;
+}
