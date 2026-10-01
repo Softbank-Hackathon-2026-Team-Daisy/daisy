@@ -1,11 +1,11 @@
 import { useState } from 'react'
 import { useNavigate, useParams } from 'react-router'
 import { useAuth } from '../../api/auth.ts'
-import { ApiError } from '../../api/client.ts'
 import { api } from '../../api/endpoints.ts'
 import { deploymentStatus } from '../../api/status.ts'
 import type { Deployment } from '../../api/types.ts'
-import { useResource } from '../../api/useResource.ts'
+import { useAction } from '../../api/useAction.ts'
+import { POLL_MS, useResource } from '../../api/useResource.ts'
 import Alert from '../../components/Alert.tsx'
 import Avatar from '../../components/Avatar.tsx'
 import Button from '../../components/Button.tsx'
@@ -30,7 +30,7 @@ const PROJECT_NAME = 'sample-monolith'
 
 function HistoryPage() {
   const { projectId = '' } = useParams()
-  const runs = useResource(() => api.listDeployments(projectId), [projectId], 5000)
+  const runs = useResource(() => api.listDeployments(projectId), [projectId], POLL_MS)
   const [target, setTarget] = useState<Deployment | null>(null)
 
   if (runs.error) return <ErrorBlock error={runs.error} />
@@ -123,8 +123,7 @@ function RollbackDialog({ projectId, from, onClose }: { projectId: string; from:
   const navigate = useNavigate()
   const [picked, setPicked] = useState(() => new Set(from.targets.map((t) => t.target_id)))
   const [confirm, setConfirm] = useState('')
-  const [pending, setPending] = useState(false)
-  const [error, setError] = useState<string | null>(null)
+  const { run, pending, error } = useAction()
   const chosen = from.targets.filter((t) => picked.has(t.target_id))
 
   const toggle = (id: string, on: boolean) =>
@@ -136,15 +135,8 @@ function RollbackDialog({ projectId, from, onClose }: { projectId: string; from:
     })
 
   const start = async () => {
-    setPending(true)
-    setError(null)
-    try {
-      const d = await api.rollback(from.id, chosen.map((t) => t.target_id), `${from.version}로 롤백`)
-      navigate(paths.generate(projectId, d.id), { state: { transition: 'l02' } })
-    } catch (e) {
-      setError(e instanceof ApiError ? e.message : '롤백을 시작하지 못했어요')
-      setPending(false)
-    }
+    const d = await run((key) => api.rollback(from.id, chosen.map((t) => t.target_id), `${from.version}로 롤백`, key), '롤백을 시작하지 못했어요')
+    if (d) navigate(paths.generate(projectId, d.id), { state: { transition: 'l02' } })
   }
 
   return (

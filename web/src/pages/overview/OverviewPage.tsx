@@ -2,7 +2,7 @@ import { useNavigate, useParams } from 'react-router'
 import { api } from '../../api/endpoints.ts'
 import { deploymentStatus } from '../../api/status.ts'
 import type { Deployment, TargetStatus } from '../../api/types.ts'
-import { useResource } from '../../api/useResource.ts'
+import { POLL_MS, useResource } from '../../api/useResource.ts'
 import Alert from '../../components/Alert.tsx'
 import Button from '../../components/Button.tsx'
 import EmptyState from '../../components/EmptyState.tsx'
@@ -22,8 +22,8 @@ import './OverviewPage.css'
 function OverviewPage() {
   const { projectId = '' } = useParams()
   const navigate = useNavigate()
-  const status = useResource(() => api.getTargetsStatus(projectId), [projectId], 5000)
-  const runs = useResource(() => api.listDeployments(projectId), [projectId], 5000)
+  const status = useResource(() => api.getTargetsStatus(projectId), [projectId], POLL_MS)
+  const runs = useResource(() => api.listDeployments(projectId), [projectId], POLL_MS)
 
   if (status.error) return <ErrorBlock error={status.error} />
   if (!status.data || !runs.data) return <LoadingBlock />
@@ -135,7 +135,7 @@ function Parity({ targets, compact }: { targets: TargetStatus[]; compact?: boole
   const rows: ParityRow[] = [
     { label: '이미지 digest', values: values((t) => t.image_digest ?? null), failed: differs((t) => t.image_digest ?? null) },
     { label: '커밋', values: values((t) => (t.current ? shortCommit(t.current.commit) : null)), failed: differs((t) => t.current?.commit ?? null) },
-    { label: '헬스체크', values: values((t) => (t.health === 'healthy' ? '200 OK' : t.health === 'unhealthy' ? '실패' : null)), failed: targets.filter((t) => t.health === 'unhealthy').map((t) => t.target_id) },
+    { label: '헬스체크', values: values((t) => t.health_summary ?? (t.health === 'healthy' ? '정상' : t.health === 'unhealthy' ? '실패' : null)), failed: targets.filter((t) => t.health === 'unhealthy').map((t) => t.target_id) },
   ]
   return <ParityTable envs={targets.map((t) => ({ id: t.target_id, type: t.type }))} rows={rows} matched={same} />
 }

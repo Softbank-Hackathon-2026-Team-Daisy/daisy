@@ -1,7 +1,8 @@
 import { useState } from 'react'
 import { useNavigate, useParams, useSearchParams } from 'react-router'
-import { ApiError } from '../../api/client.ts'
+import { useAuth } from '../../api/auth.ts'
 import { api } from '../../api/endpoints.ts'
+import { useAction } from '../../api/useAction.ts'
 import { useResource } from '../../api/useResource.ts'
 import Alert from '../../components/Alert.tsx'
 import Button from '../../components/Button.tsx'
@@ -14,6 +15,7 @@ import Stepper from '../../components/Stepper.tsx'
 import { paths } from '../../paths.ts'
 import { shortCommit } from '../../utils/format.ts'
 import { ErrorBlock, LoadingBlock } from '../Loading.tsx'
+import ReadOnlyNote from '../ReadOnlyNote.tsx'
 import '../page.css'
 
 // W-04 배포할 환경 선택 (STEP 3) — 여러 환경을 동시에, 카드에 재사용 / 새로 생성 판단을 미리 보여줘요 (WR-04)
@@ -24,8 +26,8 @@ function TargetsPage() {
   const targets = useResource(() => api.listTargets(projectId), [projectId])
   const builds = useResource(() => api.listBuilds(projectId), [projectId])
   const [unselected, setUnselected] = useState<Set<string>>(new Set())
-  const [error, setError] = useState<string | null>(null)
-  const [pending, setPending] = useState(false)
+  const { run, pending, error } = useAction()
+  const viewer = useAuth().role === 'viewer'
 
   if (targets.error) return <ErrorBlock error={targets.error} />
   if (!targets.data || !builds.data) return <LoadingBlock />
@@ -46,15 +48,8 @@ function TargetsPage() {
     })
 
   const start = async () => {
-    setPending(true)
-    setError(null)
-    try {
-      const d = await api.createDeployment(projectId, commit, selected.map((t) => t.target_id))
-      navigate(paths.generate(projectId, d.id), { state: { transition: 'l02' } })
-    } catch (e) {
-      setError(e instanceof ApiError ? e.message : '배포를 시작하지 못했어요')
-      setPending(false)
-    }
+    const d = await run((key) => api.createDeployment(projectId, commit, selected.map((t) => t.target_id), key), '배포를 시작하지 못했어요')
+    if (d) navigate(paths.generate(projectId, d.id), { state: { transition: 'l02' } })
   }
 
   return (
@@ -95,11 +90,13 @@ function TargetsPage() {
         </Alert>
       )}
 
+      {viewer && <ReadOnlyNote action="배포를 시작할" />}
+
       <div className="page__actions">
         <Button variant="ghost" onClick={() => navigate(paths.build(projectId))}>
           이전
         </Button>
-        <Button variant="secondary" disabled={selected.length === 0 || pending} onClick={() => void start()}>
+        <Button variant="secondary" disabled={viewer || selected.length === 0 || pending} onClick={() => void start()}>
           {pending ? '시작하는 중…' : '인프라 코드 생성 · 검증 시작'}
         </Button>
       </div>

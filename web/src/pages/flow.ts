@@ -58,4 +58,14 @@ export function generateRow(t: DeploymentTarget): { note: string; status: Status
 
 export const envName = (t: DeploymentTarget) => ENV_LABEL[t.type]
 
+// 그 환경이 apply 단계까지 갔는지 — 생성 · 검증에서 실패한 환경은 아니에요 (앱 RunLogic.reachedApply와 같은 규칙)
+export function reachedApply(t: DeploymentTarget) {
+  if (t.state === 'failed') return t.step === 'apply' || t.step === 'health_check'
+  return t.state === 'applying' || t.state === 'verifying' || t.state === 'succeeded'
+}
+
+// 실패한 단계 문구 — "헬스체크에서" · "apply에서" · "생성 · 검증에서"
+export const failedAt = (t: DeploymentTarget) =>
+  t.step === 'health_check' ? '헬스체크에서' : t.step === 'apply' ? 'apply에서' : '생성 · 검증에서'
+
 export const names = (list: DeploymentTarget[]) => list.map(envName).join(' · ')

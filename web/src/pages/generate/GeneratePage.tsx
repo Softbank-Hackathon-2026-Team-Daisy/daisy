@@ -1,9 +1,10 @@
 import { useEffect, useRef, useState } from 'react'
 import { useNavigate, useParams } from 'react-router'
-import { ApiError } from '../../api/client.ts'
+import { useAuth } from '../../api/auth.ts'
 import { api } from '../../api/endpoints.ts'
 import type { Deployment } from '../../api/types.ts'
-import { useResource } from '../../api/useResource.ts'
+import { useAction } from '../../api/useAction.ts'
+import { POLL_MS, useResource } from '../../api/useResource.ts'
 import Alert from '../../components/Alert.tsx'
 import Button from '../../components/Button.tsx'
 import CodeBlock from '../../components/CodeBlock.tsx'
@@ -18,14 +19,16 @@ import { paths } from '../../paths.ts'
 import { envName, generateRow, generateSteps, names } from '../flow.ts'
 import TransitionGate from '../loading/TransitionGate.tsx'
 import { ErrorBlock, LoadingBlock } from '../Loading.tsx'
+import ReadOnlyNote from '../ReadOnlyNote.tsx'
 import '../page.css'
 
-// W-05 인프라 코드 생성 · 검증 (STEP 4) · W-05b 한 환경만 멈췄을 때. 서버 SSE 전까지 2초 폴링
+// W-05 인프라 코드 생성 · 검증 (STEP 4) · W-05b 한 환경만 멈췄을 때. 서버 SSE 전까지 5초 폴링, 생성 단계가 끝나면 멈춰요
 const BUSY = new Set(['waiting', 'generating', 'validating'])
+const stillGenerating = (d: Deployment) => d.state === 'queued' || (d.targets ?? []).some((t) => BUSY.has(t.state))
 
 function GeneratePage() {
   const { deploymentId = '' } = useParams()
-  const deployment = useResource(() => api.getDeployment(deploymentId), [deploymentId], 2000)
+  const deployment = useResource(() => api.getDeployment(deploymentId), [deploymentId], POLL_MS, (d) => !stillGenerating(d))
   const d = deployment.data
   // L-02: 환경 선택에서 넘어왔으면 생성이 시작될 때까지(작업 큐 대기가 끝날 때까지) 전환 로딩
   const ready = !!d && d.state !== 'queued'
@@ -46,7 +49,8 @@ function GenerateView({ d }: { d: Deployment }) {
   const [tab, setTab] = useState(() => (failed[0] ?? d.targets.find((t) => BUSY.has(t.state)) ?? d.targets[0]).target_id)
   const target = d.targets.find((t) => t.target_id === tab) ?? d.targets[0]
   const script = useResource(() => api.getScript(d.id, target.target_id), [d.id, target.target_id])
-  const [retryError, setRetryError] = useState<string | null>(null)
+  const { run, pending, error: retryError } = useAction()
+  const viewer = useAuth().role === 'viewer'
   const [toastOpen, setToastOpen] = useState(true)
 
   // 검증이 끝나 승인 대기로 바뀌면 W-06으로 넘어가요 (처음부터 승인 대기였으면 버튼으로)
@@ -56,14 +60,10 @@ function GenerateView({ d }: { d: Deployment }) {
     wasBusy.current = busy
   }, [busy, approvable, navigate, projectId, d.id])
 
+  // 실패한 환경만 고른 새 배포 (#13 서버 결정, 시도 1/3부터)
   const retry = async () => {
-    setRetryError(null)
-    try {
-      const next = await api.createDeployment(projectId, d.commit, failed.map((t) => t.target_id))
-      navigate(paths.generate(projectId, next.id), { state: { transition: 'l02' } })
-    } catch (e) {
-      setRetryError(e instanceof ApiError ? e.message : '다시 시도하지 못했어요')
-    }
+    const next = await run((key) => api.createDeployment(projectId, d.commit, failed.map((t) => t.target_id), key), '다시 시도하지 못했어요')
+    if (next) navigate(paths.generate(projectId, next.id), { state: { transition: 'l02' } })
   }
 
   const tabs = (
@@ -111,12 +111,13 @@ function GenerateView({ d }: { d: Deployment }) {
           </Toast>
         )}
         {retryError && <Alert type="danger" title="다시 시도하지 못했어요">{retryError}</Alert>}
+        {viewer && <ReadOnlyNote action="다시 시도할" />}
         <div className="page__actions">
           <Button variant="outline" onClick={() => navigate(paths.scripts(projectId))}>
             오류 로그 보기
           </Button>
-          <Button variant="secondary" onClick={() => void retry()}>
-            {who}만 다시 시도
+          <Button variant="secondary" disabled={viewer || pending} onClick={() => void retry()}>
+            {pending ? '시작하는 중…' : `${who}만 다시 시도`}
           </Button>
           {approvable && (
             <Button variant="secondary" onClick={() => navigate(paths.approve(projectId, d.id))}>
@@ -162,14 +163,21 @@ function GenerateView({ d }: { d: Deployment }) {
           )}
         </Panel>
         <Panel title="생성된 스크립트">
-          {script.data ? (
-            <CodeBlock
-              ai={!target.reused_script}
-              file={`${target.type}/main.tf · ${target.reused_script ? '검증된 스크립트 재사용' : target.attempt > 1 ? `AI 수정 ${target.attempt}회차` : 'AI 생성'}`}
-              code={script.data}
-            />
-          ) : (
+          {script.error ? (
+            <ErrorBlock error={script.error} />
+          ) : !script.data ? (
             <LoadingBlock />
+          ) : (script.data.files ?? []).length === 0 ? (
+            <p className="t-body-sm t-muted">아직 스크립트가 없어요</p>
+          ) : (
+            (script.data.files ?? []).map((f) => (
+              <CodeBlock
+                key={f.path}
+                ai={!target.reused_script}
+                file={`${f.path} · ${target.reused_script ? '검증된 스크립트 재사용' : target.attempt > 1 ? `AI 수정 ${target.attempt}회차` : 'AI 생성'}`}
+                code={f.content}
+              />
+            ))
           )}
         </Panel>
       </div>

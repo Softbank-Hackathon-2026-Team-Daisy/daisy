@@ -1,5 +1,5 @@
 // REST 클라이언트 — Bearer 토큰, 서버 에러 봉투 { error: { code, message, details, retryable } } (ios/SPEC.md R-05)
-// 토큰은 메모리에만 둬요 (SPEC.md §3-2). 401이 오면 로그인 화면으로 보내요
+// 토큰은 메모리에만 둬요 (SPEC.md §3-2). 401이 오면 로그인 화면으로 보내요 (로그인 요청 제외)
 
 export const API_BASE_URL = import.meta.env.VITE_API_BASE_URL ?? ''
 
@@ -21,6 +21,20 @@ export function setUnauthorizedHandler(handler: () => void) {
   onUnauthorized = handler
 }
 
+// 세션 만료(401) — 로그인 요청(/auth/*)의 401은 비밀번호가 틀린 거라 부르지 않아요
+export function notifyUnauthorized(path: string) {
+  if (!path.startsWith('/auth/')) onUnauthorized?.()
+}
+
+// 403 FORBIDDEN은 어느 화면이든 같은 문구로 보여줘요
+export const FORBIDDEN_MESSAGE = '읽기 전용 계정이라 할 수 없어요.'
+
+// 화면에 보여줄 에러 문구 — ApiError면 서버 문구(403은 공통 문구), 아니면 fallback
+export function errorMessage(e: unknown, fallback: string) {
+  if (e instanceof ApiError) return e.status === 403 ? FORBIDDEN_MESSAGE : e.message
+  return fallback
+}
+
 export class ApiError extends Error {
   status: number
   code: string
@@ -36,15 +50,18 @@ export class ApiError extends Error {
 
 type RequestOptions = {
   body?: unknown
-  idempotencyKey?: boolean
+  // 사용자 동작 한 번에 키 하나 — 같은 동작을 다시 보내면 서버가 같은 결과를 돌려줘요 (newIdempotencyKey)
+  idempotencyKey?: string
   signal?: AbortSignal
 }
+
+export const newIdempotencyKey = () => crypto.randomUUID()
 
 export async function request<T>(method: string, path: string, options: RequestOptions = {}): Promise<T> {
   const headers: Record<string, string> = { Accept: 'application/json' }
   if (accessToken) headers.Authorization = `Bearer ${accessToken}`
   if (options.body !== undefined) headers['Content-Type'] = 'application/json'
-  if (options.idempotencyKey) headers['Idempotency-Key'] = crypto.randomUUID()
+  if (options.idempotencyKey) headers['Idempotency-Key'] = options.idempotencyKey
 
   let res: Response
   try {
@@ -58,7 +75,7 @@ export async function request<T>(method: string, path: string, options: RequestO
     throw new ApiError(0, 'NETWORK', '서버에 연결하지 못했어요. 잠시 후 다시 시도해 주세요.', true)
   }
 
-  if (res.status === 401) onUnauthorized?.()
+  if (res.status === 401) notifyUnauthorized(path)
   if (!res.ok) {
     const body = await res.json().catch(() => null)
     const err = body?.error

@@ -3,7 +3,7 @@ import { useNavigate, useParams } from 'react-router'
 import { api } from '../../api/endpoints.ts'
 import { deploymentStatus, targetStatus } from '../../api/status.ts'
 import type { Deployment } from '../../api/types.ts'
-import { useResource } from '../../api/useResource.ts'
+import { POLL_MS, useResource } from '../../api/useResource.ts'
 import Button from '../../components/Button.tsx'
 import DeployLane from '../../components/DeployLane.tsx'
 import LogViewer from '../../components/LogViewer.tsx'
@@ -16,13 +16,13 @@ import TransitionGate from '../loading/TransitionGate.tsx'
 import { ErrorBlock, LoadingBlock } from '../Loading.tsx'
 import '../page.css'
 
-// W-07 배포 중 (STEP 5) — 환경별 terraform apply를 레인 3개로. 로그는 서버 SSE 전까지 2초 폴링(A-07)
+// W-07 배포 중 (STEP 5) — 환경별 terraform apply를 레인 3개로. 로그는 서버 SSE 전까지 5초 폴링(A-07), 배포가 끝나면 멈춰요
 const APPLY_STARTED = new Set(['applying', 'verifying', 'succeeded', 'failed'])
 const FINISHED = new Set(['succeeded', 'partially_succeeded', 'failed', 'cancelled'])
 
 function ProgressPage() {
   const { deploymentId = '' } = useParams()
-  const deployment = useResource(() => api.getDeployment(deploymentId), [deploymentId], 2000)
+  const deployment = useResource(() => api.getDeployment(deploymentId), [deploymentId], POLL_MS, (d) => FINISHED.has(d.state))
   const d = deployment.data
   // L-03: 승인에서 넘어왔으면 한 환경이라도 apply를 시작할 때까지 전환 로딩
   const ready = !!d && d.targets.some((t) => APPLY_STARTED.has(t.state))
@@ -37,8 +37,9 @@ function ProgressPage() {
 function ProgressView({ d }: { d: Deployment }) {
   const navigate = useNavigate()
   const { projectId = '' } = useParams()
-  const logs = useResource(() => api.getLogs(d.id), [d.id], 2000)
   const finished = FINISHED.has(d.state)
+  // 끝난 배포는 로그를 한 번만 불러요
+  const logs = useResource(() => api.getLogs(d.id), [d.id, finished], finished ? undefined : POLL_MS)
   const status = deploymentStatus(d.state, d.kind)
 
   // 끝나면 W-08로 넘어가요 (처음부터 끝난 배포였으면 버튼으로)
