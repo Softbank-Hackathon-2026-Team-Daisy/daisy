@@ -194,3 +194,76 @@
 - 빈 PostgreSQL 17 에 띄워 6가지를 확인했습니다. owner 목록의 봉투 모양, viewer 의 조회 허용, 미인증 401, 상세 응답, 없는 프로젝트 404, **멤버십 철회 뒤 프로젝트가 존재해도 404 이고 다른 계정은 영향이 없는 것** 입니다.
 - 시딩 순서 오류를 실제 실행에서 찾아 고쳤습니다. `ApplicationRunner` 는 `@Order` 가 없으면 가장 마지막이라, `@Order(100)` 인 프로젝트 시더가 계정 시더보다 먼저 돌아 아무것도 심지 않았습니다. 계정 시더에 `@Order(50)` 을 붙여 순서를 명시했습니다.
 - 커서 페이지네이션·보관 프로젝트 조회 정책은 확인하지 않았습니다. 목록이 한 건인 상태의 검증입니다.
+
+## 환경별 현재 상태 조회 A-02 (10/1, 하은현) — 구현 전 협의용
+
+### 왜 지금인가
+
+`ios/SPEC.md` 182행이 D2(10/1) 요구로 `A-01·A-02·A-04` 와 개발 서버 R-08 을 적고 "은현 님 약속" 으로 표시해 두었습니다. A-02 는 우선도 **M** 이고 §6-2 가 *"앱의 핵심 화면"* 으로 적은 현황(W-01) 화면이 이 경로만 씁니다. `work.md` §2 의 *"프로젝트에 연결된 온프레미스·클라우드 대상 목록과 상태 제공"* 이 제 담당이고, 실행 서비스를 기다리지 않고 만들 수 있습니다.
+
+### 범위와 동작
+
+- `GET /projects/{id}/targets/status` 로 프로젝트에 연결된 배포 대상의 현재 상태를 돌려줍니다.
+- `ProjectAccessService.requireRead` 를 먼저 호출합니다. 없는 프로젝트와 권한 없는 프로젝트를 모두 404 로 응답합니다.
+- 목록 봉투는 기존 `GET /projects` 와 같은 `{ items, next_cursor }` 입니다. 대상 수가 프로젝트당 몇 개라 이번 범위에서는 전부 돌려주고 `next_cursor` 는 항상 null 입니다. 앱이 §6-2 에서 이 봉투를 가정했습니다.
+- 보관된 대상(`archived_at` 이 있는 행)은 제외합니다.
+- 정렬은 `(environment_type, name)` 으로 고정합니다. 화면에서 환경 순서가 매번 바뀌지 않게 하려는 것입니다.
+- **집계하지 않습니다.** 배포 전체 상태 집계는 설계 34행대로 실행 서비스(승환) 소유입니다. 이 엔드포인트는 대상별 현재 값만 읽어 돌려줍니다.
+- **`target.current_deployment_target_id` 를 갱신하지 않습니다.** 그 값을 쓰는 쪽만 맡고, 쓰는 것은 실행 서비스입니다.
+
+### 응답 필드와 출처
+
+`ios/SPEC.md` §6-7 의 `TargetStatus` 를 기준으로 하고, 제가 지금 근거를 가진 값만 채웁니다. **없는 값을 만들어 넣지 않습니다.**
+
+| 계약 필드 | 출처 | 이번 PR |
+|---|---|---|
+| `target_id` | `target.id` | 제공 |
+| `type` | `target.environment_type` (`onprem`·`aws`·`gcp`) | 제공 |
+| `name` | `target.name` | 제공 |
+| `connection_state` | `target.connection_state` (`unknown`·`connected`·`disconnected`) | **제공 (계약에 없는 추가)** — W-04 가 "연결 안 되는 환경은 고를 수 없어요" 를 하려면 필요합니다 |
+| `checked_at` | `target.connection_checked_at` | 제공 (연결 확인이 돈 적 없으면 null) |
+| `current.deployment_id` | `deployment_target.deployment_id` | 제공 |
+| `current.commit` | `deployment.commit_sha` | 제공 |
+| `current.deployed_at` | `deployment_target.finished_at` | 제공 |
+| `current.image` | `deployment.image_refs` 평탄화 | **미제공 (null)** — 빌드 수신(A-06)이 없어 `image_refs` 가 빈 상태입니다 |
+| `url` | `deployment_target.result` 의 `service_url` | **미제공 (null)** — `apply-result.json` 이 아직 인프라에 없습니다 (#17) |
+| `health` | 같은 곳 | **항상 `unknown`** — 헬스 결과가 지금 apply 로그에만 있습니다 (#17) |
+| `health_summary` | 같은 곳 | **미제공 (null)** |
+| `image_digest` | `source_version.image_refs` | **미제공 (null)** — WR-09 동일성 검증은 빌드 수신 뒤입니다 |
+
+`current` 는 그 대상에 한 번도 배포가 끝난 적이 없으면 통째로 null 입니다. 실행 서비스가 아직 없어서 **이번 PR 시점에는 항상 null** 입니다. 모양만 먼저 고정해 앱이 목업을 떼고 붙을 수 있게 하는 것이 목적입니다.
+
+### 데모 대상 시딩
+
+현황 화면이 빈 목록이면 앱이 붙었는지 알 수 없어서, 데모 프로젝트에 대상 세 개(`onprem`·`aws`·`gcp`)를 심습니다.
+
+- 환경변수가 있을 때만 심습니다. 기존 계정·프로젝트 시더와 같은 방식입니다.
+- **`connection_state` 는 `unknown` 으로 심습니다.** 실제 연결 확인을 한 적이 없는데 `connected` 로 심으면 확인하지 않은 상태를 확인한 것처럼 보여 주게 됩니다.
+- `state_identity` 는 `{project_id}/{target_id}` 형태로 둡니다. 정규화 규칙은 인프라와 맞춘 뒤 서버가 검증·저장하기로 해서(#32 리뷰), 그 전까지 쓰는 임시 값입니다.
+- 저장소 연결 절차가 생기면 걷어냅니다.
+
+### 후속 범위
+
+- `url`·`health`·`health_summary`·`image_digest`·`current.image` 는 인프라 산출물이 생긴 뒤 채웁니다. 어느 것도 기본값으로 채우지 않습니다.
+- 커서 페이지네이션은 넣지 않습니다. 대상이 많아지면 `(environment_type, name)` 기준 커서를 붙입니다.
+- A-10 `POST /targets/{id}/test`(연결 테스트)와 A-11 `GET /targets/{id}/resources`(리소스 보기)는 이번 범위가 아닙니다. 둘 다 실제 대상·Terraform state 에 붙어야 해서 인프라 쪽 경로가 필요합니다 (이슈 #13).
+- 대상 생성·수정·삭제는 넣지 않습니다. `work.md` §2 가 삭제 지원 범위를 별도 합의 사항으로 두었습니다.
+- SSE 로 같은 정보를 밀어 주는 것은 승환님 기반 위에 붙입니다. 앱은 D2 에 5초 폴링으로 씁니다.
+
+### 검증 계획 (검사 항목을 먼저 적습니다)
+
+| | 검사 | 통과 조건 |
+|---|---|---|
+| V1 | 토큰 없이 호출 | 401, 공통 오류 봉투 |
+| V2 | 없는 프로젝트 | 404 |
+| V3 | 멤버가 아닌 프로젝트 | **404 (403 아님)** — 존재가 새지 않아야 합니다 |
+| V4 | `viewer` 계정 조회 | 200 |
+| V5 | 응답 봉투 | `{ items, next_cursor }`, `next_cursor` 는 null, 필드는 snake_case |
+| V6 | 대상이 없는 프로젝트 | `items: []`, 오류가 아님 |
+| V7 | 배포 이력이 없는 대상 | `current` 는 null, `health` 는 `"unknown"`, 미제공 필드는 null |
+| V8 | 보관된 대상 | 목록에 나오지 않음 |
+| V9 | 정렬 | `(type, name)` 으로 고정 |
+| V10 | **다른 프로젝트의 대상** | 섞여 나오지 않음 |
+| V11 | OpenAPI | 경로와 스키마가 `/v3/api-docs` 에 노출 |
+
+V10 이 핵심입니다. 나머지가 다 맞아도 여기서 새면 다른 팀의 환경 이름이 보입니다.
