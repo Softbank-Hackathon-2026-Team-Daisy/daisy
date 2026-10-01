@@ -44,21 +44,68 @@ private struct TabStack: View {
     }
 }
 
-/// 좁은 화면: 시스템 탭. 다섯 개가 넘는 메뉴는 시스템이 "더 보기"로 묶어요.
+/// 좁은 화면: 아래에 얇은 글래스 캡슐 탭 바. 글씨 없이 SF Symbols만 보여줘요 (10/1 담당자 결정).
+/// 아이콘만이라 일곱 메뉴가 한 줄에 다 들어가서 시스템 "더 보기"가 없어요. 이름은 VoiceOver로 읽어요.
 private struct TabLayout: View {
     @Environment(Router.self) private var router
-    @Environment(Workspace.self) private var workspace
 
     var body: some View {
-        @Bindable var router = router
-        TabView(selection: $router.tab) {
+        TabStack(tab: router.tab)
+            .id(router.tab)
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
+            .safeAreaInset(edge: .bottom, spacing: 0) {
+                SlimTabBar()
+                    .padding(.horizontal, 20)
+                    .padding(.bottom, 4)
+            }
+    }
+}
+
+/// 아이콘 탭 한 줄. 선택 표시는 사이드바와 같은 `.fill.tertiary` 알약이 스프링으로 미끄러져요.
+private struct SlimTabBar: View {
+    @Environment(Router.self) private var router
+    @Environment(Workspace.self) private var workspace
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @Namespace private var tint
+
+    var body: some View {
+        HStack(spacing: 0) {
             ForEach(AppTab.allCases) { tab in
-                Tab(tab.title, systemImage: tab.systemImage, value: tab) {
-                    TabStack(tab: tab)
-                }
-                .badge(tab == .deployments ? workspace.awaitingApproval.count : 0)
+                item(tab)
             }
         }
+        .padding(4)
+        .frame(height: 44)
+        .glassSurface(in: .capsule)
+    }
+
+    private func item(_ tab: AppTab) -> some View {
+        let selected = router.tab == tab
+        let badge = tab == .deployments ? workspace.awaitingApproval.count : 0
+        return Button {
+            withAnimation(reduceMotion ? nil : .spring(response: 0.32, dampingFraction: 0.86)) { router.tab = tab }
+        } label: {
+            Image(systemName: tab.systemImage)
+                .font(.system(size: 16, weight: selected ? .semibold : .regular))
+                .foregroundStyle(selected ? AnyShapeStyle(.primary) : AnyShapeStyle(.secondary))
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+                .background {
+                    if selected {
+                        Capsule().fill(.fill.tertiary)
+                            .matchedGeometryEffect(id: "tab", in: tint)
+                    }
+                }
+                // 승인 대기가 있으면 "배포" 아이콘에 점 하나 (숫자는 VoiceOver로)
+                .overlay(alignment: .topTrailing) {
+                    if badge > 0 {
+                        Circle().fill(.red).frame(width: 6, height: 6).offset(x: -12, y: 7)
+                    }
+                }
+                .contentShape(.capsule)
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel(badge > 0 ? "\(tab.title), 승인 대기 \(badge)건" : tab.title)
+        .accessibilityAddTraits(selected ? .isSelected : [])
     }
 }
 

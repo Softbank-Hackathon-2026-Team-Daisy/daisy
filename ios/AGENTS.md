@@ -73,7 +73,7 @@ ios/
 - A view used by one screen lives in that `Features/{Feature}/`. A view used by two or more screens moves to `DesignSystem/`.
 - Decode JSON with `convertFromSnakeCase`. Every enum decoded from a server string has an `unknown` case, so a new server value never crashes the app.
 - Map the server error envelope to `APIError`. `401 UNAUTHENTICATED` → login screen. `409 STATE_CONFLICT` → reload the latest state. A viewer account gets `403` on approval; show it as "읽기 전용 계정".
-- **Layout adapts to available width, not to the platform.** `RootView` shows the custom sidebar at width ≥ 700 (iPad, Mac; the Mac window's minimum width is 820) and system tabs below that (iPhone). Inside a screen, use `AdaptiveGrid` and `cardStyle()` so cards form one column on a phone and several on wide screens. Do not branch on `horizontalSizeClass`; it does not exist on macOS.
+- **Layout adapts to available width, not to the platform.** `RootView` shows the custom sidebar at width ≥ 700 (iPad, Mac; the Mac window's minimum width is 820) and, below that (iPhone), a slim glass capsule tab bar with SF Symbols only (no titles; titles are VoiceOver labels). Inside a screen, use `AdaptiveGrid` and `cardStyle()` so cards form one column on a phone and several on wide screens. Do not branch on `horizontalSizeClass`; it does not exist on macOS.
 - `#if os(iOS)` / `#if os(macOS)` only for platform-only capabilities (keyboard type, menu bar, haptics), and only in `App/` and `DesignSystem/`, never in feature logic.
 - Test in this order: iPhone, then Mac, then iPad. iPad only needs to not break.
 
@@ -168,4 +168,5 @@ Tier per root §6. Tier 1 entries are final for this area.
 | 10/1 | Undecided server and infra items are listed in `SPEC.md` §6-9 with what the app assumes meanwhile | Keep the app working while owners decide; one place to update | 1 |
 | 10/1 | Polling stops once a deployment or build has finished (`poll(until:)`), like the web's `useResource` `done` | Web decision 12:11; no point polling a finished run | 1 |
 | 10/1 | W-03 shows no Jenkins link; health text is "200 OK · 120ms" (single measurement); state shows the server's per-environment name ("S3 (잠금)") | Infra answers on #17 (임채준): Jenkins UI is not public, health is measured once | 1 (own UI) · 3 (infra facts) |
+| 10/1 | iPhone tab bar: a custom slim glass capsule (44 pt) with SF Symbols only, all seven menus in one row (no system "More"), selection pill slides with the sidebar's spring, approval count as a dot on 배포 | Owner decision: thin, icon-only bottom bar | 1 |
 | 10/1 | Unit tests launch the app host with a separate keychain service and UserDefaults suite (`XCTestConfigurationFilePath`) | An ad-hoc-signed test host reading the user's keychain item shows an allow prompt and hangs the test runner | 1 |
