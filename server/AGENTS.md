@@ -171,11 +171,12 @@ docker compose up -d postgres    # Postgres 17
 | 2026-10-01 | **내부 배포 조회는 현재 포인터와 성공 이력을 분리** | current는 관리가 읽은 명시 포인터, deployed_to는 정확한 빌드·대상별 마지막 성공. 최근 성공을 현재 관측으로 추정하지 않음. 공개 DTO는 은현 연결 후속, [계약](docs/execution-service-contract.md) | 1 |
 | 2026-10-02 | **공개 배포 API 코드는 `project/` 에 둠** | §3 에서 `deployment/` 는 승환 폴더. 은현의 공개 API·어댑터는 `project/{access,execution,application,web}` | 1 |
 | 2026-10-02 | **승인 공개 요청은 `approve`/`reject` + `items[{target_id, approval_id}]`, 빈 `items`·중복 `target_id` 는 400** | 사용자가 본 대상만 승인(S4). 서버가 대상을 채우면 화면에 없던 대상까지 승인될 수 있음. 승인 ID 는 A-04 `pending_approvals` 로 제공 | 1 |
-| 2026-10-02 | **A-02 `current_status`(none·confirmed·unverified), 대상별 격리** | `current: null` 은 "배포 없음"이 아니라 "확인된 참조 없음". 포인터 하나의 409 가 화면 전체를 깨지 않게 함 | 1 |
-| 2026-10-02 | **A-02 만 트랜잭션 `NOT_SUPPORTED`** | 조회 서비스가 `@Transactional(readOnly)` 라 같은 트랜잭션에서 예외를 잡으면 커밋에서 `UnexpectedRollbackException`(500). 실측으로 확인. [SPEC](SPEC.md) | 1 |
+| 2026-10-02 | **A-02 `current_status`(none·confirmed·unverified)** | `current: null` 은 "배포 없음"이 아니라 "확인된 참조 없음". 대상별 결과는 승환 `currentByTarget()` 이 줌 | 1 |
+| 2026-10-02 | **~~A-02 만 트랜잭션 `NOT_SUPPORTED`~~ → 같은 읽기 트랜잭션** | 예외를 잡던 방식은 롤백 전용으로 500 이었음(실측). `currentByTarget()` 은 예외를 던지지 않아 `NOT_SUPPORTED` 를 뺌. 실측 200 | 1 |
 | 2026-10-02 | **배포 입력 `strategy` 는 `recreate` 만, `hash_format_version` 은 서버가 1 로 고정** | 계약상 recreate 만 지원. 사용자가 해시 형식 번호를 바꾸지 못하게 함 | 1 |
 | 2026-10-02 | **재시도·롤백 때 대상 설정 revision·자격증명 버전이 바뀌면 409, `disconnected` 대상 생성 409 (`unknown` 은 허용하되 연결 성공으로 표시하지 않음)** | 은현 제안, #42 에서 승환 동의. 바뀐 설정으로 진행하려면 새 배포 | 1 |
 | 2026-10-02 | **배포 생성 응답은 소비자 `Deployment` 이름(`id`·`project_id`·`state`)** | 웹이 응답 `id` 로 다음 화면 이동. #42 리뷰 | 1 |
+| 2026-10-02 | **#42 조회 연결: 권한 확인 후 프로젝트 반환·대상별 current 결과** | `projectIdOf`는 requireRead 후 반환, 명령 requireWrite는 유지. `currentByTarget`은 포인터 실패만 none/confirmed/unverified로 구분하고 권한·DB 오류는 전파. 기존 current는 호환 유지, [계약](docs/execution-service-contract.md) | 2 (서버 내부 소비자 은현) |
 
 ## 11. 아직 정하지 못한 것
 

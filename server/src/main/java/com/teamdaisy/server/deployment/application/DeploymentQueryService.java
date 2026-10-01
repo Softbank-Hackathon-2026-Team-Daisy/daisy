@@ -31,6 +31,8 @@ public class DeploymentQueryService {
 
   public record SuccessfulDeployment(String targetId, String deploymentId, Instant deployedAt) {}
 
+  public record CurrentResult(String status, CurrentDeployment deployment) {}
+
   private final NamedParameterJdbcTemplate jdbc;
   private final ObjectProvider<ExecutionAccess> access;
   private final ObjectMapper mapper;
@@ -44,8 +46,52 @@ public class DeploymentQueryService {
     this.mapper = mapper;
   }
 
-  /** Omitted target keys have no pointer, not proof that no infrastructure exists. */
+  /** Resolves a deployment's project only after read access; commands still check write access. */
+  public String projectIdOf(String actorId, String deploymentId) {
+    id(actorId);
+    id(deploymentId);
+    var policy = policy();
+    var projects =
+        jdbc.queryForList(
+            "select project_id from deployment where id=:id",
+            Map.of("id", deploymentId),
+            String.class);
+    require(!projects.isEmpty(), ErrorCode.NOT_FOUND);
+    String project = projects.getFirst();
+    policy.requireRead(actorId, project);
+    return project;
+  }
+
+  /** Compatibility query: do not catch its 404/409 for per-target fallback; use currentByTarget. */
   public Map<String, CurrentDeployment> current(
+      String actorId, String projectId, List<CurrentPointer> pointers) {
+    var result = new LinkedHashMap<String, CurrentDeployment>();
+    for (var entry : lookupCurrent(actorId, projectId, pointers).entrySet()) {
+      var lookup = entry.getValue();
+      if (lookup.failure() != null) throw new DaisyException(lookup.failure());
+      if (lookup.deployment() != null) result.put(entry.getKey(), lookup.deployment());
+    }
+    return Collections.unmodifiableMap(result);
+  }
+
+  /** Pointer failures are data; authorization and database failures still reject the request. */
+  public Map<String, CurrentResult> currentByTarget(
+      String actorId, String projectId, List<CurrentPointer> pointers) {
+    var result = new LinkedHashMap<String, CurrentResult>();
+    lookupCurrent(actorId, projectId, pointers)
+        .forEach(
+            (target, lookup) ->
+                result.put(
+                    target,
+                    new CurrentResult(
+                        lookup.failure() != null
+                            ? "unverified"
+                            : lookup.deployment() == null ? "none" : "confirmed",
+                        lookup.deployment())));
+    return Collections.unmodifiableMap(result);
+  }
+
+  private Map<String, CurrentLookup> lookupCurrent(
       String actorId, String projectId, List<CurrentPointer> pointers) {
     authorize(actorId, projectId);
     batch(pointers);
@@ -58,10 +104,10 @@ public class DeploymentQueryService {
       requested.put(pointer.targetId(), pointer.deploymentTargetId());
     }
     var ids = requested.values().stream().filter(Objects::nonNull).distinct().toList();
-    if (ids.isEmpty()) return Map.of();
-    var rows =
-        jdbc.query(
-            """
+    var rows = new HashMap<String, CurrentRow>();
+    if (!ids.isEmpty())
+      jdbc.query(
+          """
         select dt.id, dt.target_id, dt.status, dt.finished_at,
                d.id as deployment_id, d.source_version_id, d.commit_sha, d.image_refs::text
         from deployment_target dt
@@ -69,29 +115,46 @@ public class DeploymentQueryService {
         where dt.project_id=:project and dt.id in (:ids)
         order by dt.target_id
         """,
-            Map.of("project", projectId, "ids", ids),
-            (rs, row) ->
+          Map.of("project", projectId, "ids", ids),
+          rs -> {
+            var row =
                 new CurrentRow(
                     rs.getString("id"),
                     rs.getString("target_id"),
                     rs.getString("status"),
-                    new CurrentDeployment(
-                        rs.getString("deployment_id"),
-                        rs.getString("source_version_id"),
-                        rs.getString("commit_sha"),
-                        images(rs.getString("image_refs")),
-                        instant(rs, "finished_at"))));
-    var result = new LinkedHashMap<String, CurrentDeployment>();
-    for (var row : rows) {
-      require(Objects.equals(requested.get(row.targetId()), row.id()), ErrorCode.NOT_FOUND);
-      require(
-          "succeeded".equals(row.status()) && row.value().deployedAt() != null,
-          ErrorCode.STATE_CONFLICT);
-      result.put(row.targetId(), row.value());
+                    rs.getString("deployment_id"),
+                    rs.getString("source_version_id"),
+                    rs.getString("commit_sha"),
+                    rs.getString("image_refs"),
+                    instant(rs, "finished_at"));
+            rows.put(row.id(), row);
+          });
+    var result = new LinkedHashMap<String, CurrentLookup>();
+    requested.forEach(
+        (target, pointer) -> result.put(target, resolve(target, pointer, rows.get(pointer))));
+    return result;
+  }
+
+  private CurrentLookup resolve(String target, String pointer, CurrentRow row) {
+    if (pointer == null) return new CurrentLookup(null, null);
+    if (row == null || !target.equals(row.targetId()))
+      return new CurrentLookup(null, ErrorCode.NOT_FOUND);
+    if (!"succeeded".equals(row.status()) || row.finishedAt() == null)
+      return new CurrentLookup(null, ErrorCode.STATE_CONFLICT);
+    // Only local image decoding can fail here; never catch access-policy or SQL exceptions.
+    try {
+      return new CurrentLookup(
+          new CurrentDeployment(
+              row.deploymentId(),
+              row.sourceVersionId(),
+              row.commitSha(),
+              images(row.images()),
+              row.finishedAt()),
+          null);
+    } catch (DaisyException invalidImages) {
+      if (invalidImages.errorCode() != ErrorCode.STATE_CONFLICT) throw invalidImages;
+      return new CurrentLookup(null, ErrorCode.STATE_CONFLICT);
     }
-    long expected = requested.values().stream().filter(Objects::nonNull).count();
-    require(result.size() == expected, ErrorCode.NOT_FOUND);
-    return Collections.unmodifiableMap(result);
   }
 
   /** Last successful deployment per build and target, not the set of currently serving targets. */
@@ -133,16 +196,20 @@ public class DeploymentQueryService {
   private void authorize(String actor, String project) {
     id(actor);
     id(project);
+    policy().requireRead(actor, project);
+  }
+
+  private ExecutionAccess policy() {
     var policy = access.getIfAvailable();
     require(policy != null, ErrorCode.FORBIDDEN);
-    policy.requireRead(actor, project);
+    return policy;
   }
 
   private List<ServiceImage> images(String value) {
     if (value == null) return null;
     try {
       JsonNode images = mapper.readTree(value);
-      require(images.isObject() && !images.isEmpty(), ErrorCode.STATE_CONFLICT);
+      require(images != null && images.isObject() && !images.isEmpty(), ErrorCode.STATE_CONFLICT);
       var result = new ArrayList<ServiceImage>();
       for (var entry : images.properties()) {
         require(entry.getValue().isObject(), ErrorCode.STATE_CONFLICT);
@@ -181,5 +248,15 @@ public class DeploymentQueryService {
     if (!valid) throw new DaisyException(code);
   }
 
-  private record CurrentRow(String id, String targetId, String status, CurrentDeployment value) {}
+  private record CurrentLookup(CurrentDeployment deployment, ErrorCode failure) {}
+
+  private record CurrentRow(
+      String id,
+      String targetId,
+      String status,
+      String deploymentId,
+      String sourceVersionId,
+      String commitSha,
+      String images,
+      Instant finishedAt) {}
 }

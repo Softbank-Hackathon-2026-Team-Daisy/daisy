@@ -3,7 +3,6 @@ package com.teamdaisy.server.project.application;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.ArgumentMatchers.argThat;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
@@ -15,8 +14,8 @@ import com.teamdaisy.server.common.error.DaisyException;
 import com.teamdaisy.server.common.error.ErrorCode;
 import com.teamdaisy.server.deployment.application.DeploymentQueryService;
 import com.teamdaisy.server.deployment.application.DeploymentQueryService.CurrentDeployment;
+import com.teamdaisy.server.deployment.application.DeploymentQueryService.CurrentResult;
 import com.teamdaisy.server.deployment.application.DeploymentQueryService.ServiceImage;
-import com.teamdaisy.server.deployment.application.ExecutionAccess;
 import com.teamdaisy.server.project.application.DeploymentHistoryReader.CurrentView;
 import com.teamdaisy.server.project.domain.Target;
 import com.teamdaisy.server.project.web.TargetStatusResponse;
@@ -28,9 +27,10 @@ import org.junit.jupiter.api.Test;
 import org.springframework.test.util.ReflectionTestUtils;
 
 /**
- * A-02 {@code current} 가 대상 하나 때문에 통째로 깨지지 않는지 고정해요 (server/SPEC.md ⑤ · 검증 V11).
+ * A-02 {@code current} 를 승환의 {@code currentByTarget} 결과로 채우는지 고정해요 (server/SPEC.md ⑤ · #42
+ * 044a436).
  *
- * <p>트랜잭션과 엮인 실패(롤백 전용)는 단위 테스트로 잡히지 않아요. 그건 실제 DB 기동으로 따로 확인해요.
+ * <p>대상별 실패를 감싸는 일은 조회 서비스가 해요. 여기서는 결과를 그대로 옮기고, 권한 오류를 숨기지 않는지만 봐요.
  */
 class DeploymentHistoryReaderTest {
   private static final String PROJECT = "prj_1";
@@ -38,8 +38,7 @@ class DeploymentHistoryReaderTest {
   private static final Instant AT = Instant.parse("2026-10-02T00:00:00Z");
 
   private final DeploymentQueryService queries = mock(DeploymentQueryService.class);
-  private final ExecutionAccess access = mock(ExecutionAccess.class);
-  private final DeploymentHistoryReader reader = new DeploymentHistoryReader(queries, access);
+  private final DeploymentHistoryReader reader = new DeploymentHistoryReader(queries);
 
   private static Target target(String id, String pointer) {
     Target target =
@@ -67,72 +66,42 @@ class DeploymentHistoryReaderTest {
         reader.current(ACTOR, PROJECT, List.of(target("tgt_a", null), target("tgt_b", null)));
 
     assertThat(views.values()).allMatch(view -> view.status().equals("none"));
-    verify(queries, never()).current(any(), any(), any());
+    verify(queries, never()).currentByTarget(any(), any(), any());
   }
 
   @Test
-  @DisplayName("일괄 호출이 성공하면 포인터 있는 대상은 confirmed, 없는 대상은 none 이에요")
-  void batchSuccess() {
-    when(queries.current(eq(ACTOR), eq(PROJECT), any()))
-        .thenReturn(Map.of("tgt_a", deployment("dep_1", null)));
+  @DisplayName("조회 서비스의 대상별 결과(confirmed·unverified·none)를 그대로 옮겨요")
+  void resultsAreCopied() {
+    when(queries.currentByTarget(eq(ACTOR), eq(PROJECT), any()))
+        .thenReturn(
+            Map.of(
+                "tgt_a", new CurrentResult("confirmed", deployment("dep_1", null)),
+                "tgt_b", new CurrentResult("unverified", null),
+                "tgt_c", new CurrentResult("none", null)));
 
     Map<String, CurrentView> views =
-        reader.current(ACTOR, PROJECT, List.of(target("tgt_a", "dt_1"), target("tgt_b", null)));
+        reader.current(
+            ACTOR,
+            PROJECT,
+            List.of(target("tgt_a", "dt_1"), target("tgt_b", "dt_2"), target("tgt_c", null)));
 
     assertThat(views.get("tgt_a").status()).isEqualTo("confirmed");
     assertThat(views.get("tgt_a").deployment().deploymentId()).isEqualTo("dep_1");
-    assertThat(views.get("tgt_b").status()).isEqualTo("none");
-  }
-
-  @Test
-  @DisplayName("일괄 호출이 409 면 대상별로 다시 불러 문제 대상만 unverified 예요")
-  void batchConflictIsIsolated() {
-    when(queries.current(eq(ACTOR), eq(PROJECT), argThat(pointers -> pointers.size() == 2)))
-        .thenThrow(new DaisyException(ErrorCode.STATE_CONFLICT));
-    when(queries.current(
-            eq(ACTOR),
-            eq(PROJECT),
-            argThat(p -> p.size() == 1 && p.get(0).targetId().equals("tgt_a"))))
-        .thenReturn(Map.of("tgt_a", deployment("dep_1", null)));
-    when(queries.current(
-            eq(ACTOR),
-            eq(PROJECT),
-            argThat(p -> p.size() == 1 && p.get(0).targetId().equals("tgt_b"))))
-        .thenThrow(new DaisyException(ErrorCode.STATE_CONFLICT));
-
-    Map<String, CurrentView> views =
-        reader.current(ACTOR, PROJECT, List.of(target("tgt_a", "dt_1"), target("tgt_b", "dt_2")));
-
-    assertThat(views.get("tgt_a").status()).isEqualTo("confirmed");
     assertThat(views.get("tgt_b").status()).isEqualTo("unverified");
     assertThat(views.get("tgt_b").deployment()).isNull();
+    assertThat(views.get("tgt_c").status()).isEqualTo("none");
   }
 
   @Test
-  @DisplayName("일괄 404 뒤 권한 재확인이 실패하면 unverified 로 숨기지 않고 404 를 그대로 올려요 (#42 리뷰)")
-  void revokedMembershipPropagates() {
-    when(queries.current(any(), any(), any())).thenThrow(new DaisyException(ErrorCode.NOT_FOUND));
-    org.mockito.Mockito.doThrow(new DaisyException(ErrorCode.NOT_FOUND))
-        .when(access)
-        .requireRead(ACTOR, PROJECT);
+  @DisplayName("권한 오류(404)는 대상 결과로 숨기지 않고 그대로 올려요 (#42 리뷰)")
+  void accessErrorPropagates() {
+    when(queries.currentByTarget(any(), any(), any()))
+        .thenThrow(new DaisyException(ErrorCode.NOT_FOUND));
 
     assertThatThrownBy(() -> reader.current(ACTOR, PROJECT, List.of(target("tgt_a", "dt_1"))))
         .isInstanceOf(DaisyException.class)
         .extracting(e -> ((DaisyException) e).errorCode())
         .isEqualTo(ErrorCode.NOT_FOUND);
-    // 일괄 한 번만 부르고, 대상별로 다시 부르지 않아요.
-    verify(queries, org.mockito.Mockito.times(1)).current(any(), any(), any());
-  }
-
-  @Test
-  @DisplayName("권한 오류(403)는 대상 문제가 아니라서 격리하지 않고 그대로 올려요")
-  void forbiddenPropagates() {
-    when(queries.current(any(), any(), any())).thenThrow(new DaisyException(ErrorCode.FORBIDDEN));
-
-    assertThatThrownBy(() -> reader.current(ACTOR, PROJECT, List.of(target("tgt_a", "dt_1"))))
-        .isInstanceOf(DaisyException.class)
-        .extracting(e -> ((DaisyException) e).errorCode())
-        .isEqualTo(ErrorCode.FORBIDDEN);
   }
 
   @Test
