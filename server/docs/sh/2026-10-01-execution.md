@@ -78,3 +78,22 @@
 승환의 이번 실행 서비스 구현·로컬 검증과 팀 서비스 전체 출시 준비는 다르다. 은현의 사용자 인증·프로젝트/대상 입력 포트·조회/REST/SSE 엔드포인트, 운영 Flyway 조율, 인프라 Job의 request_id·콜백·승인 plan 실행·로그 계약 확인이 필요하다. 웹·앱·실제 Jenkins의 전체 흐름, 프록시/SSE 전달, 실제 산출물 접근 권한은 아직 통합 검증하지 않았다.
 
 기본 비활성 설정과 미연결 권한 거절을 유지한다. 새 의존성·실제 Terraform/Claude 실행·상대 영역의 가짜 허용 구현은 추가하지 않았다. push·새 PR 게시도 하지 않았다.
+
+## PR #19 기반 통합과 차이 점검 (2026-10-01)
+
+- 사용자 요청으로 기존 기능 브랜치로 복귀하고 `server/feat-deployment-domain`의 `d3a243a`를 `55c1d11`로 merge했다. 충돌 없이 기존 기능 커밋을 보존했다. #19의 main 머지·기능 브랜치 push는 수행하지 않았다.
+- DB 테스트가 예전 SQL 초안·관리 fixture를 사용하던 것을 정식 `classpath:db/migration`의 Flyway 적용으로 전환했다. 테스트 계정만 `admin`에서 합의된 `owner`로 변경했다. 업무 코드·V1은 그대로다.
+- PostgreSQL 17.11의 별도 빈 DB에서 **93 tests, 0 skipped/failures/errors**. 실DB 12건은 매번 전용 schema에 V1을 적용하고 JPA validate·실행/승인/락/멱등/수신 시나리오를 검사했다. `spotlessApply check build --no-daemon --offline` 통과, 검사용 DB 종료. 실제 Jenkins는 호출하지 않았다.
+
+### 다음 기능 수정 목록 — 이번에는 진단만
+
+| 부분 | 현재 코드와 최신 방향의 차이 | 다음 작업 |
+|---|---|---|
+| 빌드 선택 | CreateRequest·ExecutionInputs.capture가 commitSha만 받고 source_version_id는 관리 포트 결과로 받음 | 명시적으로 선택한 빌드 ID를 요청·멱등 hash·소속 검증에 연결. 은현 입력 포트와 함께 변경 |
+| apply 중단 | cancel은 이미 제출한 apply에도 stop 명령을 만들고 JenkinsWorker가 build stop을 호출할 수 있음 | #32 합의대로 apply 시작 후 요청 기록만 유지하고 STOP 전달 차단. prepare/queue 취소는 지원 범위 별도 확인 |
+| 다중 승인·삭제 확인 | 선택한 대상만 원자 처리하고 확인 문구는 target snapshot의 name과 비교 | 최신 S4 안과 대조: 승인 대기 전체 집합 검증·프로젝트명 고정 문구·소비자 DTO 연결. 최종 계약 확인 후 변경 |
+| 롤백 | RollbackRequest에 target_ids·사용자 reason이 없고 성공 원본의 모든 대상을 복제 | 선택 대상·사유를 요청/hash/이벤트에 연결. 원본 실행 입력은 보존 |
+| Jenkins 전송·결과 | request_id/payload form과 구조화 callback 중심의 초기 계약. 현재 실제 Job 파라미터·산출물 폴링과 다름 | #35 답변에 따라 plan/apply 파라미터·결과 adapter 연결. 확인 전 기본 비활성 유지 |
+| SSE 선택 필터 | openDeployment/openProject에 event_type 필터가 없음 | 필터 계약 확정 후 채널 seq를 그대로 유지하면서 추가 |
+
+테스트 통과는 현재 구현과 V1의 호환성을 확인한 것이며 위 계약 차이가 해소됐다는 의미는 아니다. API 표시(attempt null·image digest·사용량 합계)는 은현 조회 DTO와 맞춘다. 이전 실행 문서의 Jenkins 내부 승인·콜백 중심 설명은 현재 인프라 사실로 사용하지 말고 #19/#35를 우선한다.

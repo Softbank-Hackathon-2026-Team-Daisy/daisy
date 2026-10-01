@@ -1,8 +1,8 @@
-# 실행 스키마 초안과 독립 PostgreSQL 검증
+# 실행 스키마와 독립 PostgreSQL 검증
 
-[sql/execution.sql](sql/execution.sql)은 승환 소유 12개 테이블의 실행 가능한 검토 초안이다. Flyway 자동 검색 경로 밖에 두며 운영 마이그레이션 번호를 예약하거나 적용하지 않는다. 은현의 account/project/project_member/target/source_version 테이블 정의·인가 정책은 변경하지 않는다.
+[sql/execution.sql](sql/execution.sql)은 V1 합의 전 승환 소유 12개 테이블의 검토 초안이다. **현재 스키마 기준은 `src/main/resources/db/migration/V1__init.sql`이며 테스트도 Flyway로 이 파일을 적용한다.** 초안과 관리 fixture는 과거 검토 자료로 남기며 현재 테스트·기동에 적용하지 않는다.
 
-통합 검증은 테스트 전용 `db/managed-domain-fixture.sql`의 관리 테이블 5개, 같은 실행 SQL, `db/managed-domain-links.sql`의 관리 target 현재 포인터 FK 순서로 적재한다. 전체 스키마 사본을 별도로 유지하지 않는다. 관리 fixture는 엔티티와 설계안의 타입·키를 재현한 테스트 대역이며 운영 관리 DDL을 대신하지 않는다. account 역할 목록은 은현이 확정하므로 fixture에 임의 CHECK를 두지 않는다.
+통합 검증은 테스트마다 생성한 전용 schema에 `classpath:db/migration`을 적용한다. 테스트 계정은 V1의 `owner/viewer` 제약에 맞춰 `owner`로 생성한다. 관리·인가 서비스 대역은 그대로이므로 실제 인증 통합을 검증했다는 뜻은 아니다.
 
 DDL은 PK·복합 소속 FK·CHECK·부분 UNIQUE·기본값·조회 인덱스를 포함한다. nullable 순환 포인터는 테이블 생성 후 FK를 붙이고 서비스가 마지막에 연결한다. 삭제 CASCADE·TTL은 없으며 PK/UNIQUE의 선두 컬럼으로 충분한 중복 조회 인덱스를 추가하지 않는다. plan active·approval pending·run 콘솔 owner·source offset·프로젝트 투영의 부분 UNIQUE를 유지한다.
 
@@ -17,3 +17,7 @@ DB가 검사할 수 없는 조건은 서비스 책임이다: current plan active
 2026-10-01 기능 취합 후 독립 PostgreSQL 17.11에서 위 사례를 실행했다. console 소유권·UTF-8 EOF·커서 갱신 실패 시 이벤트/seq rollback, 확정 큐 취소의 락 해제, 재시도·롤백의 고정 입력/계보, 중단된 제출 복구까지 **DB 통합 테스트 12개 통과**했다. 전체 테스트는 91개, skipped/failure/error 모두 0이다. `spotlessApply check build --no-daemon --offline`도 성공했다.
 
 별도 시험 schema에서 실제 Boot jar의 JPA 검증·기동·health UP을 확인했다. 관리 fixture를 사용하고 Flyway를 끈 시험이므로 운영 Flyway 적용이나 은현의 실제 인증·관리 코드 통합 성공을 의미하지 않는다. 실제 Jenkins·클라우드는 호출하지 않았다.
+
+## PR #19 통합 후 재검증 (2026-10-01)
+
+위 91건·fixture 기동 기록은 통합 전 이력이다. `55c1d11`로 #19의 `d3a243a`까지 합친 뒤, 통합 테스트를 정식 Flyway V1 적용으로 전환했다. 독립 PostgreSQL 17.11에서 전체 **93건(실DB 12건 포함), 실패·오류·skip 0**, `spotlessApply check build --no-daemon --offline` 통과. 각 테스트는 Flyway 적용 후 JPA validate와 기존 서비스 시나리오를 검사했다. 검사용 DB 프로세스는 종료했다. V1·엔티티·업무 동작은 변경하지 않았으며, 실제 Jenkins·인증 연동 검증은 여전히 별도다.

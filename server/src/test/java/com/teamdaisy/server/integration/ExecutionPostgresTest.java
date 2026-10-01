@@ -19,8 +19,6 @@ import com.teamdaisy.server.jenkins.application.JenkinsConsoleService;
 import com.teamdaisy.server.jenkins.infrastructure.JenkinsClient.LogChunk;
 import com.teamdaisy.server.script.application.ScriptService;
 import java.nio.charset.StandardCharsets;
-import java.nio.file.Files;
-import java.nio.file.Path;
 import java.sql.Connection;
 import java.sql.SQLException;
 import java.time.Instant;
@@ -33,6 +31,7 @@ import java.util.concurrent.CyclicBarrier;
 import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
 import javax.sql.DataSource;
+import org.flywaydb.core.Flyway;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -45,12 +44,9 @@ import org.springframework.context.ConfigurableApplicationContext;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.context.annotation.Import;
-import org.springframework.core.io.ClassPathResource;
-import org.springframework.core.io.FileSystemResource;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.jdbc.datasource.AbstractDataSource;
 import org.springframework.jdbc.datasource.DriverManagerDataSource;
-import org.springframework.jdbc.datasource.init.ResourceDatabasePopulator;
 import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.transaction.support.TransactionTemplate;
 
@@ -95,13 +91,12 @@ class ExecutionPostgresTest {
             return connection;
           }
         };
-    Path draft = Path.of("docs/sql/execution.sql");
-    if (!Files.isRegularFile(draft)) draft = Path.of("server/docs/sql/execution.sql");
-    new ResourceDatabasePopulator(
-            new ClassPathResource("db/managed-domain-fixture.sql"),
-            new FileSystemResource(draft),
-            new ClassPathResource("db/managed-domain-links.sql"))
-        .execute(scoped);
+    Flyway.configure()
+        .dataSource(scoped)
+        .defaultSchema(schema)
+        .locations("classpath:db/migration")
+        .load()
+        .migrate();
     context =
         new SpringApplicationBuilder(TestConfig.class)
             .web(WebApplicationType.NONE)
@@ -130,7 +125,7 @@ class ExecutionPostgresTest {
     execution = context.getBean(DeploymentExecutionService.class);
     mapper = context.getBean(ObjectMapper.class);
     jdbc.update(
-        "insert into account(id,username,password_hash,display_name,role) values('acct_1','fixture','TEST-ONLY-HASH','Fixture','admin')");
+        "insert into account(id,username,password_hash,display_name,role) values('acct_1','fixture','TEST-ONLY-HASH','Fixture','owner')");
     jdbc.update(
         "insert into project(id,name,repository_id,repository_url,default_branch,created_by) values('prj_1','Fixture','repo-1','https://example.test/repo','main','acct_1')");
     jdbc.update(
