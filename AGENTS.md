@@ -2,7 +2,7 @@
 
 You are a coding agent working for one member of Team Daisy at SoftBank Hackathon 2026 in Korea (Term 1 prelims). This file is the team-wide contract that every agent in every area follows. Read all of it at the start of a session, then read the `AGENTS.md` of the area you are about to change.
 
-- Status: v1.2 (2026-09-30 evening, synced with the 9/29 meeting, every area's decisions logs, PR answers, and Slack up to 20:35; source list: `ios/BOARD.md` on PR #8). Owner: team lead (김도영). Change it only by PR with team review.
+- Status: v1.3 (2026-10-01, adds the 10/1 infra decisions from `infra/AGENTS.md` §9 and PR #17 (#30), Jenkins for CI and CD, and the app's full scope; v1.2 was synced on 9/30 evening from every area's decisions logs, PR answers, and Slack up to 20:35). Owner: team lead (김도영). Change it only by PR with team review.
 - This file is written in English for precision. **Everything you write for humans is in Korean** (see §11).
 - Some area folders may still have a `CLAUDE.md` instead of an `AGENTS.md`. Treat it as that area's `AGENTS.md`. Where it says "root `CLAUDE.md`", it means this file.
 
@@ -15,11 +15,11 @@ You are a coding agent working for one member of Team Daisy at SoftBank Hackatho
 "Works end to end" means this path runs for real, at least once, on the sample apps:
 
 ```
-main merge → GitHub Actions builds the image (tag = commit hash)
-→ user selects target environments (on-prem · AWS · GCP) in the web UI
-→ AI generates Terraform per environment from deploy.yaml (or reuses a validated script, 0 AI calls)
+main merge → Jenkins (`daisy-ci`) builds the image (tag = commit hash)
+→ user selects target environments (on-prem · AWS · GCP) in the web or the app
+→ Jenkins (`daisy-cd-plan`): AI generates Terraform per environment from deploy.yaml (or reuses a validated script, 0 AI calls)
 → validate · plan · risk check (on failure the AI fixes it, max 3 attempts)
-→ a human approves the plan → parallel apply per environment → public URLs
+→ a human approves the plan in the web or the app → Jenkins (`daisy-cd-apply`): parallel apply per environment → public URLs
 ```
 
 How to prioritize under the deadline:
@@ -66,13 +66,13 @@ These exist because a mistake here costs money, leaks secrets, or breaks the dem
 |---|---|---|
 | Team lead: scope, schedule, root docs, ADR records | `AGENTS.md`, `README.md`, `CONTRIBUTING.md`, `docs/` | 김도영 (`kimdoyoung1110`) |
 | Web dashboard (full flow) | `web/` | 김도영 (`kimdoyoung1110`) |
-| Native app (iOS · macOS). Scope is under team decision (§12-4, ADR-007) | `ios/` | 박승준 (`Seungjun1127`) |
+| Native app (iOS · macOS): the full flow, same as the web (10/1, §12-4 ADR-007) | `ios/` | 박승준 (`Seungjun1127`) |
 | Server: API, deployment state machine, approvals, `terraform apply` execution, locks, SSE, CI webhook, history · rollback | `server/` | 하은현 (`gkdmsgus`) |
-| Server: `deploy.yaml` parsing, AI Terraform generation, validate/fix loop, common Terraform CLI runner, script reuse, AI cost | `server/` | 김승환 (`7SH7`) |
+| Server: `deploy.yaml` parsing, Jenkins execution tracking and result intake, reliability (locks, retries), common base, AI usage and cost records `(가칭 · 김승환 확인)`. AI Terraform generation moved to infra (10/1) | `server/` | 김승환 (`7SH7`) |
 | On-prem Terraform module, Docker runtime, tunnel | `infra/modules/onprem/` | 황지환 (`jihwan77`) |
-| Cloud Terraform modules (GCP, AWS), state backends, Jenkins runner prototype | `infra/modules/gcp/`, `infra/modules/aws/`, `infra/jenkins/`, `infra/scripts/` | 임채준 (`dlacowns21`) |
+| Cloud Terraform modules (GCP, AWS), state backends, AWS fixed network, **AI Terraform generation · fix loop · reuse** (N-02 · N-05 · N-08), **Jenkins CI · CD** (`daisy-ci`, `daisy-cd-plan`, `daisy-cd-apply`) | `infra/modules/gcp/`, `infra/modules/aws/`, `infra/ai/`, `infra/bootstrap/`, `infra/jenkins/`, `infra/scripts/` | 임채준 (`dlacowns21`) |
 | CI for this repo | `.github/workflows/` | 김도영 |
-| Sample monolith app (HelloCalc) and its image pipeline (N-01) | repo `sample-monolith` | 박승준 (app), 김도영 (Actions) |
+| Sample monolith app (HelloCalc) and its image pipeline (N-01) | repo `sample-monolith` | 박승준 (app), infra (Jenkins `daisy-ci`) |
 | Sample MSA app (HelloCalc MSA: one frontend + one backend container) | repo `sample-msa` | 박승준 |
 | Org issue/PR templates, org profile | repo `.github` | 김도영 |
 
@@ -88,8 +88,9 @@ A shared contract is anything another area builds against. Each has a **provider
 | REST API: paths, payloads, errors, auth. **Single source: the server's OpenAPI** (springdoc `/v3/api-docs`); Notion "Backend API Endpoint" is the agreement record | server (하은현; AI-side payloads 김승환) | web, ios | provider, after notifying consumers |
 | SSE events: channels, names, payloads | server (하은현) | web, ios | provider, after notifying consumers |
 | Deployment state and step names (decided 9/30, §12-4) | server | web, ios | provider, after notifying consumers |
-| Terraform module input variables | infra (황지환, 임채준) | server AI (김승환) | provider, after notifying consumers |
-| CI → deploy service event payload | CI (김도영) | server (하은현) | provider, after notifying consumers |
+| Terraform module input variables | infra (황지환, 임채준) | AI generation (`infra/ai/`), server | provider, after notifying consumers |
+| Jenkins Job API (`daisy-ci`, `daisy-cd-plan`, `daisy-cd-apply` parameters, status, logs) and `plan-summary.json` | infra (임채준, 황지환) | server (하은현, 김승환) | provider, after notifying consumers |
+| CI → deploy service build result (image, digest, commit) | infra (Jenkins `daisy-ci`) | server (하은현) | provider, after notifying consumers |
 
 ## 6. Decision authority
 
@@ -210,11 +211,11 @@ End every task with a short report in Korean:
 
 1. **Connect the app (once):** `Dockerfile` + `deploy.yaml` in the user's repo.
 2. **Change code:** PR → merge to `main`.
-3. **Build the image:** GitHub Actions builds and tests, tags with the **commit hash**, pushes to the registry, and sends an event to the deploy service.
+3. **Build the image:** Jenkins `daisy-ci` builds and tests, tags with the **commit hash**, pushes to the registry, and the deploy service picks up the result. The Jenkins UI is not public; the server reads it through the Jenkins REST API.
 4. **Select environments** in the UI (on-prem, AWS, GCP; several at once). Only GitHub repos are an input; source upload is out of scope (9/30).
-5. **Generate Terraform (AI)** per environment. If a validated script exists, only swap the image tag (0 AI calls).
+5. **Generate Terraform (AI)** per environment, inside Jenkins `daisy-cd-plan` (`infra/ai/`). If a validated script exists, only swap the image tag (0 AI calls).
 6. **Validate and fix:** `validate` → `plan` → risk check. On failure the AI reads the log and fixes it, **3 attempts in total per environment** (the first generation counts). An environment that runs out stops and the user is notified; **the other environments keep going**.
-7. **Approve and apply:** a human approves the plan → **parallel `apply`** per environment. State is stored separately per environment. A **rollback** is a new deployment of an earlier successful commit with its validated script, and it also needs plan approval.
+7. **Approve and apply:** a human approves the plan in the web or the app (server approval API, no separate Jenkins approval) → the server starts `daisy-cd-apply` → **parallel `apply`** per environment. State is stored separately per environment. A **rollback** is a new deployment of an earlier successful commit with its validated script, and it also needs plan approval.
 
 ### 12-3. Repos
 
@@ -234,10 +235,10 @@ The sample repos stand in for a user's app. Do not mix their code into `daisy`. 
 | 001 | Roles: web (FE, BE) / infra (on-prem, cloud) |
 | 002 | Topic: AI one-touch deployment to on-prem and public clouds |
 | 003 | IaC is **Terraform** |
-| 004 | App input: GitHub repo + `main` merge + GitHub Actions |
+| 004 | App input: GitHub repo + `main` merge. The build tool changed from GitHub Actions to **Jenkins** (10/1); Notion ADR update pending |
 | 005 | On-prem runtime is **Docker** |
 | 006 | Web is a **React + Vite SPA** (not Next.js). Start with a minimal stack; add libraries only when blocked, and record why |
-| 007 | Web runs the full flow; the Swift app does approval, progress, and push only. `ios/` proposes widening it to the full wireframe (`ios/SPEC.md` §1-1, §8), which conflicts with `web/SPEC.md` §1-1; **team meeting item**. Until the team decides, this line stands |
+| 007 | Web and the Swift app **both run the full flow** with the same API (10/1, team lead; replaces "the app does approval, progress, and push only"). The app takes wording from the web and keeps its own look. Notion ADR update pending |
 
 **Decided in the 9/29 meeting (Notion ADR entries pending):** backend is **Spring Boot**; public access uses a **purchased domain with HTTPS** (server owners); roles: web is 김도영, the Swift app is 박승준; build features first and add visualization (e.g. loading screens) afterwards; the presenter is chosen on 10/3; part meetings use Slack huddles (backend daily 18:00–19:00).
 
@@ -254,12 +255,12 @@ The sample repos stand in for a user's app. Do not mix their code into `daisy`. 
   - Out of the v0.1 draft: source upload, analysis, IR editing, recommendations, observability, canary. Manifest errors use `MANIFEST_INVALID`.
   - Stack: Spring Boot 3.5 · Java 21 · Postgres job queue · Flyway migrations. 김승환 produces the plan detail and the generated Terraform files; 하은현 exposes them.
   - AI cost: USD summed per deployment, converted at a fixed rate, always shown as an estimate with the rate.
-- **Web** (김도영): React + Vite + TypeScript, `react-router`, CSS variable tokens (no UI kit); labeled MSW mocks in `src/mocks/`; SSE via `fetch` streaming. Wireframe changes 9/30: upload (W-02b) removed, W-05b "○○만 다시 시도" (no "skip and continue"), W-12 AI usage per deployment, W-14 Mac download.
+- **Web** (김도영): React + Vite + TypeScript, `react-router`, CSS variable tokens (no UI kit); its own labeled mocks in `src/mocks/` (no MSW); SSE via `fetch` streaming, 5 s polling until then. Whole-deployment `running` is shown as "진행 중". Wireframe changes 9/30: upload (W-02b) removed, W-05b "○○만 다시 시도" (no "skip and continue"), W-12 AI usage per deployment, W-14 Mac download.
 - **App** (박승준): one SwiftUI codebase for iOS 18 / macOS 15; TestFlight app "Daisy Deploy"; offline sample mode with a badge on every screen; Mac DMG (notarized) at the fixed URL `…/releases/download/mac-latest/Daisy.dmg` used by W-14.
-- **Infra** (황지환 · 임채준): Terraform plan file is `plan.tfplan`; AWS is ECS Fargate + ALB in public subnets without NAT; cloud order AWS → GCP; apply and destroy only after human approval (`TF_RUN_APPROVED`); low-cost defaults (3-day logs, no deletion protection); the personal AWS account only runs plan, apply happens on the team account.
+- **Infra** (황지환 · 임채준): Terraform plan file is `plan.tfplan`; AWS is ECS Fargate + ALB in public subnets without NAT; cloud order AWS → GCP; apply and destroy only after human approval (`TF_RUN_APPROVED`); low-cost defaults (3-day logs, no deletion protection); the personal AWS account is the real environment (10/1, cost settled later; replaces "plan only"); the AWS VPC and subnets are a fixed network made once (`infra/bootstrap/aws-network`), and app deploys create and destroy only the ALB and ECS. CD is `daisy-cd-plan` → approval through the server → `daisy-cd-apply`. Terraform state lives in each environment's own store with locking (AWS S3, GCP GCS). AI generation uses Claude in `infra/ai/`. Health checks are measured once (status and ms, no p95). On-prem: Terraform manages Docker containers on an existing VM, exposed by public IP + Route 53 with Let's Encrypt.
 - **Sample repos**: image tags are commit hashes even locally (no `latest`); in `sample-msa` the Cloud Run backend allows unauthenticated calls but only through `internal` ingress.
 
-**Undecided `[미정]`:** `deploy.yaml` schema (flat vs `services:` map) and secret delivery, container registry (Docker Hub / GHCR; GHCR used for now), CI/CD tool scope (GitHub Actions for app images; Jenkins runner being prototyped in `infra/`), on-prem deploy method and its relation to Terraform (ADR-003), HTTPS exposure method (Cloudflare Tunnel proposed), LLM and the fixed exchange rate, Terraform state store, ADR-007 widening, automatic rollback on health-check failure (proposed by 하은현), demo account and auth scope, "왜 AI인가" sentence, cloud-specific features.
+**Undecided `[미정]`:** `deploy.yaml` schema (flat vs `services:` map) and secret delivery, container registry (the Jenkins runner pushes to Docker Hub; team decision pending), the on-prem Terraform state store and the state key format, on-prem TLS termination details, the fixed exchange rate, automatic rollback on health-check failure (proposed by 하은현), demo account and auth scope, "왜 AI인가" sentence, cloud-specific features.
 
 ### 12-5. `deploy.yaml` schema `[미정 — 9/29 draft]`
 
