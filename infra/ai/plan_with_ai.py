@@ -28,6 +28,8 @@ import risk_check
 
 MAX_AI_CALLS = 3
 REPO = generate.REPO
+# 서버 요청이면 이 환경이 앞서 쓴 생성 시도 수 (명령 targets[].attempt, #70). replan은 이어서 세고 총 3번을 넘지 않아요
+BASE = min(max(int(os.environ.get("AI_ATTEMPT_BASE") or 0), 0), MAX_AI_CALLS)
 
 
 class Server:
@@ -49,14 +51,14 @@ class Server:
             print(f"서버 알림 실패 (plan은 계속해요): {e}")
 
     def state(self, status: str, attempt: int):
-        self._call("set_state", status, attempt)
+        self._call("set_state", status, BASE + attempt)  # 서버에는 앞선 시도 수에 이어서 보고해요
 
     def stage(self, step: str, phase: str, attempt: int, message: str | None = None):
         occurrence = f"{os.environ.get('JOB_NAME')}#{os.environ.get('BUILD_NUMBER')}/{self.env}/{step}-{attempt}"
         self._call("stage", step, phase, occurrence, message)
 
     def usage(self, attempt: int, step: str, usage: dict | None, status: str):
-        self._call("usage", attempt, step, usage, status)
+        self._call("usage", BASE + attempt, step, usage, status)
 
     def log(self, level: str, step: str | None, message: str):
         self._call("log_line", level, step, message)
@@ -86,7 +88,7 @@ def main() -> int:
     inputs = json.loads(var_file.read_text(encoding="utf-8"))
     fp = fingerprint(env, inputs)
     verified = work / "verified" / fp
-    record = {"mode": None, "fingerprint": fp, "ai_calls": 0, "attempts": []}
+    record = {"mode": None, "fingerprint": fp, "ai_calls": 0, "attempts": [], "attempt_base": BASE}
 
     # MOCK: AI 없이 기준 모듈 그대로 (USE_AI=0)
     if os.environ.get("USE_AI", "1") == "0":
@@ -114,13 +116,17 @@ def main() -> int:
                 f"재사용한 스크립트가 {stage} 단계에서 실패했어요 → AI로 고쳐요")
 
     record["mode"] = "generated"
-    for attempt in range(1, MAX_AI_CALLS + 1):
+    budget = MAX_AI_CALLS - BASE
+    if budget <= 0:
+        srv.log("error", "generate", f"이 환경은 AI 시도 {MAX_AI_CALLS}번을 이미 다 썼어요")
+        return finish(plan_dir, ai_dir, record, False, f"이 환경은 AI 시도 {MAX_AI_CALLS}번을 이미 다 썼어요 (앞선 시도 {BASE}번)")
+    for attempt in range(1, budget + 1):
         cand = ai_dir / f"attempt-{attempt}"
-        print(f"AI 생성 {attempt}/{MAX_AI_CALLS}" + (f" (이전 실패: {stage})" if previous else ""))
+        print(f"AI 생성 {BASE + attempt}/{MAX_AI_CALLS}" + (f" (이전 실패: {stage})" if previous else ""))
         step = "fix" if previous else "generate"  # 서버 ai_usage의 step (처음 생성 · 고치기)
         srv.state("generating", attempt)
         srv.stage("generate", "started", attempt)
-        srv.log("info", "generate", f"AI Terraform {'수정' if previous else '생성'} {attempt}/{MAX_AI_CALLS}"
+        srv.log("info", "generate", f"AI Terraform {'수정' if previous else '생성'} {BASE + attempt}/{MAX_AI_CALLS}"
                 + (f" (이전 실패: {stage})" if previous else ""))
         try:
             files, notes, usage = generate.generate(env, inputs, previous, stage, error, attempt)
@@ -161,11 +167,11 @@ def main() -> int:
         entry.update({"stage": stage, "error": tail(error, 4000)})
         record["attempts"].append(entry)
         previous = files
-        print(f"검증 실패 ({stage}) → {'다시 고쳐요' if attempt < MAX_AI_CALLS else '시도를 다 썼어요'}")
+        print(f"검증 실패 ({stage}) → {'다시 고쳐요' if attempt < budget else '시도를 다 썼어요'}")
         srv.log("warn", stage if stage in ("validate", "plan", "risk_check") else None,
-                f"{stage} 단계 실패 → {'오류 로그로 AI가 고쳐요' if attempt < MAX_AI_CALLS else 'AI 시도 3번을 다 썼어요'}")
+                f"{stage} 단계 실패 → {'오류 로그로 AI가 고쳐요' if attempt < budget else 'AI 시도 3번을 다 썼어요'}")
 
-    return finish(plan_dir, ai_dir, record, False, f"AI 생성 {MAX_AI_CALLS}번이 모두 검증을 통과하지 못했어요 (마지막 단계: {stage})")
+    return finish(plan_dir, ai_dir, record, False, f"AI 생성 {MAX_AI_CALLS}번이 모두 검증을 통과하지 못했어요 (마지막 단계: {stage}, 앞선 시도 {BASE}번)")
 
 
 def plan_and_check(env: str, src: pathlib.Path, plan_dir: pathlib.Path, srv: Server | None = None, attempt: int = 0):

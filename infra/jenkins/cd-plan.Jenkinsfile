@@ -139,7 +139,9 @@ pipeline {
           forEachTarget('plan') { t ->
             withCloud(t) {
               try {
-                tf "\"\$AI_PY\" infra/ai/plan_with_ai.py ${t}"
+                // 서버 요청이면 이 환경이 앞서 쓴 생성 시도 수(#70)에 이어서 세요
+                def base = env.D_SERVER == '1' ? "AI_ATTEMPT_BASE=\$(jq -r '.targets.${t}.attempt // 0' \"\$DAISY_DIR/job.json\") " : ''
+                tf "${base}\"\$AI_PY\" infra/ai/plan_with_ai.py ${t}"
               } catch (err) {
                 failed << t
                 echo "${t}: 검증을 통과한 plan을 만들지 못했어요 (${err.getMessage()}). 다른 환경은 계속 진행해요"

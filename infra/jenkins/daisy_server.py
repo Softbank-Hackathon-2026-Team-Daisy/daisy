@@ -231,7 +231,8 @@ def parse(kind: str, payload_file: str) -> None:
     for env, dt, t in pending:
         key = env if env in ENVS and env not in job["targets"] else f"?{dt}"
         job["targets"][key] = {"deployment_target_id": dt, "target_id": t.get("target_id"),
-                               "input_hash": t.get("input_hash"), "state_identity": t.get("state_identity")}
+                               "input_hash": t.get("input_hash"), "state_identity": t.get("state_identity"),
+                               "attempt": t.get("attempt")}
     save_job(job)
 
     if job["request_id"] != os.environ.get("REQUEST_ID"):
@@ -278,6 +279,8 @@ def parse(kind: str, payload_file: str) -> None:
                 raise Fail(f"{env} 대상의 plan digest 형식이 맞지 않아요")
             t.update({"plan_id": plan.get("plan_id"), "digest": plan["digest"], "artifact_ref": plan["artifact_ref"],
                       "plan_ref": m.group(3)})
+            if not isinstance(t["attempt"], int):  # #70 전 서버는 안 보내요 → 승인한 plan에 기록된 시도 수
+                t["attempt"] = plan_attempt(pathlib.Path(os.environ["WORK_ROOT"]) / m.group(1) / env / "plans" / m.group(3))
             apps.add(m.group(1))
         if len(apps) != 1:
             raise Fail(f"한 요청의 대상이 서로 다른 앱의 plan을 가리켜요: {sorted(apps)}")
@@ -285,6 +288,24 @@ def parse(kind: str, payload_file: str) -> None:
     save_job(job)
     for env in job["targets"]:
         print(env)
+
+
+def base_attempt(t: dict) -> int:
+    """서버가 넘긴 환경별 생성 시도 수 (0~3, #70). 서버는 attempt가 줄어드는 상태 보고를 거절해요"""
+    a = t.get("attempt")
+    return min(max(a, 0), 3) if isinstance(a, int) else 0
+
+
+def plan_attempt(plan_dir: pathlib.Path) -> int:
+    """plan 폴더 ai.json의 시도 수: AI로 만들었으면 통과한 시도(앞선 시도 수 포함), 아니면 시작 값"""
+    f = plan_dir / "ai.json"
+    if not f.exists():
+        return 0
+    ai = json.loads(f.read_text(encoding="utf-8"))
+    base = ai.get("attempt_base", 0)
+    if ai.get("mode") == "generated":
+        return min(3, base + next((a["attempt"] for a in reversed(ai.get("attempts", [])) if a.get("ok")), 0))
+    return base
 
 
 def image(p: dict) -> dict:
@@ -319,8 +340,8 @@ def state_identity(env: str, app: str) -> str:
 def bind_app(deploy_yaml: str) -> None:
     """deploy.yaml의 name = 앱 이름 = state key · 작업 폴더 (tf-run.sh APP).
 
-    state 위치가 서버 등록(state_identity)과 다르면 경고만 해요. 서버 데모 대상은 아직 임시 값(<프로젝트>/<대상>)을 쓰고,
-    서버 잠금은 대상마다 다른 값이면 충분해요. 러너도 앱 · 환경마다 flock + state 잠금으로 한 번에 하나만 돌려요.
+    state 위치가 서버 등록(state_identity)과 다르면 기본은 경고만 해요. 서버 데모 대상이 아직 임시 값(<프로젝트>/<대상>)을 써요.
+    Jenkins 전역 DAISY_STATE_IDENTITY_CHECK=strict면 그 대상을 실행 전에 실패로 알려요 (#70 요청)
     """
     import yaml  # Ubuntu: python3-yaml
 
@@ -333,11 +354,16 @@ def bind_app(deploy_yaml: str) -> None:
         raise Fail(f"{job['manifest_path']}의 name이 앱 이름 형식(소문자 · 숫자 · -)이 아니에요: {name!r}")
     job["app"] = name
     save_job(job)
+    strict = os.environ.get("DAISY_STATE_IDENTITY_CHECK") == "strict"  # Jenkins 전역. 서버가 실제 값을 등록하면 켜요 (#70)
     for env, t in job["targets"].items():
         want = state_identity(env, name)
         if t["state_identity"] != want:
-            print(f"경고: {env} 대상의 서버 state_identity '{t['state_identity']}'가 실제 state 위치 '{want}'와 달라요. "
-                  "서버 대상 등록을 이 값으로 맞추면 좋아요", file=sys.stderr)
+            msg = (f"{env} 대상의 서버 state_identity '{t['state_identity']}'가 실제 state 위치 '{want}'와 달라요. "
+                   "서버 대상 등록을 이 값으로 맞춰 주세요")
+            if strict:
+                fail_target(env, msg + " (같은 state를 서버가 다른 잠금으로 볼 수 있어서 실행하지 않았어요)")
+                continue
+            print("경고: " + msg, file=sys.stderr)
         print(env)
 
 
@@ -355,14 +381,18 @@ def log_line(env: str, level: str, step: str | None, message: str) -> None:
     send("log", t["deployment_target_id"], payload)
 
 
-def set_state(env: str, status: str, attempt: int) -> None:
-    """진행 상태 (generating · validating · applying · verifying). 끝 상태는 fail_target · applied · stale이 보내요."""
+def set_state(env: str, status: str, attempt: int | None = None) -> None:
+    """진행 상태 (generating · validating · applying · verifying). 끝 상태는 fail_target · applied · stale이 보내요.
+
+    attempt를 주지 않으면 이 대상의 시작 값이에요 (apply는 승인한 plan의 시도 수를 그대로 써요)
+    """
     t = target(load_job(), env)
-    send("state", t["deployment_target_id"], {"status": status, "attempt": attempt})
+    send("state", t["deployment_target_id"], {"status": status, "attempt": base_attempt(t) if attempt is None else attempt})
 
 
-def fail_target(env: str, error: str, attempt: int = 0) -> None:
+def fail_target(env: str, error: str, attempt: int | None = None) -> None:
     t = target(load_job(), env)
+    attempt = max(attempt or 0, base_attempt(t))
     if is_done(t["deployment_target_id"]):
         return
     try:
@@ -411,9 +441,11 @@ def plan_ready(env: str) -> None:
         script["compatibility_key"] = compat
     ack = send("script", dt, script, event_id=f"script:{env}:{digest[7:]}")
 
-    attempt = 0
-    if mode == "generated":
-        attempt = next(a["attempt"] for a in reversed(ai["attempts"]) if a.get("ok"))
+    base = ai.get("attempt_base", base_attempt(t))
+    attempt = plan_attempt(plan_dir) if ai else base
+    # 서버는 재사용 plan에 attempt 0을 요구하고, attempt가 줄어드는 보고는 거절해요.
+    # 이미 AI로 만든 대상을 다시 plan하면서(replan) 그 스크립트를 재사용하면 재사용이 아니라 같은 시도로 보고해요
+    reused = mode == "reused" and attempt == 0
     created = datetime.datetime.fromisoformat(meta["created_at"].replace("Z", "+00:00"))
     expires = (created + PLAN_TTL).isoformat().replace("+00:00", "Z")
     resources, counts = plan_resources(src / "plan.json")
@@ -424,7 +456,7 @@ def plan_ready(env: str) -> None:
         "source_plan_id": f"{plan_id}/{env}",
         "input_hash": t["input_hash"],
         "script_id": ack["receipt_id"],
-        "reused_script": mode == "reused",
+        "reused_script": reused,
         "attempt": attempt,
         "artifact_ref": f"daisy-plan:{job['app']}/{env}/{plan_id}",
         "digest": "sha256:" + meta["plan_sha256"],
@@ -450,7 +482,7 @@ def plan_failed(env: str) -> None:
     error = ai.get("message") or "검증을 통과한 plan을 만들지 못했어요"
     if last.get("stage") and last.get("error"):
         error += f"\n[{last['stage']}] {first_error(last['error'])}"
-    fail_target(env, error, attempt=ai.get("ai_calls", 0))
+    fail_target(env, error, attempt=min(3, ai.get("attempt_base", base_attempt(target(job, env))) + ai.get("ai_calls", 0)))
 
 
 def first_error(log: str) -> str:
@@ -537,7 +569,7 @@ def terraform_version(src: pathlib.Path) -> str:
 def applied(env: str, url: str) -> None:
     job = load_job()
     t = target(job, env)
-    send("state", t["deployment_target_id"], {"status": "succeeded", "attempt": 0, "result": {
+    send("state", t["deployment_target_id"], {"status": "succeeded", "attempt": base_attempt(t), "result": {
         "plan_id": t["plan_id"],
         "plan_digest": t["digest"],
         "input_hash": t["input_hash"],
@@ -568,7 +600,7 @@ def fail_open(error: str | None, status: str = "failed") -> None:
             continue
         try:
             if status == "cancelled":
-                send("state", dt, {"status": "cancelled", "attempt": 0, "error_summary": clean(msg, 4000)})
+                send("state", dt, {"status": "cancelled", "attempt": base_attempt(t), "error_summary": clean(msg, 4000)})
                 mark_done(dt)
             else:
                 fail_target(env, msg)
@@ -585,7 +617,7 @@ def main() -> int:
     s = sub.add_parser("bind-app"); s.add_argument("deploy_yaml")
     s = sub.add_parser("state-identity"); s.add_argument("env", choices=ENVS); s.add_argument("app")
     s = sub.add_parser("state"); s.add_argument("env"); s.add_argument("status")
-    s.add_argument("--attempt", type=int, default=0); s.add_argument("--error")
+    s.add_argument("--attempt", type=int); s.add_argument("--error")
     s = sub.add_parser("stage"); s.add_argument("env"); s.add_argument("step")
     s.add_argument("phase", choices=["started", "completed", "failed"])
     s.add_argument("--occurrence"); s.add_argument("--message")
