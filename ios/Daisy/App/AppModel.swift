@@ -14,10 +14,6 @@ final class AppModel {
     private(set) var username: String?
     /// 토큰이 만료돼 로그아웃된 경우. 로그인 화면에 오류 대신 안내를 보여줘요 (웹 W-00 NOTE).
     private(set) var sessionExpired = false
-    /// MOCK: 예시 데이터로 둘러보는 중 (서버 없이, 모든 화면에 "예시 데이터" 배지)
-    private(set) var isSampleMode: Bool {
-        didSet { defaults.set(isSampleMode, forKey: Keys.sampleMode) }
-    }
 
     private let tokenStore: TokenStore
     private let defaults: UserDefaults
@@ -31,8 +27,7 @@ final class AppModel {
         selectedProjectID = defaults.string(forKey: Keys.projectID)
         role = defaults.string(forKey: Keys.role)
         username = defaults.string(forKey: Keys.username)
-        isSampleMode = defaults.bool(forKey: Keys.sampleMode)
-        token = isSampleMode ? SampleData.token : tokenStore.load()
+        token = tokenStore.load()
     }
 
     /// 개발 빌드에서만 실행 환경변수 `UNIBLOOM_SERVER_URL`로 다른 서버를 시험할 수 있어요 (화면에는 칸이 없어요)
@@ -47,27 +42,21 @@ final class AppModel {
 
     var isSignedIn: Bool { token != nil }
 
-    /// 사이드바 · 설정에 보일 이름. 예시 데이터 모드는 고른 언어로 "예시 데이터"예요
-    var displayName: String? { isSampleMode ? String.app("예시 데이터") : username }
+    /// 사이드바 · 설정에 보일 이름
+    var displayName: String? {
+        if isSampleMode { return SampleMode.displayName }  // SAMPLE-MODE
+        return username
+    }
     var isViewer: Bool { role == "viewer" }
 
     /// 서버 주소와 토큰이 모두 있을 때만 만들어져요.
     var client: APIClient? {
-        if isSampleMode {
-            return APIClient(baseURL: SampleData.baseURL, token: SampleData.token, session: SampleData.session)
-        }
+        if let sample = SampleMode.client(token: token) { return sample }  // SAMPLE-MODE
         guard let serverURL, let token else { return nil }
         return APIClient(baseURL: serverURL, token: token)
     }
 
-    /// W-00 "예시 데이터로 둘러보기 (오프라인)": 서버 없이 번들 예시 데이터로 들어가요. 읽기 전용이에요.
-    func signInWithSampleData() {
-        isSampleMode = true
-        token = SampleData.token
-        role = "viewer"
-        username = "예시 데이터"
-        sessionExpired = false
-    }
+    func enterSampleMode(role: String) { (token, self.role, sessionExpired) = (SampleMode.token(role: role), role, false) }  // SAMPLE-MODE
 
     func signIn(username: String, password: String) async throws {
         guard let serverURL else { throw APIError.notConfigured }
@@ -87,10 +76,6 @@ final class AppModel {
     }
 
     func signOut() {
-        if isSampleMode {
-            isSampleMode = false
-            username = defaults.string(forKey: Keys.username)
-        }
         tokenStore.delete()
         token = nil
         role = nil
@@ -109,6 +94,5 @@ final class AppModel {
         static let projectID = "selectedProjectID"
         static let role = "role"
         static let username = "username"
-        static let sampleMode = "sampleMode"
     }
 }

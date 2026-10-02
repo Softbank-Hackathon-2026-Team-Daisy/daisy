@@ -52,7 +52,7 @@ struct PageHeader<Trailing: View>: View {
             HStack(spacing: 8) {
                 Text(title)
                     .font(.title2.weight(.semibold))
-                SampleBadge()
+                SampleBadge()  // SAMPLE-MODE
             }
             if let subtitle {
                 Text(subtitle).font(.callout).foregroundStyle(.secondary)

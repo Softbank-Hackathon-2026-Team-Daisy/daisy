@@ -37,13 +37,15 @@ These belong to server, so they are tier 3 in root §6: the server owner decides
 5. When the server publishes or changes the real contract, run the root §8 contradiction check against `SPEC.md`. Adapt the app to the server's decision, and remove `(가칭)` from entries that now match.
 6. At the end of the task, list every `SPEC.md` entry you added or changed (ID, what, why) in your report, and draft the server issue for each new one (root §9).
 
-## 4. Real server first, one labeled sample mode
+## 4. Real server first
 
-The app talks to a real server by default. The **only** exception is the owner-approved (9/30) offline **sample mode** ("예시 데이터로 둘러보기 (오프라인)") for judges and Apple review.
+The app talks to a real server by default. No fake client and no hard-coded data in app code.
 
-- Sample mode reads `Daisy/Resources/SampleData/sample.json` through `SampleData` / `SampleDataProtocol` (`Core/API/SampleData.swift`). No other fake client, no hard-coded data anywhere else.
-- Every screen shows `SampleBadge` ("예시 데이터") while it is on (root `AGENTS.md` §4-6). Never hide or remove the badge. Never mix sample and real server data. All writes return 403 `SAMPLE_READ_ONLY`.
-- Regenerate the bundle with `python3 ios/scripts/sample-data/generate.py`: real commits and `deploy.yaml` from `sample-monolith` / `sample-msa`, example deployment states and costs, example domains (`*.example.com`). It must stay the same shape as the server API (`SampleDataTests` checks every path decodes).
+- The **only** exception is the owner-approved offline **sample mode** ("예시 데이터로 둘러보기 (오프라인)"), kept for UI · UX checks. <!-- SAMPLE-MODE -->
+- Everything for it lives in `Daisy/SampleMode/` (code, `Fixtures/SampleMode-*.json`, its own string table `SampleMode.xcstrings`) and `DaisyTests/SampleMode/`. The app touches it only on lines tagged `// SAMPLE-MODE`. Removing it = delete both folders + every `SAMPLE-MODE` line (see the header of `SampleMode.swift`). Keep it that way: never reference sample mode from anywhere else. <!-- SAMPLE-MODE -->
+- The only entry point is the login screen. Sample mode never reaches any server: its `URLSession` answers every request from the fixtures (`SampleModeProtocol`), and its token is never stored. <!-- SAMPLE-MODE -->
+- Fixtures are hand-written, in the exact shape of the current server contract, and cover every case that can really happen (every state · step · null field · empty list · error). `SampleModeTests` decodes every route and checks enum coverage. No generator script, no real data. <!-- SAMPLE-MODE -->
+- Every screen shows `SampleBadge` ("예시 데이터") while it is on (root `AGENTS.md` §4-6). Never hide it. <!-- SAMPLE-MODE -->
 - If the server API a screen needs does not exist yet, build the layout only and report which `SPEC.md` ID it is waiting for.
 - Other sample values stay inside `#Preview` blocks and `DaisyTests`. No real tokens, passwords, or URLs with credentials in any sample.
 
@@ -60,11 +62,12 @@ ios/
 ├─ Daisy/
 │  ├─ App/            entry point, root layout (sidebar at width ≥ 700, slim icon tab bar below), Sidebar, menu and routes (Workspace)
 │  ├─ Features/       one folder per menu: Login, Overview, Deployments (run flow W-03 – W-08), Connect (W-02), Approvals (W-06), History, Environments, Scripts, AIUsage, Settings
-│  ├─ Core/           API (incl. SampleData), Models, Auth, Localization   (Realtime/SSE and Push are not built yet: 5 s polling until D3)
+│  ├─ Core/           API, Models, Auth, Localization   (Realtime/SSE and Push are not built yet: 5 s polling until D3)
 │  ├─ DesignSystem/   materials, glass buttons and segmented control, PageHeader/PageScaffold, FlowPage helpers, cards, badges, time text
-│  └─ Resources/      assets, SampleData/sample.json, Localizable.xcstrings (Korean source + en, ja)
-├─ DaisyTests/        model decoding, contracts, wording, run-flow rules, sample data
-└─ scripts/           testflight.sh, mac-dmg.sh, sample-data/generate.py
+│  ├─ Resources/      assets, Localizable.xcstrings (Korean source + en, ja)
+│  └─ SampleMode/     offline sample mode for UI checks, self-contained (§4)  ← SAMPLE-MODE
+├─ DaisyTests/        model decoding, contracts, wording, run-flow rules
+└─ scripts/           testflight.sh, mac-dmg.sh
 ```
 
 ## 6. Conventions
@@ -140,7 +143,7 @@ Tier per root §6. Tier 1 entries are final for this area.
 | 9/29 | ~~Minimum iOS 17 · macOS 14~~ (replaced 9/30, see below) | Needed for `@Observable` | 1 |
 | 9/29 | No third-party packages to start | Same "minimal stack, add only when blocked" principle as ADR-006 | 1 |
 | 9/29 | ~~No mock mode; the app always uses the real server~~ (replaced 9/30) | Owner decision. Consequence: app progress depends on server API dates (`SPEC.md` R-08) | 1 |
-| 9/30 | Offline **sample mode** bundled in the app (login → "예시 데이터로 둘러보기 (오프라인)"), built from real `sample-monolith` / `sample-msa` commits by `scripts/sample-data/generate.py`; badge on every screen, read-only, never mixed with real data; dates shift to the launch time | Owner decision: judges and Apple review can see every screen even without the server; real server stays the default | 1 |
+| 9/30 | ~~Offline **sample mode** built from real `sample-monolith` / `sample-msa` commits by `scripts/sample-data/generate.py`~~ (replaced 10/2, see below) | Owner decision: judges and Apple review can see every screen even without the server; real server stays the default | 1 | <!-- SAMPLE-MODE -->
 | 9/29 | SSE parsed with `URLSession.bytes`, 5-second polling fallback | Uses the same SSE endpoints as web, so server builds nothing app-specific | 1 |
 | 9/29 | Tokens stored in the Keychain | Tokens must not sit in UserDefaults | 1 |
 | 9/30 | Xcode project written by hand with synchronized folders (`PBXFileSystemSynchronizedRootGroup`); no XcodeGen or Tuist | New files under `Daisy/` and `DaisyTests/` are picked up automatically, so agents never edit `project.pbxproj` to add a file | 1 |
@@ -155,7 +158,7 @@ Tier per root §6. Tier 1 entries are final for this area.
 | 9/30 | App icon: the owner's daisy logo. iOS gets a full-bleed opaque 1024 square; macOS gets the logo inside Apple's rounded-rect grid (824 of 1024, radius 185.4, soft shadow) at 16–1024. The sidebar header uses the same logo (`AppLogo`) | Owner's asset. The source is 200×200, so replace it with a 1024+ original before release | 1 |
 | 9/30 | From Figma, take wording only; keep this app's colors and shapes; icons are the nearest SF Symbols | Owner decision. 도영's memo asked for web shapes (radius ≤ 4, no pills) and the owner chose the app's own look | 1 |
 | 9/30 | Menu and wording follow the web: 개요 · 배포 · 환경 · 이력 · 스크립트 · AI 사용량 · 설정 (approval lives inside 배포); status labels from web `api/status.ts` (대기 중 · 진행 중 · 승인 대기 · 성공 · 일부 성공 · 실패 · 취소됨 · 롤백됨); `리소스 +6 ~0 −0`; W-00 login and error messages (updated 10/1) | Same product on two clients | 1 |
-| 9/30 | Tests use Swift Testing; test-only JSON lives in `DaisyTests`, and the only app-side sample data is the labeled bundle `Resources/SampleData/sample.json` (§4, updated 10/1) | No hidden mock data in the app | 1 |
+| 9/30 | Tests use Swift Testing; test-only JSON lives in `DaisyTests` (§4) | No hidden mock data in the app | 1 |
 | 9/29 | ~~The app does not start deployments or change infrastructure~~ (replaced 9/30) | Kept the app inside ADR-007 | 1 |
 | 9/30 | The app carries every wireframe screen, text, and button (W-00 – W-13, L-01 – L-03) with the web sidebar's menu; new server requests are `SPEC.md` §6-8 `(가칭)` | Owner decision: feature UX identical to the web. **Confirmed 10/1** by the team lead (ADR-007 widened, #33) | 4 (confirmed) |
 | 9/30 | For shared screens the app uses the web's `WR-xx` requests exactly as the server answered them (PR #9), plus the server's two-layer states. It asks the server only for what the web does not need (`SPEC.md` §6-8 R-09, A-10 – A-12). Retry = new deployment with the same commit; rollback = new deployment that needs approval | One contract for web and app; less server work | 1 (own code) · 3 (`(가칭)` requests via issue) |
@@ -187,3 +190,4 @@ Tier per root §6. Tier 1 entries are final for this area.
 | 10/2 | No server address field: the app always talks to `https://api.unibloom.cloud`; previously saved addresses are ignored; debug builds may override with the launch environment variable `UNIBLOOM_SERVER_URL`. An HTML response surfaces as "서버 응답이 올바르지 않아요" instead of a JSON error | Owner decision: Unibloom is our hosted service, users never pick a server; a stale saved web address broke sign-in on 10/2 | 1 |
 | 10/1 | Unit tests launch the app host with a separate keychain service and UserDefaults suite (`XCTestConfigurationFilePath`) | An ad-hoc-signed test host reading the user's keychain item shows an allow prompt and hangs the test runner | 1 |
 | 10/2 | In-app language setting (Settings › 언어): device default, 한국어, English, 日本語, applied at once without relaunch on iOS and macOS. One String Catalog with Korean as the source and full en/ja; root `\.locale` for SwiftUI text, `String.app("…")` (resolves through `LocalizedStringResource.locale`) for `String` values; the choice is sent as `Accept-Language` (`SPEC.md` R-10, `(가칭)`). Server-provided text stays untranslated. The test host defaults to Korean | Owner request; does not need to match the web. `String(localized:)` and `Text(String)` only follow the device language, so a setting that applies immediately needs both paths | 1 (own code) · 3 (server use of `Accept-Language`) |
+| 10/2 | Sample mode rebuilt for UI · UX checks only: entry only on the login screen (team account or read-only account), hand-written fixtures covering every case the current server contract allows (every state, step, null, empty list, error), writes answered with realistic responses from the fixtures, never any network. Everything lives in `Daisy/SampleMode/` + `DaisyTests/SampleMode/` with its own string table; the app touches it only on `// SAMPLE-MODE` lines, so it can be removed by deleting two folders and those lines | Owner decision 10/2 23:40: the mode exists to check every UI state, must never touch the backend, and must be removable with a small change as if it never existed | 1 | <!-- SAMPLE-MODE -->

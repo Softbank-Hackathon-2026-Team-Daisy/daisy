@@ -1,0 +1,118 @@
+{
+  "sourceLanguage" : "ko",
+  "strings" : {
+    "서버에 연결하지 않고 앱에 들어 있는 예시 데이터를 보여주고 있어요." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Showing sample data bundled in the app, without connecting to the server."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "サーバーに接続せず、アプリに含まれるサンプルデータを表示しています。"
+          }
+        }
+      }
+    },
+    "승인 가능한 팀 계정으로" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "As a team account that can approve"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "承認できるチームアカウントで"
+          }
+        }
+      }
+    },
+    "어떤 계정 화면으로 볼까요?" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Which account view?"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "どのアカウントの画面で見ますか？"
+          }
+        }
+      }
+    },
+    "예시 데이터" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Sample data"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "サンプルデータ"
+          }
+        }
+      }
+    },
+    "예시 데이터로 둘러보기 (오프라인)" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Explore with sample data (offline)"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "サンプルデータで見てみる（オフライン）"
+          }
+        }
+      }
+    },
+    "예시 데이터로 보는 중이에요" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Viewing sample data"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "サンプルデータを表示しています"
+          }
+        }
+      }
+    },
+    "읽기 전용 계정으로" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "As a read-only account"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "読み取り専用アカウントで"
+          }
+        }
+      }
+    }
+  },
+  "version" : "1.0"
+}

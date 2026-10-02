@@ -133,17 +133,6 @@ struct LocalizationTests {
         }
     }
 
-    /// 예시 데이터 모드의 이름("예시 데이터")도 고른 언어로 보여요
-    @MainActor @Test func sampleDataNameFollowsLanguage() {
-        let (defaults, suite) = freshDefaults()
-        defer { defaults.removePersistentDomain(forName: suite) }
-        let app = AppModel(tokenStore: TokenStore(service: "com.teamdaisy.daisy.localization-tests"), defaults: defaults)
-        app.signInWithSampleData()
-        #expect(app.displayName == "예시 데이터")
-        AppLanguage.$override.withValue(.english) { #expect(app.displayName == "Sample data") }
-        AppLanguage.$override.withValue(.japanese) { #expect(app.displayName == "サンプルデータ") }
-    }
-
     // MARK: 서버 요청
 
     /// 고른 언어를 `Accept-Language`로 보내서 서버가 나중에 메시지를 그 언어로 줄 수 있어요

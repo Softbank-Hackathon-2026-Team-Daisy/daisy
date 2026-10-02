@@ -110,7 +110,7 @@ M = 예선 데모 필수, S = 선택
 | 푸시 | APNs (토큰 기반 `.p8` 키) | 백엔드가 발송 (§6-5) |
 | 배포 | Xcode 아카이브 → App Store Connect → **TestFlight 외부 테스트 공개 링크** | |
 | 화면 언어 | **한국어(원문) · English · 日本語**, 기본값 "기기 설정 따르기" (10/2) | 설정 › 언어에서 바꾸면 다시 켜지 않아도 바로 바뀌어요. 번역은 String Catalog 하나(`Resources/Localizable.xcstrings`), 서버가 보낸 글자는 번역하지 않아요 (§3-3) |
-| 목업 | **실서버가 기본.** 예외로 **예시 데이터 모드** 하나만 둬요 (9/30) | 로그인 화면 "예시 데이터로 둘러보기 (오프라인)" → 앱에 들어 있는 `SampleData/sample.json`(실제 sample-monolith · sample-msa 커밋 기반)으로 모든 화면을 봐요. 화면마다 "예시 데이터" 배지, 읽기 전용, 실데이터와 섞지 않아요. 만들기: `scripts/sample-data/generate.py` |
+| 목업 | **실서버가 기본.** 예외로 **예시 데이터 모드** 하나만 둬요 (9/30, 10/2 UI · UX 확인용으로 다시 만듦) | 로그인 화면에서만 들어가요. 서버 계약과 같은 모양으로 손으로 쓴 "실제 생길 수 있는 모든 경우" 데이터(`SampleMode/Fixtures`)로 모든 화면을 봐요. 실서버에는 절대 연결하지 않고, 화면마다 "예시 데이터" 배지. 전부 `SampleMode/` 폴더 + `// SAMPLE-MODE` 줄이라 지우기 쉬워요 | <!-- SAMPLE-MODE -->
 
 ### 3-1. 폴더 구조
 
@@ -122,7 +122,7 @@ ios/
 ├─ Daisy/
 │  ├─ App/                  진입점, 루트 화면 (폭 700 이상 사이드바 · 미만 아이콘 탭 바), 사이드바, 메뉴 · 경로(Workspace)
 │  ├─ Features/             화면 단위 폴더. 각 폴더에 View + Store
-│  │  ├─ Login/             W-00 로그인 · 데모 · 예시 데이터
+│  │  ├─ Login/             W-00 로그인
 │  │  ├─ Overview/          W-01 개요
 │  │  ├─ Connect/           W-02 애플리케이션 연결 (L-01)
 │  │  ├─ Deployments/       W-03 ~ W-08 배포 흐름 (RunView가 단계를 골라요), L-02 · L-03
@@ -133,15 +133,16 @@ ios/
 │  │  ├─ AIUsage/           W-12 AI 사용량
 │  │  └─ Settings/          W-13 설정 + 앱 설정
 │  ├─ Core/
-│  │  ├─ API/               APIClient, 엔드포인트(Endpoint · WebEndpoints), APIError, 예시 데이터(SampleData)
+│  │  ├─ API/               APIClient, 엔드포인트(Endpoint · WebEndpoints), APIError, 멱등 키
 │  │  ├─ Models/            서버 응답 Codable 모델 (§6-7 · §6-8과 1:1)
 │  │  ├─ Auth/              토큰 저장 (Keychain)
 │  │  └─ Localization/      화면 언어 설정(LanguageStore) · `String.app("…")` (§3-3)
 │  │                        (Realtime/ SSE · Push/ APNs는 아직 없어요. 지금은 5초 폴링, D3에 추가)
 │  ├─ DesignSystem/         재질, 글래스 버튼 · 세그먼트, 머리줄(PageScaffold · FlowPage), 카드, 상태 배지, 환경 아이콘, 시간 표기
-│  └─ Resources/            에셋, SampleData/sample.json, Localizable.xcstrings (한국어 원문 + en · ja)
-├─ DaisyTests/              모델 디코딩 · 계약 · 문구 · 흐름 규칙 · 예시 데이터 테스트 (Swift Testing)
-└─ scripts/                 testflight.sh · mac-dmg.sh · sample-data/generate.py
+│  ├─ Resources/            에셋, Localizable.xcstrings (한국어 원문 + en · ja)
+│  └─ SampleMode/           예시 데이터 모드 (UI · UX 확인용, 이 폴더만으로 완결)  ← SAMPLE-MODE
+├─ DaisyTests/              모델 디코딩 · 계약 · 문구 · 흐름 규칙 테스트 (Swift Testing)
+└─ scripts/                 testflight.sh · mac-dmg.sh
 ```
 
 ### 3-2. 데이터 흐름
@@ -178,7 +179,7 @@ View ──▶ Store(@Observable) ──▶ APIClient ────────�
 | 환경 (WR-04 · A-10) | 재사용 이유 `reuse.reason`, 구성 줄 `title` · `runtime` · `location` · `location_label` · `access_method` · `exposure` · `state_backend`, 연결 테스트 `message` |
 | 스크립트 · AI (WR-10 · WR-11) | `note`, `input`, `storage`, AI 호출 `note` · `title` |
 | 로그 (A-07) | 로그 줄 `text` |
-| 그 밖 | 프로젝트 · 배포 이름, 사용자 이름, 버전, deploy.yaml 원문, 예시 데이터(`sample.json`)의 커밋 메시지 등 |
+| 그 밖 | 프로젝트 · 배포 이름, 사용자 이름, 버전, deploy.yaml 원문 등 |
 
 롤백 요청의 `reason`("v6로 롤백")은 화면 글자가 아니라 서버에 남는 팀 기록이라 한국어로 보내요.
 
@@ -211,12 +212,12 @@ View ──▶ Store(@Observable) ──▶ APIClient ────────�
 
 - **TestFlight 외부 테스트는 첫 빌드에 Beta App Review가 필요해요.** 보통 하루 안팎이지만 보장되지 않아서 **10/1에 제출**하는 게 목표예요. 이후 빌드는 심사가 짧거나 생략되는 경우가 많지만 이것도 보장되지 않아요
 - **업로드 준비 (9/30 완료):** App Store Connect 앱 **"Daisy Deploy"** 등록 (번들 ID `com.teamdaisy.daisy`, "Daisy"는 다른 계정이 써서 등록 이름만 달라요. 홈 화면 이름은 Daisy), 서명 팀 `X5F5WM2H6M`, 개인정보 매니페스트, **첫 빌드 0.1.0 (1) 업로드 완료**. 다음 빌드부터는 `ios/scripts/testflight.sh` 한 번이면 돼요
-- **Mac 직접 다운로드 (9/30):** Developer ID 서명 · Apple 공증 · 스테이플한 DMG를 GitHub Releases에 올려요 (웹 W-14 "Mac 앱 받기"). 고정 주소는 **https://github.com/Softbank-Hackathon-2026-Team-Daisy/unibloom/releases/download/mac-latest/Unibloom.dmg** 예요 (10/1 이름 변경, 새 빌드 때 파일만 바꿔요). 웹 W-14도 이 주소를 써요 (#37). 옛 이름 `Daisy.dmg`는 10/2부터 더 올리지 않아요 (도영 님 #39 리뷰). 지금 0.1.0 (2610020304, 예시 데이터 포함, `mac-v0.1.0-2610020304`), macOS 15 이상. 앱이 바뀔 때마다 새 릴리스 + 고정 주소 파일을 바꿔요 (10/1). 만들기는 `scripts/mac-dmg.sh`
+- **Mac 직접 다운로드 (9/30):** Developer ID 서명 · Apple 공증 · 스테이플한 DMG를 GitHub Releases에 올려요 (웹 W-14 "Mac 앱 받기"). 고정 주소는 **https://github.com/Softbank-Hackathon-2026-Team-Daisy/unibloom/releases/download/mac-latest/Unibloom.dmg** 예요 (10/1 이름 변경, 새 빌드 때 파일만 바꿔요). 웹 W-14도 이 주소를 써요 (#37). 옛 이름 `Daisy.dmg`는 10/2부터 더 올리지 않아요 (도영 님 #39 리뷰). 지금 0.1.0 (2610022325, `mac-v0.1.0-2610022325`), macOS 15 이상. 앱이 바뀔 때마다 새 릴리스 + 고정 주소 파일을 바꿔요 (10/1). 만들기는 `scripts/mac-dmg.sh`
 - **TestFlight 그룹 (9/30):** 내부 `Team Daisy`(자동 배포, 심사 없음) · 외부 `Public Link` → **https://testflight.apple.com/join/wF5sjQPG** (Beta App Review 통과 뒤 열려요). macOS 플랫폼 추가, macOS 빌드 0.1.0 (2609301801) 업로드 · 처리 완료
 - **남은 것:** 외부 테스트 공개 링크는 Beta App Review용 서버 HTTPS 주소 · 데모 계정(R-03)이 필요해요. 앱 아이콘 원본이 200×200이라 1024에서 조금 흐려서 **1024 이상 원본(또는 SVG)으로 바꿔야 해요**
 - 앱은 로그인이 필요해서 심사 때 **Apple 심사자용 계정**을 적어 내야 해요. 그래서 데모 계정(§6-1 `R-03`)과 HTTPS 서버(`R-04`)가 **D2까지 꼭 필요해요.** 데모 계정은 D2 약속을 받았고, HTTPS는 9/29 회의에서 도메인을 사서 적용하기로 했어요 (서버 담당, 9/30 오후 전)
 - 승인 · 커밋 이력은 서버 API가 D3에 나와서, 첫 심사 빌드에는 레이아웃만 들어가요. 심사를 통과한 뒤 올리는 빌드는 다시 심사받지 않는 경우가 많지만 보장되지 않아서, D3 빌드를 오전에 올려요
-- 실서버 연결은 **백엔드 API 일정에 직접 묶여요.** 그동안은 예시 데이터 모드(9/30)로 모든 화면을 확인 · 시연해요
+- 실서버 연결은 **백엔드 API 일정에 직접 묶여요.**
 
 ---
 
@@ -486,9 +487,9 @@ API 모양보다 **이 정보가 어딘가에 저장되어 있는지**가 더 �
 | ~~S-4~~ | 서버 | ~~승인 `confirm_text` 검증 값 · 승인 ID 필드~~ → ✅ 프로젝트 이름, 승인 대기 환경 전부 `items`, 승인 ID는 A-04 `pending_approvals` (10/1 22:39 · 10/2 00:40, #40 · #42) | — | — |
 | S-5 | 서버 (하은현) | `POST /projects` 응답: `Project`만 / `{ project, manifest }` (웹 목업) | `Project` → `GET manifest` 따로 | 둘 다 받게 한 줄 수정 |
 | S-6 | 서버 (하은현) | 로그 줄 필드(`ts · text` / `seq · at · message`), `Manifest.errors` 모양 | 둘 다 받아요 | 영향 없음 |
-| ~~S-7~~ | 서버 | ~~로그인 없이 읽기 전용 둘러보기 방식~~ → ✅ 별도 `/auth/demo` 없음, viewer 계정으로 `POST /auth/token` 로그인 (10/1 #13 김승환 답). 앱은 버튼을 없앴고, 오프라인 "예시 데이터로 둘러보기"는 그대로예요. 심사위원 계정 전달 방법은 팀 결정 대기 | — | — |
+| ~~S-7~~ | 서버 | ~~로그인 없이 읽기 전용 둘러보기 방식~~ → ✅ 별도 `/auth/demo` 없음, viewer 계정으로 `POST /auth/token` 로그인 (10/1 #13 김승환 답). 앱은 버튼을 없앴어요. 심사위원 계정 전달 방법은 팀 결정 대기 | — | — |
 | S-8 | 서버 (하은현) | 앱 추가 요청 A-10 연결 테스트 · A-11 리소스 보기 · A-12 프로젝트 상세를 받을지 | 경로 (가칭) | 버튼은 켜 두고(웹도 같은 버튼이 있어요), 서버가 없다고 하면 "연결 테스트를 하지 못했어요" 같은 안내 |
-| S-9 | 서버 (하은현) | 개발 서버 주소 · 열리는 시각 (R-08) | — | 예시 데이터 모드로만 확인 |
+| S-9 | 서버 (하은현) | 개발 서버 주소 · 열리는 시각 (R-08) | — | ✅ `https://api.unibloom.cloud` (10/2) |
 | I-1 | 인프라 (황지환) | **API 서버의 HTTPS 주소** (`daisydeploy.dev` 하위 이름 · 공인 인증서). iOS는 HTTPS가 아니면 연결을 막아요(ATS) | — | TestFlight 외부 링크 심사 제출 불가 |
 | I-2 | 인프라 (황지환 · 임채준) | Terraform state 저장소 (W-10 "state" 줄) | ✅ 일부 답 (10/1 임채준, #17): 환경이 제공하는 저장소 + 잠금 — AWS "S3 (잠금)", GCP "GCS (잠금)". **온프레미스는 황지환 님과 정하는 중**, key는 `{project_id}/{target_id}` 방향(은현 님과 확정) | 서버가 준 이름, 없으면 `[미정]` |
 | I-3 | 인프라 · CI (임채준) | 이미지 레지스트리 (W-13 "레지스트리" 줄) | 임채준 답(10/1, #17): **Docker Hub**, 이미지 `docker.io/<계정>/<앱>:<커밋 해시>`, 계정 이름은 확정 뒤 알려 주기로. 보드에는 아직 팀 결정으로 안 올라가서 앱은 `[미정]` 표시를 유지해요 | `[미정]` 그대로 |
@@ -543,6 +544,7 @@ API 모양보다 **이 정보가 어딘가에 저장되어 있는지**가 더 �
 
 | 날짜 | 변경 | 작성 |
 |---|---|---|
+| 10/2 | **예시 데이터 모드 다시 만듦** (UI · UX 확인용): 로그인 화면에서만 들어가고(팀 계정 · 읽기 전용 계정), 서버 계약(10/2 OpenAPI)과 같은 모양으로 손으로 쓴 모든 경우(배포 상태 7 · 환경 상태 9 · 단계 · 승인 상태 5 · null · 빈 목록 · 오류 응답)를 담아요. 서버에 없는 요청은 실서버처럼 404, viewer 쓰기는 403. 네트워크는 쓰지 않아요. 전부 `SampleMode/` + `// SAMPLE-MODE` 줄이라 지우기 쉬워요. 생성 스크립트 · `sample.json` 삭제. 프로젝트 상세가 `default_branch`를 읽도록 고침 | 박승준 | <!-- SAMPLE-MODE -->
 | 10/2 | 서버 응답 언어는 #74 안 A로 결정(하은현 제안): 서버는 한국어 그대로, 앱이 `error.code`(서버 `ErrorCode` 9개)를 고른 언어로 번역하고 모르는 코드만 서버 문장을 보여줘요. plan 위험 설명 · 대상 오류 요약은 Jenkins · AI 결과라 받은 그대로예요 | 박승준 |
 | 10/2 | 서버 주소 입력칸을 없앰: 앱은 늘 `https://api.unibloom.cloud`로 가요(우리가 운영하는 서비스라 사용자가 주소를 넣지 않아요). 예전에 저장된 주소(웹 주소 등)는 무시하고, 개발 빌드만 실행 환경변수 `UNIBLOOM_SERVER_URL`로 바꿀 수 있어요. 웹 페이지(HTML)가 오면 "서버 응답이 올바르지 않아요"로 보여줘요 | 박승준 |
 | 10/2 | **앱 언어 설정** (§3-3): 설정 › 언어 "기기 설정 따르기 · 한국어 · English · 日本語", 기본값 기기 언어, 고르면 다시 켜지 않아도 바로 바뀜(iOS · macOS). String Catalog `Localizable.xcstrings`(한국어 원문 + 영어 · 일본어 전부), `String.app` · 루트 `\.locale`, 숫자 · 상대 시각도 고른 언어. 서버 글자는 번역하지 않음(§3-3 표). 요청에 `Accept-Language` (R-10 가칭). 테스트 63 → 72개 (매개변수 경우 포함 75 → 84건) | 박승준 |

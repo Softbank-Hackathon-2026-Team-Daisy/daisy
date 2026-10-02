@@ -1,0 +1,103 @@
+{
+  "anchor": "2026-10-02T14:00:00Z",
+  "note": "MOCK: 예시 데이터 모드 — 프로젝트 목록 · 상세 · 연결, 빈 프로젝트(hello-new), 서버 오류 응답(error-cases). 모양은 서버 OpenAPI(10/2)와 같아요.",
+  "routes": {
+    "GET projects": {
+      "body": {
+        "items": [
+          { "id": "prj_monolith", "name": "sample-monolith", "repository": "Softbank-Hackathon-2026-Team-Daisy/sample-monolith", "default_branch": "main", "created_at": "2026-09-30T02:10:00.123456Z", "repository_url": null, "manifest_path": null, "last_seq": null },
+          { "id": "prj_msa", "name": "sample-msa", "repository": "Softbank-Hackathon-2026-Team-Daisy/sample-msa", "default_branch": "main", "created_at": "2026-09-30T03:40:00Z", "repository_url": null, "manifest_path": null, "last_seq": null },
+          { "id": "prj_fresh", "name": "hello-new", "repository": "example-org/hello-new", "default_branch": "develop", "created_at": "2026-10-02T13:55:00Z", "repository_url": null, "manifest_path": null, "last_seq": null },
+          { "id": "prj_errors", "name": "error-cases", "repository": "example-org/error-cases", "default_branch": "main", "created_at": "2026-10-01T08:00:00Z", "repository_url": null, "manifest_path": null, "last_seq": null }
+        ],
+        "next_cursor": null
+      }
+    },
+
+    "GET projects/prj_monolith": {
+      "body": { "id": "prj_monolith", "name": "sample-monolith", "repository": "Softbank-Hackathon-2026-Team-Daisy/sample-monolith", "default_branch": "main", "created_at": "2026-09-30T02:10:00.123456Z", "repository_url": "https://github.com/Softbank-Hackathon-2026-Team-Daisy/sample-monolith", "manifest_path": "deploy.yaml", "last_seq": 412 }
+    },
+    "GET projects/prj_msa": {
+      "body": { "id": "prj_msa", "name": "sample-msa", "repository": "Softbank-Hackathon-2026-Team-Daisy/sample-msa", "default_branch": "main", "created_at": "2026-09-30T03:40:00Z", "repository_url": "https://github.com/Softbank-Hackathon-2026-Team-Daisy/sample-msa", "manifest_path": "deploy.yaml", "last_seq": 57 }
+    },
+    "GET projects/prj_fresh": {
+      "body": { "id": "prj_fresh", "name": "hello-new", "repository": "example-org/hello-new", "default_branch": "develop", "created_at": "2026-10-02T13:55:00Z", "repository_url": "https://github.com/example-org/hello-new", "manifest_path": "deploy.yaml", "last_seq": 0 }
+    },
+    "GET projects/prj_errors": {
+      "body": { "id": "prj_errors", "name": "error-cases", "repository": "example-org/error-cases", "default_branch": "main", "created_at": "2026-10-01T08:00:00Z", "repository_url": "https://github.com/example-org/error-cases", "manifest_path": "deploy.yaml", "last_seq": 3 }
+    },
+
+    "POST projects": {
+      "status": 201,
+      "body": {
+        "project": { "id": "prj_fresh", "name": "hello-new", "repository": "example-org/hello-new", "default_branch": "develop", "created_at": "2026-10-02T13:55:00Z", "repository_url": "https://github.com/example-org/hello-new", "manifest_path": "deploy.yaml", "last_seq": 0 },
+        "manifest": null
+      }
+    },
+    "DELETE projects/prj_monolith": {
+      "status": 409,
+      "body": { "error": { "code": "STATE_CONFLICT", "message": "현재 상태에서 처리할 수 없는 요청이에요.", "details": {}, "retryable": false } }
+    },
+    "DELETE projects/prj_msa": {
+      "status": 409,
+      "body": { "error": { "code": "STATE_CONFLICT", "message": "현재 상태에서 처리할 수 없는 요청이에요.", "details": {}, "retryable": false } }
+    },
+    "DELETE projects/prj_fresh": { "status": 204 },
+    "DELETE projects/prj_errors": {
+      "status": 500,
+      "body": { "error": { "code": "INTERNAL", "message": "서버에서 오류가 발생했어요.", "details": {}, "retryable": false } }
+    },
+
+    "GET projects/prj_fresh/targets": {
+      "body": {
+        "items": [
+          { "target_id": "tgt_new_aws", "type": "aws", "name": "aws-dev", "reuse": null, "connection": { "state": "unknown", "checked_at": null }, "runtime": null, "location": null, "location_label": null, "access_method": null, "exposure": null, "state_backend": null },
+          { "target_id": "tgt_new_onprem", "type": "onprem", "name": "onprem-dev", "reuse": null, "connection": { "state": "unknown", "checked_at": null }, "runtime": null, "location": null, "location_label": null, "access_method": null, "exposure": null, "state_backend": null }
+        ],
+        "next_cursor": null
+      }
+    },
+    "GET projects/prj_fresh/targets/status": {
+      "body": {
+        "items": [
+          { "target_id": "tgt_new_aws", "type": "aws", "name": "aws-dev", "connection_state": "unknown", "checked_at": null, "current": null, "current_status": "none", "url": null, "health": "unknown", "health_summary": null, "image_digest": null },
+          { "target_id": "tgt_new_onprem", "type": "onprem", "name": "onprem-dev", "connection_state": "unknown", "checked_at": null, "current": null, "current_status": "none", "url": null, "health": "unknown", "health_summary": null, "image_digest": null }
+        ],
+        "next_cursor": null
+      }
+    },
+    "GET projects/prj_fresh/deployments": { "body": { "items": [], "next_cursor": null } },
+    "GET projects/prj_fresh/builds": { "body": { "items": [], "next_cursor": null } },
+    "GET projects/prj_fresh/scripts": { "body": { "items": [], "next_cursor": null } },
+    "GET projects/prj_fresh/ai-usage": { "body": { "items": [], "next_cursor": null } },
+    "POST projects/prj_fresh/deployments": {
+      "status": 400,
+      "body": { "error": { "code": "VALIDATION_FAILED", "message": "요청 값을 확인해 주세요.", "details": { "fields": { "source_version_id": "값을 확인해 주세요." } }, "retryable": false } }
+    },
+
+    "GET projects/prj_errors/targets/status": {
+      "status": 500,
+      "body": { "error": { "code": "INTERNAL", "message": "서버에서 오류가 발생했어요.", "details": {}, "retryable": false } }
+    },
+    "GET projects/prj_errors/targets": {
+      "status": 429,
+      "body": { "error": { "code": "RATE_LIMITED", "message": "요청이 너무 많아요. 잠시 후 다시 시도해 주세요.", "details": {}, "retryable": true } }
+    },
+    "GET projects/prj_errors/deployments": {
+      "status": 500,
+      "body": { "error": { "code": "INTERNAL", "message": "서버에서 오류가 발생했어요.", "details": {}, "retryable": false } }
+    },
+    "GET projects/prj_errors/builds": {
+      "status": 400,
+      "body": { "error": { "code": "VALIDATION_FAILED", "message": "요청 값을 확인해 주세요.", "details": { "fields": { "cursor": "값을 확인해 주세요." } }, "retryable": false } }
+    },
+    "GET projects/prj_errors/scripts": {
+      "status": 404,
+      "body": { "error": { "code": "NOT_FOUND", "message": "요청한 정보를 찾을 수 없어요.", "details": {}, "retryable": false } }
+    },
+    "GET projects/prj_errors/ai-usage": {
+      "status": 400,
+      "body": { "error": { "code": "VALIDATION_FAILED", "message": "요청 값을 확인해 주세요.", "details": { "fields": { "deployment_id": "값을 확인해 주세요." } }, "retryable": false } }
+    }
+  }
+}

@@ -27,7 +27,6 @@ struct RootView: View {
         }
         .environment(router)
         .environment(workspace)
-        .environment(\.isSampleData, app.isSampleMode)
     }
 }
 

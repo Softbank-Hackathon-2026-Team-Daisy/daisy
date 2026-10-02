@@ -200,6 +200,20 @@ struct ProjectDetail: Decodable, Sendable {
     let build: String?
     let registry: String?
     let webhookLastAt: Date?
+
+    private enum CodingKeys: String, CodingKey { case id, name, repository, branch, defaultBranch, build, registry, webhookLastAt }
+
+    /// 서버는 브랜치를 `default_branch`로 줘요 (#38, `Project`와 같아요). 예전 이름 `branch`도 받아요
+    init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        id = try c.decode(String.self, forKey: .id)
+        name = try c.decode(String.self, forKey: .name)
+        repository = try c.decodeIfPresent(String.self, forKey: .repository)
+        branch = try c.decodeIfPresent(String.self, forKey: .defaultBranch) ?? c.decodeIfPresent(String.self, forKey: .branch)
+        build = try c.decodeIfPresent(String.self, forKey: .build)
+        registry = try c.decodeIfPresent(String.self, forKey: .registry)
+        webhookLastAt = try c.decodeIfPresent(Date.self, forKey: .webhookLastAt)
+    }
 }
 
 /// WR-07 · WR-10 스크립트.
