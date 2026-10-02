@@ -625,6 +625,27 @@ Idempotency-Key: <키>
 - **A-02 `connection_state` 를 WR-04 와 같은 값(`ok`·`failed`·`unknown`)으로 바꿨습니다.** 계약에 없던 필드를 제가 더하면서 DB 값을 그대로 내보냈던 것입니다.
 - 확인: 빈 PostgreSQL 17 에 jar 로 띄워 확인했습니다. A-02 가 DB `connected`·`disconnected`·`unknown` 을 `ok`·`failed`·`unknown` 으로 내보내고 대상마다 WR-04 와 같음. 생성 51개 400, 50개는 상한을 지나 다음 검사(없는 대상 404), 1개는 201. 승인 `items` 51개, 취소·재시도·롤백 51개 모두 400. A-04·A-03 200, 서버 로그 ERROR 0건.
 
+### 승인 성공 확인 — DB 픽스처 (10/2 낮, 승환님 #42 리뷰)
+
+실제 Jenkins E2E 와 따로, 빈 PostgreSQL 17 에 jar 를 띄우고 배포는 API 로 만든 뒤 plan·승인·스크립트 행을 SQL 로 넣어 확인했습니다. 승인 요청 `items` 는 A-04 `pending_approvals` 를 그대로 보냈습니다.
+
+| | 검사 | 결과 |
+|---|---|---|
+| A1 | viewer 승인 | 403 |
+| A2 | 대상 둘 다 승인 대기인데 하나만 보냄 | 409 (승인 대기 전체와 같아야 함) |
+| A3 | A-04 `pending_approvals` 그대로 승인 | 202, 승인 행 둘 다 `approved`, apply 실행 1건 |
+| A4 | 같은 `Idempotency-Key` 재전송 | 같은 202 응답, apply 실행 여전히 1건 |
+| A5 | 삭제 포함 plan: 확인 문구 없음 / 틀림 / 프로젝트 이름 | 400 / 400 / 202 |
+| A6 | 거절 | 202, 승인 행 `rejected`, 배포 `cancelled`, apply 실행 0건 |
+| A7 | 기한 지난 승인만 있는 대상 | A-04 `pending_approvals` 에서 빠짐, 그 ID 로 승인 409 |
+
+서버 로그 ERROR 0건. 픽스처를 맞추면서 실행부 조건 두 가지를 확인했습니다. 실제 수신부가 같은 값을 넣는지 연동 때 같이 봐야 합니다.
+
+- 승인 기한은 plan 기한 이하여야 apply 명령이 만들어집니다. 처음 픽스처는 plan·승인을 따로 넣어 `now()` 가 몇 ms 달라 409 가 났습니다.
+- 거절하려면 그 대상의 plan 을 만든 prepare 실행이 끝난 상태여야 합니다.
+
+승인 직후 배포·대상 상태는 apply 실행이 시작될 때까지 `awaiting_approval` 그대로이고 `pending_approvals` 만 비어 있습니다. 화면에서는 "승인 대기인데 승인할 것이 없음" 으로 보일 수 있어 승환님께 여쭤봤습니다.
+
 ### 구현 상태 (10/2 새벽)
 
 | | 무엇 | 위치 | 상태 |
