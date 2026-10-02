@@ -22,6 +22,8 @@ import '../page.css'
 function EnvironmentsPage() {
   const { projectId = '' } = useParams()
   const targets = useResource(() => api.listTargets(projectId), [projectId])
+  // WR-04 current_commit이 비어 있을 때가 있어서 A-02 현재 버전으로 채워요. 실패해도 화면은 그대로 보여줘요
+  const status = useResource(() => api.getTargetsStatus(projectId).catch(() => null), [projectId])
   const [toast, setToast] = useState<{ ok: boolean; text: string } | null>(null)
   const [resourcesOf, setResourcesOf] = useState<Target | null>(null)
 
@@ -44,15 +46,19 @@ function EnvironmentsPage() {
       <PageHeader mock={isMocked('listTargets')} overline="Environments" title={t('환경')} description={t('배포 대상 환경의 연결 상태와 인프라 구성을 봐요. 환경을 고르는 건 배포할 때 해요.')} />
 
       <div className="page__row page__row--envs">
-        {targets.data.items.map((tg) => (
+        {targets.data.items.map((tg) => {
+          const st = status.data?.items.find((x) => x.target_id === tg.target_id)
+          const commit = tg.current_commit ?? st?.current?.commit ?? null
+          const exposure = tg.exposure ?? st?.url ?? null
+          return (
           <Panel key={tg.target_id} title={<EnvTag env={tg.type} />} aside={<ConnectionBadge state={tg.connection.state} />}>
             <div>
               <InfoRow label={t('유형')}>{tg.runtime ?? tg.title ?? '—'}</InfoRow>
-              <InfoRow label={t(tg.location_label ?? '위치')}>{tg.location ?? '—'}</InfoRow>
+              <InfoRow label={t(tg.location_label ?? '위치')}>{tg.location ? (isInternal(tg.location) ? t('내부망') : tg.location) : '—'}</InfoRow>
               <InfoRow label={t('연결')}>{tg.access_method ?? '—'}</InfoRow>
-              <InfoRow label={t('공개')}>{tg.exposure ?? '—'}</InfoRow>
+              <InfoRow label={t('공개')}>{exposure ? <Exposure value={exposure} /> : '—'}</InfoRow>
               <InfoRow label="state">{tg.state_backend ?? t('[미정]')}</InfoRow>
-              <InfoRow label={t('현재 버전')}>{tg.current_commit ? shortCommit(tg.current_commit) : '—'}</InfoRow>
+              <InfoRow label={t('현재 버전')}>{commit ? shortCommit(commit) : '—'}</InfoRow>
             </div>
             <div className="page__actions">
               {/* 실서버 모드에서 A-10 · A-11이 아직 없으면 목업 결과를 실제 환경처럼 보이지 않게 꺼요 (#13 후순위) */}
@@ -64,7 +70,8 @@ function EnvironmentsPage() {
               </Button>
             </div>
           </Panel>
-        ))}
+          )
+        })}
       </div>
 
       <Panel title={t('환경 추가')}>
@@ -84,6 +91,45 @@ function EnvironmentsPage() {
       )}
       {resourcesOf && <ResourcesDialog target={resourcesOf} onClose={() => setResourcesOf(null)} />}
     </div>
+  )
+}
+
+// 사설 · 내부 주소(10.x · 172.16~31.x · 192.168.x · 127.x · *.local · *.internal)가 들어 있으면 화면에 그대로 보이지 않게 가려요
+function isInternalHost(token: string) {
+  const host = token.replace(/^[a-z]+:\/\//i, '').split(/[/:]/)[0].toLowerCase()
+  const m = host.match(/^(\d{1,3})\.(\d{1,3})\.\d{1,3}\.\d{1,3}$/)
+  if (m) {
+    const [a, b] = [Number(m[1]), Number(m[2])]
+    return a === 10 || a === 127 || (a === 172 && b >= 16 && b <= 31) || (a === 192 && b === 168)
+  }
+  return /\.(local|internal|lan)$/.test(host) || host === 'localhost'
+}
+
+const isInternal = (value: string) => value.split(/[\s,()·]+/).some((token) => token && isInternalHost(token))
+
+// 공개 주소가 URL로 시작하면 그 부분을 새 탭 링크로 (예: "gcp.unibloom.cloud (도메인 매핑)")
+// 줄바꿈은 단어 중간이 아니라 '.' · '/' 뒤에서만 해요
+const URL_HEAD = /^((?:https?:\/\/)?[a-z0-9-]+(?:\.[a-z0-9-]+)+(?::\d+)?(?:\/\S*)?)(.*)$/i
+
+function Exposure({ value }: { value: string }) {
+  if (isInternal(value)) return <>{t('내부망')}</>
+  const m = value.match(URL_HEAD)
+  if (!m) return <>{value}</>
+  const [, url, rest] = m
+  const href = /^https?:\/\//i.test(url) ? url : `https://${url}`
+  const parts = url.split(/(?<=[./])/)
+  return (
+    <>
+      <a href={href} target="_blank" rel="noreferrer" style={{ overflowWrap: 'normal', wordBreak: 'normal' }}>
+        {parts.map((part, i) => (
+          <span key={i}>
+            {part}
+            {i < parts.length - 1 && <wbr />}
+          </span>
+        ))}
+      </a>
+      {rest}
+    </>
   )
 }
 

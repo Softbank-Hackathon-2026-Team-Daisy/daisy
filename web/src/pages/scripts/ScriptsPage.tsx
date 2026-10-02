@@ -39,10 +39,41 @@ function howMade(s: Script) {
   return s.note ? `${how} (${s.note})` : how
 }
 
+// 재사용할 때마다 새 버전이 생겨서(s1…s11) 환경마다 최신 하나만 보여주고, 이전 버전은 펼쳐서 봐요
+const ENV_ORDER = ['onprem', 'aws', 'gcp', 'azure']
+const versionNo = (s: Script) => Number(s.version.match(/\d+/)?.[0] ?? 0)
+const newerFirst = (a: Script, b: Script) =>
+  a.created_at && b.created_at && a.created_at !== b.created_at ? b.created_at.localeCompare(a.created_at) : versionNo(b) - versionNo(a)
+
+function groupByEnv(scripts: Script[]) {
+  const groups = new Map<string, Script[]>()
+  for (const s of scripts) groups.set(s.target_id, [...(groups.get(s.target_id) ?? []), s])
+  return [...groups.values()]
+    .map((list) => list.sort(newerFirst))
+    .sort((a, b) => ENV_ORDER.indexOf(a[0].type) - ENV_ORDER.indexOf(b[0].type))
+}
+
+type Row = { script: Script; latest: boolean; older: number; groupId: string }
+
 function ScriptsView({ scripts }: { scripts: Script[] }) {
-  const verified = scripts.filter((s) => s.status === 'verified')
-  const [selected, setSelected] = useState(verified.find((s) => s.type === 'aws')?.script_id ?? scripts[0]?.script_id)
-  const current = scripts.find((s) => s.script_id === selected) ?? scripts[0]
+  const groups = groupByEnv(scripts)
+  const ordered = groups.flat()
+  const verified = ordered.filter((s) => s.status === 'verified')
+  const [selected, setSelected] = useState(verified.find((s) => s.type === 'aws')?.script_id ?? ordered[0]?.script_id)
+  const [expanded, setExpanded] = useState<Set<string>>(() => new Set())
+  const current = scripts.find((s) => s.script_id === selected) ?? ordered[0]
+  const toggle = (groupId: string) =>
+    setExpanded((prev) => {
+      const next = new Set(prev)
+      if (next.has(groupId)) next.delete(groupId)
+      else next.add(groupId)
+      return next
+    })
+  const rows: Row[] = groups.flatMap((list) => {
+    const groupId = list[0].target_id
+    const head: Row = { script: list[0], latest: true, older: list.length - 1, groupId }
+    return expanded.has(groupId) ? [head, ...list.slice(1).map((script) => ({ script, latest: false, older: 0, groupId }))] : [head]
+  })
 
   if (!current) {
     return (
@@ -67,17 +98,38 @@ function ScriptsView({ scripts }: { scripts: Script[] }) {
       <Panel title={t('검증된 스크립트')}>
         <DataTable
           label={t('검증된 스크립트')}
-          rows={scripts}
-          rowKey={(s) => s.script_id}
+          rows={rows}
+          rowKey={(r) => r.script.script_id}
           selected={current.script_id}
-          onSelect={(s) => setSelected(s.script_id)}
+          onSelect={(r) => setSelected(r.script.script_id)}
           columns={[
-            { key: 'env', label: t('환경'), width: 120, render: (s) => <EnvTag env={s.type} /> },
-            { key: 'v', label: t('버전'), width: 90, render: (s) => <span className="t-mono-sm">{s.version}</span> },
-            { key: 'how', label: t('만든 방식'), render: howMade },
-            { key: 'check', label: t('검증'), width: 180, render: (s) => (s.validation.plan ? t('validate · plan · 위험 {n}', { n: s.validation.risks ?? '—' }) : t('validate 통과 · plan 없음')) },
-            { key: 'reuse', label: t('재사용'), width: 90, render: (s) => (s.status === 'verified' ? t('{n}회', { n: s.reuse_count }) : '—') },
-            { key: 'last', label: t('마지막 사용'), width: 110, render: (s) => (s.last_used_at ? relativeTime(s.last_used_at) : '—') },
+            { key: 'env', label: t('환경'), width: 120, render: (r) => (r.latest ? <EnvTag env={r.script.type} /> : <span className="t-muted scripts__older">{t('이전 버전')}</span>) },
+            { key: 'v', label: t('버전'), width: 90, render: (r) => <span className="t-mono-sm">{r.script.version}</span> },
+            {
+              key: 'how',
+              label: t('만든 방식'),
+              render: (r) => (
+                <div className="scripts__how">
+                  <span>{howMade(r.script)}</span>
+                  {r.latest && r.older > 0 && (
+                    <button
+                      type="button"
+                      className="scripts__toggle t-body-sm"
+                      aria-expanded={expanded.has(r.groupId)}
+                      onClick={(e) => {
+                        e.stopPropagation()
+                        toggle(r.groupId)
+                      }}
+                    >
+                      {expanded.has(r.groupId) ? t('이전 버전 접기') : t('이전 버전 {n}개 보기', { n: r.older })}
+                    </button>
+                  )}
+                </div>
+              ),
+            },
+            { key: 'check', label: t('검증'), width: 180, render: ({ script: s }) => (s.validation.plan ? t('validate · plan · 위험 {n}', { n: s.validation.risks ?? '—' }) : t('validate 통과 · plan 없음')) },
+            { key: 'reuse', label: t('재사용'), width: 90, render: ({ script: s }) => (s.status === 'verified' ? t('{n}회', { n: s.reuse_count }) : '—') },
+            { key: 'last', label: t('마지막 사용'), width: 110, render: ({ script: s }) => (s.last_used_at ? relativeTime(s.last_used_at) : '—') },
           ]}
         />
       </Panel>

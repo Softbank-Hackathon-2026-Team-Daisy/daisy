@@ -52,6 +52,8 @@ function AiUsagePage() {
   const typeOf = (targetId: string) => d?.targets.find((t) => t.target_id === targetId)?.type ?? 'onprem'
   // Jenkins가 아직 호출별 기록을 안 보내서 빈 목록일 수 있어요 — "AI를 안 썼다"로 보이지 않게 "기록 없음"으로 (#60)
   const noRecord = (items?.length ?? 0) === 0 && (summary?.calls ?? 0) === 0
+  // 모든 환경이 검증된 스크립트를 재사용했으면 기록이 없는 게 아니라 AI를 정말 0회 부른 거예요 → 0 · ₩0
+  const allReused = noRecord && !!d && d.targets.length > 0 && reused.length === d.targets.length
   const rows: Row[] = [
     ...(items ?? []).map((item, i) => ({ key: `${i}`, item, type: typeOf(item.target_id) })),
     ...reused.map((tg) => ({ key: `reuse-${tg.target_id}`, item: null, type: tg.type })),
@@ -81,14 +83,23 @@ function AiUsagePage() {
         <LoadingBlock />
       ) : (
         <>
-          <div className="page__row" style={{ gridTemplateColumns: 'repeat(4, minmax(0, 1fr))' }}>
-            <StatTile label={t('AI 호출')} value={noRecord ? '—' : t('{n}회', { n: summary.calls })} hint={noRecord ? t('기록 없음') : t('이번 배포')} />
-            <StatTile label={t('토큰')} value={count(summary.tokens)} hint={t('입력 + 출력')} />
-            <StatTile label={t('비용')} value={won(summary.cost_krw)} hint={summary.exchange_rate ? t('추정 · 환율 {rate}원 · Claude', { rate: count(summary.exchange_rate) }) : t('추정 · Claude')} />
+          <div className="page__row page__row--stats">
+            <StatTile
+              label={t('AI 호출')}
+              value={noRecord && !allReused ? '—' : t('{n}회', { n: summary.calls })}
+              hint={allReused ? t('검증된 스크립트를 재사용했어요') : noRecord ? t('기록 없음') : t('이번 배포')}
+            />
+            <StatTile label={t('토큰')} value={allReused ? count(0) : count(summary.tokens)} hint={t('입력 + 출력')} />
+            <StatTile label={t('비용')} value={allReused ? won(0) : won(summary.cost_krw)} hint={summary.exchange_rate ? t('추정 · 환율 {rate}원 · Claude', { rate: count(summary.exchange_rate) }) : t('추정 · Claude')} />
             <StatTile label={t('재사용한 환경')} value={t('{n}곳', { n: reused.length })} hint={reused.length ? t('{names} · AI 호출 0회', { names: names(reused) }) : t('없음')} />
           </div>
 
-          {noRecord && (
+          {allReused && (
+            <Alert type="success" title={t('검증된 스크립트를 재사용해서 AI를 부르지 않았어요')}>
+              {t('모든 환경이 이미지 태그만 바꿔서 배포했어요. 이번 배포의 AI 비용은 ₩0이에요.')}
+            </Alert>
+          )}
+          {noRecord && !allReused && (
             <Alert type="info" title={t('호출 기록을 아직 받지 않았어요')}>
               {t('AI를 안 썼다는 뜻이 아니에요. 생성 · 수정 호출 기록은 Jenkins 연동 뒤에 들어와요.')}
             </Alert>
@@ -102,7 +113,7 @@ function AiUsagePage() {
               columns={[
                 { key: 'at', label: t('시각'), width: 100, render: (r) => <span className="t-mono-sm">{r.item ? clockTime(r.item.at) : clockTime(d.created_at)}</span> },
                 { key: 'env', label: t('환경'), width: 120, render: (r) => <EnvTag env={r.type} /> },
-                { key: 'job', label: t('작업'), render: (r) => (r.item ? (r.item.title ?? r.item.note ?? t(STEP_LABEL[r.item.step])) : t('— 검증된 스크립트 재사용')) },
+                { key: 'job', label: t('작업'), render: (r) => (r.item ? (r.item.title ?? r.item.note ?? t(STEP_LABEL[r.item.step])) : t('검증된 스크립트 재사용')) },
                 { key: 'att', label: t('시도'), width: 80, render: (r) => <span className="t-mono-sm">{r.item?.attempt != null ? `${r.item.attempt}/3` : '—'}</span> },
                 { key: 'tok', label: t('토큰'), width: 90, render: (r) => <span className="t-mono-sm">{r.item ? count(r.item.tokens) : '0'}</span> },
                 { key: 'cost', label: t('비용'), width: 80, render: (r) => <span className="t-mono-sm">{r.item ? won(r.item.cost_krw) : '₩0'}</span> },
@@ -123,9 +134,7 @@ function AiUsagePage() {
             />
           </Panel>
 
-          <Alert type="info" title={t('PoC N-09 (선택)')}>
-            {t('비용 표시는 N-09 결과에 따라 달라져요. 서버가 확인하지 못한 토큰 · 비용은 0 대신 "—"로 보여줘요.')}
-          </Alert>
+          <p className="t-body-sm t-muted">{t('비용은 토큰 수로 계산한 추정값이에요. 서버가 확인하지 못한 값은 "—"로 보여줘요.')}</p>
         </>
       )}
     </div>
