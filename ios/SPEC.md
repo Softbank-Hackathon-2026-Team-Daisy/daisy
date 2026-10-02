@@ -410,7 +410,7 @@ API 모양보다 **이 정보가 어딘가에 저장되어 있는지**가 더 �
 | WR-04 | `GET /projects/{id}/targets` → `target_id, type, name, reuse{ available, script_id?, reason? }, connection{ state: ok·failed·unknown, checked_at }` | W-04 · W-10 · 사이드바 | 별도 엔드포인트로 · D2 |
 | WR-05 | `POST /projects/{id}/deployments` `{ source_version_id, commit, target_ids[] }` + `Idempotency-Key` → 응답 `{ id, project_id, state }` | W-04 시작 | ✅ `source_version_id` 필수(#36 · #42, 커밋으로 빌드를 추정하지 않아요), 생성 응답은 `id` · `project_id` · `state`만(10/2 01:07). 빌드 ID가 없으면 앱은 시작을 막아요 |
 | WR-05b | `POST /deployments/{id}/retry` `{ target_ids[] }` + `Idempotency-Key` → `{ id, project_id, state }` | **W-05b "○○만 다시 시도"(실패한 환경 전부) · W-08 "다시 시도"(그 환경만)** | ✅ 10/2 09:57 확정 (하은현 제안 · 김도영 수락 · 박승준 동의, #42). 서버가 원본 배포의 빌드 · 연결을 이어받아 새 배포를 만들어요. 앱은 원본 배포 ID와 환경만 보내요 |
-| WR-06 | `GET /deployments/{id}/plan?detail=resources` | W-06 리소스 행 (`action`에 `replace` 포함) | 좋아요 · D3 |
+| WR-06 | `GET /deployments/{id}/plan?detail=resources` → 환경별 배열 `[{ target_id, resources[{ address, action }], plan_text }]` | W-06 리소스 행 (`action`에 `replace` 포함) | ✅ 서버 #51 (10/2): 요약(A-05 `GET …/plan`)과 상세가 따로 와요. 앱은 둘을 같이 받아 환경별로 합치고, 상세가 실패해도 요약만으로 승인 화면을 띄워요 |
 | WR-07 | `GET /deployments/{id}/targets/{target_id}/script` → `files[{ path, content }]` | W-05 생성된 스크립트 | 18시 백엔드 회의에서 확인 |
 | WR-08 | `POST /deployments/{id}/cancel` | (앱은 아직 버튼 없음) | 좋아요 · D3. **apply 도중에는 중단하지 않고 서버가 결과를 기다려요** (10/1 17:23, #17) — 앱도 apply 시작 뒤에는 취소를 보여주지 않아요 |
 | WR-09 | A-02에 `image_digest` (+ A-04 환경별 `image_digest`) | W-01 동일성(A-02, 배포된 첫 환경 기준) · W-08 동일성(A-04, 성공한 첫 환경 기준) — 웹과 같은 규칙 | A-02 넣을게요 · D2. A-04 환경별 값은 §6-9 확인 대기 |
@@ -513,6 +513,7 @@ API 모양보다 **이 정보가 어딘가에 저장되어 있는지**가 더 �
 
 | 날짜 | 변경 | 작성 |
 |---|---|---|
+| 10/2 | 승인 화면 plan: 요약(A-05)과 리소스 상세(WR-06, 환경별 배열)를 따로 받아 합쳐요 (서버 #51 모양). 전에는 상세를 Plan 하나로 읽어서 실서버에서 디코딩에 실패했을 거예요 | 박승준 |
 | 10/2 | 서버 주소 기본값을 팀 개발 서버 `https://api.unibloom.cloud`로 (10/2 09:51 하은현 공지). 앱 심사도 이 서버와 그 테스트 계정으로 해요 — 앱은 HTTPS API만 있으면 돼서 iOS 전용 서버(`ios.unibloom.cloud`)는 필요 없어요 (박승준 결정) | 박승준 |
 | 10/2 | "다시 시도"(W-05b · W-08)를 확정된 `POST /deployments/{id}/retry { target_ids }`로 바꿈. 빌드 ID 없이도 다시 시도할 수 있어요 (WR-05b) | 박승준 |
 | 10/2 | Mac DMG는 `Unibloom.dmg` 하나만 올려요 (W-14가 #37에서 새 주소로 바뀜, `Daisy.dmg` 복사본 중단) | 박승준 |
