@@ -8,7 +8,7 @@ Follow the root `AGENTS.md` first. This file adds rules for `ios/` only and neve
 
 A native SwiftUI app for Daisy on iPhone, iPad, and Mac. Since 9/30 it carries **every screen, text, and button of the web wireframe v1.0** (W-00 – W-13, L-01 – L-03), laid out in this app's own design (`SPEC.md` §2 has the screen map).
 
-- This goes beyond ADR-007 ("approve, progress, notify only") and 도영's memo (W-02 – W-04 and W-10 – W-13 web-only). The owner chose it; the team still has to confirm it (tier 4, `SPEC.md` §8). If the team decides against it, remove only the affected buttons.
+- **Confirmed 10/1: ADR-007 now says the app runs the same full flow as the web** (team lead decision, root `AGENTS.md` §12-4, PR #33). The earlier "approve, progress, notify only" scope and 도영's web-only memo no longer apply.
 - The app never calls GitHub, cloud APIs, or Terraform directly. All data and actions go through the Daisy server API (`SPEC.md` §4, §6-8).
 - Distribution goal: a public TestFlight link that judges install during the demo. The first build goes to Beta App Review on **10/1** (`SPEC.md` §5).
 
@@ -58,13 +58,13 @@ ios/
 ├─ SPEC.md
 ├─ Daisy.xcodeproj
 ├─ Daisy/
-│  ├─ App/            entry point, root layout (sidebar at width ≥ 700, tabs below), Sidebar, dependency wiring
+│  ├─ App/            entry point, root layout (sidebar at width ≥ 700, slim icon tab bar below), Sidebar, menu and routes (Workspace)
 │  ├─ Features/       one folder per menu: Login, Overview, Deployments (run flow W-03 – W-08), Connect (W-02), Approvals (W-06), History, Environments, Scripts, AIUsage, Settings
-│  ├─ Core/           API, Models, Realtime, Auth, Push
-│  ├─ DesignSystem/   materials, glass buttons and segmented control, PageHeader/PageScaffold, cards, badges
-│  └─ Resources/
-├─ DaisyTests/        model decoding, SSE parser, store state transitions
-└─ DaisyWidgets/      (S) widgets and Live Activity
+│  ├─ Core/           API (incl. SampleData), Models, Auth   (Realtime/SSE and Push are not built yet: 5 s polling until D3)
+│  ├─ DesignSystem/   materials, glass buttons and segmented control, PageHeader/PageScaffold, FlowPage helpers, cards, badges, time text
+│  └─ Resources/      assets, SampleData/sample.json
+├─ DaisyTests/        model decoding, contracts, wording, run-flow rules, sample data
+└─ scripts/           testflight.sh, mac-dmg.sh, sample-data/generate.py
 ```
 
 ## 6. Conventions
@@ -73,7 +73,7 @@ ios/
 - A view used by one screen lives in that `Features/{Feature}/`. A view used by two or more screens moves to `DesignSystem/`.
 - Decode JSON with `convertFromSnakeCase`. Every enum decoded from a server string has an `unknown` case, so a new server value never crashes the app.
 - Map the server error envelope to `APIError`. `401 UNAUTHENTICATED` → login screen. `409 STATE_CONFLICT` → reload the latest state. A viewer account gets `403` on approval; show it as "읽기 전용 계정".
-- **Layout adapts to available width, not to the platform.** `RootView` shows the custom sidebar at width ≥ 700 (iPad, Mac; the Mac window's minimum width is 820) and system tabs below that (iPhone). Inside a screen, use `AdaptiveGrid` and `cardStyle()` so cards form one column on a phone and several on wide screens. Do not branch on `horizontalSizeClass`; it does not exist on macOS.
+- **Layout adapts to available width, not to the platform.** `RootView` shows the custom sidebar at width ≥ 700 (iPad, Mac; the Mac window's minimum width is 820) and, below that (iPhone), a slim glass capsule tab bar with SF Symbols only (no titles; titles are VoiceOver labels). Inside a screen, use `AdaptiveGrid` and `cardStyle()` so cards form one column on a phone and several on wide screens. Do not branch on `horizontalSizeClass`; it does not exist on macOS.
 - `#if os(iOS)` / `#if os(macOS)` only for platform-only capabilities (keyboard type, menu bar, haptics), and only in `App/` and `DesignSystem/`, never in feature logic.
 - Test in this order: iPhone, then Mac, then iPad. iPad only needs to not break.
 
@@ -82,13 +82,13 @@ ios/
 Materials, the sidebar, and motion copy the owner's AfterPlan Mac app (`~/Github/AfterPlan/docs/design/macos-design.md`); buttons follow the owner's Craft reference. Keep to these; change them only when your human asks.
 
 - **Layers.** Sidebar: `SidebarBackground()` (Mac: `NSVisualEffectView` `.hudWindow`, behind-window blending, follows window active state, no tint). Content: `.contentSurface()` (Mac: `.underWindowBackground`, translucent; Reduce Transparency makes it opaque). Lists and forms use `.onContentSurface()` so they do not paint their own background. No line between sidebar and content; the change of material is the boundary.
-- **Window (Mac).** Unified toolbar without a title, toolbar background hidden, only the sidebar button on the left (⌃⌘S). The settings gear sits alone at the bottom left of the sidebar.
+- **Window (Mac).** Unified toolbar without a title, toolbar background hidden, only the sidebar button on the left (⌃⌘S). AI 사용량 and 설정 are ordinary rows at the bottom of the sidebar.
 - **Sidebar rows.** 15 pt text, 16 pt icon in a 22 pt frame, 36 pt high, 10 pt inset. Selected: `.fill.tertiary` rounded 8 plus semibold; hover: `.fill.quinary`. No accent color. The tint moves with `.spring(response: 0.32, dampingFraction: 0.86)` via `matchedGeometryEffect`; weight changes at once; Reduce Motion drops the spring. Width 240 by default, 190–420 by dragging the edge, remembered.
-- **Screens.** Every root screen uses `PageScaffold(title, subtitle:, trailing:)`: a `title2` semibold title on the left and the screen's controls on the right. Pushed detail screens keep the system navigation title.
+- **Screens.** Every root screen uses `PageScaffold(title, subtitle:, trailing:)`: a `title2` semibold title on the left and the screen's controls on the right. Flow screens (W-03 – W-08) use `FlowPage` with the stepper, title, and description in the same header. Both headers sit in a top `safeAreaInset` on `.ultraThinMaterial`, so content scrolls behind them (10/1). Pushed detail screens keep the system navigation title.
 - **Buttons (owner: "this design is 100 points").** Every button uses this family and nothing else. Icon-only: `.glassCircle`. Text and menus: `.glassCapsule` (`fullWidth:` for forms, `height:` 44 for the approval bar). The one core action on a screen (승인하고 배포, 로그인, 인프라 코드 생성 · 검증 시작, 연결하기): `.glassProminent` / `.glassCapsule(prominent: true)`. Choices: `GlassSegmented`. Destructive: `role: .destructive` (red text). Liquid Glass on iOS 26 / macOS 26, a material with a hairline below that. Web variants (Primary/Secondary/Outline/Ghost) all map onto these; do not recreate them.
 - **Cards.** `cardStyle()`: corner 12, `.fill.quaternary`, hairline `.separator` border, `.fill.tertiary` on hover.
 - **Web positions are hints, not layout.** The wireframe inventory has x/y for every element; use it to know what belongs together and in which order, then place it with `PageScaffold` / `FlowPage` / `SectionCard` / `AdaptiveGrid`. Tables become lists on narrow screens (`ViewThatFits`).
-- **Taking from the web design (Figma).** Take **wording only**: screen and menu names, labels, status names, messages, notation. Colors, shapes, radius, fonts, and layout stay with this app's design above, even where Figma says otherwise (no-pill, radius ≤ 4, IBM Plex, yellow button). For each web icon, use the closest SF Symbol: cloud → `cloud`, play → `play`, server → `server.rack`, clock → `clock`, terminal → `apple.terminal`, signal → `cellularbars`, settings → `gearshape`.
+- **Taking from the web design (Figma).** Take **wording only**: screen and menu names, labels, status names, messages, notation. Colors, shapes, radius, fonts, and layout stay with this app's design above, even where Figma says otherwise (no-pill, radius ≤ 4, IBM Plex, yellow button). For each web icon, use the closest SF Symbol: cloud → `cloud`, play → `play`, server → `square.stack.3d.up` for the 환경 menu (has a fill form for the selected tab; `server.rack` stays on the on-prem tag), clock → `clock`, terminal → `apple.terminal`, signal → `chart.bar` (menu; outline like the other tab icons — `cellularbars` has no outline form, still used for the connection indicator), settings → `gearshape`.
 
 ### Match the web's feature UX
 
@@ -154,12 +154,20 @@ Tier per root §6. Tier 1 entries are final for this area.
 | 9/30 | Mac direct download: Developer ID-signed, notarized, stapled DMG on **GitHub Releases** of `daisy` (tag `mac-v<version>-<build>`, pre-release). First release `mac-v0.1.0-2609301801`. Web W-14 links to the fixed URL `releases/download/mac-latest/Daisy.dmg`; each new DMG replaces that asset (`gh release upload mac-latest … --clobber`) | Repo is public so anyone can download; notarization avoids Gatekeeper warnings; the first notarization took ~40 min | 1 (hosting agreed for W-14 with the owner) |
 | 9/30 | App icon: the owner's daisy logo. iOS gets a full-bleed opaque 1024 square; macOS gets the logo inside Apple's rounded-rect grid (824 of 1024, radius 185.4, soft shadow) at 16–1024. The sidebar header uses the same logo (`AppLogo`) | Owner's asset. The source is 200×200, so replace it with a 1024+ original before release | 1 |
 | 9/30 | From Figma, take wording only; keep this app's colors and shapes; icons are the nearest SF Symbols | Owner decision. 도영's memo asked for web shapes (radius ≤ 4, no pills) and the owner chose the app's own look | 1 |
-| 9/30 | Menu and wording follow the web: 개요 · 배포 · 승인 · 이력 · 설정; status labels 대기 중 · 배포 중 · 성공 · 실패 · 주의 · 롤백됨; `리소스 +6 ~0 −0`; W-00 login and error messages | Same product on two clients | 1 |
-| 9/30 | Tests use Swift Testing; sample JSON lives only in `DaisyTests` | No mock data in the app (§4) | 1 |
+| 9/30 | Menu and wording follow the web: 개요 · 배포 · 환경 · 이력 · 스크립트 · AI 사용량 · 설정 (approval lives inside 배포); status labels from web `api/status.ts` (대기 중 · 진행 중 · 승인 대기 · 성공 · 일부 성공 · 실패 · 취소됨 · 롤백됨); `리소스 +6 ~0 −0`; W-00 login and error messages (updated 10/1) | Same product on two clients | 1 |
+| 9/30 | Tests use Swift Testing; test-only JSON lives in `DaisyTests`, and the only app-side sample data is the labeled bundle `Resources/SampleData/sample.json` (§4, updated 10/1) | No hidden mock data in the app | 1 |
 | 9/29 | ~~The app does not start deployments or change infrastructure~~ (replaced 9/30) | Kept the app inside ADR-007 | 1 |
-| 9/30 | The app carries every wireframe screen, text, and button (W-00 – W-13, L-01 – L-03) with the web sidebar's menu; new server requests are `SPEC.md` §6-8 `(가칭)` | Owner decision: feature UX identical to the web. Conflicts with ADR-007 and 도영's memo, so the team must confirm it | 4 (`(가칭)`) |
+| 9/30 | The app carries every wireframe screen, text, and button (W-00 – W-13, L-01 – L-03) with the web sidebar's menu; new server requests are `SPEC.md` §6-8 `(가칭)` | Owner decision: feature UX identical to the web. **Confirmed 10/1** by the team lead (ADR-007 widened, #33) | 4 (confirmed) |
 | 9/30 | For shared screens the app uses the web's `WR-xx` requests exactly as the server answered them (PR #9), plus the server's two-layer states. It asks the server only for what the web does not need (`SPEC.md` §6-8 R-09, A-10 – A-12). Retry = new deployment with the same commit; rollback = new deployment that needs approval | One contract for web and app; less server work | 1 (own code) · 3 (`(가칭)` requests via issue) |
-| 9/29 | Widen ADR-007: add overview, commit history, macOS | Proposed in `SPEC.md` §1-2; needs the team meeting | 4 (`(가칭)`) |
+| 9/29 | Widen ADR-007: add overview, commit history, macOS | Proposed in `SPEC.md` §1-2; **confirmed 10/1** as part of the full-flow decision (#33) | 4 (confirmed) |
 | 9/29 | Requests to server and CI | `SPEC.md` §6–§7; the server and CI owners decide names and shapes | 3 |
 | 9/29 | Server accepted the §6 names; unregister device with `DELETE /devices` + body | Token in a URL path leaks into access logs (server's request). Recorded in `SPEC.md` §6-0 | 3 (decided by server) |
 | 9/29 | Until server ships SSE and APNs (D3 or later): poll every 5 s and show local notifications | Agreed with server; keeps the app working on D2 | 1 |
+| 10/1 | Follow the web's screen code (`web/feat-screens`, PR #18) for flow and wording: status labels from `api/status.ts`, row and step fallbacks from `pages/flow.ts`, times from `utils/format.ts` (24-hour, relative). Menu "배포" opens the latest deployment's current stage; "새 배포" opens W-03 | Owner decision: same UX and wording as the web, app design kept | 1 |
+| 10/1 | Where `ios/BOARD.md` is newer than the web code, follow the board: Jenkins for builds, W-12 totals from A-05 and call log from `GET /projects/{id}/ai-usage?deployment_id=`, call result "호출 성공 · 호출 실패", unknown tokens shown as "—" | Server and team decisions (9/30 meeting, #13 on 10/1) | 1 (own code) · 3 (server shapes still `(가칭)`, `SPEC.md` §6-9) |
+| 10/1 | Undecided server and infra items are listed in `SPEC.md` §6-9 with what the app assumes meanwhile | Keep the app working while owners decide; one place to update | 1 |
+| 10/1 | Polling stops once a deployment or build has finished (`poll(until:)`), like the web's `useResource` `done` | Web decision 12:11; no point polling a finished run | 1 |
+| 10/1 | W-03 shows no Jenkins link; health text is "200 OK · 120ms" (single measurement); state shows the server's per-environment name ("S3 (잠금)") | Infra answers on #17 (임채준): Jenkins UI is not public, health is measured once | 1 (own UI) · 3 (infra facts) |
+| 10/1 | iPhone tab bar: a custom slim glass capsule (44 pt) with SF Symbols only, all seven menus in one row (no system "More"), selection pill slides with the sidebar's spring, approval count as a dot on 배포 | Owner decision: thin, icon-only bottom bar | 1 |
+| 10/1 | Page and flow headers are translucent (`.ultraThinMaterial`, top `safeAreaInset`); scroll content ends 40 pt above the iPhone tab bar (`contentMargins`); bottom bars lift by `tabBarClearance`; `AdaptiveGrid` is an eager `Layout` instead of `LazyVGrid`; `FlowPage` adds a bottom inset only when it has a bottom bar | Owner asked for a see-through title area and scrollable-to-the-end screens; an empty bottom inset and lazy grid left a screen-tall blank on W-05 | 1 |
+| 10/1 | Unit tests launch the app host with a separate keychain service and UserDefaults suite (`XCTestConfigurationFilePath`) | An ad-hoc-signed test host reading the user's keychain item shows an allow prompt and hangs the test runner | 1 |

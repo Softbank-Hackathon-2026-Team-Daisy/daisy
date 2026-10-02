@@ -8,6 +8,7 @@ struct FlowPage<Content: View, Bottom: View>: View {
     let description: String
     @ViewBuilder var content: Content
     @ViewBuilder var bottom: Bottom
+    @Environment(\.tabBarClearance) private var tabBarClearance
 
     init(step: Int, title: String, description: String,
          @ViewBuilder content: () -> Content,
@@ -19,23 +20,49 @@ struct FlowPage<Content: View, Bottom: View>: View {
         self.bottom = bottom()
     }
 
+    /// 단계 표시 · 제목 · 설명은 위쪽 반투명 머리줄(루트 화면 `PageScaffold`와 같은 재질)에 두고, 본문만 그 뒤로 스크롤돼요 (10/1)
     var body: some View {
-        ScrollView {
+        scroll
+            .safeAreaInset(edge: .top, spacing: 0) { header }
+            .flowNavigationTitle(title)
+    }
+
+    /// 아래 고정 줄(W-06 승인 바)이 있을 때만 아래 inset을 둬요.
+    /// 빈 `EmptyView`를 inset에 넣으면 남은 높이를 다 차지해서 스크롤 끝에 화면만큼 빈 공간이 생겼어요 (W-05, 10/1)
+    @ViewBuilder
+    private var scroll: some View {
+        let page = ScrollView {
             VStack(alignment: .leading, spacing: 16) {
-                FlowStepper(current: step)
-                VStack(alignment: .leading, spacing: 4) {
-                    HStack(spacing: 8) {
-                        Text(title).font(.title2.weight(.semibold))
-                        SampleBadge()
-                    }
-                    Text(description).font(.callout).foregroundStyle(.secondary)
-                }
                 content
             }
             .padding(20)
         }
-        .safeAreaInset(edge: .bottom, spacing: 0) { bottom }
-        .flowNavigationTitle(title)
+        if Bottom.self == EmptyView.self {
+            page
+        } else {
+            page.safeAreaInset(edge: .bottom, spacing: 0) { bottom.padding(.bottom, tabBarClearance) }
+        }
+    }
+
+    private var header: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            FlowStepper(current: step)
+            VStack(alignment: .leading, spacing: 4) {
+                HStack(spacing: 8) {
+                    Text(title).font(.title2.weight(.semibold))
+                    SampleBadge()
+                }
+                if !description.isEmpty {
+                    Text(description).font(.callout).foregroundStyle(.secondary)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+            }
+        }
+        .padding(.horizontal, 20)
+        .padding(.top, 10)
+        .padding(.bottom, 10)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(.ultraThinMaterial, ignoresSafeAreaEdges: .top)
     }
 }
 

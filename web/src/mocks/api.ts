@@ -148,7 +148,7 @@ export const mockApi = {
     const items = clone(s.builds)
     if (Date.now() - buildStartedAt > 6000) {
       items[0].pipeline.status = 'success'
-      items[0].pipeline.steps = items[0].pipeline.steps?.map((st) => ({ ...st, state: 'done' }))
+      items[0].pipeline.steps = items[0].pipeline.steps?.map((st) => (st.state === 'skipped' ? st : { ...st, state: 'done' }))
     }
     return { items, next_cursor: null }
   },

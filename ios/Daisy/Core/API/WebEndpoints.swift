@@ -35,7 +35,7 @@ extension Endpoint {
         .init(path: "projects/\(projectID)/targets")
     }
 
-    /// WR-05 · W-04 "인프라 코드 생성 · 검증 시작". W-05b "처음부터 다시 시도", W-08 "다시 시도"도 같은 커밋으로 새 배포를 만들어요
+    /// WR-05 · W-04 "인프라 코드 생성 · 검증 시작". W-05b "○○만 다시 시도", W-08 "다시 시도"도 같은 커밋으로 새 배포를 만들어요
     static func startDeployment(projectID: String, commit: String, targetIDs: [String]) -> Endpoint<Deployment> {
         .init(method: "POST", path: "projects/\(projectID)/deployments",
               body: jsonBody(StartDeploymentBody(commit: commit, targetIds: targetIDs)),
@@ -51,6 +51,11 @@ extension Endpoint {
     static func rollback(deploymentID: String, targetIDs: [String], reason: String) -> Endpoint<Deployment> {
         .init(method: "POST", path: "deployments/\(deploymentID)/rollback",
               body: jsonBody(RollbackBody(targetIds: targetIDs, reason: reason)), idempotencyKey: UUID().uuidString)
+    }
+
+    /// W-12 호출별 AI 사용량 (10/1 서버 결정: 합계는 A-05 plan, 호출별 상세는 이 목록의 `deployment_id` 필터. 응답 모양은 OpenAPI 대기)
+    static func aiUsage(projectID: String, deploymentID: String) -> Endpoint<Page<AIUsage.Call>> {
+        .init(path: "projects/\(projectID)/ai-usage", query: [("deployment_id", deploymentID)])
     }
 
     /// A-10 (가칭) · W-10 "연결 테스트"
@@ -73,7 +78,7 @@ extension Endpoint {
         .init(method: "DELETE", path: "projects/\(projectID)")
     }
 
-    /// A-07 · W-05b "오류 로그 보기", W-07 로그, W-08 "원인 보기"
+    /// A-07 · W-07 로그, W-08 "원인 보기" (W-05b "오류 로그 보기"는 웹과 같이 스크립트 화면으로 가요)
     static func logs(deploymentID: String, targetID: String? = nil, tail: Int = 200) -> Endpoint<Page<LogLine>> {
         .init(path: "deployments/\(deploymentID)/logs", query: [("target_id", targetID), ("tail", String(tail))])
     }

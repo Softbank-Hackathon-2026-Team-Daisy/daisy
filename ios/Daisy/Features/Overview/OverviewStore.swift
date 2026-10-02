@@ -1,7 +1,7 @@
 import Foundation
 import Observation
 
-/// 개요 (W-01): 최근 실행(A-03). 환경별 현재 버전 · 동일성 검증은 Workspace의 A-02로 만들어요.
+/// 개요 (W-01): 최근 실행(A-03, 승인 대기 제외). 환경별 현재 버전 · 동일성 검증은 Workspace의 A-02로 만들어요.
 @MainActor
 @Observable
 final class OverviewStore {
@@ -9,18 +9,17 @@ final class OverviewStore {
 
     func refresh(using app: AppModel) async {
         guard let client = app.client, let projectID = app.selectedProjectID else { return }
-        let recent = try? await client.send(.deployments(projectID: projectID)).items
+        // 웹: 승인 대기는 "지금 할 일"에 따로 보여서 최근 실행에서는 빼요
+        let recent = try? await client.send(.deployments(projectID: projectID)).items.filter { $0.state != .awaitingApproval }
         self.recent = Array((recent ?? self.recent).prefix(3))
     }
 }
 
 extension [TargetStatus] {
-    /// 가장 많은 환경이 쓰는 이미지에 몇 개 환경이 맞는지 ("3/3 일치").
-    /// 근거는 image digest(WR-09)예요. 서버가 아직 안 주면 커밋으로 대신해요.
-    var parity: (matching: Int, deployed: Int) {
-        let images = compactMap { $0.imageDigest ?? $0.current?.commit }
-        let counts = Dictionary(images.map { ($0, 1) }, uniquingKeysWith: +)
-        return (counts.values.max() ?? 0, images.count)
+    /// 배포된 첫 환경과 image digest(WR-09)가 같은 환경 수 ("3/3 일치"). 웹 개요와 같은 규칙이에요.
+    var parityMatching: Int {
+        let base = first { $0.current != nil }?.imageDigest
+        return filter { $0.current != nil && $0.imageDigest != nil && $0.imageDigest == base }.count
     }
 }
 

@@ -1,6 +1,7 @@
 import Foundation
 
-/// W-12 AI 사용량 (배포 단위, 9/30 와이어프레임 수정). 배포 한 건의 `ai_usage`와 환경별 재사용 여부로 타일과 표를 만들어요.
+/// W-12 AI 사용량 (배포 단위, 9/30 와이어프레임 수정). 합계(A-05 plan의 `ai_usage`) · 호출 기록(`GET /projects/{id}/ai-usage?deployment_id=`)
+/// · 환경별 재사용 여부로 타일과 표를 만들어요 (10/1 서버 결정).
 struct AIUsageSummary: Equatable {
     struct Row: Identifiable, Equatable {
         let id: String
@@ -10,33 +11,46 @@ struct AIUsageSummary: Equatable {
         let task: String
         /// "2/3" 또는 "—"
         let attempt: String
-        let tokens: Int
+        /// 서버가 확인하지 못하면 nil → "—" (0으로 채우지 않아요)
+        let tokens: Int?
         let costKrw: Int?
         let result: Result
     }
 
+    /// LLM 호출 결과예요. 모르는 값이면 성공으로 보이지 않게 "—" Terraform 검증 통과 여부와 달라요 (10/1 서버: 화면에 "호출 성공 · 실패")
     enum Result: Equatable {
-        case passed, failed, noCall
+        case passed, failed, noCall, unknown
+        init(_ status: AIUsage.Call.Status) {
+            switch status {
+            case .succeeded: self = .passed
+            case .failed: self = .failed
+            case .unknown: self = .unknown
+            }
+        }
+
         var text: String {
             switch self {
-            case .passed: "통과"
-            case .failed: "실패"
+            case .passed: "호출 성공"
+            case .failed: "호출 실패"
+            case .unknown: "—"
             case .noCall: "AI 호출 없음"
             }
         }
     }
 
     let calls: Int
-    let tokens: Int
+    let tokens: Int?
     let costKrw: Int?
     let exchangeRate: Double?
     /// 검증된 스크립트를 재사용해 AI를 안 부른 환경
     let reusedTargetIDs: [String]
     let rows: [Row]
 
-    init(_ deployment: Deployment) {
-        let usage = deployment.aiUsage
-        let items = usage?.items ?? []
+    /// - totals: plan(A-05)의 합계. 없으면 배포에 온 합계
+    /// - callLog: 호출별 기록 목록. 없으면 배포에 같이 온 `items`
+    init(_ deployment: Deployment, totals: AIUsage? = nil, callLog: [AIUsage.Call]? = nil) {
+        let usage = totals ?? deployment.aiUsage
+        let items = callLog ?? deployment.aiUsage?.items ?? []
         let reused = (deployment.targets ?? []).filter { $0.reusedScript == true }.map(\.targetId)
         calls = usage?.calls ?? items.count
         tokens = usage?.tokens ?? items.compactMap(\.tokens).reduce(0, +)
@@ -45,14 +59,14 @@ struct AIUsageSummary: Equatable {
         reusedTargetIDs = reused
         let callRows = items.map { call in
             Row(id: call.id, at: call.at, targetID: call.targetId,
-                task: call.note ?? (call.step == .fix ? "Terraform 수정" : "Terraform 생성 (deploy.yaml)"),
+                task: call.note ?? call.title ?? (call.step == .fix ? "Terraform 수정" : "Terraform 생성 (deploy.yaml)"),
                 attempt: call.attempt.map { "\($0)/3" } ?? "—",
-                tokens: call.tokens ?? 0, costKrw: call.costKrw,
-                result: call.status == .failed ? .failed : .passed)
+                tokens: call.tokens, costKrw: call.costKrw,
+                result: Result(call.status))
         }
         // 재사용한 환경은 호출 기록이 없어서 한 줄을 따로 보여줘요 (웹 "— 검증된 스크립트 재사용")
         let reuseRows = reused.map { id in
-            Row(id: "reuse-\(id)", at: nil, targetID: id, task: "— 검증된 스크립트 재사용",
+            Row(id: "reuse-\(id)", at: deployment.createdAt, targetID: id, task: "— 검증된 스크립트 재사용",
                 attempt: "—", tokens: 0, costKrw: 0, result: .noCall)
         }
         rows = callRows.sorted { ($0.at ?? .distantPast) > ($1.at ?? .distantPast) } + reuseRows

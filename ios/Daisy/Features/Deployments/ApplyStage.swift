@@ -1,6 +1,7 @@
 import SwiftUI
 
-/// W-07 배포 중: 환경별 레인(나란히) + 전체 환경 로그. 다 끝나면 서버가 결과(W-08)로 넘겨요.
+/// W-07 배포 중: 환경별 레인(나란히) + 전체 환경 로그. 다 끝나면 결과(W-08)로 넘어가요 (`RunStage`).
+/// 레인 배지는 환경별 상태 그대로, 단계는 서버 `steps`가 없으면 웹처럼 "이미지 pull · terraform apply · state 저장 · 헬스체크".
 struct ApplyStage: View {
     let deployment: Deployment
     @Environment(AppModel.self) private var app
@@ -13,6 +14,7 @@ struct ApplyStage: View {
     var body: some View {
         FlowPage(step: 5, title: "배포 중",
                  description: "\(targets.count)개 환경에 terraform apply를 동시에 실행하고 있어요. 환경마다 state는 따로 저장해요.") {
+            HStack { deployment.badge; Spacer() }
             AdaptiveGrid(minimumWidth: 260) {
                 ForEach(targets) { lane($0) }
             }
@@ -31,23 +33,11 @@ struct ApplyStage: View {
                     }
                 }
                 Spacer()
-                laneBadge(target)
+                target.resolvedState.badge
             }
-            ForEach(target.steps ?? [], id: \.self) { StepItemRow($0) }
-            if (target.steps ?? []).isEmpty {
-                StepItemRow(name: target.step.displayName, state: target.stepState)
-            }
+            ForEach(target.applySteps, id: \.self) { StepItemRow($0) }
         }
         .cardStyle()
-    }
-
-    /// 웹: 배포 중 · 성공 · 실패
-    private func laneBadge(_ target: Deployment.Target) -> StatusBadge {
-        switch target.stepState {
-        case .failed: StatusBadge(text: "실패", color: .red)
-        case .done where target.step == .healthCheck: StatusBadge(text: "성공", color: .green)
-        default: StatusBadge(text: "배포 중", color: .blue)
-        }
     }
 
     private func loadLogs() async {
@@ -89,7 +79,7 @@ struct LogViewer: View {
 
     private func logLine(_ line: LogLine) -> some View {
         HStack(alignment: .firstTextBaseline, spacing: 8) {
-            Text(line.ts.map { $0.formatted(date: .omitted, time: .standard) } ?? "")
+            Text(line.ts.map { TimeText.clockSeconds($0) } ?? "")
                 .foregroundStyle(.secondary)
             Text(line.targetId.map(source) ?? "").frame(width: 50, alignment: .leading).foregroundStyle(.secondary)
             Text(line.level.uppercased()).frame(width: 44, alignment: .leading)

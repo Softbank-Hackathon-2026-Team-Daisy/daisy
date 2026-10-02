@@ -24,16 +24,19 @@ struct PlanResource: Decodable, Hashable, Sendable {
     let monthlyCostKrw: Int?
 }
 
-/// W-01 · W-08 동일성 검증 표. 서버 API 없이 A-02(`image_digest` · 커밋 · 헬스)로 앱이 만들어요.
+/// W-01 · W-08 동일성 검증 표. 서버 API 없이 앱이 만들어요. 규칙은 웹 `ParityTable`과 같아요:
+/// 기준은 첫 번째 환경(W-01은 배포된 첫 환경, W-08은 성공한 첫 환경), 기준과 다른 값만 ✗, 값이 없으면 "—".
 struct Parity: Sendable {
     struct Row: Identifiable, Sendable {
         struct Cell: Hashable, Sendable {
             let targetId: String
             let value: String?
-            let ok: Bool
+            /// 기준과 다르거나 실패한 칸
+            let failed: Bool
+            var ok: Bool { value != nil && !failed }
         }
 
-        /// digest · commit · health
+        /// digest · commit · version · health
         let key: String
         let cells: [Cell]
         var id: String { key }
@@ -41,33 +44,61 @@ struct Parity: Sendable {
 
     let targets: [String]
     let rows: [Row]
-
-    /// 모든 항목이 맞는 환경 수 (웹 "3/3 일치"와 같은 기준: 환경 단위)
-    var matching: Int {
-        targets.filter { id in rows.allSatisfy { row in row.cells.first { $0.targetId == id }?.ok == true } }.count
-    }
+    /// 기준 환경과 image digest가 같은 환경 수 (웹 "3/3 일치")
+    let matching: Int
     var total: Int { targets.count }
 
+    /// W-01 개요: 환경별 현재 상태(A-02)
     init(statuses: [TargetStatus]) {
+        let base = statuses.first { $0.current != nil }
         targets = statuses.map(\.targetId)
-        func row(_ key: String, _ value: (TargetStatus) -> String?) -> Row {
-            let values = statuses.map(value)
-            // 가장 많은 환경이 가진 값이 기준이에요
-            let counts = Dictionary(values.compactMap { $0 }.map { ($0, 1) }, uniquingKeysWith: +)
-            let majority = counts.max { $0.value < $1.value }?.key
-            return Row(key: key, cells: zip(statuses, values).map { status, value in
-                Row.Cell(targetId: status.targetId, value: value, ok: value != nil && value == majority)
+        matching = statuses.parityMatching
+        func row(_ key: String, _ pick: (TargetStatus) -> String?) -> Row {
+            Row(key: key, cells: statuses.map { status in
+                let value = pick(status)
+                return Row.Cell(targetId: status.targetId, value: value,
+                                failed: base != nil && value != nil && value != pick(base!))
             })
         }
         rows = [
-            row("digest") { $0.imageDigest.map { String($0.prefix(19)) } },
+            row("digest") { $0.imageDigest },
             row("commit") { $0.current.map { String($0.commit.prefix(7)) } },
+            // 웹: 헬스 요약이 있으면 그대로, 없으면 "정상" · "실패"
             Row(key: "health", cells: statuses.map {
-                Row.Cell(targetId: $0.targetId, value: $0.health == .healthy ? "정상" : $0.health == .unhealthy ? "이상" : nil,
-                         ok: $0.health == .healthy)
+                Row.Cell(targetId: $0.targetId,
+                         value: $0.healthSummary ?? ($0.health == .healthy ? "정상" : $0.health == .unhealthy ? "실패" : nil),
+                         failed: $0.health == .unhealthy)
             }),
         ]
     }
+
+    /// W-08 결과: 이 배포의 환경별 결과(A-04). 성공한 환경끼리 비교해요
+    init(deployment: Deployment) {
+        let all = deployment.targets ?? []
+        let base = all.first { $0.state == .succeeded }
+        targets = all.map(\.targetId)
+        matching = all.filter { $0.state == .succeeded && $0.imageDigest != nil && $0.imageDigest == base?.imageDigest }.count
+        let commit = String(deployment.commit.prefix(7))
+        rows = [
+            Row(key: "digest", cells: all.map {
+                Row.Cell(targetId: $0.targetId, value: $0.imageDigest,
+                         failed: base != nil && $0.imageDigest != nil && $0.imageDigest != base?.imageDigest)
+            }),
+            Row(key: "commit", cells: all.map { Row.Cell(targetId: $0.targetId, value: commit, failed: false) }),
+            Row(key: "version", cells: all.map { Row.Cell(targetId: $0.targetId, value: deployment.version, failed: false) }),
+            // 웹: 성공은 헬스 요약 그대로("200 OK · 120ms", 없으면 "—"), 실패는 요약 또는 "실패"
+            Row(key: "health", cells: all.map {
+                Row.Cell(targetId: $0.targetId,
+                         value: $0.state == .succeeded ? ($0.healthSummary ?? "—") : $0.state == .failed ? ($0.healthSummary ?? "실패") : nil,
+                         failed: $0.state == .failed)
+            }),
+        ]
+    }
+}
+
+extension DeployTarget {
+    /// 연결 테스트가 실패한 환경은 W-04에서 고를 수 없어요 (웹과 같아요)
+    var isUnreachable: Bool { connection?.state == .failed }
 }
 
 /// WR-04 · W-04 · W-10 대상 환경 (`GET /projects/{id}/targets`).
@@ -102,6 +133,8 @@ struct DeployTarget: Decodable, Identifiable, Hashable, Sendable {
     let runtime: String?
     /// 위치(온프레미스) 또는 리전(클라우드)
     let location: String?
+    /// 위 값의 라벨: "위치" · "리전" (웹 `location_label`)
+    let locationLabel: String?
     /// 연결 방식: "사설망(VPN) + SSH", "IAM 역할"
     let accessMethod: String?
     /// 공개: "팀 도메인 HTTPS"
@@ -127,9 +160,22 @@ struct EnvironmentResource: Decodable, Hashable, Sendable {
 
 /// WR-03 파싱된 `deploy.yaml`과 검증 오류 (스키마는 팀 결정 대기).
 struct Manifest: Decodable, Sendable {
+    /// 검증 오류 한 줄. 웹 목업은 문자열 배열, 앱 초안은 `{path, message}`라 둘 다 받아요 (서버 OpenAPI 대기)
     struct Problem: Decodable, Hashable, Sendable {
         let path: String?
         let message: String
+
+        init(from decoder: Decoder) throws {
+            if let text = try? decoder.singleValueContainer().decode(String.self) {
+                path = nil; message = text
+                return
+            }
+            let container = try decoder.container(keyedBy: CodingKeys.self)
+            path = try container.decodeIfPresent(String.self, forKey: .path)
+            message = try container.decode(String.self, forKey: .message)
+        }
+
+        private enum CodingKeys: String, CodingKey { case path, message }
     }
 
     let port: Int?
@@ -207,9 +253,20 @@ struct Script: Decodable, Identifiable, Hashable, Sendable {
 }
 
 /// 로그 한 줄 (A-07, SSE log.batch와 같은 모양).
+/// 로그 한 줄. 앱 초안은 `ts` · `text`, 웹 목업은 `at` · `message` · `seq`라 둘 다 받아요 (서버 OpenAPI 대기)
 struct LogLine: Decodable, Hashable, Sendable {
     let ts: Date?
     let targetId: String?
     let level: String
     let text: String
+
+    init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        ts = try c.decodeIfPresent(Date.self, forKey: .ts) ?? c.decodeIfPresent(Date.self, forKey: .at)
+        targetId = try c.decodeIfPresent(String.self, forKey: .targetId)
+        level = try c.decodeIfPresent(String.self, forKey: .level) ?? "info"
+        text = try c.decodeIfPresent(String.self, forKey: .text) ?? c.decodeIfPresent(String.self, forKey: .message) ?? ""
+    }
+
+    private enum CodingKeys: String, CodingKey { case ts, at, targetId, level, text, message }
 }

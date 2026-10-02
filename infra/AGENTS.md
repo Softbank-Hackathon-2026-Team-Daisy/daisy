@@ -16,6 +16,7 @@
 | 임채준 | GCP 기준 모듈 (Cloud Run) | N-03 |
 | 임채준 | AWS 기준 모듈 (ECS Fargate · ALB · RDS) | N-06 |
 | 임채준 | state 백엔드 (환경별 분리 · 잠금), Jenkins 러너 프로토타입 | N-07 |
+| 임채준 | **AI Terraform 생성 · 수정 루프 · 재사용** (`infra/ai/`, 9/30 회의에서 담당 변경) | N-02 · N-05 · N-08 |
 | 황지환 · 임채준 | Jenkins의 온프레미스 배포 연결: SSH 접근, Terraform 실행 환경, 배포 결과·헬스체크 연동. 서버와 승인된 plan·로그·중단 요청 계약 협의 | N-04 · N-07 |
 
 Proxmox VM 자동 생성은 후속 목표예요. 데모에서는 사전 준비한 VM에 Terraform으로 컨테이너를 배포해요. Jenkins 설치·운영의 세부 분담은 두 인프라 담당자가 협의해요. 위 표는 담당 범위이며, 구성·검증 완료를 뜻하지 않아요. 실제 설정과 검증 결과는 `SPEC.md`에 기록해요.
@@ -28,9 +29,9 @@ Proxmox VM 자동 생성은 후속 목표예요. 데모에서는 사전 준비�
 |---|---|---|
 | IaC | **Terraform** | ADR-003 |
 | Terraform 버전 | **1.16.4** `(가칭)` | 러너 · AI 작성 규칙 · 모듈이 같은 버전을 써요. 모듈은 `required_version = ">= 1.11"` (S3 네이티브 잠금) |
-| provider | AWS `hashicorp/aws ~> 6.0`, Google `hashicorp/google ~> 7.0`, 온프레미스: Docker provider · 버전 `[미정]` | 데모는 기존 VM의 컨테이너를 관리해요. Proxmox provider 선정은 후속 VM 자동 생성 범위예요 |
+| provider | AWS `hashicorp/aws ~> 6.0`, Google `hashicorp/google ~> 8.0`, 온프레미스: Docker provider · 버전 `[미정]` | 데모는 기존 VM의 컨테이너를 관리해요. Proxmox provider 선정은 후속 VM 자동 생성 범위예요. Google은 최신 8.x(10/1 기준 8.5.0) |
 | 온프레미스 런타임 | **Docker** | ADR-005 |
-| CI/CD | **Jenkins 확정**: `daisy-ci`, `daisy-cd` | 10/1 전달된 팀 합의. Terraform 실행은 CI/CD VM의 Jenkins가 맡아요 |
+| CI/CD | **Jenkins 확정**: `daisy-ci`, `daisy-cd-plan` → 승인 → `daisy-cd-apply` | 10/1 전달된 팀 합의. Terraform 실행은 CI/CD VM의 Jenkins가 맡아요 |
 | 러너 OS | Ubuntu 24.04 기반 프로토타입 | 클라우드 `SPEC.md` §12 참고. 실제 CI/CD VM 사양과 도구 버전은 별도 기록해요 |
 
 ### 온프레미스 설치 현황과 설계 방향
@@ -64,7 +65,8 @@ infra/
 │  ├─ onprem/         ← 황지환
 │  ├─ aws/            ← 임채준
 │  └─ gcp/            ← 임채준
-├─ bootstrap/ (가칭)  state 버킷 · 클라우드 계정 1회 준비 ← 임채준
+├─ bootstrap/ (가칭)  고정 네트워크(aws-network) · state 버킷 등 1회 준비 ← 임채준
+├─ ai/                AI Terraform 생성 · 수정 루프 · 재사용 ← 임채준
 ├─ jenkins/   (가칭)  러너 설치 · CI/CD 파이프라인 ← 임채준 (프로토타입)
 └─ scripts/   (가칭)  tf-run.sh 등 러너 보조 ← 임채준
 ```
@@ -93,7 +95,7 @@ server AI(김승환)와 러너가 환경에 상관없이 같은 방식으로 모
 | backend | 모듈에 쓰지 않아요. 러너가 `backend.tf` + `-backend-config`로 주입해요 |
 | 입력 변수 | `deploy.yaml` 키와 1:1: `name`, `port`, `healthcheck`, `env`, `secrets`, `database`. 여기에 `image`(태그 없는 주소), `image_tag`(필수, 커밋 해시)를 더해요 |
 | 출력 | `service_url` (스킴 포함, 끝에 `/` 없음). 헬스체크 주소 = `service_url` + `healthcheck` |
-| state key | `{app}/{env}/terraform.tfstate`, `env`는 `onprem` · `aws` · `gcp`. 저장소는 루트 `[미정]` |
+| state | **환경마다 그 환경의 저장소**에 두고 잠금을 켜요 (AWS S3 · GCP GCS · 온프레미스 `[미정]`). key는 지금 `{app}/{env}/terraform.tfstate`이고, 서버 ID 기준 `{project_id}/{target_id}`로 바꿀 예정이에요 `(가칭)` |
 | DB 접속 환경변수 | `DB_HOST` · `DB_PORT` · `DB_NAME` · `DB_USER` · `DB_PASSWORD`. 세 환경이 같은 이름을 넣어야 이식성이 지켜져요 |
 | 자격증명 | 코드 · 변수 어디에도 없어요. 러너의 환경변수로만 받아요 |
 | 태그 · 라벨 | `Project=daisy`, `App={name}`, `ManagedBy=terraform`. 정리할 때 이걸로 남은 리소스를 찾아요 |
@@ -119,11 +121,11 @@ server AI(김승환)와 러너가 환경에 상관없이 같은 방식으로 모
 ### Jenkins 실행 · 승인 계약 (10/1 합의, 세부 연결은 미정)
 
 - **서버는 Jenkins API로 요청하고, CI/CD VM의 Jenkins가 Terraform과 배포를 실행**해요. 배포 대상 위치·접속 설정은 Jenkins에서 관리하며 백엔드가 직접 대상 호스트를 제어하지 않아요.
-- `daisy-ci`: 코드 → 테스트·이미지 빌드 → 레지스트리. `daisy-cd`: 이미지 → 온프레미스·AWS 배포. 기존 GCP 모듈 범위의 삭제를 뜻하지 않아요.
+- `daisy-ci`: 코드 → 테스트·이미지 빌드 → 레지스트리. `daisy-cd`: 이미지 → 온프레미스·AWS 배포. 기존 GCP 모듈 범위의 삭제를 뜻하지 않아요. (10/1 이후 `daisy-cd`는 `daisy-cd-plan` · `daisy-cd-apply` 두 Job으로 나뉘었어요, §9)
 - AI 호출 → Terraform 생성 → validate/plan → apply → 배포 단계는 Jenkins CD job에서 실행해요. AI 로직의 개발 소유권 변경을 뜻하지는 않아요.
 - **사용자 승인은 웹·앱 → 서버 승인 API 하나로 받아요.** 서버가 승인을 받은 뒤 Jenkins에 적용을 요청하며, 실서비스에서는 Jenkins의 별도 사용자 승인 단계를 두지 않아요.
-- 승인 대상 plan을 먼저 생성·검토한 뒤 그 plan에 대한 승인으로 apply해야 해요. 승인 후 생성·변경한 plan을 이전 승인으로 실행하지 않아요. plan 준비와 승인 후 실행을 같은 job에서 대기·재개할지, 실행을 분리할지는 아직 미정이에요.
-- 승인된 plan 전달·식별, 로그 수신, 중단 요청의 연결 방식은 **황지환·임채준이 맞춰 10/1까지 서버에 공유**해요. 재계획 시 재승인, 요청 인증·중복 방지·작업 ID 연결도 상세 계약에 포함해요.
+- 승인 대상 plan을 먼저 생성·검토한 뒤 그 plan에 대한 승인으로 apply해야 해요. 승인 후 생성·변경한 plan을 이전 승인으로 실행하지 않아요. plan 준비와 승인 후 실행을 같은 job에서 대기·재개할지, 실행을 분리할지는 아직 미정이에요. → **10/1 분리로 정했어요**: 서버가 승인 후 `daisy-cd-apply`를 `PLAN_BUILD` · `APPROVAL_ID`로 시작하고, plan 해시가 다르거나 이미 적용한 plan이면 거부해요 (§9, 클라우드 `SPEC.md` §12-7)
+- 승인된 plan 전달·식별, 로그 수신, 중단 요청의 연결 방식은 **황지환·임채준이 맞춰 10/1까지 서버에 공유**해요. 재계획 시 재승인, 요청 인증·중복 방지·작업 ID 연결도 상세 계약에 포함해요. → 빌드 시작 · 로그 · 단계 조회는 PR #17 코멘트로 공유했지만 CD 분리 **전** 기준이에요. 두 Job 기준과 중단 요청은 다시 공유해야 해요 (§10)
 - 내부 Service VM 접근은 SSH를 사용해요. Terraform은 CI/CD VM에서 실행하고 Docker provider가 기존 Service VM의 Docker를 관리하도록 연결해요. SSH를 통한 provider 연결·인증·호스트 확인 방식은 선정한 provider에서 검증 후 확정하며, 원격 Compose 실행으로 대체하지 않아요.
 - 데모 대상은 사전 등록한 VM IP를 사용해요. Docker 접근·준비 확인, 공통 `service_url`의 생성 주체와 헬스체크 시점은 합의해요.
 - §4 공통 규약은 이번 온프레미스 설명만으로 승인된 것으로 취급하지 않아요.
@@ -168,6 +170,8 @@ APP=hellocalc IMAGE_TAG=<커밋 해시 40자> infra/scripts/tf-run.sh aws plan
 - 작업을 요청한 담당자의 모듈 폴더만 고쳐요
 - `terraform apply` · `destroy`, 클라우드 CLI와 Docker 호스트의 생성 · 삭제 명령은 **사람 확인 없이 실행하지 않아요** (루트 §4-2). `fmt` · `validate` · `plan`은 괜찮아요
 - `TF_RUN_APPROVED`를 직접 설정해 승인을 우회하지 않아요. 기존 프로토타입의 Jenkins `input` 승인은 실서비스의 서버 승인 API 연동으로 전환해야 해요. 승인된 plan과 연결된 실행 요청을 검증한 뒤에만 실행하도록 계약을 구현하며, 문서 변경만으로 기존 승인 검사를 제거하지 않아요.
+  - 10/1 CD는 전환했어요: `input` 없이 **`daisy-cd-apply` 시작 = 승인**이에요 (`APPROVAL_ID` 필수, plan 해시 확인). 그래서 **에이전트는 `daisy-cd-apply`를 시작하지 않아요.** `input` 승인은 관리자 작업인 `daisy-bootstrap`에만 남아요
+  - `daisy-cd-plan`은 plan만 만들어서 실행해도 되지만, `USE_AI`면 Claude API 비용이 들어요
 - §4 공통 규약은 임의로 바꾸지 않아요
 - 목업에는 `# MOCK:` 주석을 달아요 (Groovy·JS는 `// MOCK:`)
 - 작업 전에 아래 결정 기록을 읽어요
@@ -189,8 +193,18 @@ APP=hellocalc IMAGE_TAG=<커밋 해시 40자> infra/scripts/tf-run.sh aws plan
 | 2026-09-30 | `[클라우드]` 구현 순서 AWS → GCP | 담당자 결정. 팀 일정(N-03이 D1)과 달라서 공유 필요 (클라우드 SPEC D-10) | 1 |
 | 2026-09-30 | `[클라우드]` 팀원 서버 연결 전에는 Mac VM(`daisy-runner`, Ubuntu 24.04 arm64)에서 Jenkins CI · CD를 돌려요 | 서버에 연결할 수 없어요. 설치 스크립트와 Jenkinsfile을 레포에 둬서 그대로 옮겨요 | 1 |
 | 2026-09-30 | `[클라우드]` VM 단계는 개인 AWS · GCP 계정과 개인 Docker Hub 공개 저장소를 써요 | 팀 계정 · 레지스트리 미정. GHCR 패키지가 비공개예요 | 1 |
+| 2026-09-30 | `[클라우드]` 개인 AWS 계정에서는 plan까지만 해요. IAM은 `ReadOnlyAccess`, Jenkins `PLAN_ONLY=1`, Zero spend budget. apply는 팀 계정에서 | 개인 계정은 프리티어가 끝나서 ALB · Fargate가 유료예요. 개인 비용 0원이 조건이에요 | 1 |
 | 2026-09-30 | `[클라우드]` CI는 `linux/amd64,linux/arm64`로 푸시해요 | Cloud Run은 amd64만 실행하고, 러너는 arm64예요 | 1 |
 | 2026-09-30 | `[클라우드]` apply · destroy는 터미널 입력이나 Jenkins `input` 승인 뒤 `TF_RUN_APPROVED`로만 실행해요 | 인프라 변경은 반드시 사람 승인 (루트 §4-2) | 1 |
+| 2026-10-01 | state는 **환경마다 그 환경의 저장소**(AWS S3 · GCP GCS)에 두고 모두 잠금을 켜요. 온프레미스 저장소는 황지환과 결정 `(가칭 · 팀 회의 확인)` | 한 환경의 장애 · 자격증명 문제가 다른 환경 배포를 막지 않고, 각 배포는 자기 환경 키만 필요해요 (최소 권한). PR #17에서 앱(박승준)에 답변 | 4 |
+| 2026-10-01 | `[클라우드]` Jenkins에 "Pipeline: REST API" 플러그인을 넣어요 | 서버가 단계별 상태 · 승인 대기 API(`wfapi`)를 써요. 최근 권장 플러그인에 빠져 있어요 | 1 |
+| 2026-10-01 | CD를 `daisy-cd-plan`(plan · 위험 검사 · 요약)과 `daisy-cd-apply`(승인한 plan 적용 · 헬스체크) 두 Job으로 분리. 서버가 승인 후 `daisy-cd-apply`를 `PLAN_BUILD` · `APPROVAL_ID`로 시작해요 | Jenkins `input` 대기 없이 승인을 서버 승인 API 하나로 받고(§16-6), plan마다 작업 폴더를 분리해 승인 대기 plan을 덮어쓰지 않아요(§16-7). 승인 대기 중 executor를 잡지 않아요 | 2 (서버가 쓰는 계약, 하은현에게 공유) |
+| 2026-10-01 | `[클라우드]` AWS 네트워크(VPC · 서브넷)는 `infra/bootstrap/aws-network`로 1번 만들어 두고, 앱 모듈은 `vpc_id` · `public_subnet_ids` · `private_subnet_ids`를 받아요 | 배포마다 VPC를 만들고 지우는 건 불필요한 반복이에요. 네트워크는 무료이고, 대역이 고정돼야 VPN · 여러 앱 공유가 돼요 | 2 (모듈 입력 변수 변경, 김승환에게 공유) |
+| 2026-10-01 | `[클라우드]` 개인 AWS 계정을 실제 환경으로 써요 (비용 정산 예정). 9/30의 "개인 계정은 plan까지만" 결정을 대체해요 | 팀 계정이 없어요. 생성 권한 · `PLAN_ONLY` 해제는 사람이 확인하고 바꿔요 | 1 |
+| 2026-10-01 | AI Terraform 생성 · 수정 루프 · 재사용 담당을 김승환 → **임채준**으로 (9/30 회의 합의). 코드는 `infra/ai/`, Jenkins `daisy-cd-plan`에서 실행해요 | Terraform 실행이 CI · CD 모두 Jenkins로 모였어요. 루트 `AGENTS.md` §5-1 · `server/AGENTS.md` 갱신 필요 (김도영 · 김승환) | 팀 합의 (임채준 전달) |
+| 2026-10-01 | `[클라우드]` AI 생성은 `claude-opus-5-5` + 구조화 출력(파일 3개 JSON) + 프롬프트 캐시. 재사용은 입력 지문(vars.json · 기준 모듈 · 규칙) 비교, 시도는 환경당 총 3번 | 바뀌었는지는 규칙으로 판단하고 AI는 고치는 방법만 정해요. Opus 5.5는 도구 호출 강제를 지원하지 않아요 | 1 |
+| 2026-10-01 | `[클라우드]` 러너의 Jenkins · Docker · terraform 패키지는 `apt-mark hold` | `setup-runner.sh`를 다시 돌렸을 때 Jenkins가 업그레이드 · 재시작돼 돌던 apply가 끊길 뻔했어요 | 1 |
+| 2026-10-01 | `[클라우드]` `daisy-cd-plan`의 `USE_AI` 기본값은 `true`. `false`면 기준 모듈 그대로(`MOCK` 대안 경로) | 데모 경로가 기본이고, API 장애 · 비용 문제 때 바로 대안으로 돌려요 | 1 |
 | 2026-10-01 | `[온프레미스]` 데모는 기존 VM의 Docker 컨테이너를 Terraform으로 관리 | VM 생성 시간을 제외하면서 팀의 plan·승인·apply 흐름 유지. 이전 VM 생성 우선 방향을 대체 | 1 |
 | 2026-10-01 | `[온프레미스]` Proxmox 템플릿 복제·cloud-init 기반 VM 자동 생성은 후속 목표 | 데모의 컨테이너 배포와 VM 준비 자동화를 단계적으로 분리 | 1 |
 | 2026-10-01 | `[온프레미스]` Route 53 → 공인 IP, 외부 80·443으로 앱 공개 | 터널 대신 공인 IP 기반 서비스 공개 방향 | 1 |
@@ -206,9 +220,9 @@ APP=hellocalc IMAGE_TAG=<커밋 해시 40자> infra/scripts/tf-run.sh aws plan
 | 무엇 | 상태 | 누가 |
 |---|---|---|
 | §4 공통 규약 | 임채준 제안. 온프레미스에도 맞는지 확인 필요 | 황지환 |
-| state 저장소 | S3 버킷 하나에 `{app}/{env}` key로 나누자는 제안. 온프레미스 state도 같이 둘지 | 팀 회의 · 황지환 |
-| 서버 ↔ Jenkins 세부 계약 | 도구·실행 주체·승인 창구는 확정. plan 전달·식별, 로그 수신, 중단 요청 방식은 10/1까지 공유 | 황지환 · 임채준, 서버와 조율 |
-| 승인 전 plan과 승인 후 apply 연결 | CD job 대기·재개 또는 실행 분리, 승인 검증·재승인·중복 요청 처리, 기존 프로토타입 승인 전환 | 인프라 · 서버 |
+| state 저장소 | 방향은 "환경마다 그 환경의 저장소 + 잠금"(§9). **AWS S3 버킷은 아직 안 만들어서 state가 임채준 러너 VM 로컬에 있어요** → 다른 Jenkins와 공유 · 잠금이 안 돼요. **온프레미스 저장소**와 **key 형식**(`{project_id}/{target_id}`)도 남았어요 | 임채준(S3) · 팀 회의 확인 · 황지환(온프레미스) · 하은현(key) |
+| 서버 ↔ Jenkins 세부 계약 | 도구·실행 주체·승인 창구 확정, CD 두 Job 구조 확정(§9). PR #17 코멘트의 호출 흐름은 분리 **전** 기준이라 두 Job 기준(`PLAN_BUILD` · `APPROVAL_ID`, `plan-summary.json`)으로 다시 공유해야 해요. 중단 요청 방식은 남았어요 | 황지환 · 임채준, 서버와 조율 |
+| 승인 전 plan과 승인 후 apply 연결 | 구조는 **두 Job으로 분리**해서 정했어요 (§9, 클라우드 SPEC §12-7). 서버 쪽 승인 ID 발급 · 재승인 · 중복 요청 처리와 서버 연결 구현이 남았어요 | 인프라 · 서버 |
 | 컨테이너 레지스트리 | 루트 `[미정]` | **팀 회의** |
 | 온프레미스 Docker 모듈 계약 | 기존 VM의 컨테이너를 Terraform으로 관리하는 방식 확정. provider·버전, 리소스 범위와 공통 입력·출력 매핑은 미정 | 황지환 · 임채준, 서버와 계약 공유 |
 | Jenkins 호스트 | 같은 Proxmox 물리 서버의 별도 CI/CD VM 방향. Service VM과 분리하며 실제 설치·운영 분담 확인 필요 | 황지환 · 임채준 · 서버 |

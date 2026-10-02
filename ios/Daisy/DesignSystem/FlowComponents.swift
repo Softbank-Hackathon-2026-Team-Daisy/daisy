@@ -47,9 +47,11 @@ struct SectionCard<Trailing: View, Content: View>: View {
 
 struct EnvTag: View {
     let type: TargetType
+    /// 아직 앱이 모르는 환경 이름 (W-10 "Azure")
+    var label: String? = nil
 
     var body: some View {
-        Label(type.displayName, systemImage: type.systemImage)
+        Label(label ?? type.displayName, systemImage: label == nil ? type.systemImage : "cloud")
             .font(.caption.weight(.medium))
             .padding(.horizontal, 8)
             .padding(.vertical, 4)
@@ -134,6 +136,8 @@ struct FlowStepper: View {
             }
             .padding(.vertical, 2)
         }
+        // 가로 스크롤은 iPhone 탭 바용 아래 여백(contentMargins)을 받지 않아요
+        .contentMargins(.vertical, 0, for: .scrollContent)
         .onAppear { proxy.scrollTo(current, anchor: .center) }
         }
         .accessibilityElement(children: .ignore)
@@ -179,6 +183,7 @@ struct StepItemRow: View {
         case .failed: Image(systemName: "xmark.circle.fill").foregroundStyle(.red)
         case .running: ProgressView().controlSize(.small)
         case .waiting, .unknown: Image(systemName: "clock").foregroundStyle(.secondary)
+        case .skipped: Image(systemName: "minus.circle").foregroundStyle(.secondary)
         }
     }
 
@@ -195,6 +200,8 @@ struct StepItemRow: View {
             }
         case .waiting, .unknown:
             Text("—")
+        case .skipped:
+            Text("건너뜀")
         case .done, .failed:
             Text(durationMs.map { Duration.milliseconds($0).daisyText } ?? "—")
         }
@@ -226,7 +233,8 @@ struct InfoRow: View {
     var body: some View {
         HStack(alignment: .firstTextBaseline, spacing: 12) {
             Text(key).font(.subheadline).foregroundStyle(.secondary).frame(width: 110, alignment: .leading)
-            Text(value ?? "[미정]")
+            // 값이 없으면 "—" (웹과 같아요). 팀이 아직 안 정한 칸은 화면이 "[미정]"을 직접 넘겨요
+            Text(value ?? "—")
                 .font(monospaced ? .subheadline.monospaced() : .subheadline)
                 .foregroundStyle(value == nil ? .secondary : .primary)
                 .textSelection(.enabled)
@@ -367,6 +375,9 @@ struct CodeBlock: View {
                     .textSelection(.enabled)
                     .padding(12)
             }
+            .contentMargins(.vertical, 0, for: .scrollContent)
+            // 가로 ScrollView는 세로로 늘어나요. 그리드 안에서 화면보다 길게 늘어나 빈 공간이 생겨서 코드 높이로 고정해요 (W-05)
+            .fixedSize(horizontal: false, vertical: true)
         }
         .background(.fill.quaternary, in: .rect(cornerRadius: 10))
         .task(id: copied) {
@@ -426,6 +437,7 @@ struct ParityTable: View {
         switch key {
         case "digest": "이미지 digest"
         case "commit": "커밋"
+        case "version": "앱 버전"
         case "health": "헬스체크"
         default: key
         }
@@ -480,8 +492,11 @@ struct ParityTable: View {
         Label {
             Text(cell.value ?? "—").font(.caption.monospaced())
         } icon: {
-            Image(systemName: cell.ok ? "checkmark.circle" : "xmark.circle")
-                .foregroundStyle(cell.ok ? .green : .red)
+            if cell.failed {
+                Image(systemName: "xmark.circle").foregroundStyle(.red)
+            } else if cell.value != nil {
+                Image(systemName: "checkmark.circle").foregroundStyle(.green)
+            }
         }
     }
 }
@@ -490,10 +505,12 @@ struct ParityTable: View {
 
 struct RunListItem: View {
     let deployment: Deployment
+    /// 화면마다 다른 라벨 (개요 "배포 완료" · "중단"). 없으면 배포 상태
+    var badge: StatusBadge? = nil
 
     var body: some View {
         HStack(spacing: 10) {
-            deployment.state.badge
+            badge ?? deployment.badge
             CommitLabel(commit: deployment.commit)
             Text(deployment.commitMessage ?? "").font(.subheadline).lineLimit(1)
             Spacer(minLength: 8)
@@ -512,11 +529,7 @@ struct RelativeTime: View {
 
     var body: some View {
         TimelineView(.periodic(from: .now, by: 30)) { context in
-            if context.date.timeIntervalSince(date) < 60 {
-                Text("방금")
-            } else {
-                Text(date, format: .relative(presentation: .named))
-            }
+            Text(TimeText.relative(date, now: context.date))
         }
     }
 }
