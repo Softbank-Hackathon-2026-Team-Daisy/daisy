@@ -52,8 +52,13 @@ extension Endpoint {
     }
 
     /// A-05 · D3. `detail`이면 환경별 리소스 전체 목록까지 (WR-06, W-06 리소스 행)
-    static func plan(deploymentID: String, detail: Bool = false) -> Endpoint<Plan> {
-        .init(path: "deployments/\(deploymentID)/plan", query: [("detail", detail ? "resources" : nil)])
+    static func plan(deploymentID: String) -> Endpoint<Plan> {
+        .init(path: "deployments/\(deploymentID)/plan")
+    }
+
+    /// WR-06 · W-06 리소스 행: 요약과 따로, 환경별 배열 `[{ target_id, resources[], plan_text }]`로 와요 (서버 #51)
+    static func planDetail(deploymentID: String) -> Endpoint<[PlanDetail]> {
+        .init(path: "deployments/\(deploymentID)/plan", query: [("detail", "resources")])
     }
 
     /// A-06 · D3

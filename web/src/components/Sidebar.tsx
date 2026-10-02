@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import { useNavigate } from 'react-router'
-import { MOCK_ENVS, MOCK_PENDING_APPROVALS, MOCK_PROJECTS, MOCK_USER } from '../mocks/workspace.ts'
+import { initials, ROLE_LABEL, useWorkspace } from '../api/useWorkspace.ts'
 import { paths } from '../paths.ts'
 import Avatar from './Avatar.tsx'
 import Button from './Button.tsx'
@@ -27,8 +27,9 @@ function Sidebar({ projectId, collapsed, canToggle, onToggle, onOpenMacApp }: Si
   const navigate = useNavigate()
   const [menuOpen, setMenuOpen] = useState(false)
   const switcherRef = useRef<HTMLDivElement>(null)
-  // MOCK: 프로젝트 · 환경 · 사용자는 서버 연결 전까지 목업
-  const project = MOCK_PROJECTS.find((p) => p.id === projectId) ?? MOCK_PROJECTS[0]
+  // 프로젝트 · 환경 · 사용자는 A-01 · A-02 · R-03 (목업 모드면 목업이 답해요)
+  const ws = useWorkspace(projectId)
+  const name = ws.project?.name ?? '프로젝트'
 
   useEffect(() => {
     if (!menuOpen) return
@@ -43,7 +44,7 @@ function Sidebar({ projectId, collapsed, canToggle, onToggle, onOpenMacApp }: Si
     }
   }, [menuOpen])
 
-  const p = project.id
+  const p = projectId
 
   return (
     <nav className={['sidebar', collapsed && 'sidebar--collapsed'].filter(Boolean).join(' ')} aria-label="프로젝트 메뉴">
@@ -55,17 +56,15 @@ function Sidebar({ projectId, collapsed, canToggle, onToggle, onOpenMacApp }: Si
           className="sidebar__project"
           aria-haspopup="menu"
           aria-expanded={menuOpen}
-          aria-label={`프로젝트: ${project.name}`}
+          aria-label={`프로젝트: ${name}`}
           onClick={() => setMenuOpen((v) => !v)}
         >
-          <span className="project-initials">{project.initials}</span>
+          <span className="project-initials">{initials(name)}</span>
           {!collapsed && (
             <>
               <span className="sidebar__project-text">
-                <span className="t-label">{project.name}</span>
-                <span className="t-mono-sm t-muted">
-                  {project.branch} · {project.commit}
-                </span>
+                <span className="t-label">{name}</span>
+                <span className="t-mono-sm t-muted">{ws.project?.default_branch ?? '—'}</span>
               </span>
               <Icon name="chevron-down" />
             </>
@@ -74,8 +73,8 @@ function Sidebar({ projectId, collapsed, canToggle, onToggle, onOpenMacApp }: Si
         {menuOpen && (
           <div className="sidebar__menu">
             <ProjectMenu
-              projects={MOCK_PROJECTS.map((x) => ({ id: x.id, name: x.name, initials: x.initials, meta: `${x.branch} · ${x.summary}` }))}
-              currentId={project.id}
+              projects={ws.projects.map((x) => ({ id: x.id, name: x.name, initials: initials(x.name), meta: x.default_branch ?? '—' }))}
+              currentId={projectId}
               onSelect={(id) => {
                 setMenuOpen(false)
                 navigate(paths.overview(id))
@@ -110,7 +109,7 @@ function Sidebar({ projectId, collapsed, canToggle, onToggle, onOpenMacApp }: Si
           label="배포"
           to={paths.currentDeployment(p)}
           activePrefix={`/projects/${p}/deploy`}
-          badge={MOCK_PENDING_APPROVALS}
+          badge={ws.pendingApprovals || undefined}
         />
         <NavItem collapsed={collapsed} icon="server" label="환경" to={paths.environments(p)} />
         <NavItem collapsed={collapsed} icon="clock" label="이력" to={paths.history(p)} />
@@ -119,24 +118,24 @@ function Sidebar({ projectId, collapsed, canToggle, onToggle, onOpenMacApp }: Si
 
       <div className="sidebar__envs">
         {collapsed ? (
-          <MockBadge compact />
+          ws.envsMocked && <MockBadge compact />
         ) : (
           <p className="sidebar__envs-title t-overline t-muted">
-            Environments <MockBadge />
+            Environments {ws.envsMocked && <MockBadge />}
           </p>
         )}
-        {MOCK_ENVS.map((env) =>
+        {ws.envs.map((env) =>
           collapsed ? (
-            <span key={env.type} className="sidebar__env-dots" aria-label={`${ENV_LABEL[env.type]} · ${env.statusLabel}`} role="img">
+            <span key={env.targetId} className="sidebar__env-dots" aria-label={`${ENV_LABEL[env.type]} · ${env.label}`} role="img">
               <span className="sidebar__env-color" style={{ background: `var(--color-env-${env.type})` }} />
-              <span className="sidebar__status-dot" style={{ background: `var(--color-status-${env.status})` }} />
+              <span className="sidebar__status-dot" style={{ background: `var(--color-status-${env.tone})` }} />
             </span>
           ) : (
-            <button key={env.type} type="button" className="sidebar__env" onClick={() => navigate(paths.environments(p))}>
+            <button key={env.targetId} type="button" className="sidebar__env" onClick={() => navigate(paths.environments(p))}>
               <span className="sidebar__env-color" style={{ background: `var(--color-env-${env.type})` }} />
               <span className="sidebar__env-name">{ENV_LABEL[env.type]}</span>
-              <span className="sidebar__status-dot" style={{ background: `var(--color-status-${env.status})` }} />
-              <span className="t-mono-sm t-muted">{env.statusLabel}</span>
+              <span className="sidebar__status-dot" style={{ background: `var(--color-status-${env.tone})` }} />
+              <span className="t-mono-sm t-muted">{env.label}</span>
             </button>
           ),
         )}
@@ -155,12 +154,12 @@ function Sidebar({ projectId, collapsed, canToggle, onToggle, onOpenMacApp }: Si
       <ConnectionIndicator state="polling" compact={collapsed} />
 
       <div className="sidebar__user">
-        {/* Figma처럼 성을 뺀 이름 첫 글자 */}
-        <Avatar type="human" name={MOCK_USER.name.slice(1)} size="m" />
+        {/* 한글 이름은 Figma처럼 성을 뺀 첫 글자 */}
+        <Avatar type="human" name={userName(ws.user?.username)} size="m" />
         {!collapsed && (
           <span className="sidebar__user-text">
-            <span className="t-label">{MOCK_USER.name}</span>
-            <span className="t-mono-sm t-muted">{MOCK_USER.role}</span>
+            <span className="t-label">{ws.user?.username ?? '—'}</span>
+            <span className="t-mono-sm t-muted">{ws.user ? ROLE_LABEL[ws.user.role] : ''}</span>
           </span>
         )}
         {canToggle && (
@@ -177,5 +176,7 @@ function Sidebar({ projectId, collapsed, canToggle, onToggle, onOpenMacApp }: Si
     </nav>
   )
 }
+
+const userName = (name?: string) => (!name ? '?' : /^[가-힣]{3}$/.test(name) ? name.slice(1) : name)
 
 export default Sidebar

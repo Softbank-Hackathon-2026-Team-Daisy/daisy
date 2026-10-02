@@ -11,6 +11,7 @@ import com.teamdaisy.server.project.access.ProjectAccessService;
 import com.teamdaisy.server.project.application.AiCostConverter;
 import com.teamdaisy.server.project.application.DeploymentDetailReader;
 import com.teamdaisy.server.project.application.DeploymentDetailReader.DeploymentDetail;
+import com.teamdaisy.server.project.application.DeploymentLogReader;
 import com.teamdaisy.server.project.application.DeploymentPlanReader;
 import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.security.SecurityRequirement;
@@ -24,7 +25,7 @@ import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 /**
- * 배포 조회 API 예요. 상세(A-04)·목록(A-03)·plan(A-05·WR-06)이 있고, 로그(A-07)가 여기 더해져요.
+ * 배포 조회 API 예요. 상세(A-04)·목록(A-03)·plan(A-05·WR-06)·로그(A-07)가 있어요.
  *
  * <p>권한은 승환의 {@code projectIdOf} 로 확인해요. 없는 배포와 접근할 수 없는 배포는 404 예요.
  */
@@ -32,6 +33,8 @@ import org.springframework.web.bind.annotation.RestController;
 @SecurityRequirement(name = "bearerAuth")
 public class DeploymentQueryController {
   private static final int DEFAULT_LIMIT = 20;
+  private static final int DEFAULT_TAIL = 200;
+  private static final int MAX_TAIL = 1000;
   private static final Set<String> STATES =
       Arrays.stream(DeploymentStatus.values())
           .map(DeploymentStatus::code)
@@ -42,18 +45,21 @@ public class DeploymentQueryController {
   private final ProjectAccessService access;
   private final DeploymentPlanReader plans;
   private final AiCostConverter cost;
+  private final DeploymentLogReader logs;
 
   public DeploymentQueryController(
       DeploymentQueryService queries,
       DeploymentDetailReader details,
       ProjectAccessService access,
       DeploymentPlanReader plans,
-      AiCostConverter cost) {
+      AiCostConverter cost,
+      DeploymentLogReader logs) {
     this.queries = queries;
     this.details = details;
     this.access = access;
     this.plans = plans;
     this.cost = cost;
+    this.logs = logs;
   }
 
   /** 배포 한 건의 스냅샷이에요 (A-04). 승인할 때 보낼 {@code approval_id} 는 {@code pending_approvals} 에 있어요. */
@@ -136,5 +142,31 @@ public class DeploymentQueryController {
     return plans.currentPlans(projectId, deploymentId).stream()
         .map(PlanDetailResponse::of)
         .toList();
+  }
+
+  /**
+   * 배포의 최근 로그예요 (A-07). SSE 가 끊겼다 다시 붙을 때 채우는 용도예요.
+   *
+   * <p>{@code target_id} 를 주면 그 대상 로그와, 그 대상을 포함한 실행의 콘솔 로그를 같이 줘요. 최근 {@code tail} 개만 주고 {@code
+   * next_cursor} 는 늘 null 이에요.
+   */
+  @GetMapping("/deployments/{deploymentId}/logs")
+  public PageResponse<LogLineResponse> logs(
+      @CurrentAccount AuthPrincipal principal,
+      @PathVariable String deploymentId,
+      @RequestParam(name = "target_id", required = false) String targetId,
+      @RequestParam(required = false, defaultValue = "" + DEFAULT_TAIL) int tail) {
+    String projectId = queries.projectIdOf(principal.accountId(), deploymentId);
+    if (tail <= 0) {
+      throw new DaisyException(ErrorCode.VALIDATION_FAILED);
+    }
+    if (targetId != null && !logs.hasTarget(projectId, deploymentId, targetId)) {
+      throw new DaisyException(ErrorCode.NOT_FOUND);
+    }
+    List<LogLineResponse> lines =
+        logs.tail(projectId, deploymentId, targetId, Math.min(tail, MAX_TAIL)).stream()
+            .map(LogLineResponse::of)
+            .toList();
+    return new PageResponse<>(lines, null);
   }
 }

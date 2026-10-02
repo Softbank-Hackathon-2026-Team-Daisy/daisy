@@ -2,7 +2,7 @@ import { useState } from 'react'
 import { useNavigate, useParams } from 'react-router'
 import { useAuth } from '../../api/auth.ts'
 import { ApiError, errorMessage, newIdempotencyKey } from '../../api/client.ts'
-import { api } from '../../api/endpoints.ts'
+import { api, isMocked } from '../../api/endpoints.ts'
 import type { Deployment, Plan, PlanDetail } from '../../api/types.ts'
 import { useResource } from '../../api/useResource.ts'
 import Alert from '../../components/Alert.tsx'
@@ -69,7 +69,19 @@ function ApproveView({ d, plan, detail, reload }: { d: Deployment; plan: Plan; d
     setPending(true)
     setError(null)
     try {
-      await api.approve(d.id, decision, hasDelete ? confirm : undefined, newIdempotencyKey())
+      // 화면에 보인 승인 대기 환경 중 승인 ID가 있는 것만 보내요 (만료된 승인은 서버가 빼서 줘요, #46)
+      const items = approvable.flatMap((t) => {
+        const a = d.pending_approvals.find((x) => x.target_id === t.target_id)
+        return a ? [{ target_id: t.target_id, approval_id: a.approval_id }] : []
+      })
+      // 승인 ID가 하나도 없으면(만료) 서버가 400을 줘요 → 보내지 않고 최신 상태를 다시 불러와요
+      if (items.length === 0) {
+        setError('승인할 수 있는 plan이 없어요. 만료됐을 수 있어서 최신 상태를 다시 불러왔어요.')
+        reload()
+        setPending(false)
+        return
+      }
+      await api.approve(d.id, decision, hasDelete ? confirm : undefined, items, newIdempotencyKey())
       if (decision === 'approve') navigate(paths.progress(projectId, d.id), { state: { transition: 'l03' } })
       // Q1(거절하면 어디로)이 정해지기 전까지는 개요로 돌아가요
       else navigate(paths.overview(projectId))
@@ -89,7 +101,7 @@ function ApproveView({ d, plan, detail, reload }: { d: Deployment; plan: Plan; d
     return (
       <div className="page">
         <Stepper current={5} />
-        <PageHeader overline="Step 5" title="변경 사항 확인 후 승인" />
+        <PageHeader mock={isMocked('getDeployment', 'getPlan', 'getPlanDetail', 'approve')} overline="Step 5" title="변경 사항 확인 후 승인" />
         <Alert type="info" title="승인을 기다리는 plan이 없어요">
           이미 처리됐거나 아직 검증 중이에요.
         </Alert>
@@ -105,12 +117,12 @@ function ApproveView({ d, plan, detail, reload }: { d: Deployment; plan: Plan; d
   return (
     <div className="page">
       <Stepper current={5} />
-      <PageHeader overline="Step 5" title="변경 사항 확인 후 승인" description="환경별 plan 결과예요. 승인하면 선택한 모든 환경에 동시에 적용해요." />
+      <PageHeader mock={isMocked('getDeployment', 'getPlan', 'getPlanDetail', 'approve')} overline="Step 5" title="변경 사항 확인 후 승인" description="환경별 plan 결과예요. 승인하면 선택한 모든 환경에 동시에 적용해요." />
 
       <Panel title="환경별 요약">
         {d.targets.map((t) => {
           const p = planOf(t.target_id)
-          if (t.state === 'failed') return <EnvStatusRow key={t.target_id} env={t.type} note={`${t.attempt}회 실패 · 이번 승인에서 빠져요`} tone="failed" label="실패" />
+          if (t.state === 'failed') return <EnvStatusRow key={t.target_id} env={t.type} note={`${t.attempt ? `${t.attempt}회 실패` : '실패'} · 이번 승인에서 빠져요`} tone="failed" label="실패" />
           const c = p?.counts
           const note = c ? `리소스 +${c.create} ~${c.update} −${c.delete} · ${p?.summary ?? `위험 설정 ${p?.risks.length ?? 0}건`}` : '—'
           return <EnvStatusRow key={t.target_id} env={t.type} note={note} tone="success" label="검증 통과" />
@@ -160,7 +172,7 @@ function ApproveView({ d, plan, detail, reload }: { d: Deployment; plan: Plan; d
 
       <ApprovalBar
         title={`${approvable.length}개 환경 · 리소스 +${sum.create} ~${sum.update} −${sum.delete}`}
-        meta={`검증 통과 ${approvable.length}/${d.targets.length} · 이미지 ${shortCommit(d.commit)} · 위험 설정 ${risks.length}건 · AI 비용 ${won(plan.ai_usage.cost_krw)} (추정, 환율 ${plan.ai_usage.exchange_rate.toLocaleString('ko-KR')}원)`}
+        meta={`검증 통과 ${approvable.length}/${d.targets.length} · 이미지 ${shortCommit(d.commit)} · 위험 설정 ${risks.length}건 · AI 비용 ${won(plan.ai_usage.cost_krw)}${plan.ai_usage.exchange_rate ? ` (추정, 환율 ${plan.ai_usage.exchange_rate.toLocaleString('ko-KR')}원)` : ''}`}
         disabled={viewer || needsConfirm || approvable.length === 0}
         pending={pending}
         note={viewer && <p className="t-body-sm" style={{ color: 'var(--color-warning)' }}>읽기 전용 계정이라 승인할 수 없어요.</p>}

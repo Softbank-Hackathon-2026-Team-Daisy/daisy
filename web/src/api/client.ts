@@ -3,7 +3,8 @@
 
 export const API_BASE_URL = import.meta.env.VITE_API_BASE_URL ?? ''
 
-// 서버가 열리기 전까지는 목업을 써요. VITE_USE_MOCK=false로 실서버에 붙어요
+// 서버가 열리기 전까지는 목업을 써요. VITE_USE_MOCK=false면 서버에 열린 API(endpoints.ts의 SERVER_READY)만 실서버로,
+// 아직 없는 API는 목업으로 답해요. 목업으로 답하는 화면에는 MOCK 배지가 붙어요 (루트 AGENTS §4-6)
 export const USE_MOCK = import.meta.env.VITE_USE_MOCK !== 'false'
 
 let accessToken: string | null = null
