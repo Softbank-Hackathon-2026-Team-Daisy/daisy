@@ -69,7 +69,12 @@ public class DeploymentDetailReader {
       String errorSummary,
       Instant cancelRequestedAt,
       Instant startedAt,
-      Instant finishedAt) {}
+      Instant finishedAt,
+      String step,
+      String stepState) {}
+
+  /** 대상의 지금 단계예요. 가장 최근 {@code step.*} 이벤트로 정해요. */
+  record StepRow(String step, String state) {}
 
   public record PendingApproval(String targetId, String approvalId) {}
 
@@ -134,10 +139,28 @@ public class DeploymentDetailReader {
         new MapSqlParameterSource()
             .addValue("project", projectId)
             .addValue("ids", rows.stream().map(DeploymentRow::id).toList());
+    // 대상마다 가장 최근 단계 이벤트 하나만 읽어요. 쓰는 쪽은 승환의 Jenkins 수신이에요 (#35 연결 대기).
+    Map<String, StepRow> steps = new HashMap<>();
+    jdbc.query(
+        """
+        select distinct on (e.deployment_target_id) e.deployment_target_id, e.step, e.event_type
+        from deployment_log e
+        join deployment_target dt on dt.id = e.deployment_target_id
+        where dt.deployment_id in (:ids) and dt.project_id = :project
+          and e.event_type in ('step.started', 'step.completed', 'step.failed')
+          and e.processing_result = 'applied'
+        order by e.deployment_target_id, e.seq desc
+        """,
+        params,
+        (ResultSet rs) -> {
+          steps.put(
+              rs.getString("deployment_target_id"),
+              new StepRow(rs.getString("step"), stepState(rs.getString("event_type"))));
+        });
     Map<String, List<TargetRow>> targets = new HashMap<>();
     jdbc.query(
         """
-        select deployment_id, target_id, target_snapshot::text, status, attempt, ai_reused,
+        select id, deployment_id, target_id, target_snapshot::text, status, attempt, ai_reused,
                error_summary, cancel_requested_at, started_at, finished_at
         from deployment_target
         where deployment_id in (:ids) and project_id = :project
@@ -157,7 +180,9 @@ public class DeploymentDetailReader {
                       rs.getString("error_summary"),
                       instant(rs, "cancel_requested_at"),
                       instant(rs, "started_at"),
-                      instant(rs, "finished_at")));
+                      instant(rs, "finished_at"),
+                      step(steps, rs.getString("id")).step(),
+                      step(steps, rs.getString("id")).state()));
         });
     // 만료 시각이 지난 승인은 아직 pending 으로 남아 있어도 빼요. 보내 봐야 옛 승인이라 409 예요.
     Map<String, List<PendingApproval>> pending = new HashMap<>();
@@ -184,6 +209,22 @@ public class DeploymentDetailReader {
                     List.copyOf(targets.getOrDefault(row.id(), List.of())),
                     List.copyOf(pending.getOrDefault(row.id(), List.of()))))
         .toList();
+  }
+
+  private static final StepRow NO_STEP = new StepRow(null, null);
+
+  private static StepRow step(Map<String, StepRow> steps, String deploymentTargetId) {
+    return steps.getOrDefault(deploymentTargetId, NO_STEP);
+  }
+
+  /** 이벤트 종류를 소비자 값으로 바꿔요. {@code waiting} 은 근거 이벤트가 없어 만들지 않아요. */
+  public static String stepState(String eventType) {
+    return switch (eventType) {
+      case "step.started" -> "running";
+      case "step.completed" -> "done";
+      case "step.failed" -> "failed";
+      default -> null;
+    };
   }
 
   /** 요청자 표시 이름은 한 요청 안에서 계정마다 한 번만 읽어요. */

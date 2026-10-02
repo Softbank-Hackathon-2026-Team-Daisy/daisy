@@ -847,7 +847,7 @@ V9 의 실제 Jenkins 실행은 하지 않습니다. 기본 비활성 설정 그
 | `error_summary` | 같은 이름 | |
 | `cancel_requested_at` | 같은 이름 | 취소 요청이 접수됐지만 아직 끝나지 않은 상태를 보여 줄 수 있게 둠 |
 | `started_at`·`finished_at` | 같은 이름 | |
-| `step`·`step_state`·`url`·`image_digest`·`health_summary` | — | **null.** `url`·`image_digest`·`health_summary` 는 근거 데이터가 아직 없음 (apply 결과 수신 #35 대기). `step`·`step_state` 는 승환님 Jenkins 수신이 `deployment_log` 에 `step.started`·`completed`·`failed` 로 남기지만 아직 읽지 않음 — A-07 로그 조회와 함께 붙임 (10/2 점검에서 정정). 0·빈 값으로 채우지 않음 |
+| `step`·`step_state`·`url`·`image_digest`·`health_summary` | — | **null.** `url`·`image_digest`·`health_summary` 는 근거 데이터가 아직 없음 (apply 결과 수신 #35 대기). `step`·`step_state` 는 승환님 Jenkins 수신이 `deployment_log` 에 `step.started`·`completed`·`failed` 로 남기지만 아직 읽지 않음 — A-07 로그 조회와 함께 붙임 (10/2 점검에서 정정). → 10/2 A-07 에서 붙였습니다 (「배포 로그 A-07 · A-04 단계」). 0·빈 값으로 채우지 않음 |
 
 내보내지 않는 것: `version`("v7")·`commit_message` 는 S8 후순위, 단건 `pending_approval` 은 `pending_approvals` 로 대체 (#40 승준 질문에 답한 대로).
 
@@ -1090,3 +1090,26 @@ URL 인코딩 자체가 깨진 커서(`%%%bad`)는 Tomcat 이 파라미터를 �
 | G6 | 단계 이벤트가 없는 대상 | `step`·`step_state` null |
 | G7 | 다른 배포의 로그 | 섞이지 않음 |
 | G8 | OpenAPI | 경로·`target_id`·`tail` 노출, `principal` 0건, 서버 로그 ERROR 0건 |
+
+### 검증 결과 (10/2 낮)
+
+**실DB 테스트** — `DeploymentQueryPostgresTest` 에 3개를 더했습니다 (배포 2개, 대상 3개, 실행 3개, 로그·단계 이벤트 10행).
+
+- 로그 행만 오래된 것부터, `tail` 은 최근 것부터 자름, 다른 배포·다른 프로젝트 섞이지 않음
+- `target_id` 를 주면 그 대상 행 + 그 대상을 포함한 실행의 콘솔 행만 (다른 대상의 실행 콘솔은 빠짐)
+- A-04 단계: started → completed → 다른 단계 started 면 마지막 단계 `running`, 실패 이벤트면 `failed`, 이벤트 없는 대상 null
+- 단계 정렬을 오름차순으로 바꾸거나 `log.batch` 조건을 빼면 해당 테스트가 실패하는 것을 확인했습니다
+
+**실서버** — 빈 PostgreSQL 17 에 jar 로 띄우고 API 로 만든 배포에 로그·단계 행을 넣어 확인했습니다.
+
+| | 결과 |
+|---|---|
+| G1 | 401 / 404 / viewer 200 |
+| G2 | 봉투, `next_cursor: null`, 로그 3행만 `seq` 오름차순, 필드 `seq`·`at`·`target_id`·`step`·`level`·`message`, 콘솔 행 `target_id: null` |
+| G3 | `tail=2` 마지막 2행 / `tail=0` 400 / `tail=5000` 200 |
+| G4 | `target_id=tgt_demo_aws` 는 그 대상 행 + 콘솔 행, 없는 대상 404 |
+| G5·G6 | A-04 `tgt_demo_aws` 는 `apply`·`running`, 단계 이벤트 없는 대상은 null |
+| G7 | 실DB 테스트로 확인 |
+| G8 | 파라미터 `target_id`·`tail`, `principal` 0건, 서버 로그 ERROR 0건 |
+
+`./gradlew --no-daemon spotlessCheck check build` 성공.

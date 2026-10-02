@@ -4,6 +4,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ObjectNode;
+import com.teamdaisy.server.project.application.DeploymentDetailReader;
 import com.teamdaisy.server.project.application.DeploymentDetailReader.DeploymentDetail;
 import com.teamdaisy.server.project.application.DeploymentDetailReader.DeploymentRow;
 import com.teamdaisy.server.project.application.DeploymentDetailReader.PendingApproval;
@@ -43,7 +44,8 @@ class DeploymentDetailResponseTest {
   private static TargetRow target(String id, int attempt) {
     ObjectNode snapshot =
         MAPPER.createObjectNode().put("environment_type", "aws").put("name", id + "-name");
-    return new TargetRow(id, snapshot, "awaiting_approval", attempt, false, null, null, AT, null);
+    return new TargetRow(
+        id, snapshot, "awaiting_approval", attempt, false, null, null, AT, null, null, null);
   }
 
   private static ObjectNode image(ObjectNode into, String service) {
@@ -93,6 +95,7 @@ class DeploymentDetailResponseTest {
     assertThat(zero.attempt()).isNull();
     assertThat(two.attempt()).isEqualTo(2);
     assertThat(zero.step()).isNull();
+    assertThat(zero.stepState()).isNull();
     assertThat(zero.url()).isNull();
     assertThat(zero.imageDigest()).isNull();
     assertThat(zero.healthSummary()).isNull();
@@ -125,5 +128,22 @@ class DeploymentDetailResponseTest {
     var none = response("normal");
     assertThat(none.image()).isNull();
     assertThat(none.images()).isNull();
+  }
+
+  @Test
+  @DisplayName("단계는 가장 최근 단계 이벤트에서 와요: started→running, completed→done, failed→failed")
+  void stepFromLatestEvent() {
+    ObjectNode snapshot = MAPPER.createObjectNode().put("environment_type", "aws");
+    var row =
+        new TargetRow(
+            "tgt_aws", snapshot, "running", 1, false, null, null, AT, null, "plan", "running");
+    var target = DeploymentDetailResponse.target(row);
+
+    assertThat(target.step()).isEqualTo("plan");
+    assertThat(target.stepState()).isEqualTo("running");
+    assertThat(DeploymentDetailReader.stepState("step.started")).isEqualTo("running");
+    assertThat(DeploymentDetailReader.stepState("step.completed")).isEqualTo("done");
+    assertThat(DeploymentDetailReader.stepState("step.failed")).isEqualTo("failed");
+    assertThat(DeploymentDetailReader.stepState("log.batch")).isNull();
   }
 }

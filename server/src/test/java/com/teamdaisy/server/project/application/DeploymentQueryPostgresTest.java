@@ -49,6 +49,7 @@ class DeploymentQueryPostgresTest {
   private DataSource base;
   private JdbcTemplate jdbc;
   private DeploymentDetailReader reader;
+  private DeploymentLogReader logs;
 
   @BeforeEach
   void setup() {
@@ -87,6 +88,7 @@ class DeploymentQueryPostgresTest {
     reader =
         new DeploymentDetailReader(
             new NamedParameterJdbcTemplate(scoped), accounts, new ObjectMapper());
+    logs = new DeploymentLogReader(new NamedParameterJdbcTemplate(scoped));
 
     jdbc.update(
         "insert into account(id,username,password_hash,display_name,role)"
@@ -176,5 +178,130 @@ class DeploymentQueryPostgresTest {
         .isInstanceOf(DaisyException.class)
         .extracting(exception -> ((DaisyException) exception).errorCode())
         .isEqualTo(ErrorCode.NOT_FOUND);
+  }
+
+  /** A-07·A-04 단계용 픽스처: dep_a 에 대상 둘(실행 하나씩), dep_c 에 대상 하나. */
+  private void seedLogs() {
+    for (String target : List.of("tgt_a", "tgt_b")) {
+      jdbc.update(
+          "insert into target(id,project_id,name,environment_type,state_identity,config)"
+              + " values(?,'prj_1',?,'onprem',?,'{}')",
+          target,
+          target,
+          "state:" + target);
+    }
+    deploymentTarget("dt_a", "dep_a", "tgt_a");
+    deploymentTarget("dt_b", "dep_a", "tgt_b");
+    deploymentTarget("dt_c", "dep_c", "tgt_a");
+    execution("je_1", "dep_a", "dt_a");
+    execution("je_2", "dep_a", "dt_b");
+    execution("je_3", "dep_c", "dt_c");
+    log("dep_a", 1, "je_1", "dt_a", "log.batch", "plan", "a1");
+    log("dep_a", 2, "je_1", "dt_a", "step.started", "plan", null);
+    log("dep_a", 3, "je_1", null, "log.batch", null, "console je_1");
+    log("dep_a", 4, "je_2", "dt_b", "log.batch", "validate", "b1");
+    log("dep_a", 5, "je_1", "dt_a", "step.completed", "plan", null);
+    log("dep_a", 6, "je_2", null, "log.batch", null, "console je_2");
+    log("dep_a", 7, "je_1", "dt_a", "step.started", "apply", null);
+    log("dep_a", 8, "je_2", "dt_b", "step.failed", "validate", null);
+    log("dep_a", 9, "je_1", "dt_a", "log.batch", "apply", "a2");
+    log("dep_c", 1, "je_3", "dt_c", "log.batch", null, "other deployment");
+  }
+
+  private void deploymentTarget(String id, String deployment, String target) {
+    jdbc.update(
+        "insert into deployment_target(id,deployment_id,project_id,target_id,target_snapshot,"
+            + "state_identity) values(?,?,'prj_1',?,'{}'::jsonb,?)",
+        id,
+        deployment,
+        target,
+        "state:" + id);
+  }
+
+  private void execution(String id, String deployment, String deploymentTarget) {
+    jdbc.update(
+        "insert into jenkins_execution(id,deployment_id,request_id,operation,instance_id,"
+            + "job_full_name,request_payload,request_hash)"
+            + " values(?,?,?,'prepare','inst','daisy-cd-plan','{}'::jsonb,'h')",
+        id,
+        deployment,
+        "rq_" + id);
+    jdbc.update(
+        "insert into execution_target(execution_id,deployment_target_id,deployment_id)"
+            + " values(?,?,?)",
+        id,
+        deploymentTarget,
+        deployment);
+  }
+
+  private void log(
+      String deployment,
+      long seq,
+      String execution,
+      String deploymentTarget,
+      String type,
+      String step,
+      String message) {
+    jdbc.update(
+        "insert into deployment_log(deployment_id,execution_id,deployment_target_id,seq,source,"
+            + "source_event_id,payload_hash,event_type,step,message,occurred_at)"
+            + " values(?,?,?,?,'test',?,'h',?,?,?,?)",
+        deployment,
+        execution,
+        deploymentTarget,
+        seq,
+        deployment + "-" + seq,
+        type,
+        step,
+        message,
+        Timestamp.from(T5.plusSeconds(seq)));
+  }
+
+  private static List<String> messages(List<DeploymentLogReader.LogRow> rows) {
+    return rows.stream().map(DeploymentLogReader.LogRow::message).toList();
+  }
+
+  @Test
+  @DisplayName("A-07: 로그 행만 오래된 것부터, tail 은 최근 것부터 자르고, 다른 배포는 섞이지 않아요")
+  void logsTail() {
+    seedLogs();
+    assertThat(messages(logs.tail("prj_1", "dep_a", null, 100)))
+        .containsExactly("a1", "console je_1", "b1", "console je_2", "a2");
+    assertThat(messages(logs.tail("prj_1", "dep_a", null, 2)))
+        .containsExactly("console je_2", "a2");
+    assertThat(messages(logs.tail("prj_1", "dep_c", null, 100)))
+        .containsExactly("other deployment");
+    assertThat(logs.tail("prj_2", "dep_a", null, 100)).isEmpty();
+  }
+
+  @Test
+  @DisplayName("A-07: target_id 를 주면 그 대상 행과 그 대상을 포함한 실행의 콘솔 행만 줘요")
+  void logsByTarget() {
+    seedLogs();
+    assertThat(messages(logs.tail("prj_1", "dep_a", "tgt_a", 100)))
+        .containsExactly("a1", "console je_1", "a2");
+    assertThat(messages(logs.tail("prj_1", "dep_a", "tgt_b", 100)))
+        .containsExactly("b1", "console je_2");
+    assertThat(logs.hasTarget("prj_1", "dep_a", "tgt_a")).isTrue();
+    assertThat(logs.hasTarget("prj_1", "dep_a", "tgt_none")).isFalse();
+    assertThat(logs.hasTarget("prj_2", "dep_a", "tgt_a")).isFalse();
+  }
+
+  @Test
+  @DisplayName("A-04: 단계는 대상마다 가장 최근 단계 이벤트에서 오고, 없으면 null 이에요")
+  void stepsFromLatestEvent() {
+    seedLogs();
+    var targets = reader.read("prj_1", "dep_a").targets();
+    assertThat(targets)
+        .extracting(
+            DeploymentDetailReader.TargetRow::targetId,
+            DeploymentDetailReader.TargetRow::step,
+            DeploymentDetailReader.TargetRow::stepState)
+        .containsExactly(
+            org.assertj.core.groups.Tuple.tuple("tgt_a", "apply", "running"),
+            org.assertj.core.groups.Tuple.tuple("tgt_b", "validate", "failed"));
+    var other = reader.read("prj_1", "dep_c").targets();
+    assertThat(other.get(0).step()).isNull();
+    assertThat(other.get(0).stepState()).isNull();
   }
 }
