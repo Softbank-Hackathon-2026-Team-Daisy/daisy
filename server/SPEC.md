@@ -778,3 +778,58 @@ V9 의 실제 Jenkins 실행은 하지 않습니다. 기본 비활성 설정 그
 | T3 | 판정 없음 → `reuse: null`, 정상 판정 → 네 필드 그대로, `available: "yes"` 처럼 모양이 틀린 판정 → 그 대상만 `reuse: null`, 응답은 200 |
 | T4 | 보관된 대상은 목록에 없음 |
 | T5 | OpenAPI 에 경로가 나오고 파라미터는 `projectId` 하나 (`principal` 노출 없음) |
+
+## 배포 상세 A-04 (10/2, 하은현)
+
+### 범위
+
+`GET /deployments/{id}` 는 배포 한 건의 스냅샷을 돌려줍니다. 웹·앱의 배포 진행·승인·결과 화면이 이걸로 상태를 그리고, 승인할 때 보낼 `approval_id` 를 `pending_approvals` 에서 얻습니다 (#40 승준, #42).
+
+- 권한: `projectIdOf(actorId, deploymentId)` (044a436). 없는 배포·접근할 수 없는 배포는 404, viewer 도 조회는 됩니다.
+- 데이터: `server/AGENTS.md` §3 예외대로 `deployment`·`deployment_target`·`approval` 을 읽기 전용 SQL 로 직접 읽습니다. 쓰지 않습니다.
+- 소비자 모델: `ios/SPEC.md` 326행 `Deployment`, 웹 `web/src/api/types.ts` `Deployment`.
+
+### 응답 필드
+
+| 필드 | 출처 | 비고 |
+|---|---|---|
+| `id`·`project_id` | `deployment.id`·`project_id` | |
+| `source_version_id`·`commit` | `deployment.source_version_id`·`commit_sha` | |
+| `image`·`image_digest`·`images` | `deployment.image_refs` | 서비스가 하나면 scalar, 여럿이면 scalar null + `images[]` (S5, A-06 과 같은 규칙). 빌드 결과가 고정되기 전이면 전부 null |
+| `state` | `deployment.status` | 배포 전체 7값 그대로 (계약과 코드값이 같음) |
+| `kind` | `deployment.kind` | `rollback` 이면 `"rollback"`, 아니면 null. `normal`·`retry` 는 내부 값이라 내보내지 않음 (AGENTS §5) |
+| `rolled_back_from` | `deployment.rollback_of_deployment_id` | 설계 6장 매핑 |
+| `retry_of` | `deployment.retry_of_deployment_id` | 계약에 없던 필드. 재시도 화면이 원본으로 돌아갈 때 쓸 수 있게 둠 |
+| `targets[]` | `deployment_target` | 아래 표. 정렬은 `target_id` |
+| `pending_approvals[]` | `approval` (`state='pending'`) | `{ target_id, approval_id }`. 승인 요청 `items` 와 같은 모양. 없으면 `[]` |
+| `created_by` | `deployment.requested_by` → `account.display_name` | 계정이 없으면 계정 ID 그대로 |
+| `created_at`·`finished_at` | 같은 이름 | |
+| `last_seq` | `deployment.last_event_seq` | SSE 재연결 기준점 |
+
+`targets[]`
+
+| 필드 | 출처 | 비고 |
+|---|---|---|
+| `target_id` | `deployment_target.target_id` | |
+| `type`·`name` | `target_snapshot` 의 `environment_type`·`name` | 배포 당시 고정값 |
+| `state` | `deployment_target.status` | 대상별 9값 그대로 |
+| `attempt` | `deployment_target.attempt` | **0 이면 null** (S2: "API null, DB 0 유지") |
+| `reused_script` | `deployment_target.ai_reused` | |
+| `error_summary` | 같은 이름 | |
+| `cancel_requested_at` | 같은 이름 | 취소 요청이 접수됐지만 아직 끝나지 않은 상태를 보여 줄 수 있게 둠 |
+| `started_at`·`finished_at` | 같은 이름 | |
+| `step`·`step_state`·`url`·`image_digest`·`health_summary` | — | **null.** 근거 데이터가 아직 없음 (Jenkins 단계·apply 결과 수신이 #35 대기). 0·빈 값으로 채우지 않음 |
+
+내보내지 않는 것: `version`("v7")·`commit_message` 는 S8 후순위, 단건 `pending_approval` 은 `pending_approvals` 로 대체 (#40 승준 질문에 답한 대로).
+
+### 검증 계획
+
+| | 검사 | 기대 |
+|---|---|---|
+| Q1 | 토큰 없음 / 없는 배포 / 비멤버 / viewer | 401 / 404 / 404 / 200 |
+| Q2 | 막 만든 배포 (대상 2개) | `state: "queued"`, 대상 2개 `waiting`, `attempt: null`, `pending_approvals: []`, 이미지 null |
+| Q3 | 승인 대기 행이 있는 배포 | `pending_approvals` 에 `{target_id, approval_id}`, 만료·처리된 승인은 빠짐 |
+| Q4 | 롤백 배포 | `kind: "rollback"`, `rolled_back_from` 채워짐 |
+| Q5 | 이미지가 고정된 배포 (서비스 1개 / 2개) | scalar / `images[]` |
+| Q6 | 다른 프로젝트 배포가 섞이지 않음 | 경로의 배포 한 건만 |
+| Q7 | OpenAPI | 경로가 나오고 `principal` 노출 0건 |
