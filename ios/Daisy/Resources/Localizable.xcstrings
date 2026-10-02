@@ -3912,6 +3912,22 @@
         }
       }
     },
+    "서버에 아직 없는 기능이에요" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Not available on the server yet"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "サーバーにはまだない機能です"
+          }
+        }
+      }
+    },
     "설정" : {
       "localizations" : {
         "en" : {

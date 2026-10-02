@@ -44,6 +44,10 @@ struct EnvironmentsView: View {
         .sheet(item: $resourcesFor) { ResourcesSheet(target: $0) }
     }
 
+    /// 연결 테스트(A-10) · 리소스 보기(A-11)는 가칭(#13 후순위)이라 개발 서버에 없어요 (누르면 404).
+    /// 웹처럼 실서버에서는 꺼 두고, 예시 데이터에서만 써요. 서버에 생기면 `Endpoint.targetProbesOnServer`를 켜요
+    private var probeReady: Bool { app.isSampleMode || Endpoint<EmptyResponse>.targetProbesOnServer }
+
     private var addButton: some View {
         Button { } label: { Label("환경 추가", systemImage: "plus") }
             .buttonStyle(.glassCapsule)
@@ -79,10 +83,12 @@ struct EnvironmentsView: View {
                     if testing == target.id { ProgressView().controlSize(.small) } else { Text("연결 테스트") }
                 }
                 .buttonStyle(.glassCapsule)
-                .disabled(testing != nil)
+                .disabled(testing != nil || !probeReady)
                 Button("리소스 보기") { resourcesFor = target }
                     .buttonStyle(.glassCapsule)
+                    .disabled(!probeReady)
             }
+            .help(probeReady ? "" : String.app("서버에 아직 없는 기능이에요"))
         }
         .cardStyle()
     }
