@@ -78,7 +78,7 @@ function ResultView({ d }: { d: Deployment }) {
       <Stepper current={6} />
       <PageHeader mock={isMocked('getDeployment', 'retry')} overline="Step 6" title={t('배포 결과')} badge={<StatusBadge tone={status.tone}>{status.label}</StatusBadge>} description={description} />
 
-      <div className="page__row page__row--3">
+      <div className="page__row page__row--envs">
         {d.targets.map((tg) => {
           const s = targetStatus(tg.state)
           const failed = tg.state === 'failed'

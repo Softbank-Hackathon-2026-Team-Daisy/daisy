@@ -1,6 +1,7 @@
 import type { EnvType } from './env.ts'
 import { ENV_LABEL } from './env.ts'
 import { t } from '../i18n/index.ts'
+import CloudLogo from './CloudLogo.tsx'
 import Icon from './Icon.tsx'
 import './ParityTable.css'
 
@@ -40,7 +41,7 @@ function ParityTable({ envs, rows, matched, mismatch, unknown }: ParityTableProp
             <th scope="col">{t('항목')}</th>
             {envs.map((e) => (
               <th scope="col" key={e.id}>
-                <span className="parity__env" style={{ background: `var(--color-env-${e.type})` }} />
+                {e.type === 'onprem' ? <span className="parity__env" style={{ background: `var(--color-env-${e.type})` }} /> : <CloudLogo env={e.type} size={14} />}
                 {t(ENV_LABEL[e.type])}
               </th>
             ))}

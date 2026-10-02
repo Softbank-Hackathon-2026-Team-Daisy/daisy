@@ -23,6 +23,11 @@
   grid-template-columns: repeat(3, minmax(0, 1fr));
 }
 
+/* 환경 카드 · 레인 — 환경 수(4개까지)만큼 한 줄에, 좁으면 2열 · 1열로 (10/2 Azure 포함) */
+.page__row--envs {
+  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+}
+
 .page__actions {
   display: flex;
   gap: var(--space-2);

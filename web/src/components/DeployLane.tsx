@@ -1,4 +1,5 @@
 import { t } from '../i18n/index.ts'
+import CloudLogo from './CloudLogo.tsx'
 import { ENV_LABEL, type EnvType } from './env.ts'
 import StatusBadge, { type StatusTone } from './StatusBadge.tsx'
 import StepItem, { type StepItemState } from './StepItem.tsx'
@@ -29,7 +30,10 @@ function DeployLane({ env, region, tone, label, steps }: DeployLaneProps) {
       <span style={{ height: 4, borderRadius: 'var(--radius-sm)', background: `var(--color-env-${env})` }} />
       <header style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-2)' }}>
         <div style={{ display: 'flex', flex: 1, flexDirection: 'column', gap: 'var(--space-1)' }}>
-          <h2 className="t-h2">{t(ENV_LABEL[env])}</h2>
+          <h2 className="t-h2" style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-2)' }}>
+            {env !== 'onprem' && <CloudLogo env={env} size={18} />}
+            {t(ENV_LABEL[env])}
+          </h2>
           <p className="t-body-sm t-muted">{region}</p>
         </div>
         <StatusBadge tone={tone}>{label}</StatusBadge>

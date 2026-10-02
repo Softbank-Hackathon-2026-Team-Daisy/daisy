@@ -84,3 +84,8 @@
 .parity__summary--unknown {
   color: var(--color-ink-muted);
 }
+
+.parity__table thead .cloud-logo {
+  margin-right: var(--space-1);
+  vertical-align: -2px;
+}
