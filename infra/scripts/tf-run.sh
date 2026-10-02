@@ -97,6 +97,10 @@ gcp*) BUCKET=${TF_STATE_BUCKET_GCP:-} BKIND=gcs ;;
 azure*) BUCKET=${TF_STATE_BUCKET_AZURE:-} BKIND=azurerm ;; # 저장소 계정 이름
 *) BUCKET="" BKIND="" ;;
 esac
+# GCP · Azure는 처음부터 클라우드 state만 써요. 설정이 빠지면 빈 로컬 state로 전부 새로 만들려고 해서 멈춰요
+if [[ -z $BUCKET && ($BKIND == gcs || $BKIND == azurerm) ]]; then
+  die "$ENV state 저장소 설정이 없어요 (Jenkins 전역 $([[ $BKIND == gcs ]] && echo TF_STATE_BUCKET_GCP || echo TF_STATE_BUCKET_AZURE)). 러너 로컬 state로는 실행하지 않아요"
+fi
 BACKEND=$([[ -n $BUCKET ]] && echo "$BKIND:$BUCKET" || echo local) # plan meta에 남겨서 apply 때 같은 저장소인지 봐요
 MIGRATED="$WORK/state/MIGRATED" # migrate-state가 남기는 표시. 내용은 옮긴 곳(s3://…)
 
