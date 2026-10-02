@@ -847,7 +847,7 @@ V9 의 실제 Jenkins 실행은 하지 않습니다. 기본 비활성 설정 그
 | `error_summary` | 같은 이름 | |
 | `cancel_requested_at` | 같은 이름 | 취소 요청이 접수됐지만 아직 끝나지 않은 상태를 보여 줄 수 있게 둠 |
 | `started_at`·`finished_at` | 같은 이름 | |
-| `step`·`step_state`·`url`·`image_digest`·`health_summary` | — | **null.** `url`·`image_digest`·`health_summary` 는 근거 데이터가 아직 없음 (apply 결과 수신 #35 대기). `step`·`step_state` 는 승환님 Jenkins 수신이 `deployment_log` 에 `step.started`·`completed`·`failed` 로 남기지만 아직 읽지 않음 — A-07 로그 조회와 함께 붙임 (10/2 점검에서 정정). 0·빈 값으로 채우지 않음 |
+| `step`·`step_state`·`url`·`image_digest`·`health_summary` | — | **null.** `url`·`image_digest`·`health_summary` 는 근거 데이터가 아직 없음 (apply 결과 수신 #35 대기). `step`·`step_state` 는 승환님 Jenkins 수신이 `deployment_log` 에 `step.started`·`completed`·`failed` 로 남기지만 아직 읽지 않음 — A-07 로그 조회와 함께 붙임 (10/2 점검에서 정정). → 10/2 A-07 에서 붙였습니다 (「배포 로그 A-07 · A-04 단계」). 0·빈 값으로 채우지 않음 |
 
 내보내지 않는 것: `version`("v7")·`commit_message` 는 S8 후순위, 단건 `pending_approval` 은 `pending_approvals` 로 대체 (#40 승준 질문에 답한 대로).
 
@@ -1030,6 +1030,53 @@ URL 인코딩 자체가 깨진 커서(`%%%bad`)는 Tomcat 이 파라미터를 �
 
 같은 경로의 두 핸들러가 OpenAPI 에서 한 operation 으로 합쳐지면서 처음에는 `detail` 이 필수로 표시됐습니다. 붙이지 않는 A-05 호출이 있으니 문서에서 선택으로 보이게 고쳤습니다.
 
+## 배포 로그 A-07 · A-04 단계 (10/2, 하은현)
+
+### 범위
+
+| 경로 | 무엇 | 소비자 |
+|---|---|---|
+| `GET /deployments/{id}/logs?target_id=&tail=` | 최근 로그 N개 | W-07 로그 채우기(앱 200·웹 100), W-08 "원인 보기"(앱 500). SSE 가 끊겼다 다시 붙을 때 채우기용 |
+| A-04 `targets[].step`·`step_state` | 대상의 지금 단계 | W-05·W-07 진행 표시. 지금까지 null 이던 것 |
+
+- 권한: A-04 와 같이 `projectIdOf`. 없는 배포·접근할 수 없는 배포 404, viewer 200.
+- 데이터: 승환님 Jenkins 수신이 쓰는 `deployment_log` 를 읽기 전용 SQL 로 읽습니다 (`server/AGENTS.md` §3 예외의 "로그 테이블"). 실제 Jenkins 에서 로그·단계가 들어오는 것은 #35 수신 대기이고, 여기서는 저장된 행을 읽는 것까지입니다.
+
+### A-07 응답
+
+봉투는 다른 목록과 같은 `{ items, next_cursor }` 입니다. 앱 `Page<LogLine>` 이 봉투이고, 웹은 WR-04 처럼 봉투로 맞춰 달라고 알립니다. `next_cursor` 는 늘 null 입니다 (최근 N개만 주고 더 옛날 로그 페이지는 두지 않음).
+
+| 필드 | 출처 | 비고 |
+|---|---|---|
+| `seq` | `deployment_log.seq` | 배포 안 순번. SSE `Last-Event-ID` 와 같은 값 |
+| `at` | `occurred_at` | |
+| `target_id` | `deployment_target.target_id` | 실행 전체 콘솔 로그면 null |
+| `step` | `step` | 없으면 null |
+| `level` | `level` | 저장값 그대로 소문자 `debug`·`info`·`warn`·`error` (SSE `log.batch` 와 같음) |
+| `message` | `message` | 콘솔 묶음이면 여러 줄일 수 있음. 비어 있으면 빈 문자열 |
+
+- 앱은 `at`·`message`, 웹은 `seq`·`at`·`message` 를 받으므로 그 이름을 씁니다. SSE `log.batch` 는 `ts`·`text` 라 이름이 다릅니다 — SSE 는 승환님 영역이라 바꾸지 않고 알립니다.
+- `event_type='log.batch'` 행만 줍니다. 상태·단계 이벤트는 A-04 와 SSE 가 맡습니다.
+- 메시지는 저장할 때 `EventJournal.validate` 가 비밀값 패턴을 막습니다. 읽을 때 따로 가리지 않습니다.
+- 순서는 `seq` 오름차순 (최근 N개를 고른 뒤 오래된 것부터).
+
+| 파라미터 | 규칙 |
+|---|---|
+| `tail` | 기본 200, 최대 1000. 넘으면 1000 으로 깎고, 0·음수는 400 |
+| `target_id` | 이 배포의 대상이 아니면 404. 주면 그 대상 행과, **그 대상을 포함한 실행의 대상 없는 콘솔 로그**를 함께 줍니다. Jenkins 콘솔은 실행 단위라 대상별로 나뉘지 않기 때문입니다 |
+
+### A-04 단계
+
+대상마다 가장 최근(`seq` 가 가장 큰) `step.started`·`step.completed`·`step.failed` 이벤트로 정합니다.
+
+| 이벤트 | `step` | `step_state` |
+|---|---|---|
+| `step.started` | 그 단계 | `running` |
+| `step.completed` | 그 단계 | `done` |
+| `step.failed` | 그 단계 | `failed` |
+| 없음 | null | null |
+
+`waiting` 은 근거 이벤트가 없어 만들지 않습니다. A-03 목록도 같은 코드라 함께 채워집니다.
 ## 빌드 결과 저장 (10/2, 하은현)
 
 ### 범위
@@ -1088,6 +1135,50 @@ record Recorded(String sourceVersionId, boolean changed)
 
 | | 검사 | 기대 |
 |---|---|---|
+| G1 | 토큰 없음 / 없는 배포 / viewer | 401 / 404 / 200 |
+| G2 | 로그 5행 (대상 2개 + 대상 없는 콘솔 1행) + 상태 이벤트 1행 | 로그 5행만, `seq` 오름차순, 봉투, `next_cursor: null` |
+| G3 | `tail=2` / `tail=0` / `tail=5000` | 마지막 2행 / 400 / 1000 으로 깎임 |
+| G4 | `target_id=tgt_a` | 그 대상 행 + 그 대상을 포함한 실행의 콘솔 행, 다른 대상 행 없음 / 이 배포에 없는 대상 404 |
+| G5 | 단계 이벤트 started → completed → (다른 단계) started | A-04 `step` 은 마지막 단계, `step_state: running`. 실패 이벤트면 `failed` |
+| G6 | 단계 이벤트가 없는 대상 | `step`·`step_state` null |
+| G7 | 다른 배포의 로그 | 섞이지 않음 |
+| G8 | OpenAPI | 경로·`target_id`·`tail` 노출, `principal` 0건, 서버 로그 ERROR 0건 |
+
+### 검증 결과 (10/2 낮)
+
+**실DB 테스트** — `DeploymentQueryPostgresTest` 에 3개를 더했습니다 (배포 2개, 대상 3개, 실행 3개, 로그·단계 이벤트 10행).
+
+- 로그 행만 오래된 것부터, `tail` 은 최근 것부터 자름, 다른 배포·다른 프로젝트 섞이지 않음
+- `target_id` 를 주면 그 대상 행 + 그 대상을 포함한 실행의 콘솔 행만 (다른 대상의 실행 콘솔은 빠짐)
+- A-04 단계: started → completed → 다른 단계 started 면 마지막 단계 `running`, 실패 이벤트면 `failed`, 이벤트 없는 대상 null
+- 단계 정렬을 오름차순으로 바꾸거나 `log.batch` 조건을 빼면 해당 테스트가 실패하는 것을 확인했습니다
+
+**실서버** — 빈 PostgreSQL 17 에 jar 로 띄우고 API 로 만든 배포에 로그·단계 행을 넣어 확인했습니다.
+
+| | 결과 |
+|---|---|
+| G1 | 401 / 404 / viewer 200 |
+| G2 | 봉투, `next_cursor: null`, 로그 3행만 `seq` 오름차순, 필드 `seq`·`at`·`target_id`·`step`·`level`·`message`, 콘솔 행 `target_id: null` |
+| G3 | `tail=2` 마지막 2행 / `tail=0` 400 / `tail=5000` 200 |
+| G4 | `target_id=tgt_demo_aws` 는 그 대상 행 + 콘솔 행, 없는 대상 404 |
+| G5·G6 | A-04 `tgt_demo_aws` 는 `apply`·`running`, 단계 이벤트 없는 대상은 null |
+| G7 | 실DB 테스트로 확인 |
+| G8 | 파라미터 `target_id`·`tail`, `principal` 0건, 서버 로그 ERROR 0건 |
+
+`./gradlew --no-daemon spotlessCheck check build` 성공.
+
+### A-04 승인 직후 표시 (10/2 낮, #42 승환님 제안)
+
+승인하면 apply 명령은 큐에 들어가지만, 실제 대상 상태 보고가 오기 전까지 대상 `state` 는 `awaiting_approval` 그대로입니다. 화면이 계속 "승인 대기" 로 보이지 않게 대상마다 두 필드를 더합니다. 기존 상태 값과 상태 전이는 바꾸지 않습니다.
+
+| 필드 | 출처 | 값 |
+|---|---|---|
+| `approval_state` | `deployment_target.current_plan_id` 에 연결된 `approval.state` | 저장값 그대로 `pending`·`approved`·`rejected`·`superseded`·`expired`. 현재 plan·승인이 없으면 null |
+| `apply_dispatch` | `current_execution_id` 의 `jenkins_execution` | 그 명령이 `apply` 일 때만. `pending`·`dispatching`·`accepted` → `queued`, `unknown` → `unknown`, `rejected` → `rejected`. 아니면 null |
+
+화면 문구 제안: `state=awaiting_approval` + `approval_state=approved` 면 "승인 완료 · 실행 대기", `apply_dispatch=unknown` 이면 "실행 여부 확인 중". `pending_approvals` 가 빈 것만으로는 승인 완료로 판단하지 않습니다 (만료·거절·plan 전도 빈 목록).
+
+확인: 단위 테스트(값 묶기·응답 매핑)와 실DB 테스트(승인 완료 + apply 접수 대상은 `approved`·`queued`, 승인 대기 + 현재 명령 prepare 대상은 `pending`·null, 승인 없는 배포는 둘 다 null). 실DB 포함 191개 통과.
 | R1 | 처음 받은 `running` → 같은 키 `succeeded` (이미지 포함) | 한 행, 두 번 다 `changed=true`, 같은 ID |
 | R2 | 같은 `succeeded` 재수신 | `changed=false`, 값 그대로 |
 | R3 | `succeeded` 뒤 `running` | `changed=false`, 상태 그대로 |
