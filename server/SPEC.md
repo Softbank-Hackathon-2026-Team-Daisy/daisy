@@ -816,7 +816,7 @@ record Recorded(String sourceVersionId, boolean changed)
 
 | 필드 | 규칙 |
 |---|---|
-| `project_id` | 있는 프로젝트. 없으면 404 |
+| `project_id` | 있고 보관(`archived_at`)되지 않은 프로젝트. 아니면 404 |
 | `source`·`external_build_id` | 비지 않음, 255자 이하. 둘을 합쳐 Jenkins 인스턴스·Job·빌드를 구분해야 함 (예: 인스턴스 ID, 전체 Job 경로 + 빌드 번호 — 표현은 #35 에서 확정) |
 | `commit_sha` | 소문자 hex 40자 또는 64자 |
 | `status` | `pending`·`running`·`succeeded`·`failed` |
@@ -854,3 +854,24 @@ record Recorded(String sourceVersionId, boolean changed)
 | R7 | 없는 프로젝트 | 404 |
 | R8 | 저장한 빌드를 A-06 이 읽고, 배포 생성이 그 빌드를 고를 수 있음 | 목록에 보이고 생성 201 |
 | R9 | 같은 키 동시 2건 | 행 1개, 하나만 `changed=true` 이거나 둘 다 같은 ID |
+
+### 검증 결과 (10/2 낮)
+
+`BuildRegistryTest`(단위 7개)와 `BuildRegistryPostgresTest`(실DB 3개)로 확인했습니다. 실DB 테스트는 수신부처럼 트랜잭션 안에서 부릅니다.
+
+| | 결과 |
+|---|---|
+| R1 | `running` → `succeeded` 가 같은 ID 한 행, 둘 다 `changed=true` |
+| R2 | 같은 `succeeded` 재수신 `changed=false` |
+| R3 | `succeeded` 뒤 `running` 은 `changed=false`, 상태 그대로 |
+| R4 | `succeeded` 뒤 `failed` 409, 다른 이미지 409, 상태 그대로 |
+| R5 | 같은 키 다른 프로젝트·다른 commit·다른 브랜치 409 |
+| R6 | 성공인데 이미지 없음·실패인데 이미지·commit 다른 이미지·짧은 sha·모르는 상태 모두 400 (단위) |
+| R7 | 없는 프로젝트·보관된 프로젝트 404 |
+| R8 | 저장된 행이 배포 생성·A-06 이 쓰는 조건(성공 + `ImageRefs.valid`)을 만족하고, `received_at` 은 처음 받은 시각 그대로. HTTP 로 A-06·배포 생성까지 잇는 확인은 수신부가 붙은 뒤 합니다 |
+| R9 | 같은 키 동시 2건: 행 1개, 같은 ID, `changed` 는 true 하나·false 하나 |
+
+- 같은 보고를 다시 받았을 때 시각의 나노초 차이로 충돌하지 않게, 시각을 DB 정밀도(마이크로초)로 맞춥니다 (단위 테스트).
+- `on conflict` 를 빼면 실DB 테스트 3개가 모두 실패하는 것을 확인했습니다.
+- 이미지 모양 검사를 `project/domain/ImageRefs` 로 옮겨 배포 생성과 같이 씁니다. 승환님 `ExecutionPostgresTest` 19개도 같은 DB 에서 다시 돌려 통과했습니다.
+- `./gradlew --no-daemon spotlessCheck check build` 성공. 실DB 포함 181개 통과.

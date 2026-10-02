@@ -178,6 +178,7 @@ docker compose up -d postgres    # Postgres 17
 | 2026-10-02 | **배포 생성 응답은 소비자 `Deployment` 이름(`id`·`project_id`·`state`)** | 웹이 응답 `id` 로 다음 화면 이동. #42 리뷰 | 1 |
 | 2026-10-02 | **재시도 공개 경로 `POST /deployments/{id}/retry` `{ target_ids }`** | 원본 배포의 빌드·연결을 서버가 이어받아 소비자는 원본 ID 와 대상만 보냄. 승환·승준(#42)·도영(Slack) 동의 | 2 |
 | 2026-10-02 | **#42 조회 연결: 권한 확인 후 프로젝트 반환·대상별 current 결과** | `projectIdOf`는 requireRead 후 반환, 명령 requireWrite는 유지. `currentByTarget`은 포인터 실패만 none/confirmed/unverified로 구분하고 권한·DB 오류는 전파. 기존 current는 호환 유지, [계약](docs/execution-service-contract.md) | 2 (서버 내부 소비자 은현) |
+| 2026-10-02 | **빌드 저장: 역행 보고는 무시(무변경), 종료 결과가 다르면 409** | 폴링이 늦게 본 옛 상태로 수신 전체를 실패시키지 않음. 종료 결과끼리 다르면 어느 쪽도 믿을 수 없어 덮어쓰지 않음 (#42 승환님 답 01:44) | 1 |
 
 ## 11. 아직 정하지 못한 것
 
