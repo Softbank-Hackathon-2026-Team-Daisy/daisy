@@ -689,24 +689,24 @@
         }
       }
     },
-    "%lld개 환경 · 리소스 +%lld ~%lld −%lld" : {
+    "%lld개 환경 · 생성 %lld · 변경 %lld · 삭제 %lld" : {
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "%1$lld environments · resources +%2$lld ~%3$lld −%4$lld"
+            "value" : "%1$lld environments · %2$lld to create · %3$lld to change · %4$lld to delete"
           }
         },
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "%1$lld 環境 · リソース +%2$lld ~%3$lld −%4$lld"
+            "value" : "%1$lld 環境 · 作成 %2$lld · 変更 %3$lld · 削除 %4$lld"
           }
         },
         "ko" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "%1$lld개 환경 · 리소스 +%2$lld ~%3$lld −%4$lld"
+            "value" : "%1$lld개 환경 · 생성 %2$lld · 변경 %3$lld · 삭제 %4$lld"
           }
         }
       }
@@ -2553,28 +2553,6 @@
         }
       }
     },
-    "리소스 +%lld ~%lld −%lld" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Resources +%1$lld ~%2$lld −%3$lld"
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "リソース +%1$lld ~%2$lld −%3$lld"
-          }
-        },
-        "ko" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "리소스 +%1$lld ~%2$lld −%3$lld"
-          }
-        }
-      }
-    },
     "리소스 보기" : {
       "localizations" : {
         "en" : {
@@ -2587,6 +2565,28 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "リソースを見る"
+          }
+        }
+      }
+    },
+    "리소스 생성 %lld · 변경 %lld · 삭제 %lld" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Resources: %1$lld to create · %2$lld to change · %3$lld to delete"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "リソース 作成 %1$lld · 変更 %2$lld · 削除 %3$lld"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "리소스 생성 %1$lld · 변경 %2$lld · 삭제 %3$lld"
           }
         }
       }

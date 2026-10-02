@@ -121,7 +121,7 @@ struct LocalizationTests {
         calendar.timeZone = TimeZone(identifier: "Asia/Seoul")!
         AppLanguage.$override.withValue(.english) {
             #expect(target.generateRow.note == "AI-generated · running validate · Attempt 1/3")
-            #expect(counts.summaryText == "Resources +6 ~0 \u{2212}1")
+            #expect(counts.summaryText == "Resources: 6 to create · 0 to change · 1 to delete")
             #expect(TimeText.relative(now.addingTimeInterval(-12 * 60), now: now, calendar: calendar) == "12 min ago")
             #expect(TimeText.relative(now.addingTimeInterval(-60 * 60), now: now, calendar: calendar) == "1 hr ago")
             #expect(TimeText.relative(now.addingTimeInterval(-20), now: now, calendar: calendar) == "Just now")
