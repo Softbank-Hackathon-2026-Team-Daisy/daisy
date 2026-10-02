@@ -70,7 +70,8 @@ function GenerateView({ d }: { d: Deployment }) {
 
   // 실패한 환경만 새 배포로 다시 시도 — POST /deployments/{id}/retry (10/2 확정, 시도 1/3부터)
   const retry = async () => {
-    const next = await run((key) => api.retry(d.id, failed.map((tg) => tg.target_id), key), t('다시 시도하지 못했어요'))
+    const ids = failed.map((tg) => tg.target_id)
+    const next = await run((key) => api.retry(d.id, ids, key), t('다시 시도하지 못했어요'), ['retry', d.id, ids])
     if (next) navigate(paths.generate(projectId, next.id), { state: { transition: 'l02' } })
   }
 

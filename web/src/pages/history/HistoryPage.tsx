@@ -140,7 +140,8 @@ function RollbackDialog({ projectId, projectName, from, onClose }: { projectId: 
 
   const start = async () => {
     // 롤백 사유는 서버에 남는 값이라 화면 언어와 상관없이 한국어로 보내요 (#74 안 A)
-    const d = await run((key) => api.rollback(from.id, chosen.map((tg) => tg.target_id), `${versionLabel(from)}로 롤백`, key), t('롤백을 시작하지 못했어요'))
+    const ids = chosen.map((tg) => tg.target_id)
+    const d = await run((key) => api.rollback(from.id, ids, `${versionLabel(from)}로 롤백`, key), t('롤백을 시작하지 못했어요'), ['rollback', from.id, ids])
     if (d) navigate(paths.generate(projectId, d.id), { state: { transition: 'l02' } })
   }
 
