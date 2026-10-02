@@ -677,7 +677,8 @@ def main() -> int:
 def build_report(status: str, started_at: str, deploy_yaml: str, error: str | None) -> None:
     """daisy-ci 결과 → 서버 빌드 기록 (source_version). 수신 주소 DAISY_BUILD_URL이 없으면 건너뛰어요.
 
-    본문은 서버 BuildRegistry.BuildReport와 같은 이름이에요 (PR #53, 수신 경로는 서버가 정해요 `(가칭)`).
+    본문은 서버 BuildRegistry.BuildReport와 같은 이름이에요 (#53, 수신 POST /internal/jenkins/builds #72).
+    서버는 source(jenkins:<인스턴스 ID>)와 Job→프로젝트 매핑(daisy.jenkins.ci-projects)으로 보낸 쪽을 확인해요.
     프로젝트는 Job 파라미터 PROJECT_ID, 서비스 이름은 deploy.yaml name이에요. 같은 빌드를 다시 보내도 서버가 한 행으로 모아요.
     """
     url = os.environ.get("DAISY_BUILD_URL", "")
@@ -689,7 +690,8 @@ def build_report(status: str, started_at: str, deploy_yaml: str, error: str | No
     commit = os.environ["IMAGE_TAG"]
     report = {
         "project_id": os.environ["PROJECT_ID"],
-        "source": f"jenkins:{os.environ['JOB_NAME']}",
+        # 서버는 source가 jenkins:<서버 설정 daisy.jenkins.instance-id>일 때만 받아요 (#72). Job은 external_build_id로 알려요
+        "source": f"jenkins:{os.environ.get('DAISY_INSTANCE_ID') or 'unibloom-onprem'}",
         "external_build_id": f"{os.environ['JOB_NAME']}#{os.environ['BUILD_NUMBER']}",
         "commit_sha": commit,
         "branch": os.environ.get("APP_BRANCH", "main"),
