@@ -103,14 +103,19 @@ struct ExpandingMenuButton: View {
         Button(action: tap) {
             HStack(spacing: 6) {
                 Image(systemName: systemImage)
+                // 접힐 때 글자는 바로 사라지고 폭만 줄어요 (천천히 사라지면 줄어드는 캡슐 밖으로 튀어나왔어요, 10/3)
                 if isExpanded {
-                    Text(title).lineLimit(1).truncationMode(.tail)
-                    Image(systemName: "chevron.down").font(.caption2.weight(.semibold))
+                    Group {
+                        Text(title).lineLimit(1).truncationMode(.tail)
+                        Image(systemName: "chevron.down").font(.caption2.weight(.semibold))
+                    }
+                    .transition(.asymmetric(insertion: .opacity, removal: .identity))
                 }
             }
             .font(.system(size: isExpanded ? 13 : 15, weight: .medium))
             .padding(.horizontal, isExpanded ? 14 : 0)
             .frame(minWidth: 34, minHeight: 34, maxHeight: 34)
+            .clipShape(.capsule)
             .contentShape(.capsule)
             .glassSurface(in: .capsule)
             .opacity(isEnabled ? 1 : 0.45)
