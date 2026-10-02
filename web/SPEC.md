@@ -280,6 +280,8 @@ Page ──▶ hook ──▶ api/client ──────────▶ Unibl
 | A-06 `GET /projects/{id}/builds` | ✅ 실서버 | `queued` "대기 중", 커밋 메시지 · 작성자 · 시각 없으면 "—", `image_digest` · `images[]`, W-04로 `?build=source_version_id` |
 | 배포 시작 · 승인 · 취소 · 재시도 · 롤백, A-03 · A-04 · A-05 · A-07, WR-xx, SSE | ⏳ 목업 | 요청 모양만 먼저 맞춤: 배포 시작 `source_version_id`, 승인 `{ decision, confirm_text, items: [{ target_id, approval_id }] }` (A-04 `pending_approvals`) — #40 · #42 |
 
+**개발 서버 (10/2, 은현 님):** API `https://api.unibloom.cloud`(지금 #38 범위 — 이 PR의 `SERVER_READY`와 같아요), 웹 `https://www.unibloom.cloud`. 개발 API는 CORS로 localhost를 막아서, 로컬 웹은 Vite 프록시로 붙어요: `.env.local`에 `VITE_API_BASE_URL=/api` · `VITE_PROXY_TARGET=https://api.unibloom.cloud` · `VITE_USE_MOCK=false`.
+
 로컬 확인: `main`의 서버를 로컬 Postgres로 띄우고 `VITE_API_BASE_URL=http://127.0.0.1:8080` · `VITE_USE_MOCK=false`로 owner · viewer 로그인, 개요 · 빌드(대기 중 → 완료) · 설정을 확인했어요.
 
 ### 6-1. 웹 신규 요구사항
