@@ -1,0 +1,103 @@
+{
+  "anchor": "2026-10-02T14:00:00Z",
+  "note": "MOCK: 예시 데이터 모드 — sample-msa, 서비스 2개(frontend · backend). 서비스가 여럿이면 image · image_digest · url이 null이고 images 목록으로 와요. 표시용 환경 정보가 없는 환경(서버 표에 없는 대상 ID), 연결 실패 환경을 담아요.",
+  "routes": {
+    "GET projects/prj_msa/targets": {
+      "body": {
+        "items": [
+          { "target_id": "tgt_msa_gcp", "type": "gcp", "name": "gcp-msa", "reuse": { "available": false, "script_id": null, "reason": "검증된 스크립트가 없어요", "assessed_at": "2026-10-02T11:00:00Z" }, "connection": { "state": "ok", "checked_at": "2026-10-02T13:59:00Z" }, "runtime": null, "location": null, "location_label": null, "access_method": null, "exposure": null, "state_backend": null },
+          { "target_id": "tgt_msa_onprem", "type": "onprem", "name": "onprem-msa", "reuse": null, "connection": { "state": "failed", "checked_at": "2026-10-02T13:59:00Z" }, "runtime": null, "location": null, "location_label": null, "access_method": null, "exposure": null, "state_backend": null }
+        ],
+        "next_cursor": null
+      }
+    },
+    "GET projects/prj_msa/targets/status": {
+      "body": {
+        "items": [
+          { "target_id": "tgt_msa_gcp", "type": "gcp", "name": "gcp-msa", "connection_state": "ok", "checked_at": "2026-10-02T13:59:00Z", "current": null, "current_status": "unverified", "url": null, "health": "unknown", "health_summary": null, "image_digest": null },
+          { "target_id": "tgt_msa_onprem", "type": "onprem", "name": "onprem-msa", "connection_state": "failed", "checked_at": "2026-10-02T13:59:00Z", "current": { "deployment_id": "dep_s_01", "commit": "8a7b6c5d4e3f2a1b0c9d8e7f6a5b4c3d2e1f0a01", "image": null, "image_digest": null, "images": [ { "service": "frontend", "image_ref": "registry.example.com/sample-msa-frontend:8a7b6c5d4e3f2a1b0c9d8e7f6a5b4c3d2e1f0a01", "image_digest": "sha256:b0c1d2e3f4a5b6c7d8e9f0a1b2c3d4e5f6a7b8c9d0e1f2a3b4c5d6e7f8a9b0c1" }, { "service": "backend", "image_ref": "registry.example.com/sample-msa-backend:8a7b6c5d4e3f2a1b0c9d8e7f6a5b4c3d2e1f0a01", "image_digest": "sha256:c1d2e3f4a5b6c7d8e9f0a1b2c3d4e5f6a7b8c9d0e1f2a3b4c5d6e7f8a9b0c1d2" } ], "deployed_at": "2026-10-01T16:40:00Z" }, "current_status": "confirmed", "url": null, "health": "healthy", "health_summary": "배포 시점 헬스 검사 통과", "image_digest": null }
+        ],
+        "next_cursor": null
+      }
+    },
+
+    "GET projects/prj_msa/deployments": {
+      "body": { "$items": [ "GET deployments/dep_s_02", "GET deployments/dep_s_01" ], "next_cursor": null }
+    },
+
+    "GET deployments/dep_s_02": {
+      "body": {
+        "id": "dep_s_02", "project_id": "prj_msa", "source_version_id": "sv_s_02", "commit": "1f2e3d4c5b6a79880716253443526170a9b8c702",
+        "image": null, "image_digest": null,
+        "images": [ { "service": "frontend", "image_ref": "registry.example.com/sample-msa-frontend:1f2e3d4c5b6a79880716253443526170a9b8c702", "image_digest": "sha256:d2e3f4a5b6c7d8e9f0a1b2c3d4e5f6a7b8c9d0e1f2a3b4c5d6e7f8a9b0c1d2e3" }, { "service": "backend", "image_ref": "registry.example.com/sample-msa-backend:1f2e3d4c5b6a79880716253443526170a9b8c702", "image_digest": "sha256:e3f4a5b6c7d8e9f0a1b2c3d4e5f6a7b8c9d0e1f2a3b4c5d6e7f8a9b0c1d2e3f4" } ],
+        "state": "awaiting_approval", "kind": null, "rolled_back_from": null, "retry_of": null,
+        "targets": [
+          { "target_id": "tgt_msa_gcp", "type": "gcp", "name": "gcp-msa", "state": "awaiting_approval", "step": "risk_check", "step_state": "done", "attempt": 1, "reused_script": false, "url": null, "image_digest": null, "health_summary": null, "error_summary": null, "cancel_requested_at": null, "started_at": "2026-10-02T11:00:20Z", "finished_at": null, "approval_state": "pending", "apply_dispatch": null,
+            "steps": [ { "name": "generate", "state": "done", "duration_ms": 31800, "started_at": "2026-10-02T11:00:20Z" }, { "name": "validate", "state": "done", "duration_ms": 5100, "started_at": "2026-10-02T11:00:52Z" }, { "name": "plan", "state": "done", "duration_ms": 52300, "started_at": "2026-10-02T11:00:57Z" }, { "name": "risk_check", "state": "done", "duration_ms": 820, "started_at": "2026-10-02T11:01:50Z" } ] }
+        ],
+        "pending_approvals": [ { "target_id": "tgt_msa_gcp", "approval_id": "apv_s02_gcp" } ],
+        "created_by": "데모 관리자", "created_at": "2026-10-02T11:00:03Z", "finished_at": null, "last_seq": 21
+      }
+    },
+
+    "GET deployments/dep_s_01": {
+      "body": {
+        "id": "dep_s_01", "project_id": "prj_msa", "source_version_id": "sv_s_01", "commit": "8a7b6c5d4e3f2a1b0c9d8e7f6a5b4c3d2e1f0a01",
+        "image": null, "image_digest": null,
+        "images": [ { "service": "frontend", "image_ref": "registry.example.com/sample-msa-frontend:8a7b6c5d4e3f2a1b0c9d8e7f6a5b4c3d2e1f0a01", "image_digest": "sha256:b0c1d2e3f4a5b6c7d8e9f0a1b2c3d4e5f6a7b8c9d0e1f2a3b4c5d6e7f8a9b0c1" }, { "service": "backend", "image_ref": "registry.example.com/sample-msa-backend:8a7b6c5d4e3f2a1b0c9d8e7f6a5b4c3d2e1f0a01", "image_digest": "sha256:c1d2e3f4a5b6c7d8e9f0a1b2c3d4e5f6a7b8c9d0e1f2a3b4c5d6e7f8a9b0c1d2" } ],
+        "state": "succeeded", "kind": null, "rolled_back_from": null, "retry_of": null,
+        "targets": [
+          { "target_id": "tgt_msa_onprem", "type": "onprem", "name": "onprem-msa", "state": "succeeded", "step": "health_check", "step_state": "done", "attempt": 1, "reused_script": false, "url": null, "image_digest": null, "health_summary": "배포 시점 헬스 검사 통과", "error_summary": null, "cancel_requested_at": null, "started_at": "2026-10-01T16:00:20Z", "finished_at": "2026-10-01T16:40:00Z", "approval_state": "approved", "apply_dispatch": "queued",
+            "steps": [ { "name": "generate", "state": "done", "duration_ms": 27500, "started_at": "2026-10-01T16:00:20Z" }, { "name": "validate", "state": "done", "duration_ms": 3400, "started_at": "2026-10-01T16:00:48Z" }, { "name": "plan", "state": "done", "duration_ms": 15800, "started_at": "2026-10-01T16:00:52Z" }, { "name": "risk_check", "state": "done", "duration_ms": 500, "started_at": "2026-10-01T16:01:08Z" }, { "name": "apply", "state": "done", "duration_ms": 212000, "started_at": "2026-10-01T16:35:00Z" }, { "name": "health_check", "state": "done", "duration_ms": 2100, "started_at": "2026-10-01T16:38:35Z" } ] }
+        ],
+        "pending_approvals": [], "created_by": "데모 관리자", "created_at": "2026-10-01T16:00:02Z", "finished_at": "2026-10-01T16:40:00Z", "last_seq": 36
+      }
+    },
+
+    "GET deployments/dep_s_02/plan": {
+      "body": {
+        "deployment_id": "dep_s_02",
+        "targets": [ { "target_id": "tgt_msa_gcp", "counts": { "create": 4, "update": 0, "delete": 0 }, "has_delete": false, "risks": [], "summary": null, "plan_text": null } ],
+        "ai_usage": { "calls": 1, "tokens": 18950, "cost_krw": 78, "exchange_rate": 1400, "estimated": true, "unknown_calls": 0 }
+      }
+    },
+    "GET deployments/dep_s_02/plan?detail=resources": {
+      "body": [ { "target_id": "tgt_msa_gcp", "resources": [ { "address": "google_cloud_run_v2_service.backend", "action": "create" }, { "address": "google_cloud_run_v2_service.frontend", "action": "create" }, { "address": "google_cloud_run_v2_service_iam_member.backend_invoker", "action": "create" }, { "address": "google_cloud_run_v2_service_iam_member.frontend_public", "action": "create" } ], "plan_text": null } ]
+    },
+    "GET deployments/dep_s_01/plan": {
+      "body": {
+        "deployment_id": "dep_s_01",
+        "targets": [ { "target_id": "tgt_msa_onprem", "counts": { "create": 3, "update": 0, "delete": 0 }, "has_delete": false, "risks": [], "summary": null, "plan_text": null } ],
+        "ai_usage": { "calls": 1, "tokens": 16420, "cost_krw": 67, "exchange_rate": 1400, "estimated": true, "unknown_calls": 0 }
+      }
+    },
+    "GET deployments/dep_s_01/plan?detail=resources": {
+      "body": [ { "target_id": "tgt_msa_onprem", "resources": [ { "address": "docker_container.backend", "action": "create" }, { "address": "docker_container.frontend", "action": "create" }, { "address": "docker_network.msa", "action": "create" } ], "plan_text": null } ]
+    },
+    "GET deployments/dep_s_02/logs": { "body": { "items": [ { "seq": 20, "at": "2026-10-02T11:01:51Z", "target_id": "tgt_msa_gcp", "step": "risk_check", "level": "info", "message": "위험 설정 없음 · 승인을 기다려요" } ], "next_cursor": null } },
+    "GET deployments/dep_s_01/logs": { "body": { "items": [ { "seq": 35, "at": "2026-10-01T16:40:00Z", "target_id": "tgt_msa_onprem", "step": "health_check", "level": "info", "message": "frontend 200 (95ms) · backend 200 (41ms)" } ], "next_cursor": null } },
+
+    "GET projects/prj_msa/builds": {
+      "body": {
+        "items": [
+          { "source_version_id": "sv_s_02", "commit": "1f2e3d4c5b6a79880716253443526170a9b8c702", "branch": "main", "pipeline": { "status": "success", "run_url": null }, "image": null, "image_digest": null, "images": [ { "service": "frontend", "image_ref": "registry.example.com/sample-msa-frontend:1f2e3d4c5b6a79880716253443526170a9b8c702", "image_digest": "sha256:d2e3f4a5b6c7d8e9f0a1b2c3d4e5f6a7b8c9d0e1f2a3b4c5d6e7f8a9b0c1d2e3" }, { "service": "backend", "image_ref": "registry.example.com/sample-msa-backend:1f2e3d4c5b6a79880716253443526170a9b8c702", "image_digest": "sha256:e3f4a5b6c7d8e9f0a1b2c3d4e5f6a7b8c9d0e1f2a3b4c5d6e7f8a9b0c1d2e3f4" } ], "deployed_to": null, "started_at": "2026-10-02T10:50:00Z", "finished_at": "2026-10-02T10:55:40Z", "received_at": "2026-10-02T10:49:58Z", "error_summary": null },
+          { "source_version_id": "sv_s_01", "commit": "8a7b6c5d4e3f2a1b0c9d8e7f6a5b4c3d2e1f0a01", "branch": "main", "pipeline": { "status": "success", "run_url": null }, "image": null, "image_digest": null, "images": [ { "service": "frontend", "image_ref": "registry.example.com/sample-msa-frontend:8a7b6c5d4e3f2a1b0c9d8e7f6a5b4c3d2e1f0a01", "image_digest": "sha256:b0c1d2e3f4a5b6c7d8e9f0a1b2c3d4e5f6a7b8c9d0e1f2a3b4c5d6e7f8a9b0c1" }, { "service": "backend", "image_ref": "registry.example.com/sample-msa-backend:8a7b6c5d4e3f2a1b0c9d8e7f6a5b4c3d2e1f0a01", "image_digest": "sha256:c1d2e3f4a5b6c7d8e9f0a1b2c3d4e5f6a7b8c9d0e1f2a3b4c5d6e7f8a9b0c1d2" } ], "deployed_to": [ { "target_id": "tgt_msa_onprem", "deployment_id": "dep_s_01", "deployed_at": "2026-10-01T16:40:00Z" } ], "started_at": "2026-10-01T15:50:00Z", "finished_at": "2026-10-01T15:56:10Z", "received_at": "2026-10-01T15:49:58Z", "error_summary": null }
+        ],
+        "next_cursor": null
+      }
+    },
+    "GET projects/prj_msa/scripts": {
+      "body": {
+        "items": [
+          { "script_id": "scr_s_onprem_1", "target_id": "tgt_msa_onprem", "type": "onprem", "version": "s1", "origin": "ai_generated", "attempt": 1, "validation": { "validate": true, "plan": true, "risks": 0 }, "status": "verified", "reuse_count": 0, "last_used_at": null, "created_at": "2026-10-01T16:01:09Z" }
+        ],
+        "next_cursor": null
+      }
+    },
+    "GET projects/prj_msa/ai-usage": { "body": { "items": [], "next_cursor": null } },
+
+    "POST projects/prj_msa/deployments": { "status": 201, "body": { "id": "dep_s_02", "project_id": "prj_msa", "state": "queued" } },
+    "POST deployments/dep_s_02/approvals": { "status": 202, "body": { "id": "dep_s_02", "project_id": "prj_msa", "state": "running" } },
+    "POST deployments/dep_s_01/rollback": { "status": 409, "body": { "error": { "code": "STATE_CONFLICT", "message": "현재 상태에서 처리할 수 없는 요청이에요.", "details": {}, "retryable": false } } }
+  }
+}

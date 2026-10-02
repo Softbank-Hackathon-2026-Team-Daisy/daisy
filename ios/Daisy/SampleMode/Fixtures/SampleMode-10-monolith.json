@@ -1,0 +1,480 @@
+{
+  "anchor": "2026-10-02T14:00:00Z",
+  "note": "MOCK: 예시 데이터 모드 — sample-monolith, 환경 4개(온프레미스 · AWS · GCP · Azure). 배포 10건으로 배포 상태 7가지, 환경 상태 9가지, 단계 6가지와 단계 상태, 승인 상태 5가지, apply 전달 상태, 롤백 · 다시 시도, 시도 1~3과 null을 모두 담아요.",
+  "routes": {
+    "GET projects/prj_monolith/targets": {
+      "body": {
+        "items": [
+          { "target_id": "tgt_demo_aws", "type": "aws", "name": "aws-prod", "reuse": { "available": true, "script_id": "scr_m_aws_3", "reason": "검증된 스크립트 s3이 있어요", "assessed_at": "2026-10-02T13:40:00Z" }, "connection": { "state": "ok", "checked_at": "2026-10-02T13:59:10Z" }, "runtime": "ECS Fargate · ALB", "location": "ap-northeast-2 서울", "location_label": "리전", "access_method": "Jenkins → AWS API", "exposure": "https://aws.unibloom.cloud", "state_backend": "S3 (잠금)" },
+          { "target_id": "tgt_demo_azure", "type": "azure", "name": "azure-prod", "reuse": { "available": false, "script_id": null, "reason": "검증된 스크립트가 없어요", "assessed_at": "2026-10-02T13:40:00Z" }, "connection": { "state": "unknown", "checked_at": null }, "runtime": "Container Apps", "location": "koreacentral 서울", "location_label": "리전", "access_method": "Jenkins → Azure API", "exposure": "https://azure.unibloom.cloud", "state_backend": "Azure Blob (잠금)" },
+          { "target_id": "tgt_demo_gcp", "type": "gcp", "name": "gcp-prod", "reuse": null, "connection": { "state": "ok", "checked_at": "2026-10-02T13:59:10Z" }, "runtime": "Cloud Run", "location": "asia-northeast1 도쿄", "location_label": "리전", "access_method": "Jenkins → GCP API", "exposure": "https://gcp.unibloom.cloud", "state_backend": "GCS (잠금)" },
+          { "target_id": "tgt_demo_onprem", "type": "onprem", "name": "onprem-home", "reuse": { "available": true, "script_id": "scr_m_onprem_2", "reason": "검증된 스크립트 s2가 있어요", "assessed_at": "2026-10-02T13:40:00Z" }, "connection": { "state": "ok", "checked_at": "2026-10-02T13:59:10Z" }, "runtime": "Docker · Proxmox Service VM", "location": "172.16.1.5", "location_label": "위치", "access_method": "Jenkins → SSH", "exposure": "https://onprem.unibloom.cloud (ngrok)", "state_backend": "Jenkins 러너 로컬 (flock)" }
+        ],
+        "next_cursor": null
+      }
+    },
+
+    "GET projects/prj_monolith/targets/status": {
+      "body": {
+        "items": [
+          { "target_id": "tgt_demo_aws", "type": "aws", "name": "aws-prod", "connection_state": "ok", "checked_at": "2026-10-02T13:59:10Z", "current": { "deployment_id": "dep_m_08", "commit": "3d2c1b0a99887766554433221100ffeeddcc0606", "image": "registry.example.com/sample-monolith:3d2c1b0a99887766554433221100ffeeddcc0606", "image_digest": "sha256:4b9e2f10c3d5a7e9b1f3d5c7e9a1b3d5f7092e4c6a8b0d2f4e6a8c0e2b4d6f80", "images": null, "deployed_at": "2026-10-01T12:21:40.551203Z" }, "current_status": "confirmed", "url": "https://hellocalc.aws.example.com", "health": "unhealthy", "health_summary": "배포 시점 헬스 검사 실패", "image_digest": "sha256:4b9e2f10c3d5a7e9b1f3d5c7e9a1b3d5f7092e4c6a8b0d2f4e6a8c0e2b4d6f80" },
+          { "target_id": "tgt_demo_azure", "type": "azure", "name": "azure-prod", "connection_state": "unknown", "checked_at": null, "current": null, "current_status": "none", "url": null, "health": "unknown", "health_summary": null, "image_digest": null },
+          { "target_id": "tgt_demo_gcp", "type": "gcp", "name": "gcp-prod", "connection_state": "ok", "checked_at": "2026-10-02T13:59:10Z", "current": null, "current_status": "unverified", "url": null, "health": "unknown", "health_summary": null, "image_digest": null },
+          { "target_id": "tgt_demo_onprem", "type": "onprem", "name": "onprem-home", "connection_state": "ok", "checked_at": "2026-10-02T13:59:10Z", "current": { "deployment_id": "dep_m_05", "commit": "7b1578b2c4d9e0f13a5b6c7d8e9f00112233aa01", "image": "registry.example.com/sample-monolith:7b1578b2c4d9e0f13a5b6c7d8e9f00112233aa01", "image_digest": "sha256:03806b3a0378c1d2e3f4a5b6c7d8e9f0a1b2c3d4e5f60718293a4b5c6d7e8f9a", "images": null, "deployed_at": "2026-10-02T03:24:05.120000Z" }, "current_status": "confirmed", "url": "https://hellocalc.onprem.example.com", "health": "healthy", "health_summary": "배포 시점 헬스 검사 통과", "image_digest": "sha256:03806b3a0378c1d2e3f4a5b6c7d8e9f0a1b2c3d4e5f60718293a4b5c6d7e8f9a" }
+        ],
+        "next_cursor": null
+      }
+    },
+
+    "GET projects/prj_monolith/deployments": {
+      "body": {
+        "$items": [
+          "GET deployments/dep_m_01", "GET deployments/dep_m_02", "GET deployments/dep_m_03", "GET deployments/dep_m_04", "GET deployments/dep_m_05",
+          "GET deployments/dep_m_07", "GET deployments/dep_m_08", "GET deployments/dep_m_09", "GET deployments/dep_m_06", "GET deployments/dep_m_10"
+        ],
+        "next_cursor": null
+      }
+    },
+
+    "GET deployments/dep_m_01": {
+      "body": {
+        "id": "dep_m_01", "project_id": "prj_monolith", "source_version_id": "sv_m_06", "commit": "5139b93e8a4f2c71d0b6e9a3c5f8172d4e6b0a91",
+        "image": "registry.example.com/sample-monolith:5139b93e8a4f2c71d0b6e9a3c5f8172d4e6b0a91", "image_digest": "sha256:e7c2a9f4b1d6083e5a7c9f1b3d5e7a9c1e3f5b7d9a1c3e5f7b9d1a3c5e7f9b1d", "images": null,
+        "state": "queued", "kind": null, "rolled_back_from": null, "retry_of": null,
+        "targets": [
+          { "target_id": "tgt_demo_aws", "type": "aws", "name": "aws-prod", "state": "waiting", "step": null, "step_state": null, "attempt": null, "reused_script": false, "url": null, "image_digest": null, "health_summary": null, "error_summary": null, "cancel_requested_at": null, "started_at": null, "finished_at": null, "approval_state": null, "apply_dispatch": null, "steps": [] },
+          { "target_id": "tgt_demo_onprem", "type": "onprem", "name": "onprem-home", "state": "waiting", "step": null, "step_state": null, "attempt": null, "reused_script": false, "url": null, "image_digest": null, "health_summary": null, "error_summary": null, "cancel_requested_at": null, "started_at": null, "finished_at": null, "approval_state": null, "apply_dispatch": null, "steps": [] }
+        ],
+        "pending_approvals": [], "created_by": "데모 관리자", "created_at": "2026-10-02T13:58:10.204511Z", "finished_at": null, "last_seq": 2
+      }
+    },
+
+    "GET deployments/dep_m_02": {
+      "body": {
+        "id": "dep_m_02", "project_id": "prj_monolith", "source_version_id": "sv_m_06", "commit": "5139b93e8a4f2c71d0b6e9a3c5f8172d4e6b0a91",
+        "image": "registry.example.com/sample-monolith:5139b93e8a4f2c71d0b6e9a3c5f8172d4e6b0a91", "image_digest": "sha256:e7c2a9f4b1d6083e5a7c9f1b3d5e7a9c1e3f5b7d9a1c3e5f7b9d1a3c5e7f9b1d", "images": null,
+        "state": "running", "kind": null, "rolled_back_from": null, "retry_of": null,
+        "targets": [
+          { "target_id": "tgt_demo_aws", "type": "aws", "name": "aws-prod", "state": "validating", "step": "validate", "step_state": "running", "attempt": 1, "reused_script": false, "url": null, "image_digest": null, "health_summary": null, "error_summary": null, "cancel_requested_at": null, "started_at": "2026-10-02T13:45:30Z", "finished_at": null, "approval_state": null, "apply_dispatch": null,
+            "steps": [ { "name": "generate", "state": "done", "duration_ms": 21340, "started_at": "2026-10-02T13:45:30Z" }, { "name": "validate", "state": "running", "duration_ms": null, "started_at": "2026-10-02T13:45:52Z" } ] },
+          { "target_id": "tgt_demo_azure", "type": "azure", "name": "azure-prod", "state": "waiting", "step": null, "step_state": null, "attempt": null, "reused_script": false, "url": null, "image_digest": null, "health_summary": null, "error_summary": null, "cancel_requested_at": null, "started_at": null, "finished_at": null, "approval_state": null, "apply_dispatch": null, "steps": [] },
+          { "target_id": "tgt_demo_gcp", "type": "gcp", "name": "gcp-prod", "state": "validating", "step": "risk_check", "step_state": "failed", "attempt": 2, "reused_script": false, "url": null, "image_digest": null, "health_summary": null, "error_summary": "risk_check 실패: google_compute_firewall.app source_ranges = [\"0.0.0.0/0\"] (22번 포트가 인터넷에 열려 있어요)", "cancel_requested_at": null, "started_at": "2026-10-02T13:45:30Z", "finished_at": null, "approval_state": null, "apply_dispatch": null,
+            "steps": [ { "name": "generate", "state": "done", "duration_ms": 19870, "started_at": "2026-10-02T13:45:30Z" }, { "name": "validate", "state": "done", "duration_ms": 4120, "started_at": "2026-10-02T13:45:50Z" }, { "name": "plan", "state": "done", "duration_ms": 38200, "started_at": "2026-10-02T13:45:55Z" }, { "name": "risk_check", "state": "failed", "duration_ms": 900, "started_at": "2026-10-02T13:46:34Z" } ] },
+          { "target_id": "tgt_demo_onprem", "type": "onprem", "name": "onprem-home", "state": "generating", "step": "generate", "step_state": "running", "attempt": 1, "reused_script": false, "url": null, "image_digest": null, "health_summary": null, "error_summary": null, "cancel_requested_at": null, "started_at": "2026-10-02T13:45:30Z", "finished_at": null, "approval_state": null, "apply_dispatch": null,
+            "steps": [ { "name": "generate", "state": "running", "duration_ms": null, "started_at": "2026-10-02T13:46:00Z" } ] }
+        ],
+        "pending_approvals": [], "created_by": "데모 관리자", "created_at": "2026-10-02T13:45:02Z", "finished_at": null, "last_seq": 31
+      }
+    },
+
+    "GET deployments/dep_m_03": {
+      "body": {
+        "id": "dep_m_03", "project_id": "prj_monolith", "source_version_id": "sv_m_05", "commit": "a1c3e5f7092b4d6f8e0a2c4e6f8a0b2c4d6e8f01",
+        "image": "registry.example.com/sample-monolith:a1c3e5f7092b4d6f8e0a2c4e6f8a0b2c4d6e8f01", "image_digest": "sha256:2f4e6d8c0b1a3958e7d6c5b4a3928170f6e5d4c3b2a1908f7e6d5c4b3a291807", "images": null,
+        "state": "awaiting_approval", "kind": null, "rolled_back_from": null, "retry_of": null,
+        "targets": [
+          { "target_id": "tgt_demo_aws", "type": "aws", "name": "aws-prod", "state": "awaiting_approval", "step": "risk_check", "step_state": "done", "attempt": 2, "reused_script": false, "url": null, "image_digest": null, "health_summary": null, "error_summary": null, "cancel_requested_at": null, "started_at": "2026-10-02T13:20:20Z", "finished_at": null, "approval_state": "pending", "apply_dispatch": null,
+            "steps": [ { "name": "generate", "state": "done", "duration_ms": 24510, "started_at": "2026-10-02T13:22:40Z" }, { "name": "validate", "state": "done", "duration_ms": 3880, "started_at": "2026-10-02T13:23:05Z" }, { "name": "plan", "state": "done", "duration_ms": 41020, "started_at": "2026-10-02T13:23:09Z" }, { "name": "risk_check", "state": "done", "duration_ms": 640, "started_at": "2026-10-02T13:23:50Z" } ] },
+          { "target_id": "tgt_demo_azure", "type": "azure", "name": "azure-prod", "state": "failed", "step": "validate", "step_state": "failed", "attempt": 3, "reused_script": false, "url": null, "image_digest": null, "health_summary": null, "error_summary": "terraform validate 실패 (3/3): azurerm_container_app.app — \"ingress.target_port\" 값이 필요해요\n\nError: Missing required argument\n  on main.tf line 41, in resource \"azurerm_container_app\" \"app\":\n  41:   ingress {", "cancel_requested_at": null, "started_at": "2026-10-02T13:20:20Z", "finished_at": "2026-10-02T13:27:12Z", "approval_state": null, "apply_dispatch": null,
+            "steps": [ { "name": "generate", "state": "done", "duration_ms": 26300, "started_at": "2026-10-02T13:26:20Z" }, { "name": "validate", "state": "failed", "duration_ms": 5210, "started_at": "2026-10-02T13:27:06Z" } ] },
+          { "target_id": "tgt_demo_gcp", "type": "gcp", "name": "gcp-prod", "state": "awaiting_approval", "step": "risk_check", "step_state": "done", "attempt": 1, "reused_script": false, "url": null, "image_digest": null, "health_summary": null, "error_summary": null, "cancel_requested_at": null, "started_at": "2026-10-02T13:20:20Z", "finished_at": null, "approval_state": "approved", "apply_dispatch": "queued",
+            "steps": [ { "name": "generate", "state": "done", "duration_ms": 22010, "started_at": "2026-10-02T13:20:20Z" }, { "name": "validate", "state": "done", "duration_ms": 4300, "started_at": "2026-10-02T13:20:43Z" }, { "name": "plan", "state": "done", "duration_ms": 36110, "started_at": "2026-10-02T13:20:48Z" }, { "name": "risk_check", "state": "done", "duration_ms": 710, "started_at": "2026-10-02T13:21:25Z" } ] },
+          { "target_id": "tgt_demo_onprem", "type": "onprem", "name": "onprem-home", "state": "awaiting_approval", "step": "risk_check", "step_state": "done", "attempt": null, "reused_script": true, "url": null, "image_digest": null, "health_summary": null, "error_summary": null, "cancel_requested_at": null, "started_at": "2026-10-02T13:20:20Z", "finished_at": null, "approval_state": "pending", "apply_dispatch": null,
+            "steps": [ { "name": "validate", "state": "done", "duration_ms": 2950, "started_at": "2026-10-02T13:20:21Z" }, { "name": "plan", "state": "done", "duration_ms": 12400, "started_at": "2026-10-02T13:20:24Z" }, { "name": "risk_check", "state": "done", "duration_ms": 420, "started_at": "2026-10-02T13:20:37Z" } ] }
+        ],
+        "pending_approvals": [ { "target_id": "tgt_demo_aws", "approval_id": "apv_m03_aws" }, { "target_id": "tgt_demo_onprem", "approval_id": "apv_m03_onprem" } ],
+        "created_by": "데모 관리자", "created_at": "2026-10-02T13:20:05Z", "finished_at": null, "last_seq": 96
+      }
+    },
+
+    "GET deployments/dep_m_04": {
+      "body": {
+        "id": "dep_m_04", "project_id": "prj_monolith", "source_version_id": "sv_m_05", "commit": "a1c3e5f7092b4d6f8e0a2c4e6f8a0b2c4d6e8f01",
+        "image": "registry.example.com/sample-monolith:a1c3e5f7092b4d6f8e0a2c4e6f8a0b2c4d6e8f01", "image_digest": "sha256:2f4e6d8c0b1a3958e7d6c5b4a3928170f6e5d4c3b2a1908f7e6d5c4b3a291807", "images": null,
+        "state": "running", "kind": null, "rolled_back_from": null, "retry_of": null,
+        "targets": [
+          { "target_id": "tgt_demo_aws", "type": "aws", "name": "aws-prod", "state": "verifying", "step": "health_check", "step_state": "running", "attempt": 1, "reused_script": false, "url": null, "image_digest": null, "health_summary": null, "error_summary": null, "cancel_requested_at": null, "started_at": "2026-10-02T12:30:20Z", "finished_at": null, "approval_state": "approved", "apply_dispatch": "queued",
+            "steps": [ { "name": "generate", "state": "done", "duration_ms": 23400, "started_at": "2026-10-02T12:30:20Z" }, { "name": "validate", "state": "done", "duration_ms": 3700, "started_at": "2026-10-02T12:30:44Z" }, { "name": "plan", "state": "done", "duration_ms": 40200, "started_at": "2026-10-02T12:30:48Z" }, { "name": "risk_check", "state": "done", "duration_ms": 610, "started_at": "2026-10-02T12:31:29Z" }, { "name": "apply", "state": "done", "duration_ms": 184300, "started_at": "2026-10-02T12:52:10Z" }, { "name": "health_check", "state": "running", "duration_ms": null, "started_at": "2026-10-02T12:55:15Z" } ] },
+          { "target_id": "tgt_demo_azure", "type": "azure", "name": "azure-prod", "state": "awaiting_approval", "step": "risk_check", "step_state": "done", "attempt": 1, "reused_script": false, "url": null, "image_digest": null, "health_summary": null, "error_summary": null, "cancel_requested_at": null, "started_at": "2026-10-02T12:30:20Z", "finished_at": null, "approval_state": "expired", "apply_dispatch": null,
+            "steps": [ { "name": "generate", "state": "done", "duration_ms": 27800, "started_at": "2026-10-02T12:30:20Z" }, { "name": "validate", "state": "done", "duration_ms": 4900, "started_at": "2026-10-02T12:30:48Z" }, { "name": "plan", "state": "done", "duration_ms": 45100, "started_at": "2026-10-02T12:30:53Z" }, { "name": "risk_check", "state": "done", "duration_ms": 530, "started_at": "2026-10-02T12:31:39Z" } ] },
+          { "target_id": "tgt_demo_gcp", "type": "gcp", "name": "gcp-prod", "state": "succeeded", "step": "health_check", "step_state": "done", "attempt": 1, "reused_script": false, "url": "https://hellocalc-gcp.example.com", "image_digest": "sha256:2f4e6d8c0b1a3958e7d6c5b4a3928170f6e5d4c3b2a1908f7e6d5c4b3a291807", "health_summary": "배포 시점 헬스 검사 통과", "error_summary": null, "cancel_requested_at": null, "started_at": "2026-10-02T12:30:20Z", "finished_at": "2026-10-02T12:54:02Z", "approval_state": "approved", "apply_dispatch": "queued",
+            "steps": [ { "name": "generate", "state": "done", "duration_ms": 21900, "started_at": "2026-10-02T12:30:20Z" }, { "name": "validate", "state": "done", "duration_ms": 4100, "started_at": "2026-10-02T12:30:42Z" }, { "name": "plan", "state": "done", "duration_ms": 35800, "started_at": "2026-10-02T12:30:46Z" }, { "name": "risk_check", "state": "done", "duration_ms": 700, "started_at": "2026-10-02T12:31:22Z" }, { "name": "apply", "state": "done", "duration_ms": 96200, "started_at": "2026-10-02T12:52:10Z" }, { "name": "health_check", "state": "done", "duration_ms": 1200, "started_at": "2026-10-02T12:53:47Z" } ] },
+          { "target_id": "tgt_demo_onprem", "type": "onprem", "name": "onprem-home", "state": "applying", "step": "apply", "step_state": "running", "attempt": null, "reused_script": true, "url": null, "image_digest": null, "health_summary": null, "error_summary": null, "cancel_requested_at": null, "started_at": "2026-10-02T12:30:20Z", "finished_at": null, "approval_state": "approved", "apply_dispatch": "unknown",
+            "steps": [ { "name": "validate", "state": "done", "duration_ms": 3010, "started_at": "2026-10-02T12:30:21Z" }, { "name": "plan", "state": "done", "duration_ms": 11800, "started_at": "2026-10-02T12:30:24Z" }, { "name": "risk_check", "state": "done", "duration_ms": 400, "started_at": "2026-10-02T12:30:36Z" }, { "name": "apply", "state": "running", "duration_ms": null, "started_at": "2026-10-02T12:52:10Z" } ] }
+        ],
+        "pending_approvals": [], "created_by": "데모 관리자", "created_at": "2026-10-02T12:30:04Z", "finished_at": null, "last_seq": 188
+      }
+    },
+
+    "GET deployments/dep_m_05": {
+      "body": {
+        "id": "dep_m_05", "project_id": "prj_monolith", "source_version_id": "sv_m_04", "commit": "7b1578b2c4d9e0f13a5b6c7d8e9f00112233aa01",
+        "image": "registry.example.com/sample-monolith:7b1578b2c4d9e0f13a5b6c7d8e9f00112233aa01", "image_digest": "sha256:03806b3a0378c1d2e3f4a5b6c7d8e9f0a1b2c3d4e5f60718293a4b5c6d7e8f9a", "images": null,
+        "state": "partially_succeeded", "kind": null, "rolled_back_from": null, "retry_of": null,
+        "targets": [
+          { "target_id": "tgt_demo_aws", "type": "aws", "name": "aws-prod", "state": "failed", "step": "health_check", "step_state": "failed", "attempt": 1, "reused_script": false, "url": null, "image_digest": null, "health_summary": "배포 시점 헬스 검사 실패", "error_summary": "health_check 실패: GET /health → 503 Service Unavailable (3회 확인)", "cancel_requested_at": null, "started_at": "2026-10-02T03:00:30Z", "finished_at": "2026-10-02T03:26:41Z", "approval_state": "approved", "apply_dispatch": "queued",
+            "steps": [ { "name": "generate", "state": "done", "duration_ms": 22800, "started_at": "2026-10-02T03:00:30Z" }, { "name": "validate", "state": "done", "duration_ms": 3900, "started_at": "2026-10-02T03:00:53Z" }, { "name": "plan", "state": "done", "duration_ms": 39900, "started_at": "2026-10-02T03:00:57Z" }, { "name": "risk_check", "state": "done", "duration_ms": 600, "started_at": "2026-10-02T03:01:37Z" }, { "name": "apply", "state": "done", "duration_ms": 190200, "started_at": "2026-10-02T03:21:00Z" }, { "name": "health_check", "state": "failed", "duration_ms": 30500, "started_at": "2026-10-02T03:24:11Z" } ] },
+          { "target_id": "tgt_demo_azure", "type": "azure", "name": "azure-prod", "state": "cancelled", "step": "plan", "step_state": "done", "attempt": 1, "reused_script": false, "url": null, "image_digest": null, "health_summary": null, "error_summary": null, "cancel_requested_at": "2026-10-02T03:03:00Z", "started_at": "2026-10-02T03:00:30Z", "finished_at": "2026-10-02T03:03:02Z", "approval_state": null, "apply_dispatch": null,
+            "steps": [ { "name": "generate", "state": "done", "duration_ms": 28100, "started_at": "2026-10-02T03:00:30Z" }, { "name": "validate", "state": "done", "duration_ms": 5000, "started_at": "2026-10-02T03:00:59Z" }, { "name": "plan", "state": "done", "duration_ms": 47200, "started_at": "2026-10-02T03:01:04Z" } ] },
+          { "target_id": "tgt_demo_gcp", "type": "gcp", "name": "gcp-prod", "state": "succeeded", "step": "health_check", "step_state": "done", "attempt": 2, "reused_script": false, "url": "https://hellocalc-gcp.example.com", "image_digest": "sha256:03806b3a0378c1d2e3f4a5b6c7d8e9f0a1b2c3d4e5f60718293a4b5c6d7e8f9a", "health_summary": "배포 시점 헬스 검사 통과", "error_summary": null, "cancel_requested_at": null, "started_at": "2026-10-02T03:00:30Z", "finished_at": "2026-10-02T03:23:15Z", "approval_state": "approved", "apply_dispatch": "queued",
+            "steps": [ { "name": "generate", "state": "done", "duration_ms": 20100, "started_at": "2026-10-02T03:02:01Z" }, { "name": "validate", "state": "done", "duration_ms": 4200, "started_at": "2026-10-02T03:02:22Z" }, { "name": "plan", "state": "done", "duration_ms": 36700, "started_at": "2026-10-02T03:02:27Z" }, { "name": "risk_check", "state": "done", "duration_ms": 680, "started_at": "2026-10-02T03:03:04Z" }, { "name": "apply", "state": "done", "duration_ms": 98100, "started_at": "2026-10-02T03:21:00Z" }, { "name": "health_check", "state": "done", "duration_ms": 1300, "started_at": "2026-10-02T03:22:39Z" } ] },
+          { "target_id": "tgt_demo_onprem", "type": "onprem", "name": "onprem-home", "state": "succeeded", "step": "health_check", "step_state": "done", "attempt": 1, "reused_script": false, "url": "https://hellocalc.onprem.example.com", "image_digest": "sha256:03806b3a0378c1d2e3f4a5b6c7d8e9f0a1b2c3d4e5f60718293a4b5c6d7e8f9a", "health_summary": "배포 시점 헬스 검사 통과", "error_summary": null, "cancel_requested_at": null, "started_at": "2026-10-02T03:00:30Z", "finished_at": "2026-10-02T03:24:05.120000Z", "approval_state": "approved", "apply_dispatch": "queued",
+            "steps": [ { "name": "generate", "state": "done", "duration_ms": 18700, "started_at": "2026-10-02T03:00:30Z" }, { "name": "validate", "state": "done", "duration_ms": 2800, "started_at": "2026-10-02T03:00:49Z" }, { "name": "plan", "state": "done", "duration_ms": 12900, "started_at": "2026-10-02T03:00:52Z" }, { "name": "risk_check", "state": "done", "duration_ms": 450, "started_at": "2026-10-02T03:01:05Z" }, { "name": "apply", "state": "done", "duration_ms": 152000, "started_at": "2026-10-02T03:21:00Z" }, { "name": "health_check", "state": "done", "duration_ms": 800, "started_at": "2026-10-02T03:23:33Z" } ] }
+        ],
+        "pending_approvals": [], "created_by": "데모 관리자", "created_at": "2026-10-02T03:00:05Z", "finished_at": "2026-10-02T03:26:41Z", "last_seq": 233
+      }
+    },
+
+    "GET deployments/dep_m_07": {
+      "body": {
+        "id": "dep_m_07", "project_id": "prj_monolith", "source_version_id": "sv_m_03", "commit": "9f8e7d6c5b4a39281706f5e4d3c2b1a098765404",
+        "image": "registry.example.com/sample-monolith:9f8e7d6c5b4a39281706f5e4d3c2b1a098765404", "image_digest": "sha256:6a5b4c3d2e1f0a9b8c7d6e5f4a3b2c1d0e9f8a7b6c5d4e3f2a1b0c9d8e7f6a5b", "images": null,
+        "state": "cancelled", "kind": null, "rolled_back_from": null, "retry_of": null,
+        "targets": [
+          { "target_id": "tgt_demo_aws", "type": "aws", "name": "aws-prod", "state": "cancelled", "step": "risk_check", "step_state": "done", "attempt": 1, "reused_script": false, "url": null, "image_digest": null, "health_summary": null, "error_summary": null, "cancel_requested_at": "2026-10-02T00:20:00Z", "started_at": "2026-10-02T00:00:20Z", "finished_at": "2026-10-02T00:20:01Z", "approval_state": "superseded", "apply_dispatch": null,
+            "steps": [ { "name": "generate", "state": "done", "duration_ms": 23100, "started_at": "2026-10-02T00:00:20Z" }, { "name": "validate", "state": "done", "duration_ms": 3600, "started_at": "2026-10-02T00:00:44Z" }, { "name": "plan", "state": "done", "duration_ms": 40800, "started_at": "2026-10-02T00:00:48Z" }, { "name": "risk_check", "state": "done", "duration_ms": 590, "started_at": "2026-10-02T00:01:29Z" } ] },
+          { "target_id": "tgt_demo_gcp", "type": "gcp", "name": "gcp-prod", "state": "cancelled", "step": "generate", "step_state": "running", "attempt": 1, "reused_script": false, "url": null, "image_digest": null, "health_summary": null, "error_summary": null, "cancel_requested_at": "2026-10-02T00:20:00Z", "started_at": "2026-10-02T00:00:20Z", "finished_at": "2026-10-02T00:20:01Z", "approval_state": null, "apply_dispatch": null,
+            "steps": [ { "name": "generate", "state": "running", "duration_ms": null, "started_at": "2026-10-02T00:19:30Z" } ] },
+          { "target_id": "tgt_demo_onprem", "type": "onprem", "name": "onprem-home", "state": "cancelled", "step": null, "step_state": null, "attempt": null, "reused_script": false, "url": null, "image_digest": null, "health_summary": null, "error_summary": null, "cancel_requested_at": "2026-10-02T00:20:00Z", "started_at": null, "finished_at": "2026-10-02T00:20:01Z", "approval_state": null, "apply_dispatch": null, "steps": [] }
+        ],
+        "pending_approvals": [], "created_by": "judge", "created_at": "2026-10-02T00:00:03Z", "finished_at": "2026-10-02T00:20:01Z", "last_seq": 61
+      }
+    },
+
+    "GET deployments/dep_m_08": {
+      "body": {
+        "id": "dep_m_08", "project_id": "prj_monolith", "source_version_id": "sv_m_01", "commit": "3d2c1b0a99887766554433221100ffeeddcc0606",
+        "image": "registry.example.com/sample-monolith:3d2c1b0a99887766554433221100ffeeddcc0606", "image_digest": "sha256:4b9e2f10c3d5a7e9b1f3d5c7e9a1b3d5f7092e4c6a8b0d2f4e6a8c0e2b4d6f80", "images": null,
+        "state": "succeeded", "kind": "rollback", "rolled_back_from": "dep_m_09", "retry_of": null,
+        "targets": [
+          { "target_id": "tgt_demo_aws", "type": "aws", "name": "aws-prod", "state": "succeeded", "step": "health_check", "step_state": "failed", "attempt": null, "reused_script": true, "url": "https://hellocalc.aws.example.com", "image_digest": "sha256:4b9e2f10c3d5a7e9b1f3d5c7e9a1b3d5f7092e4c6a8b0d2f4e6a8c0e2b4d6f80", "health_summary": "배포 시점 헬스 검사 실패", "error_summary": null, "cancel_requested_at": null, "started_at": "2026-10-01T12:00:20Z", "finished_at": "2026-10-01T12:21:40.551203Z", "approval_state": "approved", "apply_dispatch": "queued",
+            "steps": [ { "name": "validate", "state": "done", "duration_ms": 3300, "started_at": "2026-10-01T12:00:21Z" }, { "name": "plan", "state": "done", "duration_ms": 37700, "started_at": "2026-10-01T12:00:25Z" }, { "name": "risk_check", "state": "done", "duration_ms": 560, "started_at": "2026-10-01T12:01:03Z" }, { "name": "apply", "state": "done", "duration_ms": 171000, "started_at": "2026-10-01T12:18:00Z" }, { "name": "health_check", "state": "failed", "duration_ms": 30100, "started_at": "2026-10-01T12:21:10Z" } ] }
+        ],
+        "pending_approvals": [], "created_by": "데모 관리자", "created_at": "2026-10-01T12:00:02Z", "finished_at": "2026-10-01T12:21:40.551203Z", "last_seq": 54
+      }
+    },
+
+    "GET deployments/dep_m_09": {
+      "body": {
+        "id": "dep_m_09", "project_id": "prj_monolith", "source_version_id": "sv_m_02", "commit": "c0ffee1234567890abcdef1234567890abcd0505",
+        "image": "registry.example.com/sample-monolith:c0ffee1234567890abcdef1234567890abcd0505", "image_digest": "sha256:91aa52c7e0b3d6f9a2c5e8b1d4f7a0c3e6b9d2f5a8c1e4b7d0f3a6c9e2b5d8f1", "images": null,
+        "state": "succeeded", "kind": null, "rolled_back_from": null, "retry_of": "dep_m_06",
+        "targets": [
+          { "target_id": "tgt_demo_aws", "type": "aws", "name": "aws-prod", "state": "succeeded", "step": "health_check", "step_state": "done", "attempt": 1, "reused_script": false, "url": "https://hellocalc.aws.example.com", "image_digest": "sha256:91aa52c7e0b3d6f9a2c5e8b1d4f7a0c3e6b9d2f5a8c1e4b7d0f3a6c9e2b5d8f1", "health_summary": "배포 시점 헬스 검사 통과", "error_summary": null, "cancel_requested_at": null, "started_at": "2026-10-01T10:00:20Z", "finished_at": "2026-10-01T10:24:30Z", "approval_state": "approved", "apply_dispatch": "queued",
+            "steps": [ { "name": "generate", "state": "done", "duration_ms": 22300, "started_at": "2026-10-01T10:00:20Z" }, { "name": "validate", "state": "done", "duration_ms": 3500, "started_at": "2026-10-01T10:00:43Z" }, { "name": "plan", "state": "done", "duration_ms": 39100, "started_at": "2026-10-01T10:00:47Z" }, { "name": "risk_check", "state": "done", "duration_ms": 610, "started_at": "2026-10-01T10:01:26Z" }, { "name": "apply", "state": "done", "duration_ms": 178000, "started_at": "2026-10-01T10:20:00Z" }, { "name": "health_check", "state": "done", "duration_ms": 1100, "started_at": "2026-10-01T10:23:00Z" } ] },
+          { "target_id": "tgt_demo_onprem", "type": "onprem", "name": "onprem-home", "state": "succeeded", "step": "health_check", "step_state": "done", "attempt": 1, "reused_script": false, "url": "https://hellocalc.onprem.example.com", "image_digest": "sha256:91aa52c7e0b3d6f9a2c5e8b1d4f7a0c3e6b9d2f5a8c1e4b7d0f3a6c9e2b5d8f1", "health_summary": "배포 시점 헬스 검사 통과", "error_summary": null, "cancel_requested_at": null, "started_at": "2026-10-01T10:00:20Z", "finished_at": "2026-10-01T10:23:50Z", "approval_state": "approved", "apply_dispatch": "queued",
+            "steps": [ { "name": "generate", "state": "done", "duration_ms": 17900, "started_at": "2026-10-01T10:00:20Z" }, { "name": "validate", "state": "done", "duration_ms": 2700, "started_at": "2026-10-01T10:00:38Z" }, { "name": "plan", "state": "done", "duration_ms": 12500, "started_at": "2026-10-01T10:00:41Z" }, { "name": "risk_check", "state": "done", "duration_ms": 430, "started_at": "2026-10-01T10:00:54Z" }, { "name": "apply", "state": "done", "duration_ms": 149000, "started_at": "2026-10-01T10:20:00Z" }, { "name": "health_check", "state": "done", "duration_ms": 700, "started_at": "2026-10-01T10:22:30Z" } ] }
+        ],
+        "pending_approvals": [], "created_by": "데모 관리자", "created_at": "2026-10-01T10:00:02Z", "finished_at": "2026-10-01T10:24:30Z", "last_seq": 77
+      }
+    },
+
+    "GET deployments/dep_m_06": {
+      "body": {
+        "id": "dep_m_06", "project_id": "prj_monolith", "source_version_id": "sv_m_02", "commit": "c0ffee1234567890abcdef1234567890abcd0505",
+        "image": "registry.example.com/sample-monolith:c0ffee1234567890abcdef1234567890abcd0505", "image_digest": "sha256:91aa52c7e0b3d6f9a2c5e8b1d4f7a0c3e6b9d2f5a8c1e4b7d0f3a6c9e2b5d8f1", "images": null,
+        "state": "failed", "kind": null, "rolled_back_from": null, "retry_of": null,
+        "targets": [
+          { "target_id": "tgt_demo_aws", "type": "aws", "name": "aws-prod", "state": "failed", "step": "risk_check", "step_state": "done", "attempt": 1, "reused_script": false, "url": null, "image_digest": null, "health_summary": null, "error_summary": "dispatch_rejected", "cancel_requested_at": null, "started_at": "2026-10-01T09:00:20Z", "finished_at": "2026-10-01T09:18:05Z", "approval_state": "approved", "apply_dispatch": "rejected",
+            "steps": [ { "name": "generate", "state": "done", "duration_ms": 22900, "started_at": "2026-10-01T09:00:20Z" }, { "name": "validate", "state": "done", "duration_ms": 3700, "started_at": "2026-10-01T09:00:43Z" }, { "name": "plan", "state": "done", "duration_ms": 40100, "started_at": "2026-10-01T09:00:47Z" }, { "name": "risk_check", "state": "done", "duration_ms": 600, "started_at": "2026-10-01T09:01:27Z" } ] },
+          { "target_id": "tgt_demo_gcp", "type": "gcp", "name": "gcp-prod", "state": "cancelled", "step": "risk_check", "step_state": "done", "attempt": 1, "reused_script": false, "url": null, "image_digest": null, "health_summary": null, "error_summary": null, "cancel_requested_at": null, "started_at": "2026-10-01T09:00:20Z", "finished_at": "2026-10-01T09:17:40Z", "approval_state": "rejected", "apply_dispatch": null,
+            "steps": [ { "name": "generate", "state": "done", "duration_ms": 20500, "started_at": "2026-10-01T09:00:20Z" }, { "name": "validate", "state": "done", "duration_ms": 4000, "started_at": "2026-10-01T09:00:41Z" }, { "name": "plan", "state": "done", "duration_ms": 36000, "started_at": "2026-10-01T09:00:45Z" }, { "name": "risk_check", "state": "done", "duration_ms": 690, "started_at": "2026-10-01T09:01:21Z" } ] },
+          { "target_id": "tgt_demo_onprem", "type": "onprem", "name": "onprem-home", "state": "failed", "step": "validate", "step_state": "failed", "attempt": 3, "reused_script": false, "url": null, "image_digest": null, "health_summary": null, "error_summary": "terraform validate 실패 (3/3): docker_container.app — 3000번 포트를 이미 다른 컨테이너가 쓰고 있어요", "cancel_requested_at": null, "started_at": "2026-10-01T09:00:20Z", "finished_at": "2026-10-01T09:06:48Z", "approval_state": null, "apply_dispatch": null,
+            "steps": [ { "name": "generate", "state": "done", "duration_ms": 19200, "started_at": "2026-10-01T09:06:10Z" }, { "name": "validate", "state": "failed", "duration_ms": 2900, "started_at": "2026-10-01T09:06:45Z" } ] }
+        ],
+        "pending_approvals": [], "created_by": "데모 관리자", "created_at": "2026-10-01T09:00:02Z", "finished_at": "2026-10-01T09:18:05Z", "last_seq": 102
+      }
+    },
+
+    "GET deployments/dep_m_10": {
+      "body": {
+        "id": "dep_m_10", "project_id": "prj_monolith", "source_version_id": "sv_m_01", "commit": "3d2c1b0a99887766554433221100ffeeddcc0606",
+        "image": "registry.example.com/sample-monolith:3d2c1b0a99887766554433221100ffeeddcc0606", "image_digest": "sha256:4b9e2f10c3d5a7e9b1f3d5c7e9a1b3d5f7092e4c6a8b0d2f4e6a8c0e2b4d6f80", "images": null,
+        "state": "succeeded", "kind": null, "rolled_back_from": null, "retry_of": null,
+        "targets": [
+          { "target_id": "tgt_demo_aws", "type": "aws", "name": "aws-prod", "state": "succeeded", "step": "health_check", "step_state": "done", "attempt": 2, "reused_script": false, "url": "https://hellocalc.aws.example.com", "image_digest": "sha256:4b9e2f10c3d5a7e9b1f3d5c7e9a1b3d5f7092e4c6a8b0d2f4e6a8c0e2b4d6f80", "health_summary": "배포 시점 헬스 검사 통과", "error_summary": null, "cancel_requested_at": null, "started_at": "2026-10-01T06:00:20Z", "finished_at": "2026-10-01T06:31:10Z", "approval_state": "approved", "apply_dispatch": "queued",
+            "steps": [ { "name": "generate", "state": "done", "duration_ms": 25200, "started_at": "2026-10-01T06:02:30Z" }, { "name": "validate", "state": "done", "duration_ms": 3800, "started_at": "2026-10-01T06:02:56Z" }, { "name": "plan", "state": "done", "duration_ms": 42000, "started_at": "2026-10-01T06:03:00Z" }, { "name": "risk_check", "state": "done", "duration_ms": 620, "started_at": "2026-10-01T06:03:42Z" }, { "name": "apply", "state": "done", "duration_ms": 201000, "started_at": "2026-10-01T06:26:00Z" }, { "name": "health_check", "state": "done", "duration_ms": 1000, "started_at": "2026-10-01T06:29:30Z" } ] },
+          { "target_id": "tgt_demo_gcp", "type": "gcp", "name": "gcp-prod", "state": "succeeded", "step": "health_check", "step_state": "done", "attempt": 1, "reused_script": false, "url": "https://hellocalc-gcp.example.com", "image_digest": "sha256:4b9e2f10c3d5a7e9b1f3d5c7e9a1b3d5f7092e4c6a8b0d2f4e6a8c0e2b4d6f80", "health_summary": "배포 시점 헬스 검사 통과", "error_summary": null, "cancel_requested_at": null, "started_at": "2026-10-01T06:00:20Z", "finished_at": "2026-10-01T06:28:40Z", "approval_state": "approved", "apply_dispatch": "queued",
+            "steps": [ { "name": "generate", "state": "done", "duration_ms": 21000, "started_at": "2026-10-01T06:00:20Z" }, { "name": "validate", "state": "done", "duration_ms": 4300, "started_at": "2026-10-01T06:00:41Z" }, { "name": "plan", "state": "done", "duration_ms": 35500, "started_at": "2026-10-01T06:00:46Z" }, { "name": "risk_check", "state": "done", "duration_ms": 700, "started_at": "2026-10-01T06:01:22Z" }, { "name": "apply", "state": "done", "duration_ms": 99000, "started_at": "2026-10-01T06:26:00Z" }, { "name": "health_check", "state": "done", "duration_ms": 1400, "started_at": "2026-10-01T06:27:40Z" } ] },
+          { "target_id": "tgt_demo_onprem", "type": "onprem", "name": "onprem-home", "state": "succeeded", "step": "health_check", "step_state": "done", "attempt": 1, "reused_script": false, "url": "https://hellocalc.onprem.example.com", "image_digest": "sha256:4b9e2f10c3d5a7e9b1f3d5c7e9a1b3d5f7092e4c6a8b0d2f4e6a8c0e2b4d6f80", "health_summary": "배포 시점 헬스 검사 통과", "error_summary": null, "cancel_requested_at": null, "started_at": "2026-10-01T06:00:20Z", "finished_at": "2026-10-01T06:29:20Z", "approval_state": "approved", "apply_dispatch": "queued",
+            "steps": [ { "name": "generate", "state": "done", "duration_ms": 18200, "started_at": "2026-10-01T06:00:20Z" }, { "name": "validate", "state": "done", "duration_ms": 2600, "started_at": "2026-10-01T06:00:39Z" }, { "name": "plan", "state": "done", "duration_ms": 12100, "started_at": "2026-10-01T06:00:42Z" }, { "name": "risk_check", "state": "done", "duration_ms": 410, "started_at": "2026-10-01T06:00:55Z" }, { "name": "apply", "state": "done", "duration_ms": 155000, "started_at": "2026-10-01T06:26:00Z" }, { "name": "health_check", "state": "done", "duration_ms": 900, "started_at": "2026-10-01T06:28:40Z" } ] }
+        ],
+        "pending_approvals": [], "created_by": "데모 관리자", "created_at": "2026-10-01T06:00:02Z", "finished_at": "2026-10-01T06:31:10Z", "last_seq": 140
+      }
+    },
+
+    "GET deployments/dep_m_01/plan": { "body": { "deployment_id": "dep_m_01", "targets": [], "ai_usage": { "calls": 0, "tokens": null, "cost_krw": null, "exchange_rate": null, "estimated": false, "unknown_calls": 0 } } },
+    "GET deployments/dep_m_01/plan?detail=resources": { "body": [] },
+    "GET deployments/dep_m_02/plan": { "body": { "deployment_id": "dep_m_02", "targets": [], "ai_usage": { "calls": 3, "tokens": 31420, "cost_krw": 129, "exchange_rate": 1400, "estimated": true, "unknown_calls": 0 } } },
+    "GET deployments/dep_m_02/plan?detail=resources": { "body": [] },
+
+    "GET deployments/dep_m_03/plan": {
+      "body": {
+        "deployment_id": "dep_m_03",
+        "targets": [
+          { "target_id": "tgt_demo_aws", "counts": { "create": 6, "update": 0, "delete": 0 }, "has_delete": false, "risks": [], "summary": null, "plan_text": null },
+          { "target_id": "tgt_demo_gcp", "counts": { "create": 2, "update": 1, "delete": 0 }, "has_delete": false, "risks": [ { "level": "medium", "rule": "public_ingress", "resource": "google_cloud_run_v2_service_iam_member.public", "message": "allUsers에게 호출 권한을 줘요. 공개 서비스가 맞는지 확인해 주세요." } ], "summary": null, "plan_text": null },
+          { "target_id": "tgt_demo_onprem", "counts": { "create": 1, "update": 0, "delete": 1 }, "has_delete": true, "risks": [], "summary": null, "plan_text": null }
+        ],
+        "ai_usage": { "calls": 6, "tokens": 74230, "cost_krw": 304, "exchange_rate": 1400, "estimated": true, "unknown_calls": 1 }
+      }
+    },
+    "GET deployments/dep_m_03/plan?detail=resources": {
+      "body": [
+        { "target_id": "tgt_demo_aws", "resources": [ { "address": "aws_cloudwatch_log_group.app", "action": "create" }, { "address": "aws_ecs_service.app", "action": "create" }, { "address": "aws_ecs_task_definition.app", "action": "create" }, { "address": "aws_iam_role.task_execution", "action": "create" }, { "address": "aws_lb_listener_rule.app", "action": "create" }, { "address": "aws_lb_target_group.app", "action": "create" } ], "plan_text": null },
+        { "target_id": "tgt_demo_gcp", "resources": [ { "address": "google_cloud_run_v2_service.app", "action": "update" }, { "address": "google_cloud_run_v2_service_iam_member.public", "action": "create" }, { "address": "google_secret_manager_secret_iam_member.db", "action": "create" } ], "plan_text": null },
+        { "target_id": "tgt_demo_onprem", "resources": [ { "address": "docker_container.app", "action": "replace" } ], "plan_text": null }
+      ]
+    },
+
+    "GET deployments/dep_m_04/plan": {
+      "body": {
+        "deployment_id": "dep_m_04",
+        "targets": [
+          { "target_id": "tgt_demo_aws", "counts": { "create": 0, "update": 2, "delete": 0 }, "has_delete": false, "risks": [], "summary": null, "plan_text": null },
+          { "target_id": "tgt_demo_azure", "counts": { "create": 5, "update": 0, "delete": 0 }, "has_delete": false, "risks": [], "summary": null, "plan_text": null },
+          { "target_id": "tgt_demo_gcp", "counts": { "create": 0, "update": 1, "delete": 0 }, "has_delete": false, "risks": [], "summary": null, "plan_text": null },
+          { "target_id": "tgt_demo_onprem", "counts": { "create": 1, "update": 0, "delete": 1 }, "has_delete": true, "risks": [], "summary": null, "plan_text": null }
+        ],
+        "ai_usage": { "calls": 3, "tokens": 33010, "cost_krw": 135, "exchange_rate": 1400, "estimated": true, "unknown_calls": 0 }
+      }
+    },
+    "GET deployments/dep_m_04/plan?detail=resources": {
+      "body": [
+        { "target_id": "tgt_demo_aws", "resources": [ { "address": "aws_ecs_service.app", "action": "update" }, { "address": "aws_ecs_task_definition.app", "action": "update" } ], "plan_text": null },
+        { "target_id": "tgt_demo_azure", "resources": [ { "address": "azurerm_container_app.app", "action": "create" }, { "address": "azurerm_container_app_environment.env", "action": "create" }, { "address": "azurerm_log_analytics_workspace.logs", "action": "create" }, { "address": "azurerm_resource_group.app", "action": "create" }, { "address": "azurerm_user_assigned_identity.app", "action": "create" } ], "plan_text": null },
+        { "target_id": "tgt_demo_gcp", "resources": [ { "address": "google_cloud_run_v2_service.app", "action": "update" } ], "plan_text": null },
+        { "target_id": "tgt_demo_onprem", "resources": [ { "address": "docker_container.app", "action": "replace" } ], "plan_text": null }
+      ]
+    },
+
+    "GET deployments/dep_m_05/plan": {
+      "body": {
+        "deployment_id": "dep_m_05",
+        "targets": [
+          { "target_id": "tgt_demo_aws", "counts": { "create": 0, "update": 2, "delete": 0 }, "has_delete": false, "risks": [], "summary": null, "plan_text": null },
+          { "target_id": "tgt_demo_azure", "counts": { "create": 5, "update": 0, "delete": 0 }, "has_delete": false, "risks": [], "summary": null, "plan_text": null },
+          { "target_id": "tgt_demo_gcp", "counts": { "create": 0, "update": 1, "delete": 0 }, "has_delete": false, "risks": [ { "level": "low", "rule": "min_instances_zero", "resource": "google_cloud_run_v2_service.app", "message": "최소 인스턴스가 0이라 첫 요청이 느릴 수 있어요." } ], "summary": null, "plan_text": null },
+          { "target_id": "tgt_demo_onprem", "counts": { "create": 1, "update": 0, "delete": 1 }, "has_delete": true, "risks": [], "summary": null, "plan_text": null }
+        ],
+        "ai_usage": { "calls": 5, "tokens": null, "cost_krw": null, "exchange_rate": null, "estimated": false, "unknown_calls": 2 }
+      }
+    },
+    "GET deployments/dep_m_05/plan?detail=resources": {
+      "body": [
+        { "target_id": "tgt_demo_aws", "resources": [ { "address": "aws_ecs_service.app", "action": "update" }, { "address": "aws_ecs_task_definition.app", "action": "update" } ], "plan_text": null },
+        { "target_id": "tgt_demo_azure", "resources": [ { "address": "azurerm_container_app.app", "action": "create" }, { "address": "azurerm_container_app_environment.env", "action": "create" }, { "address": "azurerm_log_analytics_workspace.logs", "action": "create" }, { "address": "azurerm_resource_group.app", "action": "create" }, { "address": "azurerm_user_assigned_identity.app", "action": "create" } ], "plan_text": null },
+        { "target_id": "tgt_demo_gcp", "resources": [ { "address": "google_cloud_run_v2_service.app", "action": "update" } ], "plan_text": null },
+        { "target_id": "tgt_demo_onprem", "resources": [ { "address": "docker_container.app", "action": "replace" } ], "plan_text": null }
+      ]
+    },
+
+    "GET deployments/dep_m_06/plan": {
+      "body": {
+        "deployment_id": "dep_m_06",
+        "targets": [
+          { "target_id": "tgt_demo_aws", "counts": { "create": 0, "update": 1, "delete": 2 }, "has_delete": true, "risks": [ { "level": "high", "rule": "destroy_stateful", "resource": "aws_db_instance.main", "message": "데이터베이스 인스턴스를 지워요. 데이터가 사라질 수 있어요." } ], "summary": null, "plan_text": null },
+          { "target_id": "tgt_demo_gcp", "counts": { "create": 0, "update": 1, "delete": 0 }, "has_delete": false, "risks": [], "summary": null, "plan_text": null }
+        ],
+        "ai_usage": { "calls": 7, "tokens": 98760, "cost_krw": 405, "exchange_rate": 1400, "estimated": true, "unknown_calls": 0 }
+      }
+    },
+    "GET deployments/dep_m_06/plan?detail=resources": {
+      "body": [
+        { "target_id": "tgt_demo_aws", "resources": [ { "address": "aws_db_instance.main", "action": "delete" }, { "address": "aws_db_subnet_group.main", "action": "delete" }, { "address": "aws_ecs_task_definition.app", "action": "update" } ], "plan_text": null },
+        { "target_id": "tgt_demo_gcp", "resources": [ { "address": "google_cloud_run_v2_service.app", "action": "update" } ], "plan_text": null }
+      ]
+    },
+
+    "GET deployments/dep_m_07/plan": {
+      "body": {
+        "deployment_id": "dep_m_07",
+        "targets": [ { "target_id": "tgt_demo_aws", "counts": { "create": 0, "update": 2, "delete": 0 }, "has_delete": false, "risks": [], "summary": null, "plan_text": null } ],
+        "ai_usage": { "calls": 2, "tokens": 21900, "cost_krw": 90, "exchange_rate": 1400, "estimated": true, "unknown_calls": 0 }
+      }
+    },
+    "GET deployments/dep_m_07/plan?detail=resources": {
+      "body": [ { "target_id": "tgt_demo_aws", "resources": [ { "address": "aws_ecs_service.app", "action": "update" }, { "address": "aws_ecs_task_definition.app", "action": "update" } ], "plan_text": null } ]
+    },
+
+    "GET deployments/dep_m_08/plan": {
+      "body": {
+        "deployment_id": "dep_m_08",
+        "targets": [ { "target_id": "tgt_demo_aws", "counts": { "create": 0, "update": 2, "delete": 0 }, "has_delete": false, "risks": [], "summary": null, "plan_text": null } ],
+        "ai_usage": { "calls": 0, "tokens": null, "cost_krw": null, "exchange_rate": null, "estimated": false, "unknown_calls": 0 }
+      }
+    },
+    "GET deployments/dep_m_08/plan?detail=resources": {
+      "body": [ { "target_id": "tgt_demo_aws", "resources": [ { "address": "aws_ecs_service.app", "action": "update" }, { "address": "aws_ecs_task_definition.app", "action": "update" } ], "plan_text": null } ]
+    },
+
+    "GET deployments/dep_m_09/plan": {
+      "body": {
+        "deployment_id": "dep_m_09",
+        "targets": [
+          { "target_id": "tgt_demo_aws", "counts": { "create": 0, "update": 2, "delete": 0 }, "has_delete": false, "risks": [], "summary": null, "plan_text": null },
+          { "target_id": "tgt_demo_onprem", "counts": { "create": 1, "update": 0, "delete": 1 }, "has_delete": true, "risks": [], "summary": null, "plan_text": null }
+        ],
+        "ai_usage": { "calls": 2, "tokens": 40100, "cost_krw": 164, "exchange_rate": 1400, "estimated": true, "unknown_calls": 0 }
+      }
+    },
+    "GET deployments/dep_m_09/plan?detail=resources": {
+      "body": [
+        { "target_id": "tgt_demo_aws", "resources": [ { "address": "aws_ecs_service.app", "action": "update" }, { "address": "aws_ecs_task_definition.app", "action": "update" } ], "plan_text": null },
+        { "target_id": "tgt_demo_onprem", "resources": [ { "address": "docker_container.app", "action": "replace" } ], "plan_text": null }
+      ]
+    },
+
+    "GET deployments/dep_m_10/plan": {
+      "body": {
+        "deployment_id": "dep_m_10",
+        "targets": [
+          { "target_id": "tgt_demo_aws", "counts": { "create": 6, "update": 0, "delete": 0 }, "has_delete": false, "risks": [], "summary": null, "plan_text": null },
+          { "target_id": "tgt_demo_gcp", "counts": { "create": 3, "update": 0, "delete": 0 }, "has_delete": false, "risks": [], "summary": null, "plan_text": null },
+          { "target_id": "tgt_demo_onprem", "counts": { "create": 2, "update": 0, "delete": 0 }, "has_delete": false, "risks": [], "summary": null, "plan_text": null }
+        ],
+        "ai_usage": { "calls": 4, "tokens": 82300, "cost_krw": 337, "exchange_rate": 1400, "estimated": true, "unknown_calls": 0 }
+      }
+    },
+    "GET deployments/dep_m_10/plan?detail=resources": {
+      "body": [
+        { "target_id": "tgt_demo_aws", "resources": [ { "address": "aws_cloudwatch_log_group.app", "action": "create" }, { "address": "aws_ecs_service.app", "action": "create" }, { "address": "aws_ecs_task_definition.app", "action": "create" }, { "address": "aws_iam_role.task_execution", "action": "create" }, { "address": "aws_lb_listener_rule.app", "action": "create" }, { "address": "aws_lb_target_group.app", "action": "create" } ], "plan_text": null },
+        { "target_id": "tgt_demo_gcp", "resources": [ { "address": "google_cloud_run_v2_service.app", "action": "create" }, { "address": "google_cloud_run_v2_service_iam_member.public", "action": "create" }, { "address": "google_secret_manager_secret_iam_member.db", "action": "create" } ], "plan_text": null },
+        { "target_id": "tgt_demo_onprem", "resources": [ { "address": "docker_container.app", "action": "create" }, { "address": "docker_image.app", "action": "create" } ], "plan_text": null }
+      ]
+    },
+
+    "GET deployments/dep_m_01/logs": { "body": { "items": [], "next_cursor": null } },
+    "GET deployments/dep_m_02/logs": {
+      "body": {
+        "items": [
+          { "seq": 4, "at": "2026-10-02T13:45:28.100000Z", "target_id": null, "step": null, "level": "info", "message": "daisy-cd-plan #212 시작 (환경 4개)" },
+          { "seq": 7, "at": "2026-10-02T13:45:30Z", "target_id": "tgt_demo_aws", "step": "generate", "level": "info", "message": "deploy.yaml을 읽고 Terraform을 만들어요 (시도 1/3)" },
+          { "seq": 9, "at": "2026-10-02T13:45:30Z", "target_id": "tgt_demo_gcp", "step": "generate", "level": "info", "message": "deploy.yaml을 읽고 Terraform을 만들어요 (시도 1/3)" },
+          { "seq": 12, "at": "2026-10-02T13:45:51Z", "target_id": "tgt_demo_aws", "step": "generate", "level": "debug", "message": "files: main.tf (184줄), variables.tf (22줄), outputs.tf (9줄)" },
+          { "seq": 15, "at": "2026-10-02T13:45:52Z", "target_id": "tgt_demo_aws", "step": "validate", "level": "info", "message": "terraform init -backend=false\nterraform validate" },
+          { "seq": 18, "at": "2026-10-02T13:46:33Z", "target_id": "tgt_demo_gcp", "step": "plan", "level": "info", "message": "Plan: 3 to add, 0 to change, 0 to destroy." },
+          { "seq": 20, "at": "2026-10-02T13:46:34Z", "target_id": "tgt_demo_gcp", "step": "risk_check", "level": "error", "message": "위험 설정: google_compute_firewall.app source_ranges = [\"0.0.0.0/0\"]" },
+          { "seq": 21, "at": "2026-10-02T13:46:35Z", "target_id": "tgt_demo_gcp", "step": "generate", "level": "warn", "message": "AI가 오류 로그를 읽고 고쳐요 (시도 2/3)" },
+          { "seq": 25, "at": "2026-10-02T13:46:00Z", "target_id": "tgt_demo_onprem", "step": "generate", "level": "info", "message": "" },
+          { "seq": 29, "at": "2026-10-02T13:47:10Z", "target_id": "tgt_demo_onprem", "step": "generate", "level": "warn", "message": "Claude API 응답이 느려요 (12초). 계속 기다려요" }
+        ],
+        "next_cursor": null
+      }
+    },
+    "GET deployments/dep_m_03/logs": {
+      "body": {
+        "items": [
+          { "seq": 3, "at": "2026-10-02T13:20:10Z", "target_id": null, "step": null, "level": "info", "message": "daisy-cd-plan #209 시작 (환경 4개)" },
+          { "seq": 6, "at": "2026-10-02T13:20:21Z", "target_id": "tgt_demo_onprem", "step": "validate", "level": "info", "message": "검증된 스크립트 s2를 다시 써요. 이미지 태그만 바꿔요 (AI 0회)" },
+          { "seq": 30, "at": "2026-10-02T13:22:39Z", "target_id": "tgt_demo_aws", "step": "generate", "level": "warn", "message": "plan 실패를 AI가 고쳐요 (시도 2/3)" },
+          { "seq": 44, "at": "2026-10-02T13:27:11Z", "target_id": "tgt_demo_azure", "step": "validate", "level": "error", "message": "Error: Missing required argument\n\n  on main.tf line 41, in resource \"azurerm_container_app\" \"app\":\n  41:   ingress {\n\nThe argument \"target_port\" is required, but no definition was found." },
+          { "seq": 45, "at": "2026-10-02T13:27:12Z", "target_id": "tgt_demo_azure", "step": null, "level": "error", "message": "시도 3/3을 모두 써서 이 환경은 멈춰요. 다른 환경은 계속돼요" },
+          { "seq": 60, "at": "2026-10-02T13:23:51Z", "target_id": "tgt_demo_aws", "step": "risk_check", "level": "info", "message": "위험 설정 없음" },
+          { "seq": 90, "at": "2026-10-02T13:24:00Z", "target_id": null, "step": null, "level": "info", "message": "승인을 기다려요 (환경 3개)" }
+        ],
+        "next_cursor": null
+      }
+    },
+    "GET deployments/dep_m_04/logs": {
+      "body": {
+        "items": [
+          { "seq": 150, "at": "2026-10-02T12:52:05Z", "target_id": null, "step": null, "level": "info", "message": "daisy-cd-apply #88 시작 (승인된 환경 3개)" },
+          { "seq": 151, "at": "2026-10-02T12:52:10Z", "target_id": "tgt_demo_onprem", "step": "apply", "level": "warn", "message": "Jenkins 접수 응답을 확인하지 못했어요. 결과 콜백을 기다려요" },
+          { "seq": 160, "at": "2026-10-02T12:53:47Z", "target_id": "tgt_demo_gcp", "step": "health_check", "level": "info", "message": "GET https://hellocalc-gcp.example.com/health → 200 (184ms)" },
+          { "seq": 175, "at": "2026-10-02T12:55:15Z", "target_id": "tgt_demo_aws", "step": "health_check", "level": "info", "message": "ALB 대상이 healthy가 될 때까지 기다려요" }
+        ],
+        "next_cursor": null
+      }
+    },
+    "GET deployments/dep_m_05/logs": {
+      "body": {
+        "items": [
+          { "seq": 201, "at": "2026-10-02T03:21:00Z", "target_id": null, "step": null, "level": "info", "message": "daisy-cd-apply #80 시작" },
+          { "seq": 220, "at": "2026-10-02T03:24:41Z", "target_id": "tgt_demo_aws", "step": "health_check", "level": "error", "message": "GET https://hellocalc.aws.example.com/health → 503 Service Unavailable (3/3)" },
+          { "seq": 230, "at": "2026-10-02T03:26:41Z", "target_id": null, "step": null, "level": "info", "message": "일부 성공: 2개 성공 · 1개 실패 · 1개 취소" }
+        ],
+        "next_cursor": null
+      }
+    },
+    "GET deployments/dep_m_06/logs": {
+      "body": {
+        "items": [
+          { "seq": 40, "at": "2026-10-01T09:06:47Z", "target_id": "tgt_demo_onprem", "step": "validate", "level": "error", "message": "Error: port is already allocated (3000)" },
+          { "seq": 98, "at": "2026-10-01T09:18:05Z", "target_id": "tgt_demo_aws", "step": null, "level": "error", "message": "apply 요청을 Jenkins가 거절했어요 (dispatch_rejected)" }
+        ],
+        "next_cursor": null
+      }
+    },
+    "GET deployments/dep_m_07/logs": { "body": { "items": [ { "seq": 60, "at": "2026-10-02T00:20:01Z", "target_id": null, "step": null, "level": "info", "message": "사용자가 배포를 취소했어요" } ], "next_cursor": null } },
+    "GET deployments/dep_m_08/logs": { "body": { "items": [ { "seq": 50, "at": "2026-10-01T12:21:40Z", "target_id": "tgt_demo_aws", "step": "health_check", "level": "warn", "message": "헬스 검사 실패, 이전 상태로 되돌린 배포는 그대로 둬요" } ], "next_cursor": null } },
+    "GET deployments/dep_m_09/logs": { "body": { "items": [], "next_cursor": null } },
+    "GET deployments/dep_m_10/logs": { "body": { "items": [ { "seq": 139, "at": "2026-10-01T06:31:10Z", "target_id": null, "step": null, "level": "info", "message": "모든 환경 배포 완료 (3/3)" } ], "next_cursor": null } },
+
+    "GET projects/prj_monolith/builds": {
+      "body": {
+        "items": [
+          { "source_version_id": "sv_m_09", "commit": "f1e2d3c4b5a6978877665544332211aabbccdd09", "branch": "main", "pipeline": { "status": "queued", "run_url": null }, "image": null, "image_digest": null, "images": null, "deployed_to": null, "started_at": null, "finished_at": null, "received_at": "2026-10-02T13:59:40Z", "error_summary": null },
+          { "source_version_id": "sv_m_08", "commit": "e4d3c2b1a0f9e8d7c6b5a4f3e2d1c0b9a8f7e6d5", "branch": "main", "pipeline": { "status": "running", "run_url": null }, "image": null, "image_digest": null, "images": null, "deployed_to": null, "started_at": "2026-10-02T13:57:02Z", "finished_at": null, "received_at": "2026-10-02T13:57:00Z", "error_summary": null },
+          { "source_version_id": "sv_m_07", "commit": "0a1b2c3d4e5f60718293a4b5c6d7e8f901234567", "branch": "main", "pipeline": { "status": "failed", "run_url": null }, "image": null, "image_digest": null, "images": null, "deployed_to": null, "started_at": "2026-10-02T13:50:00Z", "finished_at": "2026-10-02T13:52:31Z", "received_at": "2026-10-02T13:49:58Z", "error_summary": "Test 단계 실패: calc_test.go:42 — 2 + 2 기대값 4, 실제 5" },
+          { "source_version_id": "sv_m_06", "commit": "5139b93e8a4f2c71d0b6e9a3c5f8172d4e6b0a91", "branch": "main", "pipeline": { "status": "success", "run_url": null }, "image": "registry.example.com/sample-monolith:5139b93e8a4f2c71d0b6e9a3c5f8172d4e6b0a91", "image_digest": "sha256:e7c2a9f4b1d6083e5a7c9f1b3d5e7a9c1e3f5b7d9a1c3e5f7b9d1a3c5e7f9b1d", "images": null, "deployed_to": null, "started_at": "2026-10-02T13:40:00Z", "finished_at": "2026-10-02T13:43:12Z", "received_at": "2026-10-02T13:39:58Z", "error_summary": null },
+          { "source_version_id": "sv_m_05", "commit": "a1c3e5f7092b4d6f8e0a2c4e6f8a0b2c4d6e8f01", "branch": "main", "pipeline": { "status": "success", "run_url": null }, "image": "registry.example.com/sample-monolith:a1c3e5f7092b4d6f8e0a2c4e6f8a0b2c4d6e8f01", "image_digest": "sha256:2f4e6d8c0b1a3958e7d6c5b4a3928170f6e5d4c3b2a1908f7e6d5c4b3a291807", "images": null, "deployed_to": [ { "target_id": "tgt_demo_gcp", "deployment_id": "dep_m_04", "deployed_at": "2026-10-02T12:54:02Z" } ], "started_at": "2026-10-02T12:20:00Z", "finished_at": "2026-10-02T12:23:40Z", "received_at": "2026-10-02T12:19:58Z", "error_summary": null },
+          { "source_version_id": "sv_m_04", "commit": "7b1578b2c4d9e0f13a5b6c7d8e9f00112233aa01", "branch": "main", "pipeline": { "status": "success", "run_url": null }, "image": "registry.example.com/sample-monolith:7b1578b2c4d9e0f13a5b6c7d8e9f00112233aa01", "image_digest": "sha256:03806b3a0378c1d2e3f4a5b6c7d8e9f0a1b2c3d4e5f60718293a4b5c6d7e8f9a", "images": null, "deployed_to": [ { "target_id": "tgt_demo_gcp", "deployment_id": "dep_m_05", "deployed_at": "2026-10-02T03:23:15Z" }, { "target_id": "tgt_demo_onprem", "deployment_id": "dep_m_05", "deployed_at": "2026-10-02T03:24:05.120000Z" } ], "started_at": "2026-10-02T02:50:00Z", "finished_at": "2026-10-02T02:53:20Z", "received_at": "2026-10-02T02:49:57Z", "error_summary": null }
+        ],
+        "next_cursor": "eyJ0IjoiMjAyNi0xMC0wMlQwMjo0OTo1N1oiLCJpZCI6InN2X21fMDQifQ"
+      }
+    },
+    "GET projects/prj_monolith/builds?cursor=eyJ0IjoiMjAyNi0xMC0wMlQwMjo0OTo1N1oiLCJpZCI6InN2X21fMDQifQ": {
+      "body": {
+        "items": [
+          { "source_version_id": "sv_m_03", "commit": "9f8e7d6c5b4a39281706f5e4d3c2b1a098765404", "branch": "main", "pipeline": { "status": "success", "run_url": null }, "image": "registry.example.com/sample-monolith:9f8e7d6c5b4a39281706f5e4d3c2b1a098765404", "image_digest": "sha256:6a5b4c3d2e1f0a9b8c7d6e5f4a3b2c1d0e9f8a7b6c5d4e3f2a1b0c9d8e7f6a5b", "images": null, "deployed_to": null, "started_at": "2026-10-01T23:50:00Z", "finished_at": "2026-10-01T23:53:10Z", "received_at": "2026-10-01T23:49:58Z", "error_summary": null },
+          { "source_version_id": "sv_m_02", "commit": "c0ffee1234567890abcdef1234567890abcd0505", "branch": "main", "pipeline": { "status": "success", "run_url": null }, "image": "registry.example.com/sample-monolith:c0ffee1234567890abcdef1234567890abcd0505", "image_digest": "sha256:91aa52c7e0b3d6f9a2c5e8b1d4f7a0c3e6b9d2f5a8c1e4b7d0f3a6c9e2b5d8f1", "images": null, "deployed_to": [ { "target_id": "tgt_demo_aws", "deployment_id": "dep_m_09", "deployed_at": "2026-10-01T10:24:30Z" }, { "target_id": "tgt_demo_onprem", "deployment_id": "dep_m_09", "deployed_at": "2026-10-01T10:23:50Z" } ], "started_at": "2026-10-01T08:50:00Z", "finished_at": "2026-10-01T08:53:30Z", "received_at": "2026-10-01T08:49:58Z", "error_summary": null },
+          { "source_version_id": "sv_m_01", "commit": "3d2c1b0a99887766554433221100ffeeddcc0606", "branch": null, "pipeline": { "status": "success", "run_url": null }, "image": "registry.example.com/sample-monolith:3d2c1b0a99887766554433221100ffeeddcc0606", "image_digest": "sha256:4b9e2f10c3d5a7e9b1f3d5c7e9a1b3d5f7092e4c6a8b0d2f4e6a8c0e2b4d6f80", "images": null, "deployed_to": [ { "target_id": "tgt_demo_aws", "deployment_id": "dep_m_08", "deployed_at": "2026-10-01T12:21:40.551203Z" }, { "target_id": "tgt_demo_gcp", "deployment_id": "dep_m_10", "deployed_at": "2026-10-01T06:28:40Z" }, { "target_id": "tgt_demo_onprem", "deployment_id": "dep_m_10", "deployed_at": "2026-10-01T06:29:20Z" } ], "started_at": "2026-10-01T05:50:00Z", "finished_at": "2026-10-01T05:53:30Z", "received_at": "2026-10-01T05:49:58Z", "error_summary": null }
+        ],
+        "next_cursor": null
+      }
+    },
+
+    "GET projects/prj_monolith/scripts": {
+      "body": {
+        "items": [
+          { "script_id": "scr_m_aws_3", "target_id": "tgt_demo_aws", "type": "aws", "version": "s3", "origin": "ai_generated", "attempt": 2, "validation": { "validate": true, "plan": true, "risks": 0 }, "status": "verified", "reuse_count": 1, "last_used_at": "2026-10-01T12:00:25Z", "created_at": "2026-10-01T06:03:43Z" },
+          { "script_id": "scr_m_aws_2", "target_id": "tgt_demo_aws", "type": "aws", "version": "s2", "origin": "reused", "attempt": null, "validation": { "validate": true, "plan": true, "risks": 0 }, "status": "verified", "reuse_count": 0, "last_used_at": null, "created_at": "2026-09-30T14:10:00Z" },
+          { "script_id": "scr_m_aws_1", "target_id": "tgt_demo_aws", "type": "aws", "version": "s1", "origin": "ai_generated", "attempt": 3, "validation": { "validate": true, "plan": false, "risks": null }, "status": "discarded", "reuse_count": 0, "last_used_at": null, "created_at": "2026-09-30T09:20:00Z" },
+          { "script_id": "scr_m_gcp_1", "target_id": "tgt_demo_gcp", "type": "gcp", "version": "s1", "origin": "ai_generated", "attempt": 1, "validation": { "validate": true, "plan": true, "risks": 1 }, "status": "verified", "reuse_count": 0, "last_used_at": null, "created_at": "2026-10-01T06:01:23Z" },
+          { "script_id": "scr_m_onprem_2", "target_id": "tgt_demo_onprem", "type": "onprem", "version": "s2", "origin": "ai_generated", "attempt": 1, "validation": { "validate": true, "plan": true, "risks": 0 }, "status": "verified", "reuse_count": 3, "last_used_at": "2026-10-02T13:20:24Z", "created_at": "2026-10-01T06:00:56Z" },
+          { "script_id": "scr_m_onprem_1", "target_id": "tgt_demo_onprem", "type": "onprem", "version": "s1", "origin": null, "attempt": null, "validation": { "validate": true, "plan": false, "risks": null }, "status": "discarded", "reuse_count": 0, "last_used_at": null, "created_at": "2026-09-30T05:00:00Z" }
+        ],
+        "next_cursor": null
+      }
+    },
+
+    "GET projects/prj_monolith/ai-usage": {
+      "body": {
+        "items": [
+          { "at": "2026-10-02T13:20:42Z", "deployment_id": "dep_m_03", "target_id": "tgt_demo_gcp", "step": "generate", "attempt": 1, "tokens": null, "cost_krw": null, "status": "succeeded", "note": null },
+          { "at": "2026-10-02T13:21:00Z", "deployment_id": "dep_m_03", "target_id": "tgt_demo_aws", "step": "generate", "attempt": 1, "tokens": 13840, "cost_krw": 57, "status": "succeeded", "note": null },
+          { "at": "2026-10-02T13:22:40Z", "deployment_id": "dep_m_03", "target_id": "tgt_demo_aws", "step": "fix", "attempt": 2, "tokens": 9310, "cost_krw": 38, "status": "succeeded", "note": null },
+          { "at": "2026-10-02T13:21:05Z", "deployment_id": "dep_m_03", "target_id": "tgt_demo_azure", "step": "generate", "attempt": 1, "tokens": 15020, "cost_krw": 61, "status": "succeeded", "note": null },
+          { "at": "2026-10-02T13:24:10Z", "deployment_id": "dep_m_03", "target_id": "tgt_demo_azure", "step": "fix", "attempt": 2, "tokens": null, "cost_krw": null, "status": "failed", "note": null },
+          { "at": "2026-10-02T13:26:20Z", "deployment_id": "dep_m_03", "target_id": "tgt_demo_azure", "step": "fix", "attempt": 3, "tokens": 36060, "cost_krw": 148, "status": "unknown", "note": null },
+          { "at": "2026-10-02T13:45:51Z", "deployment_id": "dep_m_02", "target_id": "tgt_demo_aws", "step": "generate", "attempt": 1, "tokens": 12950, "cost_krw": 53, "status": "succeeded", "note": null },
+          { "at": "2026-10-02T13:45:50Z", "deployment_id": "dep_m_02", "target_id": "tgt_demo_gcp", "step": "generate", "attempt": 1, "tokens": 11870, "cost_krw": 49, "status": "succeeded", "note": null },
+          { "at": "2026-10-02T13:46:36Z", "deployment_id": "dep_m_02", "target_id": "tgt_demo_gcp", "step": "fix", "attempt": 2, "tokens": 6600, "cost_krw": 27, "status": "succeeded", "note": null }
+        ],
+        "next_cursor": null
+      }
+    },
+
+    "POST projects/prj_monolith/deployments": { "status": 201, "body": { "id": "dep_m_01", "project_id": "prj_monolith", "state": "queued" } },
+    "POST deployments/dep_m_03/approvals": { "status": 202, "body": { "id": "dep_m_03", "project_id": "prj_monolith", "state": "awaiting_approval" } },
+    "POST deployments/dep_m_04/approvals": { "status": 409, "body": { "error": { "code": "STATE_CONFLICT", "message": "현재 상태에서 처리할 수 없는 요청이에요.", "details": {}, "retryable": false } } },
+    "POST deployments/dep_m_02/retry": { "status": 409, "body": { "error": { "code": "TARGET_LOCKED", "message": "다른 배포가 이 환경을 쓰고 있어요.", "details": {}, "retryable": false } } },
+    "POST deployments/dep_m_03/retry": { "status": 201, "body": { "id": "dep_m_02", "project_id": "prj_monolith", "state": "queued" } },
+    "POST deployments/dep_m_05/retry": { "status": 201, "body": { "id": "dep_m_01", "project_id": "prj_monolith", "state": "queued" } },
+    "POST deployments/dep_m_06/retry": { "status": 201, "body": { "id": "dep_m_09", "project_id": "prj_monolith", "state": "queued" } },
+    "POST deployments/dep_m_09/rollback": { "status": 201, "body": { "id": "dep_m_08", "project_id": "prj_monolith", "state": "queued" } },
+    "POST deployments/dep_m_10/rollback": { "status": 409, "body": { "error": { "code": "TARGET_LOCKED", "message": "다른 배포가 이 환경을 쓰고 있어요.", "details": {}, "retryable": false } } },
+    "POST deployments/dep_m_05/rollback": { "status": 201, "body": { "id": "dep_m_08", "project_id": "prj_monolith", "state": "queued" } }
+  }
+}

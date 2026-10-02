@@ -100,10 +100,7 @@ struct LoginView: View {
             }
 
             // "데모 계정으로 둘러보기"는 없앴어요: 서버는 `/auth/demo`를 만들지 않고, 읽기 전용(viewer) 계정으로 위에서 로그인해요 (10/1 #13 김승환 답)
-            // MOCK: 서버 없이 번들 예시 데이터로 둘러보기 (심사 · 발표용, 화면마다 "예시 데이터" 배지)
-            Button("예시 데이터로 둘러보기 (오프라인)") { app.signInWithSampleData() }
-                .buttonStyle(.glassCapsule(fullWidth: true, height: 38))
-                .disabled(working)
+            SampleModeEntryButton(disabled: working)  // SAMPLE-MODE
 
             Text("SoftBank Hackathon 2026 · Team Daisy")
                 .font(.caption).foregroundStyle(.secondary)

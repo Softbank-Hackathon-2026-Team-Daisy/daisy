@@ -50,7 +50,7 @@ struct FlowPage<Content: View, Bottom: View>: View {
             VStack(alignment: .leading, spacing: 4) {
                 HStack(spacing: 8) {
                     Text(title).font(.title2.weight(.semibold))
-                    SampleBadge()
+                    SampleBadge()  // SAMPLE-MODE
                 }
                 if !description.isEmpty {
                     Text(description).font(.callout).foregroundStyle(.secondary)

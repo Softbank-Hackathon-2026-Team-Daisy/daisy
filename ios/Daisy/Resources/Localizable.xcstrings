@@ -3768,22 +3768,6 @@
         }
       }
     },
-    "서버 없이 앱에 들어 있는 예시 데이터를 보여주고 있어요. 바꾸는 동작은 막혀 있어요." : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Showing sample data bundled with the app, without a server. Changes are disabled."
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "サーバーなしで、アプリに同梱されたサンプルデータを表示しています。変更する操作はできません。"
-          }
-        }
-      }
-    },
     "서버 응답을 해석하지 못했어요. %@" : {
       "localizations" : {
         "en" : {
@@ -5044,102 +5028,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "予選ではオンプレミス · AWS · GCP · Azure の4つの環境を使います"
-          }
-        }
-      }
-    },
-    "예시 데이터" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Sample data"
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "サンプルデータ"
-          }
-        }
-      }
-    },
-    "예시 데이터 · 읽기 전용" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Sample data · Read-only"
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "サンプルデータ · 読み取り専用"
-          }
-        }
-      }
-    },
-    "예시 데이터라 바꿀 수 없어요. 서버에 연결해서 해 보세요." : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "This is sample data, so it can't be changed. Connect to a server to try it."
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "サンプルデータのため変更できません。サーバーに接続してお試しください。"
-          }
-        }
-      }
-    },
-    "예시 데이터로 둘러보기 (오프라인)" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Explore with sample data (offline)"
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "サンプルデータで見てみる（オフライン）"
-          }
-        }
-      }
-    },
-    "예시 데이터로 보는 중이에요" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Viewing sample data"
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "サンプルデータを表示しています"
-          }
-        }
-      }
-    },
-    "예시 데이터에 없는 화면이에요." : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "This screen isn't in the sample data."
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "この画面はサンプルデータにありません。"
           }
         }
       }
