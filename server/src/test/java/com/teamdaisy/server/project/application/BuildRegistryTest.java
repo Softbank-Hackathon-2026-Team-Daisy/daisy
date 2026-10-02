@@ -256,4 +256,15 @@ class BuildRegistryTest {
             "prj_1", "s", "e", COMMIT, null, "failed", null, null, null, DONE.plusNanos(789), null);
     assertThat(BuildRegistry.validate(nanos).finishedAt()).isEqualTo(DONE);
   }
+
+  @Test
+  @DisplayName("상태가 없으면 내부 예외가 아니라 400 이에요 (#53 승환님 리뷰)")
+  void missingStatusIsValidationFailure() {
+    assertCode(
+        () ->
+            BuildRegistry.validate(
+                new BuildReport(
+                    "prj_1", "s", "e", COMMIT, null, null, null, null, null, null, null)),
+        ErrorCode.VALIDATION_FAILED);
+  }
 }

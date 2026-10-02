@@ -207,6 +207,7 @@ public class BuildRegistry {
         || report.externalBuildId().length() > MAX_KEY
         || report.commitSha() == null
         || !COMMIT.matcher(report.commitSha()).matches()
+        || report.status() == null
         || !ORDER.contains(report.status())
         || (report.branch() != null
             && (report.branch().isBlank() || report.branch().length() > MAX_KEY))

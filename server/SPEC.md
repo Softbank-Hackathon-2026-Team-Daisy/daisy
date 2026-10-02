@@ -1109,7 +1109,7 @@ record Recorded(String sourceVersionId, boolean changed)
 | R3 | `succeeded` 뒤 `running` 은 `changed=false`, 상태 그대로 |
 | R4 | `succeeded` 뒤 `failed` 409, 다른 이미지 409, 상태 그대로 |
 | R5 | 같은 키 다른 프로젝트·다른 commit·다른 브랜치 409 |
-| R6 | 성공인데 이미지 없음·실패인데 이미지·commit 다른 이미지·짧은 sha·모르는 상태 모두 400 (단위) |
+| R6 | 성공인데 이미지 없음·실패인데 이미지·commit 다른 이미지·짧은 sha·모르는 상태·상태 없음(null) 모두 400 (단위). 상태 null 이 처음에는 내부 예외(NPE)였던 것을 승환님 리뷰로 고쳤고, 고치기 전 코드에서 그 테스트가 실패하는 것을 확인했습니다 |
 | R7 | 없는 프로젝트·보관된 프로젝트 404 |
 | R8 | 저장된 행이 배포 생성·A-06 이 쓰는 조건(성공 + `ImageRefs.valid`)을 만족하고, `received_at` 은 처음 받은 시각 그대로. HTTP 로 A-06·배포 생성까지 잇는 확인은 수신부가 붙은 뒤 합니다 |
 | R9 | 같은 키 동시 2건: 행 1개, 같은 ID, `changed` 는 true 하나·false 하나 |
