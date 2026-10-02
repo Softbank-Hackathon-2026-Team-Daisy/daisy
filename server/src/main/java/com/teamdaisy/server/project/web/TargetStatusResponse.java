@@ -79,7 +79,7 @@ public record TargetStatusResponse(
         target.id(),
         target.environmentType(),
         target.name(),
-        target.connectionState(),
+        TargetResponse.connectionState(target.connectionState()),
         target.connectionCheckedAt(),
         view.deployment() == null ? null : Current.of(view.deployment()),
         view.status(),

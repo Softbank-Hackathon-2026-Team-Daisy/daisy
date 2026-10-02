@@ -100,7 +100,7 @@ public class DeploymentRequestController {
                 principal.accountId(),
                 projectId,
                 request.sourceVersionId(),
-                request.targetIds(),
+                TargetLimit.check(request.targetIds()),
                 input(request.strategy()),
                 idempotencyKey));
     return DeploymentAccepted.from(response, projectId);

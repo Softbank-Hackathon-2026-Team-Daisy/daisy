@@ -31,8 +31,9 @@ class DeploymentDetailResponseTest {
         images,
         "awaiting_approval",
         kind,
-        "dep_0",
-        null,
+        // DB 의 ck_dep_lineage 와 같은 조합만 만들어요: rollback 만 원본, retry 만 재시도 원본을 가져요.
+        "rollback".equals(kind) ? "dep_0" : null,
+        "retry".equals(kind) ? "dep_0" : null,
         "데모 운영자",
         AT,
         null,
