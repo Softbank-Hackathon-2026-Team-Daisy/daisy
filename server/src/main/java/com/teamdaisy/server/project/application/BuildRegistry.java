@@ -100,12 +100,15 @@ public class BuildRegistry {
   @Transactional
   public Recorded record(BuildReport input) {
     BuildReport report = validate(input);
-    Integer active =
-        jdbc.queryForObject(
-            "select count(*) from project where id = :project and archived_at is null",
+    // 저장하기 전에 활성 프로젝트 행을 먼저 잠가요. 실행부와 같은 project → source_version → event 순서예요.
+    // 잠그지 않으면 같은 프로젝트의 다른 빌드 둘이 동시에 올 때, 각 INSERT 의 FK 검사가 project 에 KEY SHARE 를 남기고
+    // 뒤이은 이벤트 기록이 둘 다 같은 project 를 FOR UPDATE 로 올리려다 교착돼요 (#72 리뷰).
+    List<String> active =
+        jdbc.queryForList(
+            "select id from project where id = :project and archived_at is null for update",
             Map.of("project", report.projectId()),
-            Integer.class);
-    if (active == null || active == 0) {
+            String.class);
+    if (active.isEmpty()) {
       throw new DaisyException(ErrorCode.NOT_FOUND);
     }
     String id = "sv_" + UUID.randomUUID();

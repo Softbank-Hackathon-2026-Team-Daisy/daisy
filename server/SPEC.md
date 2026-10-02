@@ -1405,6 +1405,7 @@ Jenkins `daisy-ci` 가 끝나면 결과를 `POST /internal/jenkins/builds` 로 �
 ### 저장과 이벤트
 
 - `BuildRegistry.record` 와 `EventJournal.appendProject` 를 한 트랜잭션에서 부릅니다. 둘 중 하나가 실패하면 같이 롤백됩니다.
+- 저장 전에 활성 프로젝트 행을 `FOR UPDATE` 로 먼저 잠급니다 (`BuildRegistry.record`). 실행부와 같은 project → source_version → event 순서라서, 같은 프로젝트의 다른 빌드가 동시에 와도 INSERT 의 FK 검사(KEY SHARE)와 이벤트의 project `FOR UPDATE` 가 서로 기다리는 교착이 생기지 않습니다 (#72 승환님 리뷰).
 - 이벤트는 **상태가 바뀌었을 때만** 남깁니다 (새 빌드, 상태가 앞으로 감). 같은 결과 재수신(`changed: false`)과, 같은 상태에서 빈 값만 채운 경우는 남기지 않습니다. 같은 이벤트 ID 로 내용이 다른 이벤트를 다시 쓰면 `EventJournal` 이 409 를 내서 수신 전체가 롤백되기 때문입니다.
 - `BuildRegistry.Recorded` 에 `status_changed` 를 더해 이걸 판단합니다 (공개 응답에는 없음).
 - 이벤트: `source` = 요청 `source`, `source_event_id` = `<external_build_id>:<status>`, `source_version_id` 연결, `payload` = `{ source_version_id, commit_sha, status }`, 시각 = `finished_at` → `started_at` → 받은 시각.
@@ -1440,3 +1441,10 @@ Jenkins `daisy-ci` 가 끝나면 결과를 `POST /internal/jenkins/builds` 로 �
 세 번 띄운 서버 로그에 토큰 값 0회, ERROR 0건. 실DB 포함 테스트 214개 통과. 매핑 파싱에서 `" =2"` 처럼 공백 뒤 이름이 빈 Job 이 들어가던 것을 단위 테스트로 잡아 고쳤습니다.
 
 인프라에 맞춰 달라고 할 것: `source` 를 `jenkins:<DAISY_JENKINS_INSTANCE_ID 와 같은 값>` 으로, 개발 서버에 `DAISY_JENKINS_CI_PROJECTS=daisy-ci=prj_demo_monolith` 추가.
+
+### 교착 수정 (10/2 저녁, 승환님 리뷰 반영)
+
+은현님 요청으로 임채준이 반영했습니다. 저장 전에 프로젝트 행을 먼저 잠급니다 (위 「저장과 이벤트」).
+
+- 회귀 테스트 `BuildRegistryPostgresTest.concurrentReceiptsSameProject`: 실제 `BuildReceipt` · `EventJournal` 로, 같은 프로젝트의 다른 빌드(`daisy-ci#1` · `#2`) 2건이 저장 직후 서로를 기다리게 만들어요. 잠금이 없으면 `deadlock detected` 로 실패하고, 잠금 후에는 둘 다 저장되고 `build.received` 2건이 남아요.
+- PostgreSQL 17 실DB로 `./gradlew spotlessApply check build --rerun-tasks --no-daemon`: 219개 통과, 건너뜀 0.
