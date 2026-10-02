@@ -68,8 +68,25 @@ struct EndpointContractTests {
 
     /// WR-06: 승인 화면은 리소스 목록까지 받아요. 요약만 필요한 곳은 쿼리 없이
     @Test func planDetail() {
-        #expect(query(Endpoint<Plan>.plan(deploymentID: "dep_42", detail: true)) == ["detail": "resources"])
+        #expect(query(Endpoint<[PlanDetail]>.planDetail(deploymentID: "dep_42")) == ["detail": "resources"])
         #expect(query(Endpoint<Plan>.plan(deploymentID: "dep_42")).isEmpty)
+    }
+
+    /// 서버 #51: 상세는 환경별 배열로 따로 와요 → 요약에 리소스 행 · 원문을 붙여요
+    @Test func planSummaryMergesDetail() throws {
+        let summary = try JSONDecoder.daisy.decode(Plan.self, from: Data("""
+        { "deployment_id": "dep_42", "targets": [
+            { "target_id": "tgt_aws", "counts": { "create": 2, "update": 0, "delete": 1 }, "has_delete": true, "risks": [], "summary": null, "plan_text": null },
+            { "target_id": "tgt_gcp", "counts": { "create": 1, "update": 0, "delete": 0 }, "has_delete": false, "risks": [], "summary": null, "plan_text": null } ],
+          "ai_usage": { "calls": 2, "tokens": null, "cost_krw": 312, "exchange_rate": 1380, "estimated": true, "unknown_calls": 1 } }
+        """.utf8))
+        let details = try JSONDecoder.daisy.decode([PlanDetail].self, from: Data("""
+        [ { "target_id": "tgt_aws", "resources": [ { "address": "aws_lb.app", "action": "delete" } ], "plan_text": "Plan: 2 to add, 0 to change, 1 to destroy." } ]
+        """.utf8))
+        let plan = summary.merging(details)
+        #expect(plan.targets[0].resources?.first?.action == .delete && plan.targets[0].planText != nil)
+        #expect(plan.targets[1].resources == nil && plan.hasDelete)
+        #expect(plan.aiUsage?.costKrw == 312)
     }
 
     /// W-01 승인: kind "plan", 삭제 확인 문구, Idempotency-Key
