@@ -1149,7 +1149,7 @@ record Recorded(String sourceVersionId, boolean changed)
 | `script_id` | `script.id` | |
 | `target_id` · `type` | `script.target_id`, `target.environment_type` | |
 | `version` | `"s" + script.version` | 앱·웹이 문자열 `"s2"` 로 받음 |
-| `origin` | 처음 검증한 대상(`source_deployment_target_id`)의 `ai_reused` | false 면 `ai_generated`, true 면 `reused` |
+| `origin` | 처음 검증한 대상(`source_deployment_target_id`)의 `ai_reused`·`attempt` | 재사용이면 `reused`, 재사용이 아니고 시도가 1 이상이면 `ai_generated`, 그 밖(AI 없이 기준 모듈을 쓴 경로 `USE_AI=false`, 출처 미확인)은 null. 재사용이 아니라는 것만으로 AI 생성이라고 하지 않음 (#68 승환님 리뷰) |
 | `attempt` | 처음 검증한 대상의 `attempt` | 통과한 시도 (1~3). 0 이면 A-04 와 같이 null (S2) |
 | `validation` | `{ validate, plan, risks }` | `validate` 는 늘 true (`validated_at` 이 있어야 저장됨). `plan` 은 이 스크립트로 만든 plan 이 있으면 true. `risks` 는 가장 최근 plan 의 `summary.risks` 개수, plan 이 없으면 null |
 | `status` | `unavailable_at`·`artifact_expires_at` | 원본을 쓸 수 없거나 보관 기한이 지났으면 `discarded`, 아니면 `verified` |
@@ -1264,3 +1264,4 @@ record Recorded(String sourceVersionId, boolean changed)
 
 - 재사용 수에서 `ai_reused` 조건을 빼면 실DB 테스트가 실패하는 것을 확인했습니다.
 - 실서버에서 처음 검증한 대상의 `attempt` 가 0 인 경우가 `attempt: 0` 으로 나와, A-04 와 같이 null 로 바꿨습니다 (S2). 실제로는 AI 생성 뒤에만 스크립트가 생겨 1 이상입니다.
+- #68 승환님 리뷰로 `origin` 판정을 고쳤습니다. 재사용이 아니라는 것만으로 `ai_generated` 라고 하지 않고, 생성 시도(1 이상)가 있을 때만 그렇게 봅니다. AI 없이 기준 모듈을 쓴 경로는 null 입니다. 단위 테스트를 더했고, 실서버에서 시도 0 픽스처가 `origin: null` 로 나오는 것을 다시 확인했습니다.

@@ -55,4 +55,17 @@ class ScriptResponseTest {
         new ScriptRow("scr_1", "tgt_aws", "aws", 1, AT, null, null, false, 0, 0, null, 0, null);
     assertThat(ScriptResponse.of(zero, NOW).attempt()).isNull();
   }
+
+  @Test
+  @DisplayName("재사용 아니고 생성 시도가 있어야 ai_generated, 기준 모듈·출처 미확인은 null 이에요 (#68)")
+  void originNeedsGenerationEvidence() {
+    assertThat(ScriptResponse.origin(true, 0)).isEqualTo("reused");
+    assertThat(ScriptResponse.origin(false, 2)).isEqualTo("ai_generated");
+    assertThat(ScriptResponse.origin(false, 0)).isNull(); // USE_AI=false 기준 모듈
+    assertThat(ScriptResponse.origin(false, null)).isNull();
+    assertThat(ScriptResponse.origin(null, 2)).isNull();
+    var reference =
+        new ScriptRow("scr_ref", "tgt_aws", "aws", 1, AT, null, null, false, 0, 0, null, 0, null);
+    assertThat(ScriptResponse.of(reference, NOW).origin()).isNull();
+  }
 }
