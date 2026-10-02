@@ -14,13 +14,13 @@ enum AppTab: String, CaseIterable, Identifiable, Hashable {
 
     var title: String {
         switch self {
-        case .overview: "개요"
-        case .deployments: "배포"
-        case .environments: "환경"
-        case .history: "이력"
-        case .scripts: "스크립트"
-        case .aiUsage: "AI 사용량"
-        case .settings: "설정"
+        case .overview: .app("개요")
+        case .deployments: .app("배포")
+        case .environments: .app("환경")
+        case .history: .app("이력")
+        case .scripts: .app("스크립트")
+        case .aiUsage: .app("AI 사용량")
+        case .settings: .app("설정")
         }
     }
 

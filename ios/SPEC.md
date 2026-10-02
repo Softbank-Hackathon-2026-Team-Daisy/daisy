@@ -109,6 +109,7 @@ M = 예선 데모 필수, S = 선택
 | 인증 저장 | Keychain | 토큰을 UserDefaults에 두지 않음 |
 | 푸시 | APNs (토큰 기반 `.p8` 키) | 백엔드가 발송 (§6-5) |
 | 배포 | Xcode 아카이브 → App Store Connect → **TestFlight 외부 테스트 공개 링크** | |
+| 화면 언어 | **한국어(원문) · English · 日本語**, 기본값 "기기 설정 따르기" (10/2) | 설정 › 언어에서 바꾸면 다시 켜지 않아도 바로 바뀌어요. 번역은 String Catalog 하나(`Resources/Localizable.xcstrings`), 서버가 보낸 글자는 번역하지 않아요 (§3-3) |
 | 목업 | **실서버가 기본.** 예외로 **예시 데이터 모드** 하나만 둬요 (9/30) | 로그인 화면 "예시 데이터로 둘러보기 (오프라인)" → 앱에 들어 있는 `SampleData/sample.json`(실제 sample-monolith · sample-msa 커밋 기반)으로 모든 화면을 봐요. 화면마다 "예시 데이터" 배지, 읽기 전용, 실데이터와 섞지 않아요. 만들기: `scripts/sample-data/generate.py` |
 
 ### 3-1. 폴더 구조
@@ -134,10 +135,11 @@ ios/
 │  ├─ Core/
 │  │  ├─ API/               APIClient, 엔드포인트(Endpoint · WebEndpoints), APIError, 예시 데이터(SampleData)
 │  │  ├─ Models/            서버 응답 Codable 모델 (§6-7 · §6-8과 1:1)
-│  │  └─ Auth/              토큰 저장 (Keychain)
+│  │  ├─ Auth/              토큰 저장 (Keychain)
+│  │  └─ Localization/      화면 언어 설정(LanguageStore) · `String.app("…")` (§3-3)
 │  │                        (Realtime/ SSE · Push/ APNs는 아직 없어요. 지금은 5초 폴링, D3에 추가)
 │  ├─ DesignSystem/         재질, 글래스 버튼 · 세그먼트, 머리줄(PageScaffold · FlowPage), 카드, 상태 배지, 환경 아이콘, 시간 표기
-│  └─ Resources/            에셋, SampleData/sample.json
+│  └─ Resources/            에셋, SampleData/sample.json, Localizable.xcstrings (한국어 원문 + en · ja)
 ├─ DaisyTests/              모델 디코딩 · 계약 · 문구 · 흐름 규칙 · 예시 데이터 테스트 (Swift Testing)
 └─ scripts/                 testflight.sh · mac-dmg.sh · sample-data/generate.py
 ```
@@ -152,6 +154,33 @@ View ──▶ Store(@Observable) ──▶ APIClient ────────�
 
 - 화면은 `APIClient`를 거쳐서만 서버와 통신해요. 서버 주소는 설정에서 바꿔요 (개발 서버 · 데모 서버)
 - 실시간 이벤트는 스토어가 받아 상태를 갱신해요. 연결이 끊기면 `Last-Event-ID`로 재연결하고, `resync`가 오면 스냅샷을 다시 조회해요
+
+### 3-3. 화면 언어 (10/2)
+
+설정 › 앱 › **언어**: 기기 설정 따르기 · 한국어 · English · 日本語 (`GlassSegmented`, 좁은 화면은 같은 글래스 캡슐 메뉴). 웹과 맞추지 않아도 되는 앱 기능이에요 (박승준 결정).
+
+- **원문은 한국어(해요체)**, 번역은 `Resources/Localizable.xcstrings` 하나에 영어 · 일본어(です・ます)로 있어요. 기술 용어(terraform, plan, apply, validate, deploy.yaml, AWS, GCP, Jenkins, 커밋 해시, URL)는 번역하지 않아요.
+- **고르면 바로 바뀌어요** (iOS · macOS 모두 다시 켤 필요 없어요). 루트에 `\.locale`을 넣어서 `Text("…")` 같은 SwiftUI 글자가 바뀌고, `String`으로 넘기는 글자(배지 · 알림 · 문구 규칙 · 오류)는 `String.app("…")`이 고른 언어로 찾아요. 이미 화면에 떠 있던 오류 문구 · 토스트처럼 만들어 둔 글자는 다음에 다시 불러올 때 바뀌어요.
+- 시스템이 그리는 글자(macOS 메뉴 막대 · 공유 시트 · 입력칸 메뉴)는 기기 언어를 따라요.
+- 고른 값은 UserDefaults `appLanguage`(`system` · `ko` · `en` · `ja`)에 둬요. 단위 테스트 호스트는 따로 둔 설정(`DaisyTestHost`)을 쓰고 기본이 한국어예요.
+- 모든 요청에 고른 언어를 `Accept-Language: ko | en | ja`로 실어 보내요 (R-10, 서버가 나중에 메시지를 그 언어로 줄 수 있게).
+- 시각은 웹과 같이 24시간제 · 상대 시각("12분 전" → "12 min ago" · "12分前"), 숫자는 고른 언어의 표기예요.
+
+**서버가 보낸 글자는 번역하지 않고 받은 그대로 보여줘요** (서버가 `Accept-Language`로 맞춰 줄 때까지 서버 언어 그대로):
+
+| 어디 | 필드 |
+|---|---|
+| 오류 | 에러 봉투 `error.message` — **서버 `ErrorCode` 9개는 앱이 `error.code`로 번역**하고 모르는 코드만 그대로 (#74 안 A), deploy.yaml 검증 오류 `errors[].message` · `path` (WR-03) |
+| 배포 (A-04) | `error_summary`, `health_summary`, 레인 부제 `title`, `steps[].name` (서버 단계 이름) |
+| 현황 (A-02) | `health_summary`, 환경 `name` (종류를 모를 때) |
+| plan (A-05 · WR-06) | 위험 `risks[].message` · `rule` · `resource`, 환경 요약 `summary`, `plan_text` |
+| 빌드 (A-06) | 커밋 `message` · `author`, `steps[].name` (Jenkins 단계) |
+| 환경 (WR-04 · A-10) | 재사용 이유 `reuse.reason`, 구성 줄 `title` · `runtime` · `location` · `location_label` · `access_method` · `exposure` · `state_backend`, 연결 테스트 `message` |
+| 스크립트 · AI (WR-10 · WR-11) | `note`, `input`, `storage`, AI 호출 `note` · `title` |
+| 로그 (A-07) | 로그 줄 `text` |
+| 그 밖 | 프로젝트 · 배포 이름, 사용자 이름, 버전, deploy.yaml 원문, 예시 데이터(`sample.json`)의 커밋 메시지 등 |
+
+롤백 요청의 `reason`("v6로 롤백")은 화면 글자가 아니라 서버에 남는 팀 기록이라 한국어로 보내요.
 
 ---
 
@@ -226,6 +255,7 @@ View ──▶ Store(@Observable) ──▶ APIClient ────────�
 | R-06 | JSON 키는 `snake_case` 그대로 좋아요 | — | 앱에서 변환해요 |
 | R-07 | 상태 같은 enum 값은 **문자열**. 새 값을 추가해도 앱은 "알 수 없음"으로 표시하고 죽지 않아요 | — | 안심하고 추가해도 돼요 |
 | R-08 🆕 | **개발 서버 주소를 D1~D2에 공유** (HTTPS, 실제 데이터 조금이라도) | M | 앱에 목업이 없어서 개발 서버가 있어야 화면을 연결할 수 있어요. 완성 전이라도 M 조회 API부터 열어 주세요 |
+| R-10 🆕 (가칭) | 앱은 모든 요청에 **`Accept-Language: ko` · `en` · `ja`**(설정 › 언어)를 붙여요. 서버가 사람이 읽는 글자(`error.message`, plan 위험 설명, 헬스 · 재사용 문구 등 §3-3 표)를 그 언어로 줄 수 있으면 좋아요 | — | 10/2 앱 언어 설정. 지금은 무시해도 돼요 — 앱은 서버 글자를 번역하지 않고 그대로 보여줘요. 모르는 값은 한국어로 주면 돼요 |
 
 ### 6-2. 조회 API
 
@@ -513,6 +543,9 @@ API 모양보다 **이 정보가 어딘가에 저장되어 있는지**가 더 �
 
 | 날짜 | 변경 | 작성 |
 |---|---|---|
+| 10/2 | 서버 응답 언어는 #74 안 A로 결정(하은현 제안): 서버는 한국어 그대로, 앱이 `error.code`(서버 `ErrorCode` 9개)를 고른 언어로 번역하고 모르는 코드만 서버 문장을 보여줘요. plan 위험 설명 · 대상 오류 요약은 Jenkins · AI 결과라 받은 그대로예요 | 박승준 |
+| 10/2 | 서버 주소 입력칸을 없앰: 앱은 늘 `https://api.unibloom.cloud`로 가요(우리가 운영하는 서비스라 사용자가 주소를 넣지 않아요). 예전에 저장된 주소(웹 주소 등)는 무시하고, 개발 빌드만 실행 환경변수 `UNIBLOOM_SERVER_URL`로 바꿀 수 있어요. 웹 페이지(HTML)가 오면 "서버 응답이 올바르지 않아요"로 보여줘요 | 박승준 |
+| 10/2 | **앱 언어 설정** (§3-3): 설정 › 언어 "기기 설정 따르기 · 한국어 · English · 日本語", 기본값 기기 언어, 고르면 다시 켜지 않아도 바로 바뀜(iOS · macOS). String Catalog `Localizable.xcstrings`(한국어 원문 + 영어 · 일본어 전부), `String.app` · 루트 `\.locale`, 숫자 · 상대 시각도 고른 언어. 서버 글자는 번역하지 않음(§3-3 표). 요청에 `Accept-Language` (R-10 가칭). 테스트 63 → 72개 (매개변수 경우 포함 75 → 84건) | 박승준 |
 | 10/2 | 서버 #56 · #59 · #60 · #68 · 웹 #61 · #64 리뷰에 맞춤: WR-02 응답 `{ project, manifest }`(manifest null이면 "검증 전"으로 W-03), A-04 `approval_state` · `apply_dispatch`("승인 완료 · 실행 대기" · 승인됨, 다시 승인 안 함), 승인 409 · 만료 문구 웹과 같게, 스크립트 `attempt` · `origin` null 허용과 폐기 · plan 없음 뜻 바로잡음, AI 호출 기록 빈 목록 문구, 연결 표시 "5초마다 새로고침"(폴링), 해제 409 이유 문구, 성공한 빌드만 배포 시작에 고름, 개요 "지금 할 일" 빈 안내 가운데 | 박승준 |
 | 10/2 | 승인 화면 plan: 요약(A-05)과 리소스 상세(WR-06, 환경별 배열)를 따로 받아 합쳐요 (서버 #51 모양). 전에는 상세를 Plan 하나로 읽어서 실서버에서 디코딩에 실패했을 거예요 | 박승준 |
 | 10/2 | 서버 주소 기본값을 팀 개발 서버 `https://api.unibloom.cloud`로 (10/2 09:51 하은현 공지). 앱 심사도 이 서버와 그 테스트 계정으로 해요 — 앱은 HTTPS API만 있으면 돼서 iOS 전용 서버(`ios.unibloom.cloud`)는 필요 없어요 (박승준 결정) | 박승준 |

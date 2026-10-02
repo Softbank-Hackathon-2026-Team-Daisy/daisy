@@ -24,15 +24,15 @@ struct StoppedStage: View {
     var body: some View {
         FlowPage(step: 4, title: copy.title, description: copy.description) {
             ForEach(failed) { target in
-                InlineAlert(.danger, "\(workspace.name(of: target.targetId)) · \(target.attempt)회 시도 모두 실패", target.errorSummary)
+                InlineAlert(.danger, .app("\(workspace.name(of: target.targetId)) · \(target.attempt)회 시도 모두 실패"), target.errorSummary)
             }
             AdaptiveGrid(minimumWidth: 320) {
                 ForEach(failed) { target in
-                    SectionCard("\(workspace.name(of: target.targetId)) 시도 기록") {
+                    SectionCard(.app("\(workspace.name(of: target.targetId)) 시도 기록")) {
                         ForEach(target.generateSteps, id: \.self) { StepItemRow($0) }
                     }
                 }
-                SectionCard("환경별 상태") {
+                SectionCard(.app("환경별 상태")) {
                     VStack(spacing: 10) {
                         ForEach(targets) { target in
                             let row = target.generateRow
@@ -41,7 +41,7 @@ struct StoppedStage: View {
                     }
                 }
             }
-            if let errorMessage { InlineAlert(.danger, "다시 시도하지 못했어요", errorMessage) }
+            if let errorMessage { InlineAlert(.danger, .app("다시 시도하지 못했어요"), errorMessage) }
             FlowButtons {
                 Button("오류 로그 보기") { router.tab = .scripts }
                     .buttonStyle(.glassCapsule)
@@ -56,7 +56,7 @@ struct StoppedStage: View {
         }
         .toast($toast)
         .task(id: failed.map(\.targetId)) {
-            toast = ToastMessage(kind: .danger, title: copy.toastTitle, message: "오류 로그와 AI 수정 이력을 확인해 주세요")
+            toast = ToastMessage(kind: .danger, title: copy.toastTitle, message: .app("오류 로그와 AI 수정 이력을 확인해 주세요"))
         }
     }
 

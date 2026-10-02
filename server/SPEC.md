@@ -1365,6 +1365,182 @@ record Recorded(String sourceVersionId, boolean changed)
 - 후보마다 별도 실행 서비스 트랜잭션으로 최신 상태를 다시 검사해요. 승인과 경합하면 먼저 확정된 처리를 따르고, 이미 approved이거나 apply에 넘어간 대상은 만료 정리가 취소하지 않아요. plan·승인 만료, 대상 취소, 전체 상태 집계, SSE 이벤트 저장은 한 트랜잭션이에요.
 - 검증: 일부/전체 만료, 종료 미확인 유지, 승인 경합, 반복 정리 무변경, 연결 해제 후 명령 거절, apply 요청의 attempt 유지. 실제 Jenkins·클라우드 실행은 이 테스트 범위가 아니에요.
 
+## 프로젝트 연결 WR-02 (10/2, 하은현)
+
+### 범위
+
+`POST /projects` `{ repository, branch }` 로 GitHub 저장소를 프로젝트로 연결합니다 (W-02 연결하기). 웹·앱 계약은 "`Project` + `deploy.yaml` 검증 결과" 입니다.
+
+- 권한: owner 역할만. viewer 403 (`requireWriter`). 만든 계정이 그 프로젝트의 멤버가 됩니다.
+- 응답 201 `{ project, manifest }`. `project` 는 A-12 상세와 같은 모양입니다. 웹은 이 모양으로 받고 있고, 앱은 `Project` 를 바로 받고 있어서 앱에 맞춰 달라고 알립니다.
+- **`manifest` 는 null 입니다.** `deploy.yaml` 스키마가 팀 결정 대기(WR-03)이고, 서버가 저장소를 읽어 검증하는 경로도 아직 없습니다. 검증하지 않은 것을 통과로 보이지 않게 null 로 둡니다.
+- **새 프로젝트에는 배포 대상이 없습니다.** 대상을 등록하는 API(W-10 환경 추가)는 범위가 정해지지 않았습니다. 그래서 연결한 프로젝트로 바로 배포까지 이어지지는 않고, 데모 배포는 시드된 `prj_demo_monolith` 로 합니다.
+
+### 입력
+
+| 필드 | 규칙 |
+|---|---|
+| `repository` | `owner/repo` 또는 `https://github.com/owner/repo` (끝의 `.git`·`/` 허용). owner 는 영문·숫자·`-` 1~39자, repo 는 영문·숫자·`.`·`_`·`-` 1~100자. 저장은 `owner/repo` 로 맞춤. 다른 호스트는 400 |
+| `branch` | 필수. 255자 이하, 영문·숫자·`.`·`_`·`/`·`-` 만, `-`·`/` 로 시작하지 않고 `..` 없음 |
+
+- 이름은 저장소 이름(`repo`)입니다. `repository_url` 은 `https://github.com/owner/repo`, `manifest_path` 는 기본값 `deploy.yaml` 입니다.
+- 보관되지 않은 프로젝트가 같은 저장소를 이미 쓰고 있으면 409 입니다. 한 저장소는 한 프로젝트입니다. 비교는 GitHub 처럼 대소문자를 구분하지 않습니다.
+- 동시 연결: 확인과 저장 사이를 막지 않으면 같은 저장소 연결 두 건이 둘 다 통과합니다 (#59 승환님 리뷰). 저장소 이름(소문자)으로 `pg_advisory_xact_lock` 을 잡아 같은 저장소 연결을 한 줄로 세웁니다. V1 을 고치거나 마이그레이션을 더하지 않고, 잠금은 커밋 때 풀립니다.
+- 저장소가 실제로 있는지는 GitHub 에 묻지 않습니다. 있는지 모르는 값을 확인한 것처럼 보이지 않게, 응답에서도 검증 결과를 비워 둡니다.
+
+### 검증 계획
+
+| | 검사 | 기대 |
+|---|---|---|
+| C1 | 토큰 없음 / viewer | 401 / 403 |
+| C2 | `owner/repo` + `main` | 201, `project` 상세 모양, `manifest: null`, A-01 목록에 보이고 A-12 상세 200 |
+| C3 | URL 형태(`https://github.com/o/r.git`) | `repository: "o/r"` 로 저장 |
+| C4 | 같은 저장소 다시 | 409 |
+| C5 | 다른 호스트·잘못된 이름·빈 branch·`..` 포함 branch | 400 |
+| C6 | 만든 계정이 아닌 다른 owner 계정 | 그 프로젝트 404 (멤버 아님) |
+| C7 | OpenAPI | 경로·요청 스키마 노출, `principal` 0건, 서버 로그 ERROR 0건 |
+
+### 검증 결과 (10/2 낮)
+
+단위 테스트 3개(저장소 정규화 5가지 입력, 잘못된 저장소 10가지, 브랜치 규칙)와, 빈 PostgreSQL 17 에 jar 로 띄운 실서버로 확인했습니다.
+
+| | 결과 |
+|---|---|
+| C1 | 토큰 없음 401 / viewer 403 |
+| C2 | 201 `{ project, manifest: null }`, `project` 는 A-12 상세 모양(`name: sample-msa`, `repository_url` GitHub 주소, `manifest_path: deploy.yaml`), A-01 목록에 보이고 A-12 상세 200 |
+| C3 | `https://github.com/someone/other-app.git` → `repository: "someone/other-app"` |
+| C4 | 같은 저장소를 `owner/repo`·URL 두 형태로 다시 보내도 둘 다 409, 행 1개 |
+| C5 | 다른 호스트·잘못된 이름·빈 branch·`..` branch·branch 없음·빈 본문 모두 400 |
+| C6 | 멤버는 만든 계정 하나. viewer 는 그 프로젝트 404, 목록에도 없음 |
+| C7 | OpenAPI `POST /projects` 요청 스키마, 응답 201, `principal` 0건, 서버 로그 ERROR 0건 |
+
+처음에는 OpenAPI 에 응답 코드가 200 으로 나와서 `@ResponseStatus(CREATED)` 로 바꿨습니다. 실제 응답은 처음부터 201 이었습니다.
+
+**동시 연결 (10/2 오후, #59 승환님 리뷰).** 같은 저장소를 대소문자만 바꿔(`race-owner/repo-N`·`RACE-OWNER/Repo-N`) 두 요청을 동시에 15번 보냈습니다. 15번 모두 201 하나·409 하나, 행 1개였습니다. 대소문자만 다른 입력을 차례로 보내도 409 입니다. 잠금을 뺀 코드로 실제 중복이 생기는지 비교하는 검증은 하지 않았습니다.
+
+## 프로젝트 연결 해제 WR-13 (10/2, 하은현)
+
+### 범위
+
+`DELETE /projects/{id}` 로 프로젝트 연결을 해제합니다 (W-13). **인프라는 지우지 않습니다.** 확인 입력(환경 이름)은 화면에서 받습니다.
+
+- 권한: `requireWrite`. 비멤버·없는 프로젝트 404, viewer 403.
+- 동작: 행을 지우지 않고 `project.archived_at` 을 채웁니다. 배포·빌드 이력은 그대로 남습니다.
+- 응답 204, 본문 없음.
+- **진행 중 배포가 있으면 409 입니다.** `queued`·`running`·`awaiting_approval` 배포가 하나라도 있으면 막습니다. 실행 중인 apply 를 프로젝트만 사라진 채로 남기지 않기 위해서입니다.
+- **보관된 프로젝트는 모든 경로에서 404 입니다.** 지금까지 `requireRead` 는 프로젝트가 있는지만 봐서, 보관된 프로젝트도 A-12·A-02 등이 열렸습니다. 보관되지 않은 프로젝트만 통과하도록 바꿉니다. 실행 서비스의 권한 확인도 같은 서비스를 거치므로 보관된 프로젝트로는 배포 명령이 나가지 않습니다.
+- 해제한 뒤 같은 저장소는 WR-02 로 다시 연결할 수 있습니다 (새 프로젝트 ID).
+
+### 검증 계획
+
+| | 검사 | 기대 |
+|---|---|---|
+| D1 | 토큰 없음 / viewer / 없는 프로젝트 | 401 / 403 / 404 |
+| D2 | 진행 중 배포가 있는 프로젝트 | 409, 그대로 남음 |
+| D3 | 진행 중 배포가 없는 프로젝트 | 204, 목록에서 빠지고 A-12·A-02·A-06 404, 다시 DELETE 404 |
+| D4 | 해제 뒤 같은 저장소 다시 연결 | 201, 다른 ID |
+| D5 | 해제 뒤 이력 행 | DB 에 그대로 남음 |
+| D6 | 기존 경로 | 시드 프로젝트 A-01·A-12·A-02 그대로 200 |
+
+### 검증 결과 (10/2 낮)
+
+빈 PostgreSQL 17 에 jar 로 띄워 확인했습니다.
+
+| | 결과 |
+|---|---|
+| D1 | 토큰 없음 401 / viewer 403 / 없는 프로젝트 404 |
+| D2 | 시드 프로젝트에 `queued` 배포를 만든 뒤 해제 → 409, `archived_at` 그대로 null |
+| D3 | 새로 연결한 프로젝트 해제 → 204 본문 없음, A-01 목록에서 빠지고 A-12·A-02·A-06 404, 다시 DELETE 404 |
+| D4 | 같은 저장소 다시 연결 → 201, 다른 ID |
+| D5 | 보관된 프로젝트 행과 그 프로젝트의 끝난 배포 이력이 DB 에 그대로 남음 |
+| D6 | 시드 프로젝트 A-01·A-12·A-02·A-04 그대로 200. 서버 로그 ERROR 0건 |
+
+권한 검사를 바꿨으므로 실행 서비스(`ExecutionPostgresTest`)를 포함한 실DB 테스트 전체를 다시 돌렸습니다. 188개 통과. 해제·이력 확인을 SQL 로 해서, 처음에 넣었던 `Project.archive()` 는 쓰지 않아 지웠습니다.
+
+## CI 빌드 수신 (10/2, 하은현)
+
+### 범위
+
+Jenkins `daisy-ci` 가 끝나면 결과를 `POST /internal/jenkins/builds` 로 보냅니다 (#35). 서버는 `source_version` 에 저장하고(#53 `BuildRegistry`), 상태가 바뀌었으면 같은 트랜잭션에서 프로젝트 이벤트 `build.received` 를 남깁니다. 이게 있어야 성공 빌드가 생겨 웹에서 배포를 시작할 수 있습니다. 승환님이 #35(10/2 13:53)에서 이 경로를 맡기고 조건을 정했습니다.
+
+- 인증: 사용자 Bearer 예외는 이 경로만 (`BearerAuthFilter` 공개 경로). 서비스 토큰 `X-Daisy-Jenkins-Token` 은 필수이고, #63 `JenkinsCallbackTokenAccess.requireToken` 을 그대로 씁니다 (설정 없음 403, 없거나 다름 401).
+- 켜고 끄기: 콜백과 같은 `daisy.jenkins.callbacks-enabled`. 꺼져 있으면 404.
+- 응답: 200 `{ source_version_id, changed }`.
+
+### 신뢰 확인 — project_id 만 믿지 않음
+
+| 확인 | 어기면 |
+|---|---|
+| `source` 가 `jenkins:<daisy.jenkins.instance-id>` 와 같음. 인스턴스가 바뀌어도 빌드 키가 섞이지 않게 | 403 |
+| `external_build_id` 가 `<전체 Job 경로>#<번호>` | 400 |
+| 그 Job 이 설정 `daisy.jenkins.ci-projects` 의 Job→프로젝트 매핑에 있고, 매핑된 프로젝트가 `project_id` 와 같음 | 403 |
+| 프로젝트가 있고 보관되지 않음 (`BuildRegistry`) | 404 |
+
+`daisy.jenkins.ci-projects` 는 `Job=프로젝트ID` 를 쉼표로 잇습니다. 예: `DAISY_JENKINS_CI_PROJECTS=daisy-ci=prj_demo_monolith`. 비어 있으면 모든 빌드를 403 으로 막습니다.
+
+확인하지 못하는 것: 그 commit 이 정말 그 저장소의 것인지, 이미지가 레지스트리에 있는지. 서버가 GitHub·레지스트리·Jenkins 를 다시 부르지 않습니다. 매핑은 서버 설정이라 Jenkins 가 보낸 `project_id` 만으로 다른 프로젝트에 기록할 수는 없습니다.
+
+### 요청
+
+#35 JSON 그대로입니다. 다만 `source` 는 Jenkins 인스턴스를 담아야 합니다.
+
+```json
+{"project_id": "prj_demo_monolith", "source": "jenkins:unibloom-onprem", "external_build_id": "daisy-ci#12",
+ "commit_sha": "<40자>", "branch": "main", "status": "succeeded",
+ "image_refs": {"hellocalc": {"image_ref": "...", "digest": "sha256:<64자>", "commit_sha": "<40자>"}},
+ "run_url": "...", "started_at": "...Z", "finished_at": "...Z"}
+```
+
+- 모르는 필드는 400 입니다 (이름을 잘못 보내면 조용히 버려지지 않게). 본문은 64 KiB 까지.
+- 값 검사는 `BuildRegistry.validate` 그대로입니다.
+
+### 저장과 이벤트
+
+- `BuildRegistry.record` 와 `EventJournal.appendProject` 를 한 트랜잭션에서 부릅니다. 둘 중 하나가 실패하면 같이 롤백됩니다.
+- 저장 전에 활성 프로젝트 행을 `FOR UPDATE` 로 먼저 잠급니다 (`BuildRegistry.record`). 실행부와 같은 project → source_version → event 순서라서, 같은 프로젝트의 다른 빌드가 동시에 와도 INSERT 의 FK 검사(KEY SHARE)와 이벤트의 project `FOR UPDATE` 가 서로 기다리는 교착이 생기지 않습니다 (#72 승환님 리뷰).
+- 이벤트는 **상태가 바뀌었을 때만** 남깁니다 (새 빌드, 상태가 앞으로 감). 같은 결과 재수신(`changed: false`)과, 같은 상태에서 빈 값만 채운 경우는 남기지 않습니다. 같은 이벤트 ID 로 내용이 다른 이벤트를 다시 쓰면 `EventJournal` 이 409 를 내서 수신 전체가 롤백되기 때문입니다.
+- `BuildRegistry.Recorded` 에 `status_changed` 를 더해 이걸 판단합니다 (공개 응답에는 없음).
+- 이벤트: `source` = 요청 `source`, `source_event_id` = `<external_build_id>:<status>`, `source_version_id` 연결, `payload` = `{ source_version_id, commit_sha, status }`, 시각 = `finished_at` → `started_at` → 받은 시각.
+
+### 검증 계획
+
+| | 검사 | 기대 |
+|---|---|---|
+| B1 | 토큰 없음 / 틀림 / 토큰 설정 없음 | 401 / 401 / 403 |
+| B2 | #35 JSON (source 만 인스턴스 포함) succeeded | 200 `changed: true`, A-06 목록에 보이고 그 빌드로 배포 생성 201, `build.received` 1건 |
+| B3 | 같은 본문 재전송 | 200 `changed: false`, 이벤트 늘지 않음 |
+| B4 | `running` → `succeeded` | 같은 `source_version_id`, 이벤트 2건 |
+| B5 | 모르는 필드 / 잘못된 `external_build_id` | 400 / 400 |
+| B6 | 다른 인스턴스 `source` / 매핑에 없는 Job / 매핑과 다른 `project_id` | 403 / 403 / 403 |
+| B7 | `succeeded` 뒤 `failed` | 409, 이벤트 늘지 않음 |
+| B8 | 콜백 꺼짐 / `/projects` | 404 / Bearer 없으면 401 |
+
+### 검증 결과 (10/2 오후)
+
+단위 테스트 3개(보낸 쪽 확인 규칙)와, 빈 PostgreSQL 17 에 jar 를 설정만 바꿔 세 번 띄운 실서버로 확인했습니다. 본문은 #35 인프라 JSON 그대로이고 `source` 만 `jenkins:unibloom-onprem` 으로 바꿨습니다.
+
+| | 결과 |
+|---|---|
+| B1 | 토큰 없음 401, 틀린 토큰 401, 토큰 설정 없음 403 |
+| B2 | 200 `changed: true`, A-06 목록에 보이고 그 빌드로 배포 생성 201, `build.received` 1건 |
+| B3 | 같은 본문 재전송 200 `changed: false`, 같은 ID, 이벤트 그대로 |
+| B4 | `running` → `succeeded` 같은 ID, 이벤트 2건 |
+| B5 | 모르는 필드 400, `external_build_id` 에 `#번호` 없음 400 |
+| B6 | 다른 인스턴스 `source`(`jenkins:daisy-ci`) / 매핑에 없는 Job / 매핑과 다른 프로젝트 모두 403 |
+| B7 | `succeeded` 뒤 `failed` 409, 이벤트 그대로 |
+| B8 | 콜백 끔 404, `/projects` 는 콜백 토큰을 보내도 401 |
+
+세 번 띄운 서버 로그에 토큰 값 0회, ERROR 0건. 실DB 포함 테스트 214개 통과. 매핑 파싱에서 `" =2"` 처럼 공백 뒤 이름이 빈 Job 이 들어가던 것을 단위 테스트로 잡아 고쳤습니다.
+
+인프라에 맞춰 달라고 할 것: `source` 를 `jenkins:<DAISY_JENKINS_INSTANCE_ID 와 같은 값>` 으로, 개발 서버에 `DAISY_JENKINS_CI_PROJECTS=daisy-ci=prj_demo_monolith` 추가.
+
+### 교착 수정 (10/2 저녁, 승환님 리뷰 반영)
+
+은현님 요청으로 임채준이 반영했습니다. 저장 전에 프로젝트 행을 먼저 잠급니다 (위 「저장과 이벤트」).
+
+- 회귀 테스트 `BuildRegistryPostgresTest.concurrentReceiptsSameProject`: 실제 `BuildReceipt` · `EventJournal` 로, 같은 프로젝트의 다른 빌드(`daisy-ci#1` · `#2`) 2건이 저장 직후 서로를 기다리게 만들어요. 잠금이 없으면 `deadlock detected` 로 실패하고, 잠금 후에는 둘 다 저장되고 `build.received` 2건이 남아요.
+- PostgreSQL 17 실DB로 `./gradlew spotlessApply check build --rerun-tasks --no-daemon`: 219개 통과, 건너뜀 0.
+
 ## 스크립트 목록 WR-10 (10/2, 하은현)
 
 ### 범위

@@ -5,15 +5,20 @@ struct DaisyApp: App {
     @State private var app = DaisyApp.isTestHost
         ? AppModel(tokenStore: TokenStore(service: "com.teamdaisy.daisy.test-host"), defaults: UserDefaults(suiteName: "DaisyTestHost")!)
         : AppModel()
+    /// 설정 › 언어 (10/2). 바꾸면 아래 `\.locale`이 바뀌어서 다시 켜지 않아도 화면 글자가 바로 바뀌어요
+    @State private var language = LanguageStore.shared
 
     /// 단위 테스트가 앱을 띄울 때는 사용자 키체인 · 설정을 읽지 않아요.
     /// 서명이 다른 테스트 빌드가 키체인을 읽으면 허용 창이 떠서 테스트 러너가 멈춰요 (10/1).
-    private static var isTestHost: Bool { ProcessInfo.processInfo.environment["XCTestConfigurationFilePath"] != nil }
+    nonisolated static var isTestHost: Bool { ProcessInfo.processInfo.environment["XCTestConfigurationFilePath"] != nil }
 
     var body: some Scene {
         WindowGroup {
             RootView()
                 .environment(app)
+                .environment(language)
+                // `Text("…")` 같은 SwiftUI 글자는 이 로케일의 언어로 String Catalog에서 찾아요
+                .environment(\.locale, language.locale)
                 #if os(macOS)
                 // Mac 창은 늘 사이드바 모양이 되도록 최소 폭을 둬요.
                 .frame(minWidth: 820, minHeight: 540)

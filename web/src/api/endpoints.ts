@@ -1,5 +1,6 @@
 import { mockApi, MockError } from '../mocks/api.ts'
 import { ApiError, request, USE_MOCK } from './client.ts'
+import { toLevel } from './types.ts'
 import type {
   AiUsageItem,
   Me,
@@ -23,7 +24,7 @@ import type {
 // 상태를 바꾸는 요청은 마지막 인자로 Idempotency-Key를 받아요 — 화면은 useAction이 사용자 동작마다 하나 만들어 줘요
 
 // 서버에 열린 API (#38 머지, 10/1). 서버 PR이 머지되면 여기에 이름만 더해요
-// 아직 목업: A-07 로그, 스크립트, AI 사용량 호출별, manifest, 프로젝트 연결 · 해제, 연결 테스트 · 리소스
+// 아직 목업: 스크립트(WR-07 · WR-10), manifest(WR-03), 연결 테스트 · 리소스(A-10 · A-11), 비밀값(WR-12)
 // #42 · #46 · #48: 배포 목록 · 상세 · 생성 · 승인 · 취소 · 재시도 · 롤백 · 환경 목록
 const SERVER_READY = new Set<string>([
   'login',
@@ -40,6 +41,11 @@ const SERVER_READY = new Set<string>([
   'cancel',
   'retry',
   'rollback',
+  // #56 · #59 · #60: A-07 로그, WR-02 연결 · WR-13 해제, WR-11 AI 호출별
+  'getLogs',
+  'createProject',
+  'deleteProject',
+  'listAiUsage',
   // #51: A-05 plan 요약 · WR-06 리소스 목록 (W-06)
   'getPlan',
   'getPlanDetail',
@@ -89,7 +95,7 @@ export const api = {
   createProject: (repository: string, branch: string) =>
     !live('createProject')
       ? mock(() => mockApi.createProject(repository, branch))
-      : request<{ project: Project; manifest: Manifest }>('POST', '/projects', { body: { repository, branch } }),
+      : request<{ project: Project; manifest: Manifest | null }>('POST', '/projects', { body: { repository, branch } }),
 
   // A-12 (#13 가칭)
   getProject: (projectId: string) =>
@@ -178,7 +184,11 @@ export const api = {
 
   // A-07
   getLogs: (id: string, targetId?: string) =>
-    !live('getLogs') ? mock(() => mockApi.getLogs(id)) : request<LogLine[]>('GET', `/deployments/${id}/logs${q({ target_id: targetId, tail: '100' })}`),
+    !live('getLogs')
+      ? mock(() => mockApi.getLogs(id))
+      : request<ListResponse<Omit<LogLine, 'level'> & { level: string }>>('GET', `/deployments/${id}/logs${q({ target_id: targetId, tail: '200' })}`).then(
+          (r) => r.items.map((l) => ({ ...l, level: toLevel(l.level) })),
+        ),
 
   // AI 사용량 호출별 기록 (#13 서버 결정, 합계는 A-05 plan 응답)
   listAiUsage: (projectId: string, deploymentId: string) =>

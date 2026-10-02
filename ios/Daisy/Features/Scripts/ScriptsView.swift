@@ -9,8 +9,8 @@ struct ScriptsView: View {
     @State private var tabTarget: String?
 
     var body: some View {
-        PageScaffold("스크립트",
-                     subtitle: "AI가 만들고 검증을 통과한 Terraform이에요. 같은 환경에 다시 배포할 땐 이미지 태그만 바꿔 재사용해서 AI를 부르지 않아요.") {
+        PageScaffold(.app("스크립트"),
+                     subtitle: .app("AI가 만들고 검증을 통과한 Terraform이에요. 같은 환경에 다시 배포할 땐 이미지 태그만 바꿔 재사용해서 AI를 부르지 않아요.")) {
             Button { Task { await load() } } label: { Label("새로 고침", systemImage: "arrow.clockwise") }
                 .buttonStyle(.glassCircle)
                 .help("새로 고침")
@@ -21,7 +21,7 @@ struct ScriptsView: View {
                 LoadStateView(state: scripts, retry: { await load() }) { scripts in
                     ScrollView {
                         VStack(alignment: .leading, spacing: 16) {
-                            SectionCard("검증된 스크립트") {
+                            SectionCard(.app("검증된 스크립트")) {
                                 if scripts.isEmpty {
                                     ContentUnavailableView("아직 검증된 스크립트가 없어요", systemImage: "apple.terminal",
                                                            description: Text("첫 배포에서 AI가 만든 Terraform이 검증을 통과하면 여기에 쌓여요"))
@@ -87,7 +87,7 @@ struct ScriptsView: View {
                     VStack(alignment: .leading, spacing: 4) {
                         HStack { EnvTag(type: workspace.type(of: script.targetId)); Text(script.version).font(.subheadline.monospaced()); Spacer(); lastUsed(script).font(.caption).foregroundStyle(.secondary) }
                         Text(origin(script)).font(.subheadline)
-                        Text([checks(script), script.status == .verified ? script.reuseCount.map { "재사용 \($0)회" } : nil].compactMap { $0 }.joined(separator: " · "))
+                        Text([checks(script), script.status == .verified ? script.reuseCount.map { String.app("재사용 \($0)회") } : nil].compactMap { $0 }.joined(separator: " · "))
                             .font(.caption).foregroundStyle(.secondary)
                     }
                     .padding(.vertical, 8)
@@ -102,25 +102,25 @@ struct ScriptsView: View {
     /// 웹: "AI 생성 · 시도 2/3 통과 (보안 그룹 수정)" / "재사용 · 시도 1/3 통과" / "AI 생성 · 3회 실패 → 폐기"
     private func origin(_ script: Script) -> String {
         // 폐기 = 원본 없음 · 보관 기한 지남 (서버 #68, "3회 실패"가 아니에요)
-        if script.status == .discarded { return "\(howMade(script)) · 원본 보관 기한 지남 → 폐기" }
-        let base = script.attempt.map { "\(howMade(script)) · 시도 \($0)/3 통과" } ?? howMade(script)
+        if script.status == .discarded { return .app("\(howMade(script)) · 원본 보관 기한 지남 → 폐기") }
+        let base = script.attempt.map { String.app("\(howMade(script)) · 시도 \($0)/3 통과") } ?? howMade(script)
         return script.note.map { "\(base) (\($0))" } ?? base
     }
 
-    private func howMade(_ script: Script) -> String { script.origin == .reused ? "재사용" : "AI 생성" }
+    private func howMade(_ script: Script) -> String { script.origin == .reused ? String.app("재사용") : String.app("AI 생성") }
 
     /// 웹: 검증된 스크립트만 재사용 횟수, 나머지는 "—"
     private func reuseText(_ script: Script) -> String {
-        script.status == .verified ? script.reuseCount.map { "\($0)회" } ?? "—" : "—"
+        script.status == .verified ? script.reuseCount.map { String.app("\($0)회") } ?? "—" : "—"
     }
 
     /// 웹: "validate · plan · 위험 0" / "plan 실패" (WR-10 `validation`)
     private func checks(_ script: Script) -> String {
         guard let v = script.validation else { return "—" }
-        if v.validate == false { return "validate 실패" }
+        if v.validate == false { return .app("validate 실패") }
         // `plan: false`는 "아직 plan 없음"이에요 (서버 #68)
-        if v.plan == false { return "validate 통과 · plan 없음" }
-        return "validate · plan · 위험 \(v.risks ?? 0)"
+        if v.plan == false { return .app("validate 통과 · plan 없음") }
+        return .app("validate · plan · 위험 \(v.risks ?? 0)")
     }
 
     private func lastUsed(_ script: Script) -> some View {
@@ -142,7 +142,7 @@ struct ScriptsView: View {
                                })
             }
             if let file {
-                CodeBlock(header: [file.path, howMade(script), script.attempt.map { "시도 \($0)/3" }].compactMap { $0 }.joined(separator: " · "),
+                CodeBlock(header: [file.path, howMade(script), script.attempt.map { String.app("시도 \($0)/3") }].compactMap { $0 }.joined(separator: " · "),
                           aiGenerated: script.origin != .reused, code: file.content)
             } else {
                 // 목록(WR-10)에는 파일이 오지 않아요. 내용은 WR-07(배포별 스크립트)로만 받아요
@@ -153,14 +153,14 @@ struct ScriptsView: View {
     }
 
     private func info(_ script: Script) -> some View {
-        SectionCard("정보") {
-            InfoRow("기준 이미지", script.baseCommit.map { String($0.prefix(7)) }, monospaced: true)
-            InfoRow("입력", script.input)
-            InfoRow("AI 토큰", script.aiTokens.map { $0.formatted() })
-            InfoRow("저장 위치", script.storage ?? "[미정]")
-            InfoRow("만든 시각", script.createdAt.map { TimeText.dayClock($0) })
+        SectionCard(.app("정보")) {
+            InfoRow(.app("기준 이미지"), script.baseCommit.map { String($0.prefix(7)) }, monospaced: true)
+            InfoRow(.app("입력"), script.input)
+            InfoRow(.app("AI 토큰"), script.aiTokens.map { $0.appFormatted })
+            InfoRow(String.app("저장 위치"), script.storage ?? String.app("[미정]"))
+            InfoRow(.app("만든 시각"), script.createdAt.map { TimeText.dayClock($0) })
             if script.status == .verified {
-                InlineAlert(.info, "다음 배포는 재사용", "이미지 태그만 바꿔서 AI 호출 0회로 배포해요.")
+                InlineAlert(.info, .app("다음 배포는 재사용"), .app("이미지 태그만 바꿔서 AI 호출 0회로 배포해요."))
             }
         }
     }

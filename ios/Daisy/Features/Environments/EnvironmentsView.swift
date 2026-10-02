@@ -9,7 +9,7 @@ struct EnvironmentsView: View {
     @State private var resourcesFor: DeployTarget?
 
     var body: some View {
-        PageScaffold("환경", subtitle: "배포 대상 환경의 연결 상태와 인프라 구성을 봐요. 환경을 고르는 건 배포할 때 해요.") {
+        PageScaffold(.app("환경"), subtitle: .app("배포 대상 환경의 연결 상태와 인프라 구성을 봐요. 환경을 고르는 건 배포할 때 해요.")) {
             Button { Task { await load() } } label: { Label("새로 고침", systemImage: "arrow.clockwise") }
                 .buttonStyle(.glassCircle)
                 .help("새로 고침")
@@ -23,7 +23,7 @@ struct EnvironmentsView: View {
                             AdaptiveGrid(minimumWidth: 280) {
                                 ForEach(targets) { panel($0) }
                             }
-                            SectionCard("환경 추가") {
+                            SectionCard(.app("환경 추가")) {
                                 Text("퍼블릭 클라우드(소규모 사업자 포함)나 다른 온프레미스 서버를 대상 환경으로 추가해요. 준비된 기준 모듈이 없어도 AI가 deploy.yaml로 Terraform을 처음부터 만들어요.")
                                     .font(.subheadline).foregroundStyle(.secondary)
                                 // 웹도 추가 흐름 화면이 아직 없어요 (예선 범위 결정 대기)
@@ -54,18 +54,18 @@ struct EnvironmentsView: View {
                 EnvTag(type: target.type)
                 Spacer()
                 switch target.connection?.state {
-                case .ok: StatusBadge(text: "연결됨", color: .green)
-                case .failed: StatusBadge(text: "연결 안 됨", color: .red)
-                default: StatusBadge(text: "확인 전", color: .gray)
+                case .ok: StatusBadge(text: .app("연결됨"), color: .green)
+                case .failed: StatusBadge(text: .app("연결 안 됨"), color: .red)
+                default: StatusBadge(text: .app("확인 전"), color: .gray)
                 }
             }
-            InfoRow("유형", target.runtime ?? target.title)
-            InfoRow(target.locationLabel ?? (target.type == .onprem ? "위치" : "리전"), target.location)
-            InfoRow("연결", target.accessMethod)
-            InfoRow("공개", target.exposure)
+            InfoRow(.app("유형"), target.runtime ?? target.title)
+            InfoRow(target.locationLabel ?? (target.type == .onprem ? String.app("위치") : String.app("리전")), target.location)
+            InfoRow(.app("연결"), target.accessMethod)
+            InfoRow(.app("공개"), target.exposure)
             // state 저장소는 인프라가 아직 정하지 않았어요 (10/1, 키 방향만 {project_id}/{target_id})
-            InfoRow("state", target.stateBackend ?? "[미정]")
-            InfoRow("현재 버전", target.currentCommit.map { String($0.prefix(7)) }, monospaced: true)
+            InfoRow("state", target.stateBackend ?? String.app("[미정]"))
+            InfoRow(.app("현재 버전"), target.currentCommit.map { String($0.prefix(7)) }, monospaced: true)
             HStack(spacing: 8) {
                 Button {
                     Task { await test(target) }
@@ -99,10 +99,10 @@ struct EnvironmentsView: View {
         do {
             let result = try await client.send(.testConnection(targetID: target.id))
             // 웹: 서버 메시지를 그대로 제목으로
-            toast = ToastMessage(kind: result.connected ? .success : .danger, title: result.message ?? (result.connected ? "연결됨" : "연결 안 됨"))
+            toast = ToastMessage(kind: result.connected ? .success : .danger, title: result.message ?? (result.connected ? String.app("연결됨") : String.app("연결 안 됨")))
         } catch {
             app.handle(error)
-            toast = ToastMessage(kind: .danger, title: "연결 테스트를 하지 못했어요", message: error.localizedDescription)
+            toast = ToastMessage(kind: .danger, title: .app("연결 테스트를 하지 못했어요"), message: error.localizedDescription)
         }
     }
 }

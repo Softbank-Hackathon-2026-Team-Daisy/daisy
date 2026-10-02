@@ -3,6 +3,7 @@ import type { ConnectionState } from '../components/ConnectionIndicator.tsx'
 import { USE_MOCK } from './client.ts'
 import { isMocked } from './endpoints.ts'
 import { subscribe, type ServerEvent } from './realtime.ts'
+import { toLevel, type LogLine } from './types.ts'
 
 // SSE 채널 하나에 붙어요 (WR-01). 서버 형식은 id(= seq) · event · data(봉투 { seq, ts, deployment_id, target_id, data })
 // 이벤트가 오면 onChange로 "다시 불러와" 신호만 줘요 — 화면은 이벤트 내용을 직접 쌓지 않고 스냅샷(A-04 등)을 다시 읽어요.
@@ -10,7 +11,7 @@ import { subscribe, type ServerEvent } from './realtime.ts'
 // 목업 모드이거나 서버에 채널이 없으면 붙지 않고 'polling'을 돌려줘요 → 쓰는 쪽은 5초 폴링을 그대로 해요
 
 export type EventEnvelope = { seq: number; ts: string; deployment_id: string | null; target_id: string | null; data: unknown }
-export type LiveLogLine = { seq: number; at: string; target_id: string; level: 'INFO' | 'WARN' | 'ERROR'; message: string }
+export type LiveLogLine = LogLine
 
 const BATCH_MS = 300
 
@@ -42,11 +43,13 @@ export function useRealtime(path: string | null, { since = null, onChange, onLog
       if (e.event === 'heartbeat') return
       if (e.event === 'log.batch') {
         const env = e.data as EventEnvelope
-        const lines = ((env?.data as { lines?: { target_id: string; level: string; text: string; ts: string }[] })?.lines ?? []).map((l, i) => ({
-          seq: env.seq * 1000 + i,
+        const arr = (env?.data as { lines?: { target_id: string | null; level: string; text: string; ts: string }[] })?.lines ?? []
+        const lines = arr.map((l, i) => ({
+          // 줄 하나면 이벤트 seq 그대로 — A-07(#56)의 seq와 같아서 겹치지 않게 합칠 수 있어요
+          seq: arr.length === 1 ? env.seq : env.seq * 1000 + i,
           at: l.ts,
-          target_id: l.target_id ?? env.target_id ?? '',
-          level: (['INFO', 'WARN', 'ERROR'].includes(l.level?.toUpperCase()) ? l.level.toUpperCase() : 'INFO') as LiveLogLine['level'],
+          target_id: l.target_id ?? env.target_id ?? null,
+          level: toLevel(l.level),
           message: l.text,
         }))
         logRef.current?.(lines)
