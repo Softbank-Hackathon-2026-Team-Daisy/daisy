@@ -95,8 +95,8 @@ public class DeploymentCommandController {
         projectId);
   }
 
-  /** 실패한 대상만 새 배포로 다시 시도해요. 공개 경로는 웹·앱 의견을 기다리는 (가칭) 이에요. */
-  @Operation(summary = "(가칭) 실패 대상 재시도 — 새 배포를 만들어요")
+  /** 실패한 대상만 새 배포로 다시 시도해요 (W-05b·W-08). 경로는 10/2 웹·앱·승환이 합의했어요 (#42). */
+  @Operation(summary = "실패 대상 재시도 — 새 배포를 만들어요")
   @PostMapping("/retry")
   public ResponseEntity<DeploymentAccepted> retry(
       @CurrentAccount AuthPrincipal principal,
