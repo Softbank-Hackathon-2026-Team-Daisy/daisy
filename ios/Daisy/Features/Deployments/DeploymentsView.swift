@@ -26,6 +26,7 @@ struct DeploymentsView: View {
                         empty {
                             ContentUnavailableView("아직 배포가 없어요", systemImage: "play",
                                                    description: Text(tabBarClearance > 0 ? "새 배포로 시작해요" : "사이드바의 새 배포로 시작해요"))
+                                .emptyStateCentered()
                         }
                     }
                 }

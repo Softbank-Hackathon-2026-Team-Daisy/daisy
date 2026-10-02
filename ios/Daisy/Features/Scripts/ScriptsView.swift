@@ -25,6 +25,7 @@ struct ScriptsView: View {
                                 if scripts.isEmpty {
                                     ContentUnavailableView("아직 검증된 스크립트가 없어요", systemImage: "apple.terminal",
                                                            description: Text("첫 배포에서 AI가 만든 Terraform이 검증을 통과하면 여기에 쌓여요"))
+                                        .emptyStateCentered()
                                 } else {
                                     ViewThatFits(in: .horizontal) {
                                         table(scripts).frame(minWidth: 720)

@@ -27,6 +27,7 @@ struct HistoryView: View {
                             if deployments.isEmpty {
                                 ContentUnavailableView("아직 배포 이력이 없어요", systemImage: "clock",
                                                        description: Text("첫 배포를 하면 여기에 쌓여요"))
+                                    .emptyStateCentered()
                             } else {
                                 ViewThatFits(in: .horizontal) {
                                     table(deployments).frame(minWidth: 760)

@@ -33,6 +33,7 @@ struct LoadStateView<Value, Content: View>: View {
                     Button("다시 시도") { Task { await retry() } }
                 }
             }
+            .emptyStateCentered()
         case .loaded(let value):
             content(value)
         }
@@ -47,6 +48,7 @@ struct NotConnectedView: View {
             systemImage: "network.slash",
             description: Text("다시 로그인해 주세요.")
         )
+        .emptyStateCentered()
     }
 }
 
@@ -58,6 +60,7 @@ struct NoProjectView: View {
             systemImage: "folder",
             description: Text("개요 탭 위쪽에서 프로젝트를 선택해요.")
         )
+        .emptyStateCentered()
     }
 }
 
@@ -212,6 +215,11 @@ private struct AdaptiveColumns: Layout {
 }
 
 extension View {
+    /// "아무것도 없음" 안내(심볼 + 문구)는 어디에 놓여도 늘 좌우 가운데예요 (10/3 담당자). 카드 안처럼 왼쪽 정렬 줄에 있어도요
+    func emptyStateCentered() -> some View {
+        frame(maxWidth: .infinity, alignment: .center).multilineTextAlignment(.center)
+    }
+
     /// 카드 (AfterPlan 카드 모양): 모서리 12, 옅은 면, 가는 선. 포인터가 올라가면 조금 진해져요.
     func cardStyle() -> some View { modifier(CardStyle()) }
 }

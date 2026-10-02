@@ -141,7 +141,7 @@ private struct ResourcesSheet: View {
                         Text("Terraform state에 기록된 리소스예요.")
                     }
                 }
-                .overlay { if list.isEmpty { ContentUnavailableView("리소스가 없어요", systemImage: "square.stack.3d.up") } }
+                .overlay { if list.isEmpty { ContentUnavailableView("리소스가 없어요", systemImage: "square.stack.3d.up").emptyStateCentered() } }
             }
             .navigationTitle("\(target.title ?? target.name) 리소스")
             .toolbar {

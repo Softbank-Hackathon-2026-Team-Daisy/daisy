@@ -84,6 +84,7 @@ struct SettingsView: View {
                             .disabled(true)
                             .help("비밀값 전달 방식이 정해지면 열려요")
                     }
+                    .emptyStateCentered()
                     .frame(maxWidth: .infinity)
                     .padding(.vertical, 12)
                 }

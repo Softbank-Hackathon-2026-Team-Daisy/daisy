@@ -66,6 +66,7 @@ struct OverviewView: View {
             if workspace.statuses.isEmpty {
                 ContentUnavailableView("아직 배포한 환경이 없어요", systemImage: "server.rack",
                                        description: Text("새 배포로 첫 환경을 올려 보세요"))
+                    .emptyStateCentered()
             } else {
                 VStack(spacing: 0) {
                     ForEach(workspace.statuses) { status in
@@ -106,7 +107,7 @@ struct OverviewView: View {
                 // 카드 폭이 넓어도(한 열 배치) 안내는 늘 카드 가운데에 와요 (10/2 담당자 요청)
                 ContentUnavailableView("지금 할 일이 없어요", systemImage: "checkmark",
                                        description: Text("승인을 기다리는 배포가 없어요"))
-                    .frame(maxWidth: .infinity)
+                    .emptyStateCentered()
             }
         }
     }
@@ -182,6 +183,7 @@ struct OverviewView: View {
                 .buttonStyle(.glassCapsule(prominent: true))
                 .disabled(app.isViewer)
         }
+        .emptyStateCentered()
     }
 }
 
