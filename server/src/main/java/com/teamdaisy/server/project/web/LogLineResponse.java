@@ -1,6 +1,7 @@
 package com.teamdaisy.server.project.web;
 
 import com.teamdaisy.server.project.application.DeploymentLogReader.LogRow;
+import io.swagger.v3.oas.annotations.media.Schema;
 import java.time.Instant;
 
 /**
@@ -13,7 +14,12 @@ import java.time.Instant;
  * @param message 콘솔 묶음이면 여러 줄일 수 있어요. 비어 있으면 빈 문자열이에요
  */
 public record LogLineResponse(
-    long seq, Instant at, String targetId, String step, String level, String message) {
+    long seq,
+    Instant at,
+    @Schema(nullable = true) String targetId,
+    @Schema(nullable = true) String step,
+    @Schema(nullable = true) String level,
+    String message) {
 
   static LogLineResponse of(LogRow row) {
     return new LogLineResponse(

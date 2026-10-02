@@ -3,6 +3,7 @@ package com.teamdaisy.server.project.web;
 import com.teamdaisy.server.common.error.DaisyException;
 import com.teamdaisy.server.common.error.ErrorCode;
 import com.teamdaisy.server.deployment.application.DeploymentExecutionService.Decision;
+import io.swagger.v3.oas.annotations.media.Schema;
 import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -25,12 +26,24 @@ import java.util.Set;
  * @param items 사용자가 본 승인 대기 대상과 승인 ID
  */
 public record ApprovalRequest(
-    String kind, String decision, String confirmText, String comment, List<Item> items) {
+    @Schema(nullable = true, description = "생략/null이면 plan. 다른 종류는 지원하지 않아요") String kind,
+    @Schema(
+            requiredMode = Schema.RequiredMode.REQUIRED,
+            allowableValues = {"approve", "reject"})
+        String decision,
+    @Schema(nullable = true, description = "삭제 포함 plan 승인 시 프로젝트 이름을 정확히 보내요") String confirmText,
+    @Schema(nullable = true, description = "현재 저장하지 않는 호환용 필드") String comment,
+    @Schema(
+            requiredMode = Schema.RequiredMode.REQUIRED,
+            description = "A-04 pending_approvals의 대상/승인 ID 목록. 빈 목록·중복·누락은 거절해요")
+        List<Item> items) {
   static final String KIND_PLAN = "plan";
   static final String APPROVE = "approve";
   static final String REJECT = "reject";
 
-  public record Item(String targetId, String approvalId) {}
+  public record Item(
+      @Schema(requiredMode = Schema.RequiredMode.REQUIRED) String targetId,
+      @Schema(requiredMode = Schema.RequiredMode.REQUIRED) String approvalId) {}
 
   /**
    * 실행 서비스가 받는 대상별 결정으로 바꿔요.

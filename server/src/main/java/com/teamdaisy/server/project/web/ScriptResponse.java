@@ -1,6 +1,7 @@
 package com.teamdaisy.server.project.web;
 
 import com.teamdaisy.server.project.application.ScriptReader.ScriptRow;
+import io.swagger.v3.oas.annotations.media.Schema;
 import java.time.Instant;
 
 /**
@@ -21,12 +22,12 @@ public record ScriptResponse(
     String targetId,
     String type,
     String version,
-    String origin,
-    Integer attempt,
+    @Schema(nullable = true) String origin,
+    @Schema(nullable = true) Integer attempt,
     Validation validation,
     String status,
     long reuseCount,
-    Instant lastUsedAt,
+    @Schema(nullable = true) Instant lastUsedAt,
     Instant createdAt) {
 
   /**
@@ -36,7 +37,8 @@ public record ScriptResponse(
    * @param plan 이 스크립트로 만든 plan 이 있으면 true
    * @param risks 가장 최근 plan 의 위험 설정 수. plan 이 없으면 null
    */
-  public record Validation(boolean validate, boolean plan, Integer risks) {}
+  public record Validation(
+      boolean validate, boolean plan, @Schema(nullable = true) Integer risks) {}
 
   /**
    * 만든 방식이에요. 재사용이 아니라는 것만으로 AI 생성이라고 하지 않아요. 인프라에는 AI 없이 기준 모듈을 쓰는 경로(USE_AI=false)가 있어서, 그 경우 시도

@@ -9,6 +9,9 @@ import com.teamdaisy.server.project.access.ProjectAccessService;
 import com.teamdaisy.server.project.application.AiCostConverter;
 import com.teamdaisy.server.project.application.AiUsageReader;
 import com.teamdaisy.server.project.application.AiUsageReader.CallRow;
+import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.Parameter;
+import io.swagger.v3.oas.annotations.media.Schema;
 import io.swagger.v3.oas.annotations.security.SecurityRequirement;
 import java.time.Instant;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -46,10 +49,10 @@ public class AiUsageController {
       String targetId,
       String step,
       int attempt,
-      Long tokens,
-      Long costKrw,
+      @Schema(nullable = true) Long tokens,
+      @Schema(nullable = true) Long costKrw,
       String status,
-      String note) {
+      @Schema(nullable = true, description = "원본 설명 미제공") String note) {
 
     static AiUsageCall of(CallRow row, AiCostConverter cost) {
       return new AiUsageCall(
@@ -66,10 +69,15 @@ public class AiUsageController {
   }
 
   @GetMapping("/projects/{projectId}/ai-usage")
+  @Operation(
+      summary = "배포별 AI 호출 기록",
+      description = "호출 행이 없다고 AI 미사용으로 단정하지 않아요. 비용 미확인은 null이고 LLM 결과는 Terraform 검증 결과와 달라요.")
   public PageResponse<AiUsageCall> calls(
       @CurrentAccount AuthPrincipal principal,
       @PathVariable String projectId,
-      @RequestParam(name = "deployment_id", required = false) String deploymentId) {
+      @Parameter(required = true, description = "조회할 배포 ID. 생략/빈 값은 400이에요")
+          @RequestParam(name = "deployment_id", required = false)
+          String deploymentId) {
     access.requireRead(principal, projectId);
     if (deploymentId == null || deploymentId.isBlank()) {
       throw new DaisyException(ErrorCode.VALIDATION_FAILED);

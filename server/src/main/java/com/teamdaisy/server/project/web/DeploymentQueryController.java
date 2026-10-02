@@ -13,6 +13,7 @@ import com.teamdaisy.server.project.application.DeploymentDetailReader;
 import com.teamdaisy.server.project.application.DeploymentDetailReader.DeploymentDetail;
 import com.teamdaisy.server.project.application.DeploymentLogReader;
 import com.teamdaisy.server.project.application.DeploymentPlanReader;
+import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.security.SecurityRequirement;
 import java.util.Arrays;
@@ -64,6 +65,10 @@ public class DeploymentQueryController {
 
   /** 배포 한 건의 스냅샷이에요 (A-04). 승인할 때 보낼 {@code approval_id} 는 {@code pending_approvals} 에 있어요. */
   @GetMapping("/deployments/{deploymentId}")
+  @Operation(
+      summary = "배포 상세",
+      description =
+          "pending_approvals를 승인 요청 items로 보내요. 만료된 승인은 목록에서 빠져요. nullable/미제공 필드를 성공이나 0으로 해석하지 않아요.")
   public DeploymentDetailResponse detail(
       @CurrentAccount AuthPrincipal principal, @PathVariable String deploymentId) {
     String projectId = queries.projectIdOf(principal.accountId(), deploymentId);
@@ -76,6 +81,9 @@ public class DeploymentQueryController {
    * <p>한 줄은 A-04 상세와 같은 모양이에요. 커서는 A-06 과 같은 (시각, ID) 불투명 문자열이에요.
    */
   @GetMapping("/projects/{projectId}/deployments")
+  @Operation(
+      summary = "배포 이력 목록",
+      description = "최신순 커서 목록. state는 전체 배포 상태 문자열이고, 승인 대기는 awaiting_approval로 걸러요.")
   public PageResponse<DeploymentDetailResponse> list(
       @CurrentAccount AuthPrincipal principal,
       @PathVariable String projectId,
@@ -112,6 +120,10 @@ public class DeploymentQueryController {
    * <p>현재 plan 이 있는 대상만 나와요. 리소스 전체 목록은 {@code ?detail=resources} 예요 (WR-06).
    */
   @GetMapping(value = "/deployments/{deploymentId}/plan", params = "!detail")
+  @Operation(
+      summary = "plan 요약 또는 리소스 상세",
+      description =
+          "detail을 생략하면 PlanResponse 객체, detail=resources이면 PlanDetailResponse 배열이에요. 다른 detail 값은 400이에요. AI 비용은 별도 합계이며 plan 원문은 미제공이에요.")
   public PlanResponse plan(
       @CurrentAccount AuthPrincipal principal, @PathVariable String deploymentId) {
     String projectId = queries.projectIdOf(principal.accountId(), deploymentId);
@@ -128,6 +140,10 @@ public class DeploymentQueryController {
    * <p>{@code detail} 은 {@code resources} 만 받아요. 다른 값은 400 이에요.
    */
   @GetMapping(value = "/deployments/{deploymentId}/plan", params = "detail")
+  @Operation(
+      summary = "plan 요약 또는 리소스 상세",
+      description =
+          "detail을 생략하면 PlanResponse 객체, detail=resources이면 PlanDetailResponse 배열이에요. 다른 detail 값은 400이에요. AI 비용은 별도 합계이며 plan 원문은 미제공이에요.")
   public List<PlanDetailResponse> planDetail(
       @CurrentAccount AuthPrincipal principal,
       @PathVariable String deploymentId,
@@ -151,6 +167,9 @@ public class DeploymentQueryController {
    * next_cursor} 는 늘 null 이에요.
    */
   @GetMapping("/deployments/{deploymentId}/logs")
+  @Operation(
+      summary = "배포 최근 로그",
+      description = "target_id로 필터링해요. tail 기본 200, 최대 1000이며 0 이하는 400이에요. next_cursor는 null이에요.")
   public PageResponse<LogLineResponse> logs(
       @CurrentAccount AuthPrincipal principal,
       @PathVariable String deploymentId,

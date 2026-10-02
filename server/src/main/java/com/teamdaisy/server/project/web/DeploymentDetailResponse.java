@@ -4,8 +4,10 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.teamdaisy.server.project.application.DeploymentDetailReader.DeploymentDetail;
 import com.teamdaisy.server.project.application.DeploymentDetailReader.DeploymentRow;
 import com.teamdaisy.server.project.application.DeploymentDetailReader.PendingApproval;
+import com.teamdaisy.server.project.application.DeploymentDetailReader.StepDetails;
 import com.teamdaisy.server.project.application.DeploymentDetailReader.TargetRow;
 import com.teamdaisy.server.project.web.BuildResponse.ServiceImage;
+import io.swagger.v3.oas.annotations.media.Schema;
 import java.time.Instant;
 import java.util.List;
 import java.util.regex.Pattern;
@@ -14,9 +16,8 @@ import java.util.regex.Pattern;
  * 배포 상세예요 (A-04). 소비자 모델은 {@code ios/SPEC.md} 326행 {@code Deployment} 예요.
  *
  * <p><b>없는 값을 만들어 넣지 않아요.</b> 접속 URL·실제 적용 이미지는 성공 콜백이 저장한 {@code deployment_target.result} 에서 읽고,
- * 없거나 서비스가 여럿이면 null 이에요. 헬스는 {@code result} 에 근거가 없어서 null 이에요. 단계는 승환의 Jenkins 수신이 {@code
- * deployment_log} 에 남긴 가장 최근 {@code step.*} 이벤트로 정하고, 없으면 null 이에요 (A-07 과 함께 붙임). 시도 횟수 0 은 null 로
- * 보내요 (S2).
+ * 없거나 서비스가 여럿이면 null 이에요. 헬스는 현재 apply 실행의 유효한 헬스 단계 관측으로 표시해요. 단계는 {@code deployment_log} 에 남긴 단계별
+ * 최신 발생으로 정하고, 미관측 단계는 만들지 않아요. 시도 횟수 0 은 null 로 보내요 (S2).
  *
  * @param kind 롤백이면 {@code "rollback"}, 아니면 null. 내부 값 {@code normal}·{@code retry} 는 내보내지 않아요
  * @param pendingApprovals 승인 요청 {@code items} 와 같은 모양이에요. 없으면 빈 목록이에요
@@ -27,18 +28,18 @@ public record DeploymentDetailResponse(
     String projectId,
     String sourceVersionId,
     String commit,
-    String image,
-    String imageDigest,
-    List<ServiceImage> images,
+    @Schema(nullable = true) String image,
+    @Schema(nullable = true) String imageDigest,
+    @Schema(nullable = true) List<ServiceImage> images,
     String state,
-    String kind,
-    String rolledBackFrom,
-    String retryOf,
+    @Schema(nullable = true, description = "rollback일 때만 문자열, 나머지는 null") String kind,
+    @Schema(nullable = true) String rolledBackFrom,
+    @Schema(nullable = true) String retryOf,
     List<Target> targets,
     List<Approval> pendingApprovals,
-    String createdBy,
+    @Schema(nullable = true) String createdBy,
     Instant createdAt,
-    Instant finishedAt,
+    @Schema(nullable = true) Instant finishedAt,
     long lastSeq) {
 
   private static final String ROLLBACK = "rollback";
@@ -54,24 +55,40 @@ public record DeploymentDetailResponse(
    * @param applyDispatch 현재 명령이 apply 일 때만 queued·unknown·rejected. 아니면 null 이에요
    * @param attempt 첫 생성을 포함한 시도 횟수(1~3). 아직 생성 전이면 null 이에요
    */
+  @Schema(name = "DeploymentTarget")
   public record Target(
       String targetId,
-      String type,
-      String name,
+      @Schema(nullable = true) String type,
+      @Schema(nullable = true) String name,
       String state,
-      String step,
-      String stepState,
-      Integer attempt,
+      @Schema(nullable = true) String step,
+      @Schema(nullable = true) String stepState,
+      @Schema(
+              nullable = true,
+              minimum = "1",
+              maximum = "3",
+              description = "최초 생성 포함 총 시도. 생성 전/AI 미호출은 null")
+          Integer attempt,
       boolean reusedScript,
-      String url,
-      String imageDigest,
-      String healthSummary,
-      String errorSummary,
-      Instant cancelRequestedAt,
-      Instant startedAt,
-      Instant finishedAt,
-      String approvalState,
-      String applyDispatch) {}
+      @Schema(nullable = true) String url,
+      @Schema(nullable = true) String imageDigest,
+      @Schema(nullable = true, description = "배포 시점 헬스 단계 결과. HTTP 응답 시간과는 달라요")
+          String healthSummary,
+      @Schema(nullable = true) String errorSummary,
+      @Schema(nullable = true) Instant cancelRequestedAt,
+      @Schema(nullable = true) Instant startedAt,
+      @Schema(nullable = true) Instant finishedAt,
+      @Schema(
+              nullable = true,
+              description =
+                  "pending·approved·rejected·superseded·expired. 승인 직후에는 state가 대기여도 approved일 수 있어요")
+          String approvalState,
+      @Schema(
+              nullable = true,
+              description = "apply 명령의 queued·unknown·rejected. 실제 실행 중/종료 후나 apply 명령이 아니면 null")
+          String applyDispatch,
+      @Schema(description = "단계별 가장 최근 시도. 관측되지 않은 단계는 만들지 않아요. duration_ms는 단계 소요 시간이에요")
+          List<StepDetails> steps) {}
 
   public record Approval(String targetId, String approvalId) {}
 
@@ -110,13 +127,23 @@ public record DeploymentDetailResponse(
         row.aiReused(),
         url(row.result()),
         imageDigest(row.result()),
-        null,
+        healthSummary(row),
         row.errorSummary(),
         row.cancelRequestedAt(),
         row.startedAt(),
         row.finishedAt(),
         row.approvalState(),
-        row.applyDispatch());
+        row.applyDispatch(),
+        row.steps());
+  }
+
+  static String healthSummary(TargetRow row) {
+    if (row == null) return null;
+    return switch (row.healthState()) {
+      case "healthy" -> "배포 시점 헬스 검사 통과";
+      case "unhealthy" -> "배포 시점 헬스 검사 실패";
+      default -> null;
+    };
   }
 
   /** 성공 콜백의 {@code public_urls} 에서 서비스가 정확히 하나일 때만 그 주소예요. 여럿이면 대표를 고르지 않아요 (S5). */

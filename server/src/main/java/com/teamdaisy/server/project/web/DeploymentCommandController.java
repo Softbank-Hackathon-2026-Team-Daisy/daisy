@@ -9,6 +9,10 @@ import com.teamdaisy.server.history.application.EventSseService;
 import com.teamdaisy.server.identity.auth.AuthPrincipal;
 import com.teamdaisy.server.identity.web.CurrentAccount;
 import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.Parameter;
+import io.swagger.v3.oas.annotations.media.Content;
+import io.swagger.v3.oas.annotations.media.Schema;
+import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import io.swagger.v3.oas.annotations.security.SecurityRequirement;
 import jakarta.servlet.http.HttpServletResponse;
 import java.util.List;
@@ -52,7 +56,9 @@ public class DeploymentCommandController {
   }
 
   /** 취소·재시도 요청이에요. 고를 대상을 적어요. */
-  public record TargetSelection(List<String> targetIds) {}
+  public record TargetSelection(
+      @Schema(requiredMode = Schema.RequiredMode.REQUIRED, description = "대상 ID 목록. 1~50개, 중복 불가")
+          List<String> targetIds) {}
 
   /**
    * 롤백 요청이에요.
@@ -61,14 +67,34 @@ public class DeploymentCommandController {
    * @param triggerDeploymentId 롤백하게 만든 배포 (선택)
    */
   public record RollbackSelection(
-      List<String> targetIds, String reason, String triggerDeploymentId) {}
+      @Schema(
+              requiredMode = Schema.RequiredMode.REQUIRED,
+              description = "원본 성공 배포에서 되돌릴 대상 ID 목록. 1~50개")
+          List<String> targetIds,
+      @Schema(
+              requiredMode = Schema.RequiredMode.REQUIRED,
+              minLength = 1,
+              maxLength = 1000,
+              description = "롤백 사유. 비밀값 제외")
+          String reason,
+      @Schema(nullable = true, description = "롤백을 유발한 배포 ID, 선택") String triggerDeploymentId) {}
 
   /** 승인·거절이에요 (W-01). 승인 대기 대상 전체를 한 번에 보내요. */
   @PostMapping("/approvals")
+  @Operation(
+      summary = "plan 승인·거절",
+      description =
+          "A-04 pending_approvals와 같은 items를 보내요. 삭제 포함 plan 승인은 프로젝트 이름 confirm_text가 필요해요. 이전/만료 승인 또는 상태 변경은 409예요.")
+  @ApiResponse(
+      responseCode = "202",
+      description = "결정을 접수했어요. 승인 시 apply 명령이 생기지만 완료를 뜻하지 않아요",
+      useReturnTypeSchema = true)
   public ResponseEntity<DeploymentAccepted> decide(
       @CurrentAccount AuthPrincipal principal,
       @PathVariable String deploymentId,
-      @RequestHeader(value = DeploymentAccepted.IDEMPOTENCY_KEY, required = false) String key,
+      @Parameter(required = true, description = "멱등 키. 1~255자")
+          @RequestHeader(value = DeploymentAccepted.IDEMPOTENCY_KEY, required = false)
+          String key,
       @RequestBody ApprovalRequest request) {
     String projectId = queries.projectIdOf(principal.accountId(), deploymentId);
     DeploymentAccepted.requireKey(key);
@@ -81,10 +107,20 @@ public class DeploymentCommandController {
 
   /** 취소 요청이에요 (WR-08). 접수가 실제 종료를 뜻하지 않아요 — apply 뒤에는 실행 서비스가 결과를 기다려요. */
   @PostMapping("/cancel")
+  @Operation(
+      summary = "배포 취소·중단 요청",
+      description =
+          "미제출 명령은 취소해요. apply가 제출됐거나 여부가 불명확하면 중단 요청만 기록하고 실제 종료를 기다려요. 강제 종료·즉시 롤백하지 않아요.")
+  @ApiResponse(
+      responseCode = "202",
+      description = "요청 접수. 실제 상태는 배포 상세로 확인해요",
+      useReturnTypeSchema = true)
   public ResponseEntity<DeploymentAccepted> cancel(
       @CurrentAccount AuthPrincipal principal,
       @PathVariable String deploymentId,
-      @RequestHeader(value = DeploymentAccepted.IDEMPOTENCY_KEY, required = false) String key,
+      @Parameter(required = true, description = "멱등 키. 1~255자")
+          @RequestHeader(value = DeploymentAccepted.IDEMPOTENCY_KEY, required = false)
+          String key,
       @RequestBody TargetSelection request) {
     String projectId = queries.projectIdOf(principal.accountId(), deploymentId);
     DeploymentAccepted.requireKey(key);
@@ -98,10 +134,16 @@ public class DeploymentCommandController {
   /** 실패한 대상만 새 배포로 다시 시도해요 (W-05b·W-08). 경로는 10/2 웹·앱·승환이 합의했어요 (#42). */
   @Operation(summary = "실패 대상 재시도 — 새 배포를 만들어요")
   @PostMapping("/retry")
+  @ApiResponse(
+      responseCode = "201",
+      description = "실패 대상의 새 배포예요. 원본 이력은 유지해요",
+      useReturnTypeSchema = true)
   public ResponseEntity<DeploymentAccepted> retry(
       @CurrentAccount AuthPrincipal principal,
       @PathVariable String deploymentId,
-      @RequestHeader(value = DeploymentAccepted.IDEMPOTENCY_KEY, required = false) String key,
+      @Parameter(required = true, description = "멱등 키. 1~255자")
+          @RequestHeader(value = DeploymentAccepted.IDEMPOTENCY_KEY, required = false)
+          String key,
       @RequestBody TargetSelection request) {
     String projectId = queries.projectIdOf(principal.accountId(), deploymentId);
     DeploymentAccepted.requireKey(key);
@@ -114,10 +156,16 @@ public class DeploymentCommandController {
 
   /** 전체 성공한 원본에서 고른 대상만 새 배포로 되돌려요 (WR-14). 새 plan·승인을 거쳐요. */
   @PostMapping("/rollback")
+  @Operation(
+      summary = "성공 원본으로 롤백 배포 접수",
+      description = "새 plan과 승인을 거쳐요. DB 데이터 복구는 아니며 원본 입력/대상 설정이 맞지 않으면 409예요.")
+  @ApiResponse(responseCode = "201", description = "새 롤백 배포를 접수했어요", useReturnTypeSchema = true)
   public ResponseEntity<DeploymentAccepted> rollback(
       @CurrentAccount AuthPrincipal principal,
       @PathVariable String deploymentId,
-      @RequestHeader(value = DeploymentAccepted.IDEMPOTENCY_KEY, required = false) String key,
+      @Parameter(required = true, description = "멱등 키. 1~255자")
+          @RequestHeader(value = DeploymentAccepted.IDEMPOTENCY_KEY, required = false)
+          String key,
       @RequestBody RollbackSelection request) {
     String projectId = queries.projectIdOf(principal.accountId(), deploymentId);
     DeploymentAccepted.requireKey(key);
@@ -140,6 +188,14 @@ public class DeploymentCommandController {
    * <p>재생·heartbeat·연결 수 제한은 승환의 SSE 기반이 맡아요. 여기서는 인증된 주체와 재연결 위치만 넘겨요.
    */
   @GetMapping(value = "/events", produces = MediaType.TEXT_EVENT_STREAM_VALUE)
+  @Operation(
+      summary = "배포 SSE",
+      description =
+          "채널별 seq를 id로 보내요. Last-Event-ID 이후 재생, heartbeat 15초, 재생 불가 시 resync예요. event_type은 선택 필터예요.")
+  @ApiResponse(
+      responseCode = "200",
+      description = "SSE 스트림",
+      content = @Content(mediaType = "text/event-stream", schema = @Schema(type = "string")))
   public SseEmitter deploymentEvents(
       @CurrentAccount AuthPrincipal principal,
       @PathVariable String deploymentId,

@@ -5,6 +5,7 @@ import com.teamdaisy.server.deployment.application.DeploymentQueryService.Curren
 import com.teamdaisy.server.deployment.application.DeploymentQueryService.CurrentPointer;
 import com.teamdaisy.server.deployment.application.DeploymentQueryService.CurrentResult;
 import com.teamdaisy.server.deployment.application.DeploymentQueryService.SuccessfulDeployment;
+import com.teamdaisy.server.project.application.DeploymentDetailReader.TargetRow;
 import com.teamdaisy.server.project.domain.Target;
 import java.util.HashMap;
 import java.util.List;
@@ -26,9 +27,11 @@ public class DeploymentHistoryReader {
   private static final int BATCH = 100;
 
   private final DeploymentQueryService queries;
+  private final DeploymentDetailReader details;
 
-  public DeploymentHistoryReader(DeploymentQueryService queries) {
+  public DeploymentHistoryReader(DeploymentQueryService queries, DeploymentDetailReader details) {
     this.queries = queries;
+    this.details = details;
   }
 
   /**
@@ -37,8 +40,8 @@ public class DeploymentHistoryReader {
    * @param status {@code none} 포인터 없음(확인된 현재 참조 없음 — 배포가 없다는 뜻이 아니에요), {@code confirmed} 확인됨,
    *     {@code unverified} 포인터는 있으나 확인 실패
    */
-  public record CurrentView(String status, CurrentDeployment deployment) {
-    static final CurrentView NONE_VIEW = new CurrentView(NONE, null);
+  public record CurrentView(String status, CurrentDeployment deployment, TargetRow detail) {
+    static final CurrentView NONE_VIEW = new CurrentView(NONE, null, null);
 
     public static CurrentView none() {
       return NONE_VIEW;
@@ -47,11 +50,12 @@ public class DeploymentHistoryReader {
 
   public Map<String, CurrentView> current(String actorId, String projectId, List<Target> targets) {
     Map<String, CurrentView> views = new HashMap<>();
+    Map<String, List<TargetRow>> byDeployment = new HashMap<>();
     for (Target target : targets) {
       views.put(target.id(), CurrentView.none());
     }
     if (targets.stream().noneMatch(target -> target.currentDeploymentTargetId() != null)) {
-      // 포인터가 하나도 없으면 부르지 않아요. 지금은 갱신하는 곳이 없어 늘 이 경로예요.
+      // 포인터가 하나도 없으면 과거 성공 이력으로 현재를 추측하지 않아요.
       return views;
     }
     for (int from = 0; from < targets.size(); from += BATCH) {
@@ -59,8 +63,20 @@ public class DeploymentHistoryReader {
       Map<String, CurrentResult> found =
           queries.currentByTarget(actorId, projectId, pointers(chunk));
       found.forEach(
-          (targetId, result) ->
-              views.put(targetId, new CurrentView(result.status(), result.deployment())));
+          (targetId, result) -> {
+            TargetRow detail =
+                result.deployment() == null
+                    ? null
+                    : byDeployment
+                        .computeIfAbsent(
+                            result.deployment().deploymentId(),
+                            id -> details.read(projectId, id).targets())
+                        .stream()
+                        .filter(row -> row.targetId().equals(targetId))
+                        .findFirst()
+                        .orElse(null);
+            views.put(targetId, new CurrentView(result.status(), result.deployment(), detail));
+          });
     }
     return views;
   }

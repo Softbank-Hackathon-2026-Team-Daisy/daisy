@@ -6,6 +6,8 @@ import com.teamdaisy.server.common.error.ErrorCode;
 import com.teamdaisy.server.identity.auth.AuthPrincipal;
 import com.teamdaisy.server.identity.web.CurrentAccount;
 import com.teamdaisy.server.project.application.ProjectRegistration;
+import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.media.Schema;
 import io.swagger.v3.oas.annotations.security.SecurityRequirement;
 import org.springframework.http.HttpStatus;
 import org.springframework.web.bind.annotation.DeleteMapping;
@@ -30,16 +32,29 @@ public class ProjectCreateController {
   }
 
   /** 연결 요청이에요. {@code repository} 는 {@code owner/repo} 나 GitHub URL 이에요. */
-  public record CreateProject(String repository, String branch) {}
+  public record CreateProject(
+      @Schema(
+              requiredMode = Schema.RequiredMode.REQUIRED,
+              example = "team/sample-app",
+              description = "GitHub owner/repo 또는 https URL")
+          String repository,
+      @Schema(nullable = true, description = "생략하면 main") String branch) {}
 
   /**
    * 연결 결과예요.
    *
    * @param manifest {@code deploy.yaml} 검증 결과. 지금은 검증하지 않아 null 이에요
    */
-  public record ProjectCreated(ProjectResponse project, JsonNode manifest) {}
+  public record ProjectCreated(
+      ProjectResponse project,
+      @Schema(nullable = true, description = "현재 manifest 검증 원본을 받지 않아 null이에요")
+          JsonNode manifest) {}
 
   @PostMapping("/projects")
+  @Operation(
+      summary = "저장소 연결 정보 등록",
+      description =
+          "프로젝트와 소유 멤버를 등록해요. 저장소 접근 검증·웹훅/CI 자동 구성·대상 자동 등록은 하지 않아요. manifest는 현재 null이에요.")
   @ResponseStatus(HttpStatus.CREATED)
   public ProjectCreated create(
       @CurrentAccount AuthPrincipal principal, @RequestBody CreateProject request) {
@@ -56,6 +71,7 @@ public class ProjectCreateController {
    * <p>확인 입력(환경 이름)은 화면에서 받아요.
    */
   @DeleteMapping("/projects/{projectId}")
+  @Operation(summary = "프로젝트 연결 해제", description = "진행 중 배포가 있으면 409예요. 인프라 리소스를 삭제하지 않아요.")
   @ResponseStatus(HttpStatus.NO_CONTENT)
   public void disconnect(@CurrentAccount AuthPrincipal principal, @PathVariable String projectId) {
     registration.disconnect(principal, projectId);

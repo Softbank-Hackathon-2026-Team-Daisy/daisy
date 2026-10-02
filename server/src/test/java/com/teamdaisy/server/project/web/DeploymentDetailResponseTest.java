@@ -58,7 +58,9 @@ class DeploymentDetailResponseTest {
         null,
         null,
         null,
-        null);
+        null,
+        List.of(),
+        "unknown");
   }
 
   private static ObjectNode image(ObjectNode into, String service) {
@@ -150,7 +152,7 @@ class DeploymentDetailResponseTest {
     var row =
         new TargetRow(
             "tgt_aws", snapshot, "running", 1, false, null, null, AT, null, "plan", "running", null,
-            null, null);
+            null, null, List.of(), "unknown");
     var target = DeploymentDetailResponse.target(row);
 
     assertThat(target.step()).isEqualTo("plan");
@@ -181,7 +183,9 @@ class DeploymentDetailResponseTest {
                 null,
                 "approved",
                 "queued",
-                null));
+                null,
+                List.of(),
+                "unknown"));
     assertThat(target.state()).isEqualTo("awaiting_approval");
     assertThat(target.approvalState()).isEqualTo("approved");
     assertThat(target.applyDispatch()).isEqualTo("queued");
@@ -230,7 +234,9 @@ class DeploymentDetailResponseTest {
             "done",
             "approved",
             null,
-            result));
+            result,
+            List.of(),
+            "unknown"));
   }
 
   @Test

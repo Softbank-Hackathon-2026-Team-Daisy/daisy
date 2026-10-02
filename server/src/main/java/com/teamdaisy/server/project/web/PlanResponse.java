@@ -4,6 +4,7 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.teamdaisy.server.project.application.AiCostConverter;
 import com.teamdaisy.server.project.application.DeploymentPlanReader.PlanRow;
 import com.teamdaisy.server.project.application.DeploymentPlanReader.UsageTotals;
+import io.swagger.v3.oas.annotations.media.Schema;
 import java.math.BigDecimal;
 import java.util.ArrayList;
 import java.util.List;
@@ -22,13 +23,14 @@ public record PlanResponse(String deploymentId, List<Target> targets, AiUsage ai
    * @param summary 한 줄 요약을 만드는 원천이 없어 null 이에요
    * @param planText 서버가 plan 원문을 보관하지 않아 null 이에요
    */
+  @Schema(name = "PlanTarget")
   public record Target(
       String targetId,
       Counts counts,
       boolean hasDelete,
       List<Risk> risks,
-      String summary,
-      String planText) {}
+      @Schema(nullable = true, description = "현재 한 줄 요약은 미제공이에요") String summary,
+      @Schema(nullable = true, description = "현재 plan 원문은 미제공이에요") String planText) {}
 
   public record Counts(int create, int update, int delete) {}
 
@@ -43,9 +45,10 @@ public record PlanResponse(String deploymentId, List<Target> targets, AiUsage ai
    */
   public record AiUsage(
       long calls,
-      Long tokens,
-      Long costKrw,
-      BigDecimal exchangeRate,
+      @Schema(nullable = true) Long tokens,
+      @Schema(nullable = true, description = "USD 합산 후 고정 환율로 환산·반올림한 추정 원화. 환율 미설정이면 null이에요")
+          Long costKrw,
+      @Schema(nullable = true) BigDecimal exchangeRate,
       boolean estimated,
       long unknownCalls) {}
 

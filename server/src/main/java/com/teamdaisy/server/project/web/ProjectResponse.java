@@ -1,6 +1,7 @@
 package com.teamdaisy.server.project.web;
 
 import com.teamdaisy.server.project.domain.Project;
+import io.swagger.v3.oas.annotations.media.Schema;
 import java.time.Instant;
 
 /**
@@ -15,10 +16,11 @@ public record ProjectResponse(
     String name,
     String repository,
     String defaultBranch,
-    String repositoryUrl,
-    String manifestPath,
+    @Schema(nullable = true, description = "상세에서 제공해요. 목록은 null이에요") String repositoryUrl,
+    @Schema(nullable = true, description = "명세 파일 경로이며 원문/검증 결과가 아니에요. 목록은 null이에요")
+        String manifestPath,
     Instant createdAt,
-    Long lastSeq) {
+    @Schema(nullable = true, description = "상세의 프로젝트 SSE 시작 위치. 목록은 null이에요") Long lastSeq) {
 
   /** 목록용. 상세 전용 필드는 비워서 보내요. */
   public static ProjectResponse summary(Project project) {

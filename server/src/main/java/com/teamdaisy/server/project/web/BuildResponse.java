@@ -3,6 +3,7 @@ package com.teamdaisy.server.project.web;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.teamdaisy.server.deployment.application.DeploymentQueryService.SuccessfulDeployment;
 import com.teamdaisy.server.project.domain.SourceVersion;
+import io.swagger.v3.oas.annotations.media.Schema;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Iterator;
@@ -18,18 +19,21 @@ import java.util.Map;
 public record BuildResponse(
     String sourceVersionId,
     String commit,
-    String branch,
+    @Schema(nullable = true) String branch,
     Pipeline pipeline,
-    String image,
-    String imageDigest,
-    List<ServiceImage> images,
-    List<DeployedTo> deployedTo,
-    Instant startedAt,
-    Instant finishedAt,
+    @Schema(nullable = true) String image,
+    @Schema(nullable = true) String imageDigest,
+    @Schema(nullable = true) List<ServiceImage> images,
+    @Schema(nullable = true, description = "이 빌드의 성공 이력. 현재 실행 버전과는 달라요")
+        List<DeployedTo> deployedTo,
+    @Schema(nullable = true) Instant startedAt,
+    @Schema(nullable = true) Instant finishedAt,
     Instant receivedAt,
-    String errorSummary) {
+    @Schema(nullable = true) String errorSummary) {
 
-  public record Pipeline(String status, String runUrl) {}
+  public record Pipeline(
+      @Schema(description = "queued·running·success·failed. 모르는 상태도 문자열로 받아요") String status,
+      @Schema(nullable = true) String runUrl) {}
 
   /**
    * 이 빌드로 성공한 대상별 마지막 배포예요. 과거 성공 이력이지 지금 그 버전이 떠 있다는 뜻이 아니에요.
@@ -38,7 +42,10 @@ public record BuildResponse(
    */
   public record DeployedTo(String targetId, String deploymentId, Instant deployedAt) {}
 
-  public record ServiceImage(String service, String imageRef, String imageDigest) {}
+  public record ServiceImage(
+      String service,
+      @Schema(nullable = true) String imageRef,
+      @Schema(nullable = true) String imageDigest) {}
 
   /** 실행 도메인의 저장 키를 읽고 공개 응답에서는 image_digest로 내보내요. */
   private static final String KEY_REF = "image_ref";

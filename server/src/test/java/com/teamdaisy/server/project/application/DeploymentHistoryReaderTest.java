@@ -38,7 +38,8 @@ class DeploymentHistoryReaderTest {
   private static final Instant AT = Instant.parse("2026-10-02T00:00:00Z");
 
   private final DeploymentQueryService queries = mock(DeploymentQueryService.class);
-  private final DeploymentHistoryReader reader = new DeploymentHistoryReader(queries);
+  private final DeploymentDetailReader details = mock(DeploymentDetailReader.class);
+  private final DeploymentHistoryReader reader = new DeploymentHistoryReader(queries, details);
 
   private static Target target(String id, String pointer) {
     Target target =
@@ -72,6 +73,8 @@ class DeploymentHistoryReaderTest {
   @Test
   @DisplayName("조회 서비스의 대상별 결과(confirmed·unverified·none)를 그대로 옮겨요")
   void resultsAreCopied() {
+    when(details.read(PROJECT, "dep_1"))
+        .thenReturn(new DeploymentDetailReader.DeploymentDetail(null, List.of(), List.of()));
     when(queries.currentByTarget(eq(ACTOR), eq(PROJECT), any()))
         .thenReturn(
             Map.of(
@@ -112,7 +115,8 @@ class DeploymentHistoryReaderTest {
             target("tgt_a", "dt_1"),
             new CurrentView(
                 "confirmed",
-                deployment("dep_1", List.of(new ServiceImage("web", "img:1", "sha256:x")))));
+                deployment("dep_1", List.of(new ServiceImage("web", "img:1", "sha256:x"))),
+                null));
     assertThat(single.current().image()).isEqualTo("img:1");
     assertThat(single.current().imageDigest()).isEqualTo("sha256:x");
     assertThat(single.current().images()).isNull();
@@ -127,7 +131,8 @@ class DeploymentHistoryReaderTest {
                     "dep_1",
                     List.of(
                         new ServiceImage("api", "img:a", null),
-                        new ServiceImage("web", "img:w", null)))));
+                        new ServiceImage("web", "img:w", null))),
+                null));
     assertThat(multi.current().image()).isNull();
     assertThat(multi.current().imageDigest()).isNull();
     assertThat(multi.current().images()).hasSize(2);

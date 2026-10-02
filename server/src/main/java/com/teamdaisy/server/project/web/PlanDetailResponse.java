@@ -2,6 +2,7 @@ package com.teamdaisy.server.project.web;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.teamdaisy.server.project.application.DeploymentPlanReader.PlanRow;
+import io.swagger.v3.oas.annotations.media.Schema;
 import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
@@ -13,7 +14,10 @@ import java.util.Set;
  *
  * @param planText 서버가 plan 원문을 보관하지 않아 null 이에요
  */
-public record PlanDetailResponse(String targetId, List<Resource> resources, String planText) {
+public record PlanDetailResponse(
+    String targetId,
+    List<Resource> resources,
+    @Schema(nullable = true, description = "현재 원문 미제공") String planText) {
 
   /** 리소스 한 줄이에요. {@code action} 은 create·update·delete·replace 중 하나예요. */
   public record Resource(String address, String action) {}
