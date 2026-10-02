@@ -849,3 +849,35 @@ V9 의 실제 Jenkins 실행은 하지 않습니다. 기본 비활성 설정 그
 | Q7 | 경로 노출, `principal` 0건. 500 0건 |
 
 처음 스펙에는 "막 만든 배포는 이미지 null" 이라고 적었는데, 실제로는 생성 때 고른 성공 빌드의 이미지가 고정됩니다. 코드가 맞고 스펙을 고쳤습니다.
+
+## 배포 목록 A-03 (10/2, 하은현)
+
+### 범위
+
+`GET /projects/{id}/deployments?state=&cursor=&limit=` 는 프로젝트의 배포를 최신순으로 돌려줍니다. 배포 이력(W-09)·현황(W-01)·AI 사용량 배포 고르기(W-12) 화면이 쓰고, 승인 대기 목록은 별도 API 없이 `state=awaiting_approval` 로 거릅니다 (9/29 결정, PR #1).
+
+- 권한: `ProjectAccessService.requireRead` — 없는 프로젝트·비멤버 404, viewer 도 조회는 됩니다.
+- 데이터: A-04 와 같이 배포 테이블을 읽기 전용 SQL 로 읽습니다 (`server/AGENTS.md` §3 예외).
+- 봉투: `{ items, next_cursor }`. **목록 한 줄은 A-04 상세와 같은 모양**입니다. 웹은 목록을 `ListResponse<Deployment>` 로 받아서, 모양을 둘로 나누면 화면마다 다른 필드를 다뤄야 합니다.
+
+### 동작
+
+| 항목 | 규칙 |
+|---|---|
+| 정렬 | `created_at DESC, id DESC`. 설계의 `INDEX(project_id, created_at DESC, id)`·`INDEX(project_id, status, created_at DESC, id)` 와 맞춤 |
+| `state` | 배포 전체 7값 중 하나. 다른 값은 400. 생략하면 전부 |
+| `cursor` | A-06 과 같은 불투명 문자열 (base64url 로 감싼 `created_at` + `id`). 깨진 커서는 400. 같은 시각의 배포가 페이지 경계에 걸려도 건너뛰지 않음 |
+| `limit` | 기본 20, 최대 100. 넘으면 100 으로 깎고, 0·음수는 400 (A-06 과 같음) |
+| 대상·승인 대기 | 한 페이지의 배포 ID 로 `deployment_target`·`approval` 을 한 번씩만 읽음. 배포마다 따로 읽지 않음 |
+
+### 검증 계획
+
+| | 검사 | 기대 |
+|---|---|---|
+| L1 | 토큰 없음 / 비멤버 / viewer | 401 / 404 / 200 |
+| L2 | 배포 3개 | 최신순, 각 항목이 A-04 모양 (대상·`pending_approvals` 포함) |
+| L3 | `state=awaiting_approval` / `state=bogus` | 그 상태만 / 400 |
+| L4 | `limit=2` 로 커서 왕복, 같은 `created_at` 두 건 포함 | 중복·누락 0, 마지막 페이지 `next_cursor: null` |
+| L5 | 깨진 커서 / `limit=0` | 400 / 400 |
+| L6 | 다른 프로젝트 배포 | 섞이지 않음 |
+| L7 | OpenAPI | 경로·`state`·`cursor`·`limit` 노출, `principal` 노출 0건 |
