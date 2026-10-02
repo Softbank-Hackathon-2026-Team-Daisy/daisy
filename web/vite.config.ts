@@ -16,7 +16,15 @@ export default defineConfig(({ mode }) => {
       port: 5173,
       strictPort: true,
       proxy: proxyTarget
-        ? { '/api': { target: proxyTarget, changeOrigin: true, rewrite: (path) => path.replace(/^\/api/, '') } }
+        ? {
+            '/api': {
+              target: proxyTarget,
+              changeOrigin: true,
+              rewrite: (path) => path.replace(/^\/api/, ''),
+              // 브라우저가 붙인 Origin(localhost)을 지워요 — 남아 있으면 서버 CORS가 403을 줘요
+              configure: (proxy) => proxy.on('proxyReq', (req) => req.removeHeader('origin')),
+            },
+          }
         : undefined,
     },
   }
