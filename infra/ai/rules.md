@@ -31,7 +31,7 @@ Structure
 - Keep every variable the reference module declares, with the same names and types, and keep its validations.
 - Required output `service_url`: the public URL with scheme and no trailing slash.
 - Resource names start with `daisy-${var.name}`. Keep the provider `default_tags` (`Project = "daisy"`, `App`, `ManagedBy`) on aws.
-- For `onprem`, keep the reference module's resource addresses and container name unchanged: an existing container is already tracked in state under them.
+- Keep the reference module's resource addresses (resource types and local names) and the names of the created cloud resources unchanged, in every environment. Existing infrastructure is already tracked in state under them: renaming destroys and recreates live services (the load balancer, the Cloud Run service and its domain certificate, the on-prem container).
 
 Fixed network (aws)
 - The VPC and subnets already exist and are passed in as `vpc_id`, `public_subnet_ids`, `private_subnet_ids`. **Never create** `aws_vpc`, `aws_subnet`, `aws_internet_gateway`, `aws_route_table`, `aws_route_table_association`, `aws_nat_gateway`, or `aws_eip`.
