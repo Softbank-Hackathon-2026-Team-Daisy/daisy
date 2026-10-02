@@ -982,3 +982,22 @@ URL 인코딩 자체가 깨진 커서(`%%%bad`)는 Tomcat 이 파라미터를 �
 | P6 | 환율 설정 없음 | `cost_krw`·`exchange_rate` null, `estimated false` |
 | P7 | 다른 프로젝트 배포의 plan·사용량 | 섞이지 않음, 404 |
 | P8 | OpenAPI | 경로 노출, `principal` 노출 0건, 500 0건 |
+
+### 검증 결과 (10/2 오전)
+
+빈 PostgreSQL 17 에 jar 로 띄우고, API 로 만든 배포(대상 2개)에 SQL 로 실행·스크립트·plan 1건(대상 하나만 현재 plan)과 사용량 3행을 넣어 확인했습니다. 환율은 `DAISY_AI_KRW_PER_USD=1400` 으로 한 번, 설정 없이 한 번 띄웠습니다.
+
+| | 결과 |
+|---|---|
+| P1 | 401 / 404 / viewer 200 |
+| P2 | plan 전 배포: `targets: []`, `calls: 0`, `tokens`·`cost_krw` null, `estimated: false` |
+| P3 | 현재 plan 이 있는 `tgt_demo_aws` 1개만. `counts {12,1,1}`·`has_delete: true`·`risks` 가 넣은 값 그대로, `summary`·`plan_text` null |
+| P4 | `detail=resources` 는 배열. `create`·`update` 그대로, `["delete","create"]` → `replace`, `read`·`no-op` 행은 빠짐. `detail=bogus` 400 |
+| P5 | `calls 3`, `unknown_calls 1`, `tokens 3920`(모르는 행 제외), `cost_krw 1`. 0.0003 USD 두 건이라 건별 반올림이면 0원, 합산 뒤 반올림이면 0.84원 → 1원 — 합산 뒤 한 번 반올림하는 것을 확인 |
+| P6 | 환율 설정 없음: `cost_krw`·`exchange_rate` null, `estimated: false`. 사용량은 있는데 환율만 없는 경우는 단위 테스트(`PlanResponseTest`)로 확인 |
+| P7 | 접근할 수 없는 다른 프로젝트 배포는 요약·`detail` 모두 404. 같은 프로젝트의 다른 배포에는 위 plan·사용량이 섞이지 않음 |
+| P8 | OpenAPI 경로 노출, `detail` 은 선택 파라미터, 응답은 `PlanResponse` 또는 `PlanDetailResponse[]`, `principal` 노출 0건. 서버 로그 ERROR 0건 |
+
+단위 테스트 7개를 더했습니다 (환산·반올림·잘못된 환율 3개, 응답 변환 4개). `./gradlew --no-daemon spotlessCheck check build` 성공, 182개 통과.
+
+같은 경로의 두 핸들러가 OpenAPI 에서 한 operation 으로 합쳐지면서 처음에는 `detail` 이 필수로 표시됐습니다. 붙이지 않는 A-05 호출이 있으니 문서에서 선택으로 보이게 고쳤습니다.
