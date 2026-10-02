@@ -1069,3 +1069,18 @@ URL 인코딩 자체가 깨진 커서(`%%%bad`)는 Tomcat 이 파라미터를 �
 | U4 | 환율 1400, 0.0003 USD | `cost_krw` 0 (0.42원 반올림) |
 | U5 | 같은 프로젝트 다른 배포의 호출 | 섞이지 않음 |
 | U6 | OpenAPI | 경로·`deployment_id` 노출, `principal` 0건, 서버 로그 ERROR 0건 |
+
+### 검증 결과 (10/2 낮)
+
+단위 테스트 2개(줄 변환·환율 없음)와, 빈 PostgreSQL 17 에 jar 로 띄운 실서버(`DAISY_AI_KRW_PER_USD=1400`)로 확인했습니다. API 로 만든 배포 2개에 호출 4행을 SQL 로 넣었습니다.
+
+| | 결과 |
+|---|---|
+| U1 | 토큰 없음 401 / 비멤버 프로젝트 404 / viewer 200 |
+| U2 | `deployment_id` 없음 400 / 다른 프로젝트 배포 404 / 없는 배포 404 |
+| U3 | 시각 순 3줄. 토큰·비용 모르는 줄은 둘 다 null, 출력 토큰만 모르는 줄은 `tokens: null`·`cost_krw: 48` |
+| U4 | 0.0003 USD → `cost_krw: 0`, 0.0343 USD → 48 |
+| U5 | 같은 프로젝트 다른 배포의 호출은 그 배포에서만 보임 |
+| U6 | 파라미터 `projectId`·`deployment_id`, `principal` 0건, 서버 로그 ERROR 0건 |
+
+`./gradlew --no-daemon spotlessCheck check build` 성공.
