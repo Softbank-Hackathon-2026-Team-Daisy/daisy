@@ -62,6 +62,9 @@ extension Endpoint {
         .init(path: "projects/\(projectID)/ai-usage", query: [("deployment_id", deploymentID)])
     }
 
+    /// A-10 · A-11이 서버에 있는지. 10/2 23:30 개발 서버 OpenAPI(20개)에 없어요 → 화면에서 버튼을 꺼요 (웹 `probeReady`와 같아요)
+    static var targetProbesOnServer: Bool { false }
+
     /// A-10 (가칭) · W-10 "연결 테스트"
     static func testConnection(targetID: String) -> Endpoint<ConnectionTestResult> {
         .init(method: "POST", path: "targets/\(targetID)/test")
