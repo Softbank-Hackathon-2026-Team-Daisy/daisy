@@ -27,12 +27,13 @@ export const initials = (name: string) =>
 
 export const ROLE_LABEL: Record<Role, string> = { owner: '관리자', viewer: '읽기 전용' }
 
-export function useProjects() {
-  return useResource(() => api.listProjects(), [])
+// key가 바뀌면 다시 불러요 — 새 프로젝트를 연결(WR-02)하거나 해제(WR-13)한 뒤 사이드바 목록을 맞추려고
+export function useProjects(key: unknown = null) {
+  return useResource(() => api.listProjects(), [key])
 }
 
 export function useWorkspace(projectId: string) {
-  const projects = useProjects()
+  const projects = useProjects(projectId)
   // SSE 이벤트가 오면(tick) 다시 불러요. 붙어 있으면 폴링은 30초 안전망만
   const { state: live, tick } = useProjectLive()
   const poll = pollFor(live)

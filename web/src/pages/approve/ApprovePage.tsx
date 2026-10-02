@@ -19,7 +19,7 @@ import Stepper from '../../components/Stepper.tsx'
 import Tabs from '../../components/Tabs.tsx'
 import { paths } from '../../paths.ts'
 import { shortCommit, won } from '../../utils/format.ts'
-import { envName } from '../flow.ts'
+import { envName, names } from '../flow.ts'
 import { ErrorBlock, LoadingBlock } from '../Loading.tsx'
 import '../page.css'
 
@@ -53,7 +53,9 @@ function ApproveView({ d, plan, detail, projectName, reload }: { d: Deployment; 
   const navigate = useNavigate()
   const { projectId = '' } = useParams()
   const { role } = useAuth()
-  const approvable = d.targets.filter((t) => t.state === 'awaiting_approval')
+  // 이미 승인했는데 apply가 아직 시작 안 된 대상은 다시 승인하지 않아요 (#56 approval_state, #49 리뷰)
+  const approvedWaiting = d.targets.filter((t) => t.state === 'awaiting_approval' && t.approval_state === 'approved')
+  const approvable = d.targets.filter((t) => t.state === 'awaiting_approval' && t.approval_state !== 'approved')
   const [tab, setTab] = useState(approvable[1]?.target_id ?? approvable[0]?.target_id ?? d.targets[0].target_id)
   const [confirm, setConfirm] = useState('')
   const [pending, setPending] = useState(false)
@@ -116,9 +118,15 @@ function ApproveView({ d, plan, detail, projectName, reload }: { d: Deployment; 
       <div className="page">
         <Stepper current={5} />
         <PageHeader mock={isMocked('getDeployment', 'getPlan', 'getPlanDetail', 'approve')} overline="Step 5" title="변경 사항 확인 후 승인" />
-        <Alert type="info" title="승인을 기다리는 plan이 없어요">
-          이미 처리됐거나 아직 검증 중이에요.
-        </Alert>
+        {approvedWaiting.length > 0 ? (
+          <Alert type="success" title="승인 완료 · 실행 대기">
+            {names(approvedWaiting)} 승인을 받았어요. 곧 배포를 시작해요.
+          </Alert>
+        ) : (
+          <Alert type="info" title="승인을 기다리는 plan이 없어요">
+            이미 처리됐거나 아직 검증 중이에요.
+          </Alert>
+        )}
         <div className="page__actions">
           <Button variant="secondary" onClick={() => navigate(paths.progress(projectId, d.id))}>
             배포 진행 보기
@@ -136,6 +144,8 @@ function ApproveView({ d, plan, detail, projectName, reload }: { d: Deployment; 
       <Panel title="환경별 요약">
         {d.targets.map((t) => {
           const p = planOf(t.target_id)
+          if (t.state === 'awaiting_approval' && t.approval_state === 'approved')
+            return <EnvStatusRow key={t.target_id} env={t.type} note="승인 완료 · 실행 대기" tone="success" label="승인됨" />
           if (t.state === 'failed') return <EnvStatusRow key={t.target_id} env={t.type} note={`${t.attempt ? `${t.attempt}회 실패` : '실패'} · 이번 승인에서 빠져요`} tone="failed" label="실패" />
           const c = p?.counts
           const note = c ? `리소스 +${c.create} ~${c.update} −${c.delete} · ${p?.summary ?? `위험 설정 ${p?.risks.length ?? 0}건`}` : '—'

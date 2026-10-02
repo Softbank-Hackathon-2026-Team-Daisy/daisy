@@ -50,10 +50,11 @@ function ProgressView({ d, sseLines }: { d: Deployment; sseLines: LiveLogLine[] 
   const navigate = useNavigate()
   const { projectId = '' } = useParams()
   const finished = FINISHED.has(d.state)
-  // SSE로 로그를 받으면 A-07은 부르지 않아요. 아니면 끝난 배포는 로그를 한 번만 불러요
+  // SSE로 받을 때는 A-07을 처음 한 번만 불러 이전 로그를 채우고(#56), 새 줄은 SSE로 받아요. 같은 seq는 한 줄로 합쳐요
+  // SSE가 없으면 A-07을 5초 폴링, 끝난 배포는 한 번만
   const sse = liveLogs()
-  const logs = useResource(() => (sse ? Promise.resolve([]) : api.getLogs(d.id)), [d.id, finished, sse], sse || finished ? undefined : POLL_MS)
-  const lines = sse ? sseLines : (logs.data ?? [])
+  const logs = useResource(() => api.getLogs(d.id), [d.id, finished, sse], sse || finished ? undefined : POLL_MS)
+  const lines = sse ? mergeLogs(logs.data ?? [], sseLines) : (logs.data ?? [])
   const status = deploymentStatus(d.state, d.kind)
 
   // 끝나면 W-08로 넘어가요 (처음부터 끝난 배포였으면 버튼으로)
@@ -63,7 +64,8 @@ function ProgressView({ d, sseLines }: { d: Deployment; sseLines: LiveLogLine[] 
     wasRunning.current = !finished
   }, [finished, navigate, projectId, d.id])
 
-  const typeOf = (targetId: string) => d.targets.find((t) => t.target_id === targetId)?.type ?? 'onprem'
+  // 콘솔 줄(target_id null)은 특정 환경이 아니라 실행 공통이에요
+  const typeOf = (targetId: string | null) => (targetId ? (d.targets.find((t) => t.target_id === targetId)?.type ?? null) : null)
 
   return (
     <div className="page">
@@ -96,6 +98,13 @@ function ProgressView({ d, sseLines }: { d: Deployment; sseLines: LiveLogLine[] 
       )}
     </div>
   )
+}
+
+function mergeLogs(history: { seq: number }[], live: LiveLogLine[]) {
+  const map = new Map<number, (typeof history)[number] | LiveLogLine>()
+  for (const l of history) map.set(l.seq, l)
+  for (const l of live) map.set(l.seq, l)
+  return [...map.values()].sort((a, b) => a.seq - b.seq) as LiveLogLine[]
 }
 
 export default ProgressPage

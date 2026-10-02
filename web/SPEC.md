@@ -283,7 +283,8 @@ Page ──▶ hook ──▶ api/client ──────────▶ Unibl
 | WR-04 `GET /projects/{id}/targets` (#42) | ✅ 실서버 (#42 머지 후) | 봉투, `reuse` null → "판단 전", `connection.checked_at` null |
 | A-05 `GET /deployments/{id}/plan` · WR-06 `?detail=resources` (#51) | ✅ 실서버 | `summary` · `plan_text` null, 현재 plan 없는 대상은 빠짐, `ai_usage` 토큰 · 원화 · 환율 null 가능 · `unknown_calls`. 리소스별 월 비용 없음 |
 | SSE `GET /projects/{id}/events` · `GET /deployments/{id}/events` (#42) | ✅ 실서버 | 이벤트가 오면 스냅샷(A-02 · A-03 · A-04 · A-05 · A-06)을 다시 읽어요(300ms 묶음). 붙어 있으면 폴링은 30초 안전망, 끊기면 5초. W-07 로그는 `log.batch`로 받아서 A-07 없이도 보여요. 사이드바 연결 표시가 실제 상태 |
-| A-07 로그(SSE로 대신), 스크립트, AI 사용량 호출별, manifest, 연결 테스트 · 리소스 | ⏳ 목업 | 실서버 모드에서 스크립트 칸은 목업 코드 대신 "서버 연결 뒤에 보여요" | 실서버 모드에서 연결 테스트 · 리소스 버튼은 꺼요. SSE(`GET /deployments/{id}/events` · `/projects/{id}/events`)는 서버에 열렸지만 웹은 5초 폴링 유지 — 다음 PR |
+| A-07 로그(#56) · WR-02 연결 · WR-13 해제(#59) · WR-11 AI 호출별(#60) | ✅ 실서버 (서버 PR 머지 후) | 로그 봉투 · 소문자 level → 대문자, 콘솔 줄(target_id null) "common", W-07은 A-07로 이전 로그 + SSE로 새 줄(seq로 합침). W-02 `manifest: null` → "검증 전"으로 W-03. W-12 빈 기록은 "기록 없음"(AI 안 씀 아님). 전환 로딩은 20초 지나면 화면을 보여줘요 |
+| 스크립트(WR-07 · WR-10), manifest(WR-03), 연결 테스트 · 리소스(A-10 · A-11), 비밀값(WR-12) | ⏳ 목업 | 실서버 모드에서 스크립트 칸은 목업 코드 대신 "서버 연결 뒤에 보여요" | 실서버 모드에서 연결 테스트 · 리소스 버튼은 꺼요. SSE(`GET /deployments/{id}/events` · `/projects/{id}/events`)는 서버에 열렸지만 웹은 5초 폴링 유지 — 다음 PR |
 
 **개발 서버 (10/2, 은현 님):** API `https://api.unibloom.cloud`(지금 #38 범위 — 이 PR의 `SERVER_READY`와 같아요), 웹 `https://www.unibloom.cloud`. 개발 API는 CORS로 localhost를 막아서, 로컬 웹은 Vite 프록시로 붙어요: `.env.local`에 `VITE_API_BASE_URL=/api` · `VITE_PROXY_TARGET=https://api.unibloom.cloud` · `VITE_USE_MOCK=false`.
 
@@ -456,6 +457,7 @@ Page ──▶ hook ──▶ api/client ──────────▶ Unibl
 | 9/30 | 와이어프레임 수정 · 서버 답변 반영: W-00 로그인 추가, W-02b 범위 제외, W-05b 한 환경만 중단, 상태 값(§2-5), 롤백(WR-14) 범위 포함, WR-01 `fetch` 스트리밍, WR-04 · WR-05 모양 확정, W-12 배포별 보기, Q7 · Q9 · Q10 해결 | 김도영 |
 | 9/30 | 승준 님 코멘트 반영: §1-1 앱 범위는 회의 안건으로 표시(ADR-007 기준 유지), §6-1-1 앱 요청(#13) 중 웹도 쓰는 R-09 · A-10 ~ A-12 연결 | 김도영 |
 | 9/30 | W-14 Mac 앱 다운로드(Dialog) 추가 (와이어프레임 갱신) | 김도영 |
+| 10/2 | 서버 #56 · #59 · #60: A-07 로그 · WR-02 · WR-13 · WR-11 실서버, 전환 로딩 20초 상한 | 김도영 |
 | 10/2 | SSE 연결: 프로젝트 채널(AppLayout) · 배포 채널(W-05 · W-06 · W-07 · W-08), 이벤트 → 다시 읽기, 로그는 `log.batch`, 연결 시 폴링 30초 | 김도영 |
 | 10/2 | #42 · #46 · #48 계약: 배포 목록 · 상세 · 생성 · 승인 · 취소 · 재시도(`/retry`) · 롤백 · WR-04 실서버, `version` · `step` · `attempt` null 처리 | 김도영 |
 | 10/2 | 실서버 연결(#38): 서버에 열린 API만 실서버로(§6-0-1), 역할 `owner`, A-02 봉투 · `current` null 문구, A-06 `queued` · `source_version_id`, 승인 `items`, R-09 없음 | 김도영 |
