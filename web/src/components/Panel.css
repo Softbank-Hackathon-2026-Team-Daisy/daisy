@@ -15,3 +15,14 @@
   justify-content: space-between;
   gap: var(--space-3);
 }
+
+/* 폰 · 태블릿 (#102): 여백을 줄이고 머리줄은 줄바꿈 */
+@media (max-width: 768px) {
+  .panel {
+    padding: var(--space-4);
+  }
+
+  .panel__header {
+    flex-wrap: wrap;
+  }
+}

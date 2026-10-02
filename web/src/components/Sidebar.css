@@ -195,3 +195,38 @@
 .sidebar__toggle--open svg {
   transform: rotate(180deg);
 }
+
+/* 768px 이하: 화면 위에 겹치는 서랍 (AppLayout이 열고 닫아요, #102) */
+.sidebar--drawer {
+  position: fixed;
+  z-index: 50;
+  top: 0;
+  left: 0;
+  width: min(280px, calc(100vw - var(--space-12)));
+  height: 100dvh;
+  overflow-y: auto;
+  transform: translateX(-100%);
+  visibility: hidden;
+  transition:
+    transform 0.2s ease,
+    visibility 0.2s;
+}
+
+.sidebar--drawer.sidebar--open {
+  transform: none;
+  visibility: visible;
+}
+
+.sidebar--drawer .sidebar__menu {
+  right: 0;
+}
+
+.sidebar--drawer .sidebar__menu > * {
+  max-width: 100%;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .sidebar--drawer {
+    transition: none;
+  }
+}
