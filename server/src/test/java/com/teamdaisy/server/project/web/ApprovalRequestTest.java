@@ -91,4 +91,18 @@ class ApprovalRequestTest {
     List<Item> withNull = new ArrayList<>(Arrays.asList(new Item("tgt_aws", "apv_1"), null));
     assertInvalid(request("plan", "approve", withNull));
   }
+
+  @Test
+  @DisplayName("항목이 상한(50)을 넘으면 400, 상한까지는 받아요")
+  void itemsAreCapped() {
+    List<Item> max = new ArrayList<>();
+    for (int i = 0; i < TargetLimit.MAX; i++) {
+      max.add(new Item("tgt_" + i, "apv_" + i));
+    }
+    assertThat(request("plan", "approve", max).toDecisions()).hasSize(TargetLimit.MAX);
+
+    List<Item> over = new ArrayList<>(max);
+    over.add(new Item("tgt_over", "apv_over"));
+    assertInvalid(request("plan", "approve", over));
+  }
 }

@@ -55,7 +55,7 @@
 | 로컬 DB | Docker Compose의 `postgres` 서비스로 PostgreSQL 17을 실행하거나 기존 로컬 PostgreSQL에 연결합니다. |
 | 설정 | `DAISY_DB_URL`, `DAISY_DB_USER`, `DAISY_DB_PASSWORD`로 연결 설정을 주입합니다. 비밀번호 기본값은 두지 않습니다. |
 | JSON | Jackson 전역 `SNAKE_CASE` 설정을 사용합니다. |
-| API 문서 | springdoc-openapi 2.9.1을 사용합니다. `/v3/api-docs`, `/swagger-ui.html`을 제공합니다. 업무 API가 없으므로 경로 목록은 비어 있습니다. |
+| API 문서 | springdoc-openapi 2.9.1을 사용합니다. `/v3/api-docs`, `/swagger-ui.html`을 제공합니다. 업무 API 경로와 Bearer 인증 요구가 노출됩니다. 경로 목록은 `/v3/api-docs` 를 기준으로 봅니다. |
 | 포맷 | Spotless 8.10.3 + google-java-format 1.36.0. `spotlessApply`로 적용하고 `check`·`build`에서 검사합니다. |
 
 ### 후속 기능 개발
@@ -213,7 +213,7 @@
 
 ### 후속 범위
 
-- 조회·관리 API 는 아직 없습니다. 인가 판정이 실제 요청 경로에 붙은 적이 없고 단위 테스트로만 확인했습니다.
+- ~~조회·관리 API 는 아직 없습니다. 인가 판정이 실제 요청 경로에 붙은 적이 없고 단위 테스트로만 확인했습니다.~~ → 10/2: 조회·관리·배포 API 가 붙었고, 인가는 아래 각 절 검증 표에서 실제 요청(401·404·403)으로 확인했습니다.
 - SSE 경로의 인증 실패 전달, 실제 터널·프록시 뒤의 CORS·스트리밍은 도메인과 개발 서버가 생긴 뒤 확인합니다.
 - 만료된 `pending` 승인을 `expired` 로 내리는 일은 서비스 책임입니다. 시간 조건은 PostgreSQL 인덱스 조건에 넣을 수 없습니다.
 - FK 인덱스가 없는 컬럼 36곳은 예선 데이터 규모를 보고 넣지 않았습니다.
@@ -274,12 +274,12 @@
 | `target_id` | `target.id` | 제공 |
 | `type` | `target.environment_type` (`onprem`·`aws`·`gcp`) | 제공 |
 | `name` | `target.name` | 제공 |
-| `connection_state` | `target.connection_state` (`unknown`·`connected`·`disconnected`) | **제공 (계약에 없는 추가)** — W-04 가 "연결 안 되는 환경은 고를 수 없어요" 를 하려면 필요합니다 |
+| `connection_state` | `target.connection_state` 를 WR-04 와 같은 값(`ok`·`failed`·`unknown`)으로 변환 (10/2, 아래 WR-04 「확인이 필요한 것 ①」) | **제공 (계약에 없는 추가)** — W-04 가 "연결 안 되는 환경은 고를 수 없어요" 를 하려면 필요합니다 |
 | `checked_at` | `target.connection_checked_at` | 제공 (연결 확인이 돈 적 없으면 null) |
 | `current.deployment_id` | `deployment_target.deployment_id` | 제공 |
 | `current.commit` | `deployment.commit_sha` | 제공 |
 | `current.deployed_at` | `deployment_target.finished_at` | 제공 |
-| `current.image` | `deployment.image_refs` 평탄화 | **미제공 (null)** — 빌드 수신(A-06)이 없어 `image_refs` 가 빈 상태입니다 |
+| `current.image` | `deployment.image_refs` 평탄화 | ~~미제공 (null)~~ → #42 부터 제공. 서비스가 둘 이상이면 `images[]` |
 | `url` | `deployment_target.result` 의 `service_url` | **미제공 (null)** — `apply-result.json` 이 아직 인프라에 없습니다 (#17) |
 | `health` | 같은 곳 | **항상 `unknown`** — 헬스 결과가 지금 apply 로그에만 있습니다 (#17) |
 | `health_summary` | 같은 곳 | **미제공 (null)** |
@@ -291,6 +291,8 @@
 2. **소유 경계입니다.** 설계 2장이 `deployment` 모듈(Deployment·DeploymentTarget)을 승환 소유로, `project` 모듈(Project·Target·SourceVersion)을 은현 소유로 나눴습니다. `work.md` §14 가 *"다른 담당 영역의 Repository·Entity를 직접 사용하지 않고 서비스 계약으로 연결합니다"* 로 두었으므로, `current` 를 채우려면 **deployment 모듈의 조회 서비스 계약이 필요합니다.** `target.current_deployment_target_id` 까지는 제 소유라 읽고, 그 ID 가 가리키는 행은 읽지 않습니다.
 
 모양만 먼저 고정해 앱이 목업을 떼고 붙을 수 있게 하는 것이 이번 범위입니다.
+
+> 10/2: #42 부터 `current` 를 승환님 `currentByTarget` 로 읽습니다. 다만 `target.current_deployment_target_id` 를 갱신하는 코드가 아직 없어서(실행 결과 수신 #35 와 함께 붙음), **배포가 성공해도 그 전까지 `current` 는 null 입니다.** 화면에서 "아직 배포 없음" 으로 보이는 이유가 이것입니다.
 
 ### 데모 대상 시딩
 
@@ -363,7 +365,7 @@ V10 이 핵심이었습니다. 나머지가 다 맞아도 여기서 새면 다�
 | `error_summary` | 같은 이름 | 제공 (없으면 null) |
 | `received_at` | 같은 이름 | 제공 — 커서 기준이라 소비자도 순서를 알 수 있게 내보냅니다 |
 | `message`·`author`·`committed_at` | 없음 | **미제공** — 승환 S1 이 *"원천 없는 커밋 설명·작성자·시각은 후순위"* 로 두었습니다. GitHub 을 따로 호출해 채우지 않습니다 |
-| `deployed_to[]` | `deployment` 모듈 | **미제공 (null)** — 소유 경계입니다. A-02 의 `current` 와 같은 이유입니다 |
+| `deployed_to[]` | `deployment` 모듈 | ~~미제공 (null)~~ → #42 부터 승환님 조회 서비스로 제공 |
 
 ### 상태 대조 — 소비자 enum 에 `pending` 자리가 없습니다
 
@@ -610,12 +612,17 @@ Idempotency-Key: <키>
 | ① 배포 ID → 프로젝트 | 승환이 `projectIdOf(actorId, deploymentId)` 를 044a436 으로 제공. 없는·접근 못 하는 배포는 404, 경로는 `/deployments/{id}/...` 유지 | 승인·취소·재시도·롤백·배포 SSE 연결 (다음 작업) |
 | ② 설정 변경 시 409 | 동의. 바뀐 설정으로 진행하려면 새 배포 | 확정 |
 | ③ `recordBuild` | 동의. 기존 빌드를 확인하고 저장값 반환, 새 빌드 등록과 별개 | 확정 |
-| ④ 빌드 결과 저장 | 승환 제안: Jenkins 결과 수신·검증은 승환, `source_version` 등록은 은현 관리 서비스 | **은현 답 대기** |
+| ④ 빌드 결과 저장 | 승환 제안: Jenkins 결과 수신·검증은 승환, `source_version` 등록은 은현 관리 서비스 | 수락 (10/2). 결과에 `project_id` 포함 여부·중복 기준·`build.received` 이벤트 3가지를 승환님께 확인 중 |
 | ⑤ `disconnected` 409 | 동의. `unknown` 은 허용하되 연결 성공으로 표시하지 않음 | 확정 |
 | ⑥ 재시도 경로 | 승환·승준·도영 동의 | 확정 `POST /deployments/{id}/retry` |
 
 - **A-02 대상별 처리에서 권한 404 를 구분합니다.** 리뷰 지적대로 예전 재조회 방식은 권한 재검사의 404 를 대상 문제로 숨길 수 있었습니다. 승환의 `currentByTarget()`(044a436)으로 바꾸고 재조회 처리를 지웠습니다. 권한 오류는 조회 서비스가 그대로 올립니다.
 - **생성 응답 이름을 소비자 모델에 맞췄습니다.** `deployment_id`·`status` → `id`·`state`, `project_id` 추가.
+
+### 10/2 오전 점검 반영
+
+- **요청 하나의 대상 수를 50개로 막습니다.** 생성·취소·재시도·롤백의 `target_ids` 와 승인의 `items` 가 50개를 넘으면 400 입니다. 실행 서비스가 프로젝트 행을 잠근 채 대상을 확인하므로, 잠그기 전에 공개 경로에서 끊습니다. 50 은 데모 대상(3개)보다 넉넉하게 잡은 값입니다.
+- **A-02 `connection_state` 를 WR-04 와 같은 값(`ok`·`failed`·`unknown`)으로 바꿨습니다.** 계약에 없던 필드를 제가 더하면서 DB 값을 그대로 내보냈던 것입니다.
 
 ### 구현 상태 (10/2 새벽)
 
@@ -753,7 +760,7 @@ V9 의 실제 Jenkins 실행은 하지 않습니다. 기본 비활성 설정 그
 
 ### 확인이 필요한 것
 
-**① A-02 의 `connection_state` 와 값이 다릅니다 (웹·앱).** A-02 는 계약에 없던 필드를 제가 더하면서 DB 값(`connected`·`disconnected`)을 그대로 내보냈고, 웹은 *"W-04에서 연결이 안 되는 환경을 막을 때는 `connection_state`를 쓸게요"* (#38 도영) 라고 했습니다. W-04 는 원래 WR-04 를 쓰는 화면이라, **W-04 에서는 WR-04 `connection.state` 를 써 달라고** 알리겠습니다. A-02 값도 같은 변환으로 맞출지는 웹·앱과 정합니다.
+**① A-02 의 `connection_state` 와 값이 다릅니다 (웹·앱).** A-02 는 계약에 없던 필드를 제가 더하면서 DB 값(`connected`·`disconnected`)을 그대로 내보냈고, 웹은 *"W-04에서 연결이 안 되는 환경을 막을 때는 `connection_state`를 쓸게요"* (#38 도영) 라고 했습니다. W-04 는 원래 WR-04 를 쓰는 화면이라, **W-04 에서는 WR-04 `connection.state` 를 써 달라고** 알리겠습니다. A-02 값도 같은 변환으로 맞출지는 웹·앱과 정합니다. → 10/2: A-02 도 같은 변환으로 맞췄습니다. 두 화면이 같은 값을 쓰게 하는 쪽이 낫다고 봤고, 웹·앱에 알립니다.
 
 **② `reuse_assessment` 를 채우는 쪽 (승환·인프라).** 설계는 *"인프라가 보고한"* 값인데 수신 경로가 없습니다. 실행 결과 수신(#35)과 함께 정해지면 키 이름도 맞춥니다.
 
