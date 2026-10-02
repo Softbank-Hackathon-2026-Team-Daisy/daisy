@@ -130,3 +130,23 @@ struct EmptyBodyTests {
         #expect(target.step == .unknown && target.stepState == .unknown && target.attempt == 0)
     }
 }
+
+/// 서버 #46 A-04 `GET /deployments/{id}` 확정 모양 (10/2 10:25): 단계 · 시도 · URL · 헬스는 아직 null, 승인 ID는 `pending_approvals`
+struct DeploymentDetailContractTests {
+    @Test func serverA04Shape() throws {
+        let deployment = try JSONDecoder.daisy.decode(Deployment.self, from: Data("""
+        { "id": "dep_1", "project_id": "prj_1", "source_version_id": "sv_1", "commit": "2311c0b683ec",
+          "image": "docker.io/x/hellocalc:2311c0b683ec", "image_digest": null, "images": null,
+          "state": "awaiting_approval", "kind": null, "rolled_back_from": null, "retry_of": null,
+          "targets": [ { "target_id": "tgt_aws", "type": "aws", "name": "aws-prod", "state": "awaiting_approval",
+                         "step": null, "step_state": null, "attempt": null, "reused_script": false,
+                         "url": null, "image_digest": null, "health_summary": null, "error_summary": null,
+                         "cancel_requested_at": null, "started_at": "2026-10-02T01:00:00.123456Z", "finished_at": null } ],
+          "pending_approvals": [ { "target_id": "tgt_aws", "approval_id": "apv_1" } ],
+          "created_by": "acc_demo_owner", "created_at": "2026-10-02T01:00:00Z", "finished_at": null }
+        """.utf8))
+        #expect(deployment.state == .awaitingApproval && deployment.sourceVersionId == "sv_1")
+        #expect(deployment.targets?.first?.attempt == 0 && deployment.targets?.first?.step == .unknown)
+        #expect(deployment.approvalItems(for: ["tgt_aws"]).map(\.approvalId) == ["apv_1"])
+    }
+}
