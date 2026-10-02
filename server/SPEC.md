@@ -1388,3 +1388,22 @@ Jenkins `daisy-ci` 가 끝나면 결과를 `POST /internal/jenkins/builds` 로 �
 | B6 | 다른 인스턴스 `source` / 매핑에 없는 Job / 매핑과 다른 `project_id` | 403 / 403 / 403 |
 | B7 | `succeeded` 뒤 `failed` | 409, 이벤트 늘지 않음 |
 | B8 | 콜백 꺼짐 / `/projects` | 404 / Bearer 없으면 401 |
+
+### 검증 결과 (10/2 오후)
+
+단위 테스트 3개(보낸 쪽 확인 규칙)와, 빈 PostgreSQL 17 에 jar 를 설정만 바꿔 세 번 띄운 실서버로 확인했습니다. 본문은 #35 인프라 JSON 그대로이고 `source` 만 `jenkins:unibloom-onprem` 으로 바꿨습니다.
+
+| | 결과 |
+|---|---|
+| B1 | 토큰 없음 401, 틀린 토큰 401, 토큰 설정 없음 403 |
+| B2 | 200 `changed: true`, A-06 목록에 보이고 그 빌드로 배포 생성 201, `build.received` 1건 |
+| B3 | 같은 본문 재전송 200 `changed: false`, 같은 ID, 이벤트 그대로 |
+| B4 | `running` → `succeeded` 같은 ID, 이벤트 2건 |
+| B5 | 모르는 필드 400, `external_build_id` 에 `#번호` 없음 400 |
+| B6 | 다른 인스턴스 `source`(`jenkins:daisy-ci`) / 매핑에 없는 Job / 매핑과 다른 프로젝트 모두 403 |
+| B7 | `succeeded` 뒤 `failed` 409, 이벤트 그대로 |
+| B8 | 콜백 끔 404, `/projects` 는 콜백 토큰을 보내도 401 |
+
+세 번 띄운 서버 로그에 토큰 값 0회, ERROR 0건. 실DB 포함 테스트 214개 통과. 매핑 파싱에서 `" =2"` 처럼 공백 뒤 이름이 빈 Job 이 들어가던 것을 단위 테스트로 잡아 고쳤습니다.
+
+인프라에 맞춰 달라고 할 것: `source` 를 `jenkins:<DAISY_JENKINS_INSTANCE_ID 와 같은 값>` 으로, 개발 서버에 `DAISY_JENKINS_CI_PROJECTS=daisy-ci=prj_demo_monolith` 추가.

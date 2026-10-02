@@ -73,8 +73,9 @@ public class BuildRegistry {
    * 저장 결과예요.
    *
    * @param changed 행이 새로 생기거나 바뀌었으면 true. false 면 수신부는 이벤트를 다시 남기지 않아요
+   * @param statusChanged 새 빌드이거나 상태가 앞으로 갔으면 true. 같은 상태에서 빈 값만 채웠으면 false 예요. 이벤트는 이 값으로 남겨요
    */
-  public record Recorded(String sourceVersionId, boolean changed) {}
+  public record Recorded(String sourceVersionId, boolean changed, boolean statusChanged) {}
 
   /** 저장된 행에서 판단에 필요한 값이에요. */
   record Stored(
@@ -121,7 +122,7 @@ public class BuildRegistry {
             """,
             params(report).addValue("id", id));
     if (inserted == 1) {
-      return new Recorded(id, true);
+      return new Recorded(id, true, true);
     }
     Stored stored =
         jdbc.queryForObject(
@@ -156,7 +157,7 @@ public class BuildRegistry {
           """,
           params(report).addValue("id", stored.id()));
     }
-    return new Recorded(stored.id(), outcome != Outcome.UNCHANGED);
+    return new Recorded(stored.id(), outcome != Outcome.UNCHANGED, outcome == Outcome.ADVANCE);
   }
 
   /**

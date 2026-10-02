@@ -154,7 +154,7 @@ class BuildRegistryPostgresTest {
     Recorded succeeded = record(report("prj_1", "succeeded", images(COMMIT)));
 
     assertThat(running.changed()).isTrue();
-    assertThat(succeeded).isEqualTo(new Recorded(running.sourceVersionId(), true));
+    assertThat(succeeded).isEqualTo(new Recorded(running.sourceVersionId(), true, true));
     assertThat(jdbc.queryForObject("select count(*) from source_version", Integer.class))
         .isEqualTo(1);
 
