@@ -11,7 +11,7 @@ struct HistoryView: View {
     @State private var toast: ToastMessage?
 
     var body: some View {
-        PageScaffold("배포 이력", subtitle: "버전마다 어떤 이미지와 스크립트로 어느 환경에 배포했는지 남겨요.") {
+        PageScaffold(.app("배포 이력"), subtitle: .app("버전마다 어떤 이미지와 스크립트로 어느 환경에 배포했는지 남겨요.")) {
             Button { Task { await store.refresh(using: app) } } label: {
                 Label("새로 고침", systemImage: "arrow.clockwise")
             }
@@ -114,8 +114,8 @@ struct HistoryView: View {
     private func statusBadge(_ deployment: Deployment) -> StatusBadge {
         let badge = deployment.badge
         // 성공한 롤백은 이미 "롤백됨"이라 앞에 붙이지 않아요 ("롤백 · 롤백됨" 방지)
-        guard deployment.isRollback, badge.text != "롤백됨" else { return badge }
-        return StatusBadge(text: "롤백 · \(badge.text)", color: badge.color)
+        guard deployment.isRollback, deployment.state != .succeeded else { return badge }
+        return StatusBadge(text: .app("롤백 · \(badge.text)"), color: badge.color)
     }
 
     /// 웹: "10:12 · 12분 전" (만든 시각 기준)
@@ -156,6 +156,7 @@ struct HistoryView: View {
         guard let client = app.client else { return }
         do {
             let next = try await client.send(.rollback(deploymentID: deployment.id, targetIDs: targetIDs,
+                                                       // 서버에 남기는 사유라 화면 언어와 상관없이 한국어로 보내요 (팀 기록)
                                                        reason: "\(deployment.version ?? String(deployment.commit.prefix(7)))로 롤백"))
             rollbackTarget = nil
             router.push(.started(next.id))
@@ -198,7 +199,7 @@ struct RollbackDialog: View {
                 Button { dismiss() } label: { Label("닫기", systemImage: "xmark") }
                     .buttonStyle(GlassCircleButtonStyle(diameter: 28))
             }
-            let names = chosen.isEmpty ? "고른 환경" : FlowCopy.join(chosen.map(name))
+            let names = chosen.isEmpty ? String.app("고른 환경") : FlowCopy.join(chosen.map(name))
             Text("\(version)(\(deployment.commit.prefix(7))) 이미지로 새 배포를 만들어서 \(names)에 다시 올려요. 검증된 스크립트를 재사용해서 AI는 부르지 않아요. plan을 확인하고 승인해야 적용돼요.")
                 .font(.subheadline).foregroundStyle(.secondary)
             HStack(spacing: 16) {
@@ -220,7 +221,7 @@ struct RollbackDialog: View {
                     .textFieldStyle(.roundedBorder)
                     .plainInput()
             }
-            if let errorMessage { InlineAlert(.danger, "롤백을 시작하지 못했어요", errorMessage) }
+            if let errorMessage { InlineAlert(.danger, .app("롤백을 시작하지 못했어요"), errorMessage) }
             HStack {
                 Spacer()
                 Button("취소") { dismiss() }.buttonStyle(.glassCapsule)

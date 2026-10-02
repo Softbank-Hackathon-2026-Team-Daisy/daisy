@@ -26,10 +26,10 @@ struct ConnectAppView: View {
         if proceeding, let project {
             ConnectingView(project: project)
         } else {
-            FlowPage(step: 1, title: "애플리케이션 연결", description: "배포할 저장소를 연결해요. 처음 한 번만 하면 돼요.") {
+            FlowPage(step: 1, title: .app("애플리케이션 연결"), description: .app("배포할 저장소를 연결해요. 처음 한 번만 하면 돼요.")) {
                 sourceCard
                 githubForm
-                if let errorMessage { InlineAlert(.danger, "연결하지 못했어요", errorMessage) }
+                if let errorMessage { InlineAlert(.danger, .app("연결하지 못했어요"), errorMessage) }
                 FlowButtons {
                     Button("취소") { router.popToRoot() }
                         .buttonStyle(.glassCapsule)
@@ -62,7 +62,7 @@ struct ConnectAppView: View {
 
     private var githubForm: some View {
         AdaptiveGrid(minimumWidth: 320) {
-            SectionCard("저장소") {
+            SectionCard(.app("저장소")) {
                 VStack(alignment: .leading, spacing: 6) {
                     Text("저장소 URL").font(.subheadline.weight(.medium))
                     TextField("https://github.com/team/app", text: $repositoryURL)
@@ -83,9 +83,9 @@ struct ConnectAppView: View {
                     .fixedSize()
                     .disabled(project != nil)
                 }
-                InlineAlert(.info, "안내", "\(branch)에 merge할 때마다 이미지가 커밋 해시 태그로 만들어져요.")
+                InlineAlert(.info, .app("안내"), .app("\(branch)에 merge할 때마다 이미지가 커밋 해시 태그로 만들어져요."))
             }
-            SectionCard("배포 명세 확인") {
+            SectionCard(.app("배포 명세 확인")) {
                 if working && manifest == nil {
                     ProgressView()
                 } else if let manifest {

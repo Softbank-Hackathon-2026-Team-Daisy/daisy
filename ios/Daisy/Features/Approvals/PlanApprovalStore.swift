@@ -42,7 +42,7 @@ final class PlanApprovalStore {
         let items = deployment?.approvalItems(for: targetIDs) ?? []
         guard !items.isEmpty else {
             // 웹 #64와 같은 문구예요
-            errorMessage = "승인할 수 있는 plan이 없어요. 만료됐을 수 있어서 최신 상태를 다시 불러왔어요."
+            errorMessage = .app("승인할 수 있는 plan이 없어요. 만료됐을 수 있어서 최신 상태를 다시 불러왔어요.")
             await load(using: app)
             return
         }
@@ -59,10 +59,10 @@ final class PlanApprovalStore {
             decided = decision
         } catch let error as APIError where error.isStateConflict {
             // 웹에서 먼저 처리됐거나 plan이 다시 떠서 상태가 바뀌었어요 (웹 #64와 같은 문구)
-            errorMessage = "승인 상태가 바뀌어서 최신 상태를 다시 불러왔어요. 다시 확인해 주세요."
+            errorMessage = .app("승인 상태가 바뀌어서 최신 상태를 다시 불러왔어요. 다시 확인해 주세요.")
             await load(using: app)
         } catch APIError.server(403, _, _, _) {
-            errorMessage = "읽기 전용 계정이라 승인할 수 없어요."
+            errorMessage = .app("읽기 전용 계정이라 승인할 수 없어요.")
         } catch {
             app.handle(error)
             errorMessage = error.localizedDescription

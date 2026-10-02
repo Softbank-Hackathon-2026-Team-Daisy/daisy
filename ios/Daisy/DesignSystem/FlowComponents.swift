@@ -90,7 +90,7 @@ struct Avatar: View {
             .font(.caption2.weight(.semibold))
             .frame(width: 22, height: 22)
             .background(.fill.secondary, in: .circle)
-            .accessibilityLabel(name ?? "알 수 없음")
+            .accessibilityLabel(name ?? String.app("알 수 없음"))
     }
 }
 
@@ -98,7 +98,10 @@ struct Avatar: View {
 
 /// 웹 Stepper: 저장소 연결 · 이미지 빌드 · 대상 환경 · 생성 · 검증 · 승인 · 배포 · 결과. 표시 전용이에요.
 struct FlowStepper: View {
-    static let labels = ["저장소 연결", "이미지 빌드", "대상 환경", "생성 · 검증", "승인 · 배포", "결과"]
+    /// 고른 언어로 그때그때 만들어요 (설정에서 언어를 바꾸면 바로 바뀌게)
+    static var labels: [String] {
+        [.app("저장소 연결"), .app("이미지 빌드"), .app("대상 환경"), .app("생성 · 검증"), .app("승인 · 배포"), .app("결과")]
+    }
     /// 1부터 6
     let current: Int
 
@@ -399,7 +402,7 @@ struct ResourceDiffRow: View {
             Text(resource.address).font(.subheadline.monospaced()).lineLimit(1)
             Spacer(minLength: 8)
             if let cost = resource.monthlyCostKrw {
-                Text(cost == 0 ? "₩0" : "\(cost > 0 ? "+" : "\u{2212}")₩\(abs(cost).formatted())/월")
+                Text(cost == 0 ? "₩0" : "\(cost > 0 ? "+" : "\u{2212}")₩\(abs(cost).appFormatted)/월")
                     .font(.caption.monospacedDigit()).foregroundStyle(.secondary)
             }
         }
@@ -435,16 +438,16 @@ struct ParityTable: View {
 
     static func label(_ key: String) -> String {
         switch key {
-        case "digest": "이미지 digest"
-        case "commit": "커밋"
-        case "version": "앱 버전"
-        case "health": "헬스체크"
+        case "digest": .app("이미지 digest")
+        case "commit": .app("커밋")
+        case "version": .app("앱 버전")
+        case "health": .app("헬스체크")
         default: key
         }
     }
 
     var body: some View {
-        SectionCard("동일성 검증", subtitle: "모든 환경이 같은 상태인지 비교해요") {
+        SectionCard(.app("동일성 검증"), subtitle: .app("모든 환경이 같은 상태인지 비교해요")) {
             Label("\(parity.matching)/\(parity.total) 일치",
                   systemImage: parity.matching == parity.total ? "checkmark.circle" : "exclamationmark.circle")
                 .font(.caption.weight(.semibold))

@@ -111,7 +111,7 @@ private struct SlimTabBar: View {
                 .contentShape(.capsule)
         }
         .buttonStyle(.plain)
-        .accessibilityLabel(badge > 0 ? "\(tab.title), 승인 대기 \(badge)건" : tab.title)
+        .accessibilityLabel(badge > 0 ? String.app("\(tab.title), 승인 대기 \(badge)건") : tab.title)
         .accessibilityAddTraits(selected ? .isSelected : [])
     }
 }
@@ -186,5 +186,5 @@ private struct SidebarResizer: View {
 }
 
 #Preview {
-    RootView().environment(AppModel())
+    RootView().environment(AppModel()).environment(LanguageStore.shared)
 }

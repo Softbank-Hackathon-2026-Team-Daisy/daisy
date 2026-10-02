@@ -12,8 +12,8 @@ struct ApplyStage: View {
     private var targets: [Deployment.Target] { deployment.targets ?? [] }
 
     var body: some View {
-        FlowPage(step: 5, title: "배포 중",
-                 description: "\(targets.count)개 환경에 terraform apply를 동시에 실행하고 있어요. 환경마다 state는 따로 저장해요.") {
+        FlowPage(step: 5, title: .app("배포 중"),
+                 description: .app("\(targets.count)개 환경에 terraform apply를 동시에 실행하고 있어요. 환경마다 state는 따로 저장해요.")) {
             HStack { deployment.badge; Spacer() }
             AdaptiveGrid(minimumWidth: 260) {
                 ForEach(targets) { lane($0) }
@@ -53,7 +53,7 @@ struct LogViewer: View {
     let source: (String) -> String
 
     var body: some View {
-        SectionCard("로그 · 전체 환경") {
+        SectionCard(.app("로그 · 전체 환경")) {
             Button(autoScroll ? "자동 스크롤 켜짐" : "자동 스크롤 꺼짐") { autoScroll.toggle() }
                 .buttonStyle(.glassCapsule)
         } content: {
@@ -104,7 +104,7 @@ struct LogsView: View {
             LogViewer(lines: lines, autoScroll: $autoScroll) { workspace.type(of: $0).logSource }
                 .padding(20)
         }
-        .navigationTitle(targetID.map { "\(workspace.name(of: $0)) 로그" } ?? "로그")
+        .navigationTitle(targetID.map { String.app("\(workspace.name(of: $0)) 로그") } ?? String.app("로그"))
         .task { await poll { await load() } }
     }
 

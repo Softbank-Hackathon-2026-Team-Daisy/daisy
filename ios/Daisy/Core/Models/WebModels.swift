@@ -66,7 +66,7 @@ struct Parity: Sendable {
             // 웹: 헬스 요약이 있으면 그대로, 없으면 "정상" · "실패"
             Row(key: "health", cells: statuses.map {
                 Row.Cell(targetId: $0.targetId,
-                         value: $0.healthSummary ?? ($0.health == .healthy ? "정상" : $0.health == .unhealthy ? "실패" : nil),
+                         value: $0.healthSummary ?? ($0.health == .healthy ? String.app("정상") : $0.health == .unhealthy ? String.app("실패") : nil),
                          failed: $0.health == .unhealthy)
             }),
         ]
@@ -89,7 +89,7 @@ struct Parity: Sendable {
             // 웹: 성공은 헬스 요약 그대로("200 OK · 120ms", 없으면 "—"), 실패는 요약 또는 "실패"
             Row(key: "health", cells: all.map {
                 Row.Cell(targetId: $0.targetId,
-                         value: $0.state == .succeeded ? ($0.healthSummary ?? "—") : $0.state == .failed ? ($0.healthSummary ?? "실패") : nil,
+                         value: $0.state == .succeeded ? ($0.healthSummary ?? "—") : $0.state == .failed ? ($0.healthSummary ?? String.app("실패")) : nil,
                          failed: $0.state == .failed)
             }),
         ]
