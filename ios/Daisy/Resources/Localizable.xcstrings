@@ -1747,6 +1747,22 @@
         }
       }
     },
+    "값 없음" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "No value"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "値なし"
+          }
+        }
+      }
+    },
     "개요" : {
       "localizations" : {
         "en" : {

@@ -97,6 +97,7 @@ struct ConnectAppView: View {
                 } else {
                     ContentUnavailableView("연결하면 배포 명세를 읽어요", systemImage: "magnifyingglass",
                                            description: Text("저장소의 Dockerfile과 deploy.yaml(포트 · 헬스체크 · 환경변수 · DB)을 확인해요"))
+                        .emptyStateCentered()
                 }
             }
         }

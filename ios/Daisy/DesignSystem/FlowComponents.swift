@@ -492,16 +492,26 @@ struct ParityTable: View {
         }
     }
 
+    /// 아이콘 칸은 늘 같은 폭이에요: 실제 심볼을 숨겨 놓고 그 크기에 맞춰서, 글자 크기가 바뀌어도 ✓ · ✗ · "—"가 한 줄로 맞아요.
+    /// 값이 없으면 "—"를 그 아이콘 칸 가운데에 둬요 (10/3 담당자: 위아래 심볼과 들여쓰기 맞춤)
     private func cell(_ cell: Parity.Row.Cell) -> some View {
-        Label {
-            Text(cell.value ?? "—").font(.caption.monospaced())
-        } icon: {
-            if cell.failed {
-                Image(systemName: "xmark.circle").foregroundStyle(.red)
-            } else if cell.value != nil {
-                Image(systemName: "checkmark.circle").foregroundStyle(.green)
+        HStack(spacing: 6) {
+            ZStack {
+                Image(systemName: "checkmark.circle").hidden()
+                if cell.failed {
+                    Image(systemName: "xmark.circle").foregroundStyle(.red)
+                } else if cell.value != nil {
+                    Image(systemName: "checkmark.circle").foregroundStyle(.green)
+                } else {
+                    Text("—").font(.caption.monospaced()).foregroundStyle(.secondary)
+                }
+            }
+            if let value = cell.value {
+                Text(value).font(.caption.monospaced())
             }
         }
+        .accessibilityElement(children: .combine)
+        .accessibilityLabel(cell.value ?? String.app("값 없음"))
     }
 }
 
