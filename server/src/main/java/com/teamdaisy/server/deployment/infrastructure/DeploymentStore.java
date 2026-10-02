@@ -94,4 +94,26 @@ public class DeploymentStore {
   public void flush() {
     em.flush();
   }
+
+  public record ExpiredApproval(String projectId, String deploymentId, String deploymentTargetId) {}
+
+  public List<ExpiredApproval> expiredApprovals() {
+    return jdbc.query(
+        """
+        select t.project_id, t.deployment_id, t.id
+        from deployment_target t
+        join approval a on a.plan_id=t.current_plan_id and a.deployment_target_id=t.id
+        join jenkins_execution j on j.id=t.current_execution_id
+        join execution_target et on et.execution_id=j.id and et.deployment_target_id=t.id
+        where t.status='awaiting_approval' and a.state='pending' and a.expires_at<=now()
+          and j.operation in ('prepare','replan')
+          and (j.run_status in ('succeeded','failed','cancelled')
+               or (et.status in ('succeeded','failed','cancelled','stale') and et.finished_at is not null))
+        order by a.expires_at, a.id limit 100
+        """,
+        Map.of(),
+        (rs, row) ->
+            new ExpiredApproval(
+                rs.getString("project_id"), rs.getString("deployment_id"), rs.getString("id")));
+  }
 }

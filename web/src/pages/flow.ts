@@ -57,6 +57,7 @@ export function generateRow(t: DeploymentTarget): { note: string; status: Status
   if (t.state === 'awaiting_approval' || APPLY_ORDER.includes(t.state))
     return { note: `${how} · ${attempt} 통과`, status: { tone: 'success', label: '검증 통과' } }
   if (t.state === 'waiting') return { note: '대기 중', status: targetStatus('waiting') }
+  if (t.state === 'cancelled') return { note: t.cancel_requested_at ? '취소 요청으로 멈췄어요' : '취소됨', status: targetStatus('cancelled') }
   if (t.state === 'generating') return { note: `${how} · ${attempt}`, status: targetStatus('generating') }
   if (t.error_summary) return { note: `${how} · 위험 설정 발견 → AI 수정 중 · ${attempt}`, status: { tone: 'running', label: '검증 중' } }
   return { note: `${how} · ${t.step ? STEP_LABEL[t.step] : '검증'} 실행 중 · ${attempt}`, status: { tone: 'running', label: '검증 중' } }

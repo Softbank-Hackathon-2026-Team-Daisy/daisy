@@ -1,10 +1,13 @@
 import { useEffect, useRef, useState } from 'react'
 import { useNavigate, useParams } from 'react-router'
 import { useAuth } from '../../api/auth.ts'
-import { api } from '../../api/endpoints.ts'
+import { USE_MOCK } from '../../api/client.ts'
+import { api, isMocked } from '../../api/endpoints.ts'
 import type { Deployment } from '../../api/types.ts'
 import { useAction } from '../../api/useAction.ts'
-import { POLL_MS, useResource } from '../../api/useResource.ts'
+import { pollFor } from '../../api/projectLive.ts'
+import { useDeploymentLive } from '../../api/useRealtime.ts'
+import { useResource } from '../../api/useResource.ts'
 import Alert from '../../components/Alert.tsx'
 import Button from '../../components/Button.tsx'
 import CodeBlock from '../../components/CodeBlock.tsx'
@@ -28,7 +31,9 @@ const stillGenerating = (d: Deployment) => d.state === 'queued' || (d.targets ??
 
 function GeneratePage() {
   const { deploymentId = '' } = useParams()
-  const deployment = useResource(() => api.getDeployment(deploymentId), [deploymentId], POLL_MS, (d) => !stillGenerating(d))
+  // 배포 채널 이벤트(step · target · plan.ready)가 오면 다시 불러요. SSE가 없으면 5초 폴링
+  const live = useDeploymentLive(deploymentId)
+  const deployment = useResource(() => api.getDeployment(deploymentId), [deploymentId, live.tick], pollFor(live.state), (d) => !stillGenerating(d))
   const d = deployment.data
   // L-02: 환경 선택에서 넘어왔으면 생성이 시작될 때까지(작업 큐 대기가 끝날 때까지) 전환 로딩
   const ready = !!d && d.state !== 'queued'
@@ -48,7 +53,9 @@ function GenerateView({ d }: { d: Deployment }) {
   const approvable = !busy && d.targets.some((t) => t.state === 'awaiting_approval')
   const [tab, setTab] = useState(() => (failed[0] ?? d.targets.find((t) => BUSY.has(t.state)) ?? d.targets[0]).target_id)
   const target = d.targets.find((t) => t.target_id === tab) ?? d.targets[0]
-  const script = useResource(() => api.getScript(d.id, target.target_id), [d.id, target.target_id])
+  // 실서버 모드인데 스크립트 API(WR-07)가 아직 없으면 목업 코드를 실제 배포처럼 보여주지 않아요
+  const scriptReady = USE_MOCK || !isMocked('getScript')
+  const script = useResource(() => (scriptReady ? api.getScript(d.id, target.target_id) : Promise.resolve(null)), [d.id, target.target_id, scriptReady])
   const { run, pending, error: retryError } = useAction()
   const viewer = useAuth().role === 'viewer'
   const [toastOpen, setToastOpen] = useState(true)
@@ -130,6 +137,7 @@ function GenerateView({ d }: { d: Deployment }) {
   }
 
   const row = generateRow(target)
+  const cancelled = d.state === 'cancelled'
 
   return (
     <div className="page">
@@ -139,6 +147,12 @@ function GenerateView({ d }: { d: Deployment }) {
         title="인프라 코드 생성 · 검증"
         description="AI가 환경별 Terraform을 만들고 validate · plan · 위험 설정 검사를 통과할 때까지 최대 3번 고쳐요."
       />
+
+      {cancelled && (
+        <Alert type="info" title="배포가 취소됐어요">
+          이력에서 다시 배포하거나 롤백할 수 있어요.
+        </Alert>
+      )}
 
       <Panel title="환경별 진행">
         {d.targets.map((t) => {
@@ -163,7 +177,9 @@ function GenerateView({ d }: { d: Deployment }) {
           )}
         </Panel>
         <Panel title="생성된 스크립트">
-          {script.error ? (
+          {!scriptReady ? (
+            <p className="t-body-sm t-muted">생성된 스크립트는 서버 연결(WR-07) 뒤에 보여요</p>
+          ) : script.error ? (
             <ErrorBlock error={script.error} />
           ) : !script.data ? (
             <LoadingBlock />

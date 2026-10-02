@@ -75,7 +75,8 @@ struct AIUsageView: View {
                 }
                 SectionCard("이 배포의 호출 기록") {
                     if summary.rows.isEmpty {
-                        Text("이 배포는 AI를 부르지 않았어요").foregroundStyle(.secondary)
+                        // 빈 목록은 "AI를 안 썼다"는 뜻이 아니에요 (서버 #60): 기록이 아직 안 왔을 수 있어요
+                        Text("호출 기록을 아직 받지 않았어요 — AI를 안 썼다는 뜻은 아니에요").foregroundStyle(.secondary)
                     } else {
                         ViewThatFits(in: .horizontal) {
                             table(summary.rows).frame(minWidth: 720)

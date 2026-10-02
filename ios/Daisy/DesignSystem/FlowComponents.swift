@@ -536,8 +536,9 @@ struct RelativeTime: View {
 
 // MARK: - 연결 표시 (Connection Indicator)
 
+/// `polling`: 실시간(SSE) 전, 5초 폴링 중이에요 (웹과 같아요. 실시간 연결로 보이지 않게)
 enum ConnectionState: Equatable {
-    case connected, reconnecting, disconnected
+    case connected, polling, reconnecting, disconnected
 }
 
 struct ConnectionIndicator: View {
@@ -548,6 +549,8 @@ struct ConnectionIndicator: View {
         switch state {
         case .connected:
             Label("실시간 연결됨", systemImage: "cellularbars").foregroundStyle(.green).font(.caption.weight(.medium))
+        case .polling:
+            Label("5초마다 새로고침", systemImage: "arrow.clockwise").foregroundStyle(.secondary).font(.caption.weight(.medium))
         case .reconnecting:
             Label("재연결 중…", systemImage: "cellularbars").foregroundStyle(.orange).font(.caption.weight(.medium))
         case .disconnected:

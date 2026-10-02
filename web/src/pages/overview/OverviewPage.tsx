@@ -2,7 +2,8 @@ import { useNavigate, useParams } from 'react-router'
 import { api, isMocked } from '../../api/endpoints.ts'
 import { deploymentStatus } from '../../api/status.ts'
 import type { Deployment, TargetStatus } from '../../api/types.ts'
-import { POLL_MS, useResource } from '../../api/useResource.ts'
+import { pollFor, useProjectLive } from '../../api/projectLive.ts'
+import { useResource } from '../../api/useResource.ts'
 import Alert from '../../components/Alert.tsx'
 import Button from '../../components/Button.tsx'
 import EmptyState from '../../components/EmptyState.tsx'
@@ -22,8 +23,9 @@ import './OverviewPage.css'
 function OverviewPage() {
   const { projectId = '' } = useParams()
   const navigate = useNavigate()
-  const status = useResource(() => api.getTargetsStatus(projectId), [projectId], POLL_MS)
-  const runs = useResource(() => api.listDeployments(projectId), [projectId], POLL_MS)
+  const { state: live, tick } = useProjectLive()
+  const status = useResource(() => api.getTargetsStatus(projectId), [projectId, tick], pollFor(live))
+  const runs = useResource(() => api.listDeployments(projectId), [projectId, tick], pollFor(live))
 
   if (status.error) return <ErrorBlock error={status.error} />
   if (!status.data || !runs.data) return <LoadingBlock />

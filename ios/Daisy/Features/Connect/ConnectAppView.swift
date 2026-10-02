@@ -117,16 +117,21 @@ struct ConnectAppView: View {
         defer { working = false }
         do {
             let created = try await client.send(.connectProject(repository: trimmedURL, branch: branch))
-            app.selectedProjectID = created.id
-            project = created
+            app.selectedProjectID = created.project.id
+            project = created.project
             errorMessage = nil
             await workspace.refresh(using: app)
+            // 서버가 deploy.yaml을 아직 검증하지 않으면 manifest가 null이에요 (#59) → 웹처럼 "검증 전"으로 보고 넘어가요
+            guard let manifest = created.manifest else {
+                proceeding = true
+                return
+            }
+            self.manifest = manifest
+            if manifest.errors?.isEmpty ?? true { proceeding = true }
         } catch {
             app.handle(error)
             errorMessage = error.localizedDescription
-            return
         }
-        await fetchManifest()
     }
 
     private func loadManifest() async {
