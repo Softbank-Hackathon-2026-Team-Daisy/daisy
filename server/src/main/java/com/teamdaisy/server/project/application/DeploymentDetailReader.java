@@ -11,8 +11,12 @@ import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.sql.Timestamp;
 import java.time.Instant;
+import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import org.springframework.jdbc.core.RowMapper;
+import org.springframework.jdbc.core.namedparam.MapSqlParameterSource;
 import org.springframework.jdbc.core.namedparam.NamedParameterJdbcTemplate;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
@@ -72,71 +76,133 @@ public class DeploymentDetailReader {
   public record DeploymentDetail(
       DeploymentRow deployment, List<TargetRow> targets, List<PendingApproval> pendingApprovals) {}
 
+  private static final String DEPLOYMENT_COLUMNS =
+      """
+      select id, project_id, source_version_id, commit_sha, image_refs::text, status, kind,
+             rollback_of_deployment_id, retry_of_deployment_id, requested_by,
+             created_at, finished_at, last_event_seq
+      from deployment
+      """;
+
+  /** 배포 한 건이에요 (A-04). 없거나 이 프로젝트 것이 아니면 404 예요. */
   public DeploymentDetail read(String projectId, String deploymentId) {
-    Map<String, String> params = Map.of("project", projectId, "id", deploymentId);
     List<DeploymentRow> found =
         jdbc.query(
-            """
-            select id, project_id, source_version_id, commit_sha, image_refs::text, status, kind,
-                   rollback_of_deployment_id, retry_of_deployment_id, requested_by,
-                   created_at, finished_at, last_event_seq
-            from deployment
-            where id = :id and project_id = :project
-            """,
-            params,
-            (rs, row) ->
-                new DeploymentRow(
-                    rs.getString("id"),
-                    rs.getString("project_id"),
-                    rs.getString("source_version_id"),
-                    rs.getString("commit_sha"),
-                    json(rs.getString("image_refs")),
-                    rs.getString("status"),
-                    rs.getString("kind"),
-                    rs.getString("rollback_of_deployment_id"),
-                    rs.getString("retry_of_deployment_id"),
-                    displayName(rs.getString("requested_by")),
-                    instant(rs, "created_at"),
-                    instant(rs, "finished_at"),
-                    rs.getLong("last_event_seq")));
+            DEPLOYMENT_COLUMNS + " where id = :id and project_id = :project",
+            Map.of("project", projectId, "id", deploymentId),
+            deploymentMapper(new HashMap<>()));
     if (found.isEmpty()) {
       throw new DaisyException(ErrorCode.NOT_FOUND);
     }
-    List<TargetRow> targets =
+    return withChildren(projectId, found).get(0);
+  }
+
+  /**
+   * 배포 목록 한 페이지예요 (A-03). 최신순이고, {@code limit} 은 호출하는 쪽이 다듬어서 넘겨요.
+   *
+   * @param state 배포 전체 상태 하나. null 이면 전부예요
+   * @param afterAt 커서의 생성 시각. null 이면 첫 페이지예요
+   */
+  public List<DeploymentDetail> list(
+      String projectId, String state, Instant afterAt, String afterId, int limit) {
+    StringBuilder where = new StringBuilder(" where project_id = :project");
+    MapSqlParameterSource params =
+        new MapSqlParameterSource().addValue("project", projectId).addValue("limit", limit);
+    if (state != null) {
+      where.append(" and status = :state");
+      params.addValue("state", state);
+    }
+    if (afterAt != null) {
+      // 같은 시각의 배포가 페이지 경계에 걸려도 건너뛰지 않게 (시각, ID) 로 이어요.
+      where.append(" and (created_at < :at or (created_at = :at and id < :id))");
+      params.addValue("at", Timestamp.from(afterAt)).addValue("id", afterId);
+    }
+    List<DeploymentRow> page =
         jdbc.query(
-            """
-            select target_id, target_snapshot::text, status, attempt, ai_reused, error_summary,
-                   cancel_requested_at, started_at, finished_at
-            from deployment_target
-            where deployment_id = :id and project_id = :project
-            order by target_id
-            """,
+            DEPLOYMENT_COLUMNS + where + " order by created_at desc, id desc limit :limit",
             params,
-            (rs, row) ->
-                new TargetRow(
-                    rs.getString("target_id"),
-                    json(rs.getString("target_snapshot")),
-                    rs.getString("status"),
-                    rs.getInt("attempt"),
-                    rs.getBoolean("ai_reused"),
-                    rs.getString("error_summary"),
-                    instant(rs, "cancel_requested_at"),
-                    instant(rs, "started_at"),
-                    instant(rs, "finished_at")));
+            deploymentMapper(new HashMap<>()));
+    return withChildren(projectId, page);
+  }
+
+  /** 한 페이지의 대상·승인 대기를 배포 ID 로 한 번씩만 읽어서 붙여요. 배포마다 따로 읽지 않아요. */
+  private List<DeploymentDetail> withChildren(String projectId, List<DeploymentRow> rows) {
+    if (rows.isEmpty()) {
+      return List.of();
+    }
+    MapSqlParameterSource params =
+        new MapSqlParameterSource()
+            .addValue("project", projectId)
+            .addValue("ids", rows.stream().map(DeploymentRow::id).toList());
+    Map<String, List<TargetRow>> targets = new HashMap<>();
+    jdbc.query(
+        """
+        select deployment_id, target_id, target_snapshot::text, status, attempt, ai_reused,
+               error_summary, cancel_requested_at, started_at, finished_at
+        from deployment_target
+        where deployment_id in (:ids) and project_id = :project
+        order by deployment_id, target_id
+        """,
+        params,
+        (ResultSet rs) -> {
+          targets
+              .computeIfAbsent(rs.getString("deployment_id"), key -> new ArrayList<>())
+              .add(
+                  new TargetRow(
+                      rs.getString("target_id"),
+                      json(rs.getString("target_snapshot")),
+                      rs.getString("status"),
+                      rs.getInt("attempt"),
+                      rs.getBoolean("ai_reused"),
+                      rs.getString("error_summary"),
+                      instant(rs, "cancel_requested_at"),
+                      instant(rs, "started_at"),
+                      instant(rs, "finished_at")));
+        });
     // 만료 시각이 지난 승인은 아직 pending 으로 남아 있어도 빼요. 보내 봐야 옛 승인이라 409 예요.
-    List<PendingApproval> pending =
-        jdbc.query(
-            """
-            select dt.target_id, a.id
-            from approval a
-            join deployment_target dt on dt.id = a.deployment_target_id
-            where dt.deployment_id = :id and dt.project_id = :project
-              and a.state = 'pending' and a.expires_at > now()
-            order by dt.target_id
-            """,
-            params,
-            (rs, row) -> new PendingApproval(rs.getString("target_id"), rs.getString("id")));
-    return new DeploymentDetail(found.get(0), targets, pending);
+    Map<String, List<PendingApproval>> pending = new HashMap<>();
+    jdbc.query(
+        """
+        select dt.deployment_id, dt.target_id, a.id
+        from approval a
+        join deployment_target dt on dt.id = a.deployment_target_id
+        where dt.deployment_id in (:ids) and dt.project_id = :project
+          and a.state = 'pending' and a.expires_at > now()
+        order by dt.deployment_id, dt.target_id
+        """,
+        params,
+        (ResultSet rs) -> {
+          pending
+              .computeIfAbsent(rs.getString("deployment_id"), key -> new ArrayList<>())
+              .add(new PendingApproval(rs.getString("target_id"), rs.getString("id")));
+        });
+    return rows.stream()
+        .map(
+            row ->
+                new DeploymentDetail(
+                    row,
+                    List.copyOf(targets.getOrDefault(row.id(), List.of())),
+                    List.copyOf(pending.getOrDefault(row.id(), List.of()))))
+        .toList();
+  }
+
+  /** 요청자 표시 이름은 한 요청 안에서 계정마다 한 번만 읽어요. */
+  private RowMapper<DeploymentRow> deploymentMapper(Map<String, String> names) {
+    return (rs, row) ->
+        new DeploymentRow(
+            rs.getString("id"),
+            rs.getString("project_id"),
+            rs.getString("source_version_id"),
+            rs.getString("commit_sha"),
+            json(rs.getString("image_refs")),
+            rs.getString("status"),
+            rs.getString("kind"),
+            rs.getString("rollback_of_deployment_id"),
+            rs.getString("retry_of_deployment_id"),
+            names.computeIfAbsent(rs.getString("requested_by"), this::displayName),
+            instant(rs, "created_at"),
+            instant(rs, "finished_at"),
+            rs.getLong("last_event_seq"));
   }
 
   /** 요청자는 계정 표시 이름으로 보여줘요. 계정이 없으면 ID 그대로예요. */

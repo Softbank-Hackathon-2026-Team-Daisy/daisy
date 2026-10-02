@@ -154,7 +154,7 @@ public class ProjectController {
    * {@code limit} 을 다듬어요. 최대값을 넘으면 400 이 아니라 깎아요 — 목록 조회가 한도 때문에 실패하지 않는 쪽이 나아요. 다만 0·음수는 요청이 잘못된
    * 것이라 막아요.
    */
-  private static int normalizeLimit(int limit) {
+  static int normalizeLimit(int limit) {
     if (limit <= 0) {
       throw new DaisyException(ErrorCode.VALIDATION_FAILED);
     }
