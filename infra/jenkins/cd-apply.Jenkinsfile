@@ -213,6 +213,12 @@ def checkTarget(String t) {
       sleep 10
     done
     if [ -f app/scripts/smoke-test.sh ]; then
+      # 새 버전이 실제로 요청을 받을 때까지 기다려요. Container Apps는 apply가 끝난 뒤에도 몇 초 동안 이전 리비전이 응답해서
+      # 커밋 검사가 실패했어요 (10/3 daisy-cd-apply #16 azure). 3분 안에 안 바뀌면 그대로 스모크 테스트가 실패를 알려요
+      for i in \$(seq 1 18); do
+        if [ "\$(curl -fsS --max-time 5 "\$url/version" 2>/dev/null | jq -r '.commit // empty' 2>/dev/null)" = "\$D_COMMIT" ]; then break; fi
+        if [ "\$i" -lt 18 ]; then sleep 10; fi
+      done
       if BASE_URL="\$url" EXPECTED_COMMIT="\$D_COMMIT" sh app/scripts/smoke-test.sh > "smoke-${t}.log" 2>&1; then
         cat "smoke-${t}.log"
       else
