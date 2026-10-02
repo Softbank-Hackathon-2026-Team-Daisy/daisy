@@ -1029,3 +1029,44 @@ URL 인코딩 자체가 깨진 커서(`%%%bad`)는 Tomcat 이 파라미터를 �
 단위 테스트 7개를 더했습니다 (환산·반올림·잘못된 환율 3개, 응답 변환 4개). `./gradlew --no-daemon spotlessCheck check build` 성공, 182개 통과.
 
 같은 경로의 두 핸들러가 OpenAPI 에서 한 operation 으로 합쳐지면서 처음에는 `detail` 이 필수로 표시됐습니다. 붙이지 않는 A-05 호출이 있으니 문서에서 선택으로 보이게 고쳤습니다.
+
+## 스크립트 목록 WR-10 (10/2, 하은현)
+
+### 범위
+
+`GET /projects/{id}/scripts?target_id=` 로 검증된 Terraform 스크립트 목록을 줍니다 (W-11). 설계 5.12 가 "script — 승환 수집, 은현 조회" 라 조회는 제 몫입니다. 파일 내용(WR-07)은 서버가 원본 참조(`artifact_ref`)만 갖고 있어 이번 범위가 아닙니다.
+
+- 권한: `requireRead`. 비멤버·없는 프로젝트 404, viewer 200. `target_id` 를 주면 그 대상만, 그 프로젝트 대상이 아니면 404.
+- 데이터: `script`·`deployment_target`·`plan_revision`·`target` 을 읽기 전용 SQL 로 읽습니다. `server/AGENTS.md` §3 예외 목록에 `script` 를 더합니다.
+- 봉투 `{ items, next_cursor }`. 대상당 버전이 몇 개라 한 번에 주고 `next_cursor` 는 null 입니다 (500 행 상한). 앱 `Page<Script>` 와 같고, 웹은 배열로 받고 있어 봉투로 맞춰 달라고 알립니다.
+- 순서: `target_id`, 버전 내림차순.
+
+### 한 줄
+
+| 필드 | 출처 | 비고 |
+|---|---|---|
+| `script_id` | `script.id` | |
+| `target_id` · `type` | `script.target_id`, `target.environment_type` | |
+| `version` | `"s" + script.version` | 앱·웹이 문자열 `"s2"` 로 받음 |
+| `origin` | 처음 검증한 대상(`source_deployment_target_id`)의 `ai_reused` | false 면 `ai_generated`, true 면 `reused` |
+| `attempt` | 처음 검증한 대상의 `attempt` | 통과한 시도 (1~3) |
+| `validation` | `{ validate, plan, risks }` | `validate` 는 늘 true (`validated_at` 이 있어야 저장됨). `plan` 은 이 스크립트로 만든 plan 이 있으면 true. `risks` 는 가장 최근 plan 의 `summary.risks` 개수, plan 이 없으면 null |
+| `status` | `unavailable_at`·`artifact_expires_at` | 원본을 쓸 수 없거나 보관 기한이 지났으면 `discarded`, 아니면 `verified` |
+| `reuse_count` | 이 스크립트를 쓴 대상 중 `ai_reused = true` 인 수 | |
+| `last_used_at` | 이 스크립트를 쓴 대상의 `finished_at`(없으면 `started_at`) 중 가장 늦은 것 | 쓴 적 없으면 null |
+| `created_at` | `script.validated_at` | 원천 검증 완료 시각 |
+| `files` | 없음 | 넣지 않음 (WR-07) |
+
+`note`·`base_commit`·`input`·`ai_tokens`·`storage` 는 원천이 없어 넣지 않습니다.
+
+### 검증 계획
+
+| | 검사 | 기대 |
+|---|---|---|
+| S1 | 토큰 없음 / 비멤버 / viewer | 401 / 404 / 200 |
+| S2 | 스크립트 3개 (대상 둘, 한 대상은 버전 2개) | 대상 순, 버전 내림차순, `version: "s2"` 형식 |
+| S3 | 재사용 2번 쓴 스크립트 | `reuse_count: 2`, `last_used_at` 이 가장 늦은 사용 |
+| S4 | plan 이 있는 스크립트 / 없는 스크립트 | `plan: true`, `risks` 개수 / `plan: false`, `risks: null` |
+| S5 | `unavailable_at` 있음 | `discarded` |
+| S6 | `target_id` 필터 / 다른 프로젝트 대상 | 그 대상만 / 404 |
+| S7 | 다른 프로젝트 스크립트 | 섞이지 않음 |
