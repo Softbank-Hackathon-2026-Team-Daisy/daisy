@@ -123,7 +123,8 @@ struct TargetSelectView: View {
         }
         let builds = try? await client.send(.builds(projectID: projectID)).items
         latestBuild = builds?.first { build in
-            fixedCommit.map { build.commit == $0 } ?? (build.pipeline.status == .success && build.image != nil)
+            // 같은 커밋을 다시 빌드했을 수 있어서, 커밋을 정해 들어와도 성공한 빌드만 골라요 (서버는 실패 · 진행 중 빌드 ID에 409)
+            build.pipeline.status == .success && build.sourceVersionId != nil && (fixedCommit.map { build.commit == $0 } ?? (build.image != nil))
         }
     }
 

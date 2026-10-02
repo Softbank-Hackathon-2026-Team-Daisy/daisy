@@ -5,6 +5,7 @@ import { api, isMocked } from '../../api/endpoints.ts'
 import { deploymentStatus, targetStatus } from '../../api/status.ts'
 import type { Deployment, DeploymentTarget } from '../../api/types.ts'
 import { useAction } from '../../api/useAction.ts'
+import { useDeploymentLive } from '../../api/useRealtime.ts'
 import { useResource } from '../../api/useResource.ts'
 import Alert from '../../components/Alert.tsx'
 import Button from '../../components/Button.tsx'
@@ -24,7 +25,8 @@ import '../page.css'
 // W-08 배포 결과 (STEP 6) — 환경별 URL · 헬스, 동일성 검증(이식성 데모 포인트)
 function ResultPage() {
   const { deploymentId = '' } = useParams()
-  const deployment = useResource(() => api.getDeployment(deploymentId), [deploymentId])
+  const live = useDeploymentLive(deploymentId)
+  const deployment = useResource(() => api.getDeployment(deploymentId), [deploymentId, live.tick])
   if (deployment.error) return <ErrorBlock error={deployment.error} />
   if (!deployment.data) return <LoadingBlock />
   return <ResultView d={deployment.data} />

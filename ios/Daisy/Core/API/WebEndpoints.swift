@@ -9,7 +9,8 @@ private func jsonBody(_ value: some Encodable) -> Data? {
 
 extension Endpoint {
     /// WR-02 · W-02 연결하기. 응답에 deploy.yaml 검증 결과가 같이 와요
-    static func connectProject(repository: String, branch: String) -> Endpoint<Project> {
+    /// 응답은 `{ project, manifest }`예요 (서버 #59, 웹과 같아요). `manifest`는 서버가 아직 검증하지 않아 null일 수 있어요
+    static func connectProject(repository: String, branch: String) -> Endpoint<ConnectResult> {
         .init(method: "POST", path: "projects",
               body: jsonBody(ConnectProjectBody(repository: repository, branch: branch)),
               idempotencyKey: UUID().uuidString)

@@ -145,6 +145,8 @@ extension Deployment.Target {
     /// "AI 생성 · validate 실행 중 · 시도 1/3", "재사용 · 이미지 태그만 교체 · 시도 1/3 통과", "3회 실패 · 중단"
     var generateRow: (note: String, badge: StatusBadge) {
         let how = reusedScript == true ? "재사용 · 이미지 태그만 교체" : "AI 생성"
+        // 웹 #64: 승인했고 apply 시작 전이면 "승인 완료 · 실행 대기" · 승인됨
+        if isApprovedWaiting { return ("승인 완료 · 실행 대기", StatusBadge(text: "승인됨", color: .green)) }
         switch resolvedState {
         case .failed:
             return ("\(attempt)회 실패 · 중단", StatusBadge(text: "실패", color: .red))
