@@ -13,7 +13,7 @@ export function relativeTime(iso: string, now = Date.now()) {
   if (d.toDateString() === today.toDateString()) return t('{n}시간 전', { n: hour })
   const yesterday = new Date(now - 86_400_000)
   if (d.toDateString() === yesterday.toDateString()) return t('어제')
-  return d.toLocaleDateString(locale(), { month: 'numeric', day: 'numeric' })
+  return `${d.getMonth() + 1}/${d.getDate()}` // 세 언어 모두 "9/30"
 }
 
 export function clockTime(iso: string) {
