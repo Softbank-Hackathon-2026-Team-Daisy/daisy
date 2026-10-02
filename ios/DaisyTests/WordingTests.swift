@@ -81,7 +81,7 @@ struct WordingTests {
 
     @Test func resourceSummaryUsesMinusSign() throws {
         let counts = try JSONDecoder.daisy.decode(Plan.Target.Counts.self, from: Data(#"{ "create": 6, "update": 0, "delete": 0 }"#.utf8))
-        #expect(counts.summaryText == "리소스 +6 ~0 \u{2212}0")
+        #expect(counts.summaryText == "리소스 생성 6 · 변경 0 · 삭제 0")
     }
 
     /// 9/30 서버 확정 두 층 상태. 빠진 값(building 등)은 unknown으로 받아요.

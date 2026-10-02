@@ -208,8 +208,8 @@ extension Deployment.Target {
 }
 
 extension Plan.Target.Counts {
-    /// 웹과 같은 표기: "리소스 +6 ~0 −0" (빼기는 U+2212).
-    var summaryText: String { String.app("리소스 +\(create) ~\(update) \u{2212}\(delete)") }
+    /// "리소스 생성 6 · 변경 0 · 삭제 0" — 기호(+ ~ −) 대신 언어별 단어로 써요 (10/3 담당자: 기호가 와닿지 않아요. 웹은 기호 그대로)
+    var summaryText: String { String.app("리소스 생성 \(create) · 변경 \(update) · 삭제 \(delete)") }
 }
 
 extension AIUsage {

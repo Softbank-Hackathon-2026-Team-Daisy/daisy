@@ -108,7 +108,7 @@ struct PlanApprovalView: View {
                             StatusBadge(text: .app("실패"), color: .red)
                         }
                     } else {
-                        // 웹: "리소스 +6 ~0 −0 · 위험 설정 0건" / "리소스 +0 ~1 −0 · 이미지 태그만 교체"
+                        // 웹: "리소스 +6 ~0 −0 · 위험 설정 0건" (앱은 "리소스 생성 6 · 변경 0 · 삭제 0 · 위험 설정 0건")
                         let target = model.plan(of: id)
                         let text = target.map { "\($0.counts.summaryText) · \($0.summary ?? String.app("위험 설정 \($0.risks.count)건"))" } ?? "—"
                         ProgressLine(name: type, text: text) { StatusBadge(text: .app("검증 통과"), color: .green) }
@@ -172,7 +172,7 @@ struct PlanApprovalView: View {
     }
 
     private func barText(_ model: Model) -> some View {
-        // 웹: "2개 환경 · 리소스 +3 ~1 −1" / "검증 통과 2/3 · 이미지 a1b2c3d · 위험 설정 1건 · AI 비용 ₩206 (추정, 환율 1,380원)"
+        // 웹: "2개 환경 · 리소스 +3 ~1 −1" (앱은 "2개 환경 · 생성 3 · 변경 1 · 삭제 1") / "검증 통과 2/3 · 이미지 a1b2c3d · 위험 설정 1건 · AI 비용 ₩206 (추정, 환율 1,380원)"
         let meta: String = ([
             .app("검증 통과 \(model.approvable.count)/\(model.targetIDs.count)"),
             store.deployment.map { String.app("이미지 \(String($0.commit.prefix(7)))") },
@@ -180,7 +180,7 @@ struct PlanApprovalView: View {
             model.plan.aiUsage?.costText.map { String.app("AI 비용 \($0)") },
         ] as [String?]).compactMap { $0 }.joined(separator: " · ")
         return VStack(alignment: .leading, spacing: 2) {
-            Text("\(model.approvable.count)개 환경 · 리소스 +\(model.sum(\.create)) ~\(model.sum(\.update)) \u{2212}\(model.sum(\.delete))")
+            Text("\(model.approvable.count)개 환경 · 생성 \(model.sum(\.create)) · 변경 \(model.sum(\.update)) · 삭제 \(model.sum(\.delete))")
                 .font(.subheadline.weight(.semibold).monospacedDigit())
             Text(meta).font(.caption).foregroundStyle(.secondary)
             if app.isViewer { Text("읽기 전용 계정이라 승인할 수 없어요.").font(.caption).foregroundStyle(.orange) }
