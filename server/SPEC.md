@@ -1216,7 +1216,7 @@ record Recorded(String sourceVersionId, boolean changed)
 | `attempt` | 처음 검증한 대상의 `attempt` | 통과한 시도 (1~3). 0 이면 A-04 와 같이 null (S2) |
 | `validation` | `{ validate, plan, risks }` | `validate` 는 늘 true (`validated_at` 이 있어야 저장됨). `plan` 은 이 스크립트로 만든 plan 이 있으면 true. `risks` 는 가장 최근 plan 의 `summary.risks` 개수, plan 이 없으면 null |
 | `status` | `unavailable_at`·`artifact_expires_at` | 원본을 쓸 수 없거나 보관 기한이 지났으면 `discarded`, 아니면 `verified` |
-| `reuse_count` | 이 스크립트를 쓴 대상 중 `ai_reused = true` 인 수 | |
+| `reuse_count` | 이 스크립트를 쓴 대상 중 `ai_reused = true` 이고 `status = 'succeeded'` 인 수 | 성공한 재사용만 셈. 실패·취소·진행 중인 재사용은 빼요 (#68 승준님 제안) |
 | `last_used_at` | 이 스크립트를 쓴 대상의 `finished_at`(없으면 `started_at`) 중 가장 늦은 것 | 쓴 적 없으면 null |
 | `created_at` | `script.validated_at` | 원천 검증 완료 시각 |
 | `files` | 없음 | 넣지 않음 (WR-07) |
@@ -1385,5 +1385,6 @@ record Recorded(String sourceVersionId, boolean changed)
 | S8 | OpenAPI 파라미터 `projectId`·`target_id`, `principal` 0건, 서버 로그 ERROR 0건 |
 
 - 재사용 수에서 `ai_reused` 조건을 빼면 실DB 테스트가 실패하는 것을 확인했습니다.
+- #68 승준님 제안으로 `reuse_count` 는 성공한 재사용(`status = 'succeeded'`)만 셉니다. 실DB 테스트에 실패한 재사용 대상을 하나 더 넣어 빠지는 것을 확인했고, 이 조건을 빼면 테스트가 실패합니다 (3 ≠ 2).
 - 실서버에서 처음 검증한 대상의 `attempt` 가 0 인 경우가 `attempt: 0` 으로 나와, A-04 와 같이 null 로 바꿨습니다 (S2). 실제로는 AI 생성 뒤에만 스크립트가 생겨 1 이상입니다.
 - #68 승환님 리뷰로 `origin` 판정을 고쳤습니다. 재사용이 아니라는 것만으로 `ai_generated` 라고 하지 않고, 생성 시도(1 이상)가 있을 때만 그렇게 봅니다. AI 없이 기준 모듈을 쓴 경로는 null 입니다. 단위 테스트를 더했고, 실서버에서 시도 0 픽스처가 `origin: null` 로 나오는 것을 다시 확인했습니다.

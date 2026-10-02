@@ -91,7 +91,11 @@ class ScriptReaderPostgresTest {
     target("tgt_x", "prj_2", "onprem");
     for (String[] d :
         new String[][] {
-          {"dep_1", "prj_1"}, {"dep_2", "prj_1"}, {"dep_3", "prj_1"}, {"dep_x", "prj_2"}
+          {"dep_1", "prj_1"},
+          {"dep_2", "prj_1"},
+          {"dep_3", "prj_1"},
+          {"dep_4", "prj_1"},
+          {"dep_x", "prj_2"}
         }) {
       jdbc.update(
           "insert into deployment(id,project_id,requested_by,commit_sha,repository_snapshot,"
@@ -104,6 +108,7 @@ class ScriptReaderPostgresTest {
     deploymentTarget("dt_a1", "dep_1", "prj_1", "tgt_a", 2, false, T1);
     deploymentTarget("dt_a2", "dep_2", "prj_1", "tgt_a", 0, true, T2);
     deploymentTarget("dt_a3", "dep_3", "prj_1", "tgt_a", 0, true, T3);
+    deploymentTarget("dt_a4", "dep_4", "prj_1", "tgt_a", 0, true, T2);
     deploymentTarget("dt_b1", "dep_1", "prj_1", "tgt_b", 1, false, T1);
     deploymentTarget("dt_x", "dep_x", "prj_2", "tgt_x", 1, false, T1);
     script("scr_a1", "prj_1", "tgt_a", 1, "dt_a1", false);
@@ -111,7 +116,11 @@ class ScriptReaderPostgresTest {
     script("scr_b1", "prj_1", "tgt_b", 1, "dt_b1", true);
     script("scr_x", "prj_2", "tgt_x", 1, "dt_x", false);
     jdbc.update(
-        "update deployment_target set script_id='scr_a2' where id in ('dt_a1','dt_a2','dt_a3')");
+        "update deployment_target set script_id='scr_a2' where id in ('dt_a1','dt_a2','dt_a3','dt_a4')");
+    // 재사용 수는 성공한 재사용만 세요 (#68 승준님 제안). dt_a4 는 실패한 재사용이라 빠져야 해요
+    jdbc.update(
+        "update deployment_target set status='succeeded' where id in ('dt_a1','dt_a2','dt_a3')");
+    jdbc.update("update deployment_target set status='failed' where id = 'dt_a4'");
     // scr_a2 로 만든 plan 하나 (위험 설정 2개)
     jdbc.update(
         "insert into jenkins_execution(id,deployment_id,request_id,operation,instance_id,"

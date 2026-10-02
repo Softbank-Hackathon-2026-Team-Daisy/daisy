@@ -71,7 +71,8 @@ public class ScriptReader {
                    s.unavailable_at, s.artifact_expires_at,
                    src.ai_reused as source_reused, src.attempt as source_attempt,
                    (select count(*) from deployment_target u
-                     where u.script_id = s.id and u.project_id = s.project_id and u.ai_reused)
+                     where u.script_id = s.id and u.project_id = s.project_id and u.ai_reused
+                       and u.status = 'succeeded')
                      as reuse_count,
                    (select max(coalesce(u.finished_at, u.started_at)) from deployment_target u
                      where u.script_id = s.id and u.project_id = s.project_id) as last_used_at,
