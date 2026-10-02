@@ -62,14 +62,14 @@ struct RunLogicTests {
 
     // MARK: 다시 시도
 
-    /// "AWS만 다시 시도" = 같은 커밋 · 그 환경만으로 새 배포 (WR-05)
+    /// "다시 시도" = 원본 배포 ID + 그 환경만 (`POST /deployments/{id}/retry`, 10/2 확정)
     @Test func retryOnlyFailedTarget() throws {
         let deployment = try F.deployment("running", targets: [
             F.target("tgt_onprem", state: "validating", step: "plan", stepState: "running"),
             F.target("tgt_aws", state: "failed", step: "plan", stepState: "failed", attempt: 3),
         ])
         let retry = RetryRequest.only("tgt_aws", of: deployment)
-        #expect(retry == RetryRequest(projectID: "prj_1", commit: "a1b2c3d4e5f6", targetIDs: ["tgt_aws"]))
+        #expect(retry == RetryRequest(deploymentID: deployment.id, targetIDs: ["tgt_aws"]))
         // W-05b "○○만 다시 시도"는 실패한 환경 전부를 한 번에 (웹과 같아요)
         #expect(RetryRequest.failed(of: deployment).targetIDs == ["tgt_aws"])
     }

@@ -5,7 +5,6 @@ import { POLL_MS, useResource } from '../../api/useResource.ts'
 import Button from '../../components/Button.tsx'
 import ConnectionIndicator from '../../components/ConnectionIndicator.tsx'
 import EmptyState from '../../components/EmptyState.tsx'
-import Icon from '../../components/Icon.tsx'
 import InfoRow from '../../components/InfoRow.tsx'
 import PageHeader from '../../components/PageHeader.tsx'
 import Panel from '../../components/Panel.tsx'
@@ -19,7 +18,7 @@ import { ErrorBlock, LoadingBlock } from '../Loading.tsx'
 import '../page.css'
 
 // W-03 이미지 빌드 (STEP 2) — main merge를 감지하면 Jenkins 빌드 진행을 보여줘요 (9/30 회의). 서버 SSE 전까지 5초 폴링, 끝나면 멈춰요
-const STEP_STATE: Record<string, StepItemState> = { waiting: 'pending', running: 'running', done: 'done', failed: 'failed' }
+const STEP_STATE: Record<string, StepItemState> = { waiting: 'pending', running: 'running', done: 'done', failed: 'failed', skipped: 'skipped' }
 
 function BuildPage() {
   const { projectId = '' } = useParams()
@@ -54,7 +53,7 @@ function BuildView({ projectId, build }: { projectId: string; build: Build | und
           status === 'success'
             ? '이미지가 준비됐어요. 배포할 환경을 골라 주세요.'
             : status === 'failed'
-              ? '빌드 · 테스트가 실패해서 멈췄어요. Jenkins 로그를 확인해 주세요.'
+              ? '빌드 · 테스트가 실패해서 멈췄어요. 실패한 단계를 확인해 주세요.'
               : 'main merge를 감지했어요. Jenkins가 이미지를 만들고 있어요.'
         }
       />
@@ -86,15 +85,7 @@ function BuildView({ projectId, build }: { projectId: string; build: Build | und
                   />
                 ))}
               </div>
-              <div>
-                <Button
-                  variant="outline"
-                  trailing={<Icon name="external-link" size={16} />}
-                  onClick={() => window.open(build.pipeline.run_url, '_blank', 'noopener')}
-                >
-                  Jenkins 로그 열기
-                </Button>
-              </div>
+              {/* Jenkins 화면은 배포 키가 있어 외부 비공개 — 로그 열기 버튼 없이 서버가 넘겨준 단계만 보여줘요 (#17 인프라 답) */}
             </Panel>
 
             <Panel title="이미지">

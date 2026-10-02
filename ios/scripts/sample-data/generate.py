@@ -124,7 +124,11 @@ def deployment(pid, did, ver, c, state, targets, created, finished=None, pending
     CALLS.setdefault(pid, []).extend(calls or [])
     return {"id": did, "project_id": pid, "commit": c["sha"], "image": f"ghcr.io/team-daisy/{repo}:{c['sha'][:7]}",
             "version": ver, "commit_message": subject(c), "state": state, "targets": targets,
+            "source_version_id": f"sv_{c['sha'][:7]}",
+            # 승인 ID는 환경별 pending_approvals로만 줘요 (10/2 00:40 서버). 단건 pending_approval은 예전 모양이라 그대로 둬요
             "pending_approval": {"approval_id": f"apv_{did}", "kind": "plan"} if pending else None,
+            "pending_approvals": [{"target_id": t["target_id"], "approval_id": f"apv_{did}_{t['target_id']}"}
+                                  for t in targets if t["state"] == "awaiting_approval"] if pending else None,
             "created_by": c["commit"]["author"]["name"], "created_at": created, "finished_at": finished,
             "kind": None, "rolled_back_from": None, "ai_usage": usage(calls or [])}
 
@@ -262,9 +266,9 @@ def main():
         responses[f"projects/{pid}/targets/status"] = page(statuses)
         responses[f"projects/{pid}/targets"] = page(TARGETS)
         responses[f"projects/{pid}/builds"] = page([{
-            "commit": c["sha"], "message": subject(c), "author": c["commit"]["author"]["name"], "committed_at": c["commit"]["author"]["date"],
+            "source_version_id": f"sv_{c['sha'][:7]}", "commit": c["sha"], "message": subject(c), "author": c["commit"]["author"]["name"], "committed_at": c["commit"]["author"]["date"],
             "pipeline": {"status": "success", "run_url": None}, "image": f"ghcr.io/team-daisy/{name}:{c['sha'][:7]}",
-            "deployed_to": [], "branch": "main", "digest": None,
+            "deployed_to": [], "branch": "main", "image_digest": digest(c["sha"]),
             # Jenkins daisy-ci 단계 (10/1 임채준 답). Jenkins 화면은 외부에 공개하지 않아서 링크는 없어요.
             # Trigger CD는 운영에서 늘 건너뜀 — 서버가 CI 결과를 받아 daisy-cd-plan을 직접 시작해요 (10/1 #25)
             "steps": [step("Checkout", "done", 2000), step("Test", "done", 21000), step("Build & Push", "done", 73000), step("Trigger CD", "skipped")]} for i, c in enumerate(cs)])

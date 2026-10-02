@@ -64,7 +64,7 @@ struct LoginView: View {
         return VStack(alignment: .leading, spacing: 16) {
             HStack(spacing: 10) {
                 Image(.appLogo).resizable().frame(width: 32, height: 32).clipShape(.rect(cornerRadius: 8))
-                Text("daisy").font(.system(size: 22, weight: .semibold, design: .monospaced))
+                Text("unibloom").font(.system(size: 22, weight: .semibold, design: .monospaced))
             }
             .accessibilityElement(children: .combine)
 
@@ -77,7 +77,7 @@ struct LoginView: View {
 
             // 앱에만 있는 칸: 웹은 주소가 정해져 있지만 앱은 연결할 서버를 골라요.
             field("서버 주소") {
-                TextField("https://api.example.com", text: $app.serverURLString).urlInput()
+                TextField(AppModel.defaultServerURL, text: $app.serverURLString).urlInput()
             }
             if !app.serverURLString.isEmpty && app.serverURL == nil {
                 Text("https://로 시작하는 주소를 넣어 주세요.").font(.caption).foregroundStyle(.red)
@@ -106,14 +106,7 @@ struct LoginView: View {
                 VStack { Divider() }
             }
 
-            Button {
-                Task { await signInAsDemo() }
-            } label: {
-                Text("데모 계정으로 둘러보기 (읽기 전용)")
-            }
-            .buttonStyle(.glassCapsule(fullWidth: true, height: 38))
-            .disabled(working || app.serverURL == nil)
-
+            // "데모 계정으로 둘러보기"는 없앴어요: 서버는 `/auth/demo`를 만들지 않고, 읽기 전용(viewer) 계정으로 위에서 로그인해요 (10/1 #13 김승환 답)
             // MOCK: 서버 없이 번들 예시 데이터로 둘러보기 (심사 · 발표용, 화면마다 "예시 데이터" 배지)
             Button("예시 데이터로 둘러보기 (오프라인)") { app.signInWithSampleData() }
                 .buttonStyle(.glassCapsule(fullWidth: true, height: 38))
@@ -166,17 +159,6 @@ struct LoginView: View {
             show(error)
             // W-00b NOTE: 아이디가 틀렸을 때(401)만 아이디는 그대로 두고 비밀번호를 비워요 (웹과 같아요)
             if problem == .wrongCredentials { password = "" }
-        }
-    }
-
-    private func signInAsDemo() async {
-        guard !working else { return }
-        working = true
-        defer { working = false }
-        do {
-            try await app.signInAsDemo()
-        } catch {
-            show(error)
         }
     }
 
