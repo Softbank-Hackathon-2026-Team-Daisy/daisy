@@ -166,7 +166,8 @@ def applyTarget(String t) {
     sh "python3 infra/jenkins/daisy_server.py state ${t} applying"
     sh "python3 infra/jenkins/daisy_server.py stage ${t} apply started"
   }
-  def rc = sh(script: planEnv(t) + "set -o pipefail\nTF_RUN_APPROVED=${t} bash infra/scripts/tf-run.sh ${t} apply 2>&1 | tee apply-${t}.log",
+  // Jenkins sh는 /bin/sh(dash)라 pipefail이 없어요. tee로 로그를 남기면서 tf-run 종료 코드를 받으려고 bash로 돌려요
+  def rc = sh(script: "#!/bin/bash\n" + planEnv(t) + "set -o pipefail\nTF_RUN_APPROVED=${t} bash infra/scripts/tf-run.sh ${t} apply 2>&1 | tee apply-${t}.log",
               returnStatus: true)
   if (rc == 0) {
     if (server) {
