@@ -92,6 +92,9 @@ export type DeploymentTarget = {
   state: TargetState
   step: Step | null
   step_state?: string | null
+  // 현재 plan 승인 상태 (#56). 승인 직후 apply 시작 전에는 state가 awaiting_approval이어도 approved예요
+  approval_state?: 'pending' | 'approved' | 'rejected' | 'superseded' | 'expired' | null
+  apply_dispatch?: 'queued' | 'unknown' | 'rejected' | null // apply 명령을 Jenkins에 넘긴 상태
   attempt: number | null // 첫 생성을 포함한 총 시도 횟수 (1~3). 화면에는 "시도 n/3", 없으면 "—"
   reused_script: boolean
   url: string | null
