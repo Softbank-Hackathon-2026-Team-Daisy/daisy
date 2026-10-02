@@ -48,6 +48,10 @@ SCHEMA = {
 class GenerationError(Exception):
     """AI가 쓸 수 있는 파일을 돌려주지 않았어요 (거절 · 출력 한도 · 형식 오류)."""
 
+    def __init__(self, message: str, usage: dict | None = None):
+        super().__init__(message)
+        self.usage = usage  # 호출은 됐으니 사용량은 남겨요 (서버 ai_usage)
+
 
 def reference_dir(env: str) -> pathlib.Path:
     return REPO / "infra" / "modules" / env
@@ -115,19 +119,19 @@ def generate(env: str, inputs: dict, previous: dict | None = None, stage: str | 
     }
     if message.stop_reason == "refusal":
         category = message.stop_details.category if message.stop_details else None
-        raise GenerationError(f"모델이 요청을 거절했어요 (category={category})")
+        raise GenerationError(f"모델이 요청을 거절했어요 (category={category})", usage)
     if message.stop_reason == "max_tokens":
-        raise GenerationError("출력 한도(max_tokens)에 걸려 파일이 잘렸어요")
+        raise GenerationError("출력 한도(max_tokens)에 걸려 파일이 잘렸어요", usage)
 
     text = next((b.text for b in message.content if b.type == "text"), None)
     if text is None:
-        raise GenerationError("응답에 JSON 본문이 없어요")
+        raise GenerationError("응답에 JSON 본문이 없어요", usage)
     data = json.loads(text)
     files = {f["path"]: f["content"] for f in data["files"]}
     if sorted(files) != sorted(FILES) or len(data["files"]) != len(FILES):
-        raise GenerationError(f"파일 3개(main.tf · variables.tf · outputs.tf)가 정확히 필요해요: {[f['path'] for f in data['files']]}")
+        raise GenerationError(f"파일 3개(main.tf · variables.tf · outputs.tf)가 정확히 필요해요: {[f['path'] for f in data['files']]}", usage)
     if any(not c.strip() for c in files.values()):
-        raise GenerationError("빈 파일이 있어요")
+        raise GenerationError("빈 파일이 있어요", usage)
     return files, data["notes"], usage
 
 

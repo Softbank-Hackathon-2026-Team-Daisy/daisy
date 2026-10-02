@@ -89,6 +89,85 @@ def check_aws(plan: dict, src_text: str) -> list[str]:
     return v
 
 
+def check_onprem(plan: dict, src_text: str) -> list[str]:
+    """(가칭 · 황지환 확인) 온프레미스 Docker 컨테이너 규칙. 노출은 pfSense를 거친 Service VM IP로만 해요."""
+    v = []
+    for typ, addr, after in changes(plan):
+        if typ != "docker_container":
+            continue
+        if after.get("privileged"):
+            v.append(f"{addr}: privileged 컨테이너는 쓰지 않아요 (R-6)")
+        if after.get("network_mode") == "host":
+            v.append(f"{addr}: host 네트워크는 쓰지 않아요. 포트를 게시해요 (R-2)")
+        for port in after.get("ports") or []:
+            if port.get("ip") in (None, "", "0.0.0.0", "::"):
+                v.append(f"{addr}: 포트는 Service VM IP(host_ip)에만 바인딩해요. 0.0.0.0 금지 (R-1)")
+        for m in (after.get("volumes") or []) + (after.get("mounts") or []):
+            if "docker.sock" in str(m.get("host_path") or m.get("source") or ""):
+                v.append(f"{addr}: Docker 소켓을 컨테이너에 마운트하지 않아요 (R-6)")
+    if re.search(r'^\s*host\s*=\s*"tcp://', src_text, re.M):
+        v.append("Docker provider는 ssh://로만 접속해요. 인증 없는 tcp:// 금지")
+    return v + check_common(plan, src_text)
+
+
+FORBIDDEN_GCP = {"google_compute_network", "google_compute_subnetwork", "google_compute_router",
+                 "google_compute_router_nat", "google_compute_address", "google_compute_global_address"}
+GCP_PRIMITIVE_ROLES = {"roles/owner", "roles/editor"}
+GCP_PUBLIC_INVOKER = {"google_cloud_run_v2_service_iam_member", "google_cloud_run_v2_service_iam_binding",
+                      "google_cloud_run_service_iam_member", "google_cloud_run_service_iam_binding"}
+
+
+def check_gcp(plan: dict, src_text: str) -> list[str]:
+    """GCP Cloud Run 규칙 (SPEC §6). 공개는 Cloud Run 호출 권한(allUsers run.invoker)만, 요청이 없으면 0대."""
+    v = []
+    for typ, addr, after in changes(plan):
+        if typ in FORBIDDEN_GCP:
+            v.append(f"{addr}: {typ}는 만들지 않아요 (Cloud Run은 네트워크 · 고정 IP가 필요 없어요, 비용 제약)")
+        if typ.startswith("google_") and any(k in typ for k in ("_iam_member", "_iam_binding", "_iam_policy")):
+            role = after.get("role") or ""
+            members = [after.get("member")] + list(after.get("members") or [])
+            if role in GCP_PRIMITIVE_ROLES:
+                v.append(f"{addr}: {role} 같은 기본 역할은 주지 않아요. 필요한 역할만 줘요 (R-6)")
+            if any(m in ("allUsers", "allAuthenticatedUsers") for m in members if m) and not (
+                    typ in GCP_PUBLIC_INVOKER and role == "roles/run.invoker"):
+                v.append(f"{addr}: 전체 공개(allUsers)는 Cloud Run 호출 권한(roles/run.invoker)에만 줘요 (R-1 · R-6)")
+        if typ == "google_cloud_run_v2_service":
+            if after.get("deletion_protection") is not False:
+                v.append(f"{addr}: deletion_protection = false여야 해요 (해커톤 중 지우고 다시 만들어요)")
+            for t in after.get("template") or []:
+                scaling = (t.get("scaling") or [{}])[0]
+                if (scaling.get("min_instance_count") or 0) > 0:
+                    v.append(f"{addr}: min_instance_count는 0이어야 해요 (요청이 없으면 과금 0)")
+                if not isinstance(scaling.get("max_instance_count"), int) or scaling["max_instance_count"] > 2:
+                    v.append(f"{addr}: max_instance_count를 2 이하로 정해요 (비용 상한)")
+                for c in t.get("containers") or []:
+                    for r in c.get("resources") or []:
+                        limits = r.get("limits") or {}
+                        if _gcp_cpu(limits.get("cpu")) > 1:
+                            v.append(f"{addr}: CPU는 1 이하예요 (비용 상한)")
+                        if _gcp_mib(limits.get("memory")) > 2048:
+                            v.append(f"{addr}: 메모리는 2Gi 이하예요 (비용 상한)")
+    return v + check_common(plan, src_text)
+
+
+def _gcp_cpu(value) -> float:
+    """Cloud Run cpu 한도 문자열 → 코어 수 ("1" · "2" · "1000m"). 모르면 0"""
+    text = str(value or "0")
+    try:
+        return float(text[:-1]) / 1000 if text.endswith("m") else float(text)
+    except ValueError:
+        return 0
+
+
+def _gcp_mib(value) -> float:
+    """Cloud Run memory 한도 문자열 → MiB ("512Mi" · "1Gi" · "2G"). 모르면 0"""
+    m = re.fullmatch(r"([0-9.]+)\s*(Mi|Gi|M|G)?", str(value or "0"))
+    if not m:
+        return 0
+    n, unit = float(m.group(1)), m.group(2) or "Mi"
+    return n * {"Mi": 1, "Gi": 1024, "M": 1 / 1.048576, "G": 1000 / 1.048576}[unit]
+
+
 def check_common(plan: dict, src_text: str) -> list[str]:
     v = []
     if re.search(r"^\s*backend\s+\"[a-z0-9_]+\"\s*\{", _without_runner_backend(src_text), re.M):
@@ -150,12 +229,18 @@ def main() -> int:
     src_text = "\n".join(f.read_text(encoding="utf-8") for f in sorted(a.src.glob("*.tf")))
     if a.env == "aws":
         violations = check_aws(plan, src_text)
+    elif a.env == "onprem":
+        violations = check_onprem(plan, src_text)
+    elif a.env == "gcp":
+        violations = check_gcp(plan, src_text)
     else:
-        violations = check_common(plan, src_text)  # GCP 규칙은 GCP 모듈과 함께 추가해요
+        violations = check_common(plan, src_text)
     for line in violations:
         print(f"위험: {line}")
     if not violations:
-        print(f"risk_check: {a.env} 통과 (R-1~R-6 · 비용 제약 · 고정 네트워크)")
+        scope = {"aws": "R-1~R-6 · 비용 제약 · 고정 네트워크", "onprem": "컨테이너 격리 · 바인딩 · 구조",
+                 "gcp": "R-4 · R-6 · 공개 범위 · 비용 제약"}.get(a.env, "구조")
+        print(f"risk_check: {a.env} 통과 ({scope})")
     return 1 if violations else 0
 
 

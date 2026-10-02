@@ -225,6 +225,11 @@ APP=hellocalc IMAGE_TAG=<커밋 해시 40자> infra/scripts/tf-run.sh aws plan
 | 2026-10-01 | WireGuard 원격 접속은 허용된 개발자에게 제한 | 개발자 관리 접속을 서비스 공개 및 자동 배포 경로와 분리 | 황지환·임채준 합의 |
 | 2026-10-01 | `[온프레미스]` 사용자 샘플 앱의 Compose는 검증용, 배포 리소스 관리 주체는 Terraform (10/2 플랫폼 운영과 범위 구분) | 기존 Compose 배포 제안을 대체. 같은 컨테이너·네트워크·볼륨의 이중 관리 방지 | 1 |
 | 2026-10-02 | `[온프레미스]` Unibloom 플랫폼 자체는 Compose로 운영하고 개발 서버 CI/CD는 Terraform·승인 대기·자동 롤백 없이 Frontend·Backend를 갱신하는 범위로 준비 | 수동 버전 갱신을 줄이고 사용자 샘플 앱 배포와 구분. DB 볼륨·데이터 유지 | 1 (개발 서버 운영 범위; 공통 Jenkins 구현은 협의) |
+| 2026-10-02 | `daisy-cd-plan` · `daisy-cd-apply`가 서버 요청(`request_id` · `payload`)을 받고, 대상별 결과를 서버 콜백(`/internal/jenkins/callbacks`, `X-Daisy-Jenkins-Token`)으로 보내요. `state_identity`는 러너가 실제로 쓰는 state 위치 `(가칭 · 서버 확인, #35)` | 서버(PR #40)가 이미 이 형식으로 보내고 받아요. plan의 `script_id`가 서버가 정하는 ID라 산출물 폴링으로는 안 돼요 (클라우드 SPEC §12-9) | 2 (서버가 쓰는 계약, 김승환 · 하은현에게 공유) |
+| 2026-10-02 | `[클라우드]` AWS 기준 모듈에 선택 입력 `domain` · `subdomain`: 있으면 `*.<domain>` 인증서로 HTTPS, Route 53 `<subdomain>.<domain>` → ALB, `service_url` = `https://…`. 비우면 지금처럼 ALB 주소(HTTP) | 시연을 `aws.unibloom.cloud`로 해요. 인증서 · 영역은 `aws-domain` 스택 것을 찾아만 써요 | 2 (모듈 입력 추가, 기본값이 있어 기존 호출 그대로) |
+| 2026-10-02 | 온프레미스 앱 공개 주소는 **ngrok** (`onprem.unibloom.cloud` → 서비스 VM `172.16.1.5:18080`). 10/1 `[온프레미스]` pfSense + Let's Encrypt 방향을 대신해요. 데모 앱 포트는 백엔드(8080)와 겹치지 않게 18080 `(가칭 · 황지환 확인)` | 서비스 VM에 www · api용 ngrok 서비스가 이미 상시 실행 중이라 엔드포인트 하나 추가로 끝나요. 포트 개방 · 인증서 갱신이 필요 없어요 (임채준 · 황지환 10/2 함께 설정) | 1 |
+| 2026-10-02 | `[클라우드]` GCP 기준 모듈(Cloud Run) 구현. 리전은 asia-northeast1(도쿄), 공개 도메인은 Cloud Run 도메인 매핑(`gcp.unibloom.cloud`), state는 GCS | 도메인 매핑이 서울을 지원하지 않아요. 로드밸런서 없이 0원에 가깝게 도메인을 붙여요. §6의 GCP 리전 `[미정]`(asia-northeast3)을 대신해요 | 1 |
+| 2026-10-02 | 대상 환경 등록의 `public_url`: 모듈 밖에서 연결한 공개 주소(온프레미스 pfSense HTTPS). 러너가 헬스체크 · 서버 보고에만 쓰고 모듈 변수에는 넣지 않아요 `(가칭 · 황지환 확인)` | 온프레미스 모듈 출력은 내부 주소예요. 모듈을 바꾸지 않고 `onprem.unibloom.cloud`를 서버에 알려요 | 2 |
 
 ## 10. 아직 정하지 못한 것
 
@@ -233,7 +238,7 @@ APP=hellocalc IMAGE_TAG=<커밋 해시 40자> infra/scripts/tf-run.sh aws plan
 | §4 공통 규약 | 임채준 제안. 온프레미스에도 맞는지 확인 필요 | 황지환 |
 | 플랫폼 개발 서버 CI/CD 연결 | 별도 Job 이름·Jenkinsfile 위치·main 트리거·이미지 전달·동시 배포 방지 `(가칭)`. 웹·서버 테스트·빌드 및 헬스체크 기준 확인 후 SPEC에 기록 | 황지환 · 임채준 · 웹 · 서버 |
 | state 저장소 | 방향은 "환경마다 그 환경의 저장소 + 잠금"(§9). **AWS S3 버킷은 아직 안 만들어서 state가 임채준 러너 VM 로컬에 있어요** → 다른 Jenkins와 공유 · 잠금이 안 돼요. **온프레미스 저장소**와 **key 형식**(`{project_id}/{target_id}`)도 남았어요 | 임채준(S3) · 팀 회의 확인 · 황지환(온프레미스) · 하은현(key) |
-| 서버 ↔ Jenkins 세부 계약 | 도구·실행 주체·승인 창구 확정, CD 두 Job 구조 확정(§9). PR #17 코멘트의 호출 흐름은 분리 **전** 기준이라 두 Job 기준(`PLAN_BUILD` · `APPROVAL_ID`, `plan-summary.json`)으로 다시 공유해야 해요. 중단 요청 방식은 남았어요 | 황지환 · 임채준, 서버와 조율 |
+| 서버 ↔ Jenkins 세부 계약 | 10/2 Jenkins 쪽 구현(클라우드 SPEC §12-9): 서버 요청 · 대상별 콜백 · `state_identity` 규칙 · apply 대조. 서버 쪽 콜백 인증 · 공개 경로 · 빌드 기록 유입과 실제 연결 검증이 남았어요 (#35). apply 중단은 지원하지 않아요 | 임채준 · 서버(김승환 · 하은현) |
 | 승인 전 plan과 승인 후 apply 연결 | 구조는 **두 Job으로 분리**해서 정했어요 (§9, 클라우드 SPEC §12-7). 서버 쪽 승인 ID 발급 · 재승인 · 중복 요청 처리와 서버 연결 구현이 남았어요 | 인프라 · 서버 |
 | 컨테이너 레지스트리 | 루트 `[미정]` | **팀 회의** |
 | 온프레미스 Docker 모듈 계약 | 기존 VM의 컨테이너를 Terraform으로 관리하는 방식 확정. provider·버전, 리소스 범위와 공통 입력·출력 매핑은 미정 | 황지환 · 임채준, 서버와 계약 공유 |

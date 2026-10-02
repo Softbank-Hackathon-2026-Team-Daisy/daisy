@@ -256,6 +256,7 @@ NAT Gateway 없이 이미지를 받으려고 태스크를 public 서브넷에 �
 | 권한 | 실행 역할 `aws_iam_role` + `AmazonECSTaskExecutionRolePolicy` + 자기 비밀값 읽기 인라인 정책 | 항상 (인라인은 비밀값이 있을 때) |
 | 비밀값 | `aws_secretsmanager_secret` + `_version` (키마다) | `secrets`가 있을 때 |
 | DB (S) | `aws_db_subnet_group`(고정 private 서브넷), DB SG, `aws_db_instance` | `database = true` |
+| 공개 도메인 | 443 인바운드, `aws_lb_listener`(443, `*.<domain>` 인증서), `aws_route53_record`(`<subdomain>.<domain>` → ALB). 인증서 · 호스팅 영역은 `aws-domain` 스택 것을 data로 찾아요. `service_url` = `https://<subdomain>.<domain>` | `domain`이 있을 때 (10/2, 대상 등록 `targets/aws.json`에 `domain` · `subdomain`) |
 
 DB 접속 정보는 앱에 환경변수로 넣어요. 이름은 온프레미스·GCP와 같아야 해서 황지환과 맞춰요 (D-6): `(가칭)` `DB_HOST`, `DB_PORT`, `DB_NAME`, `DB_USER`는 일반 환경변수, `DB_PASSWORD`는 RDS 관리 비밀값(`manage_master_user_password = true`)에서 읽어요.
 
@@ -312,11 +313,27 @@ DB 접속 정보는 앱에 환경변수로 넣어요. 이름은 온프레미스�
 6. 기본 Compute SA를 쓰지 않고 전용 SA를 만들어요 (R-6)
 7. 조직 정책(도메인 제한 공유)이 걸린 프로젝트면 `allUsers` 바인딩이 막혀요. 해커톤 프로젝트에 조직 정책이 없는지 먼저 확인해요
 
+### 6-3-1. 10/2 구현 결정
+
+- 리전은 **asia-northeast1(도쿄)**: Cloud Run 도메인 매핑이 서울(asia-northeast3)을 지원하지 않아서예요. `gcp.unibloom.cloud`를 로드밸런서(시간당 비용) 없이 붙여요
+- 공개 도메인은 선택 입력 `domain` · `subdomain` (`targets/gcp.json`). 있으면 `google_cloud_run_domain_mapping`을 만들고 `service_url`이 `https://<subdomain>.<domain>`이에요. 준비: Search Console에서 도메인 소유 확인 + 배포 서비스 계정을 확인된 소유자로 추가, Route 53 `<subdomain>` CNAME → `ghs.googlehosted.com`. 인증서는 Google이 처음 15~60분 걸려 발급해요. 이미지만 바꾸는 재배포는 매핑을 그대로 둬요
+- state는 GCS (`TF_STATE_BUCKET_GCP`, prefix `<앱>/gcp`, 잠금 자동). `state_identity` = `gs://<버킷>/<앱>/gcp/default.tfstate`
+- CPU 1 고정, 메모리 512 · 1024 · 2048 MiB, 최대 1~2대, 최소 0대. `database = true`는 아직 거절해요 (Cloud SQL은 S)
+- 위험 검사 `check_gcp`: 기본 역할(owner · editor) 금지, `allUsers`는 Cloud Run `run.invoker`에만, 최소 0대 · 최대 2대 · CPU 1 · 메모리 2Gi 이하, VPC · 고정 IP 금지, 삭제 보호 끔
+- 프로젝트 준비(사람이 1번): API(run · iam · secretmanager · storage · cloudresourcemanager), 배포 서비스 계정 `daisy-deployer` + 키 → Jenkins Credentials `gcp-deployer`(Secret file), GCS state 버킷
+
 ### 6-4. 완료 기준
 
 §5-4와 같아요. 차이만 적으면:
-- [ ] `image_tag`만 바꾼 `plan`이 `google_cloud_run_v2_service` 변경(`~`) 하나만 보여줌
-- [ ] `service_url`이 `https://`로 시작하고 `/health` 200
+- [ ] `image_tag`만 바꾼 `plan`이 `google_cloud_run_v2_service` 변경(`~`) 하나만 보여줌 (같은 이미지 재plan은 `No changes` 확인, 다른 태그는 다음 CI 빌드 때)
+- [x] `service_url`이 `https://`로 시작하고 `/health` 200
+
+검증 (10/2, 개인 GCP 프로젝트 · asia-northeast1):
+- `daisy-cd-plan` #16 (GCS state, AI 없이): 4개 추가(런타임 SA · Cloud Run · 공개 호출 · 도메인 매핑), 위험 검사 통과
+- `daisy-cd-apply` #6 (사람 승인): `4 added`. Cloud Run 기본 주소 `/health` 200, `/version` `GCP · Cloud Run` · 커밋 `5139b93`. 헬스체크는 도메인 인증서 발급 전이라 5분 안에 실패했어요(`SSL_ERROR_SYSCALL`)
+- 도메인 매핑을 만든 뒤 **약 16분** 만에 Google Trust Services 인증서가 발급되고 `https://gcp.unibloom.cloud/health` 200. 이미지만 바꾸는 재배포는 매핑 · 인증서를 그대로 써서 다시 기다리지 않아요. **GCP 앱을 지우면 다음 배포 때 다시 15분 이상 기다려야 해서 시연 전에는 지우지 않아요**
+- `daisy-cd-plan` #17 (같은 입력 재plan): `No changes`
+- 같은 날 `aws.unibloom.cloud` · `onprem.unibloom.cloud` · `gcp.unibloom.cloud`가 같은 커밋(`5139b93`)으로 열려요
 
 ---
 
@@ -472,6 +489,7 @@ PR은 300줄 이하를 목표로 나눠요. 지금까지: 규칙 파일(#10), �
 | `infra/jenkins/cd-apply.Jenkinsfile` | `daisy-cd-apply`: **시작 = 승인**. 승인한 plan(`PLAN_BUILD`)만 **병렬 apply** → 헬스체크·스모크 테스트 |
 | `infra/jenkins/bootstrap.Jenkinsfile` | `daisy-bootstrap`: 고정 리소스(`aws-network`) plan → Jenkins `input` 승인 → apply → `targets/aws.json` 등록 (§12-8) |
 | `infra/jenkins/render-tfvars.py` | `deploy.yaml` + 대상 환경 등록값 + 이미지 주소 → 변수 JSON (프로토타입용 최소 변환) |
+| `infra/jenkins/daisy_server.py` | 서버 요청(`request_id` · `payload`) 해석, 대상별 결과를 서버 콜백으로 보내요 (§12-9) |
 | `infra/scripts/tf-run.sh` | §3-4 러너 규약 참고 구현 |
 | `infra/ai/*` | AI 생성 · 위험 검사 · 재사용 (§17) |
 
@@ -494,7 +512,7 @@ PR은 300줄 이하를 목표로 나눠요. 지금까지: 규칙 파일(#10), �
     --plugin-download-directory /var/lib/jenkins/plugins --plugins pipeline-rest-api
   sudo systemctl restart jenkins
   ```
-- **서버 연동용 API 토큰**: 서버가 Jenkins REST API(빌드 시작 · 로그 · 단계)를 부를 때 Jenkins 사용자의 API 토큰을 써요. 토큰으로 인증하면 CSRF crumb은 필요 없어요. 10/1 러너에서 확인한 호출 흐름은 PR #17 코멘트(2번)에 있어요. **그 코멘트는 CD 분리 전(`daisy-cd` 한 Job, `pendingInputActions` 승인) 기준이라, 두 Job 기준(§12-7)으로 다시 알려야 해요**
+- **서버 연동용 API 토큰**: 서버가 Jenkins REST API(빌드 시작 · 로그 · 단계)를 부를 때 Jenkins 사용자의 API 토큰을 써요. 토큰으로 인증하면 CSRF crumb은 필요 없어요. 두 Job 기준 서버 요청 · 결과 콜백 계약은 §12-9예요 (PR #17 코멘트의 흐름은 CD 분리 전 기준이라 쓰지 않아요)
 
 ### 12-4. MOCK과 빈 곳
 
@@ -503,7 +521,7 @@ PR은 300줄 이하를 목표로 나눠요. 지금까지: 규칙 파일(#10), �
 | CD Plan 단계의 AI 생성 · 수정 · 위험 검사 | **10/1부터 실제 구현** (§17). `USE_AI=false`일 때만 기준 모듈 그대로 (`MOCK` 대안 경로) | 임채준 (N-02 · N-05 · N-08, 9/30 회의에서 담당 변경) |
 | `render-tfvars.py` | 최소 변환. `env` 값과 `secrets`는 넘기지 않아요 | `deploy.yaml` 파싱 담당과 맞춰요 (서버 `manifest`) |
 | 온프레미스 | 선택지 없음 | 황지환 |
-| 웹 화면 연동 | 없음. "Build with Parameters"로 수동 실행해요 | 하은현 (D-2) |
+| 웹 화면 연동 | Jenkins 쪽은 서버 요청 · 콜백을 받아요 (§12-9, 10/2). 서버 연결 · 실제 검증은 남았어요. 사람은 계속 "Build with Parameters"로 실행할 수 있어요 | 서버 (하은현 · 김승환) |
 
 ### 12-5. 개인 계정 단계
 
@@ -586,6 +604,58 @@ daisy-cd-apply ◀── 서버가 buildWithParameters(PLAN_BUILD=N, APPROVAL_ID
 | 승인 | 앱 배포와 달리 서버를 거치지 않는 관리자 작업이라 Jenkins `input`으로 승인해요. `PLAN_ONLY=1`이면 plan에서 끝나요 |
 | 작업 폴더 · state | `$WORK_ROOT/_bootstrap/<stack>/` (plan마다 폴더 분리는 앱과 같아요). state key는 `_bootstrap/<stack>/terraform.tfstate` |
 | 지울 때 | `DESTROY` 체크. 그 VPC를 쓰는 앱이 남아 있으면 AWS가 거부해요. 앱을 먼저 지워요 |
+
+### 12-9. 서버 요청으로 plan → 승인 → apply `(가칭 — 서버 확인 필요, #35)`
+
+10/2: 서버 실행 코드(PR #40, `server/docs/jenkins-transport.md` · `jenkins-callbacks.md`)가 보내는 요청을 그대로 받아요. 서버는 `buildWithParameters`에 **`request_id` · `payload`(JSON)** 만 보내고, 대상별 결과는 **Jenkins → 서버 콜백**으로만 받아요(산출물 폴링 없음). plan 콜백의 `script_id`가 서버가 정하는 ID(script 콜백 응답의 `receipt_id`)라서 콜백 방식이 필요해요.
+
+```
+서버 prepare ── request_id · payload(targets · image_refs · repository_snapshot) ──▶ daisy-cd-plan
+  환경마다: state generating/validating · stage(generate · validate · plan · risk_check) · usage(AI 호출마다)
+          → script → plan ──▶ 서버: plan · 승인 생성 → 웹·앱 승인
+서버 apply ── request_id · payload(plans[]: artifact_ref · digest · input_hash) ──▶ daisy-cd-apply
+  환경마다: applying → stage apply → verifying → stage health_check → succeeded(result) / failed / plan_stale
+```
+
+| 항목 | 내용 |
+|---|---|
+| 시작 | 두 Job 모두 파라미터 `request_id`(string) · `payload`(text). **`payload`가 있으면 서버 요청**이고, 나머지 파라미터는 무시해요. 비우면 지금처럼 사람이 직접 실행해요 (콜백 없음) |
+| Job | prepare · replan → `daisy-cd-plan`, apply → `daisy-cd-apply` (서버 기본 매핑 그대로). apply 중단은 지원하지 않아요. plan을 Jenkins에서 중단하면 남은 대상을 `cancelled`로 알려요 |
+| 콜백 | `POST $DAISY_CALLBACK_URL` (`…/internal/jenkins/callbacks`), 헤더 `X-Daisy-Jenkins-Token`. 통신 오류 · 5xx는 같은 `external_event_id`로 다시 보내요 (최대 5번). 보낸 콜백과 응답은 빌드 산출물 `server-events.jsonl` |
+| 순번 | `source_sequence`는 실행(빌드) · 대상마다 0부터 1씩 올라가요 (state · stage · plan · plan_stale 공통) |
+| 대상 | `targets[].snapshot.environment_type` = `aws` · `onprem` · `gcp`. 한 요청에 같은 종류는 하나 |
+| 앱 이름 | `repository_snapshot`의 저장소 · `default_branch` · `manifest_path`에서 `commit_sha`의 deploy.yaml을 읽고, `name`을 state key · 작업 폴더로 써요 |
+| `state_identity` | 러너가 실제로 쓰는 state 위치예요. S3면 `s3://<버킷>/<앱>/aws/terraform.tfstate`, 러너 로컬이면 `local://<DAISY_RUNNER_ID>/<앱>/<env>/terraform.tfstate`. 서버 대상 등록 값과 다르면 기본은 **경고만** 해요 (10/2: 서버 데모 대상이 임시 값 `<프로젝트>/<대상>`을 써요). Jenkins 전역 `DAISY_STATE_IDENTITY_CHECK=strict`면 실행 전에 그 대상을 failed로 알려요 (#70 요청, 서버가 실제 값을 등록한 뒤 켜요). 맞출 값은 `daisy_server.py state-identity <env> <앱>`으로 봐요 |
+| 공개 주소 | AWS는 모듈이 `https://aws.unibloom.cloud`를 만들어요 (`targets/aws.json`에 `"domain": "unibloom.cloud", "subdomain": "aws"`). 온프레미스는 모듈 밖에서 연결해요. 10/2부터 서비스 VM의 ngrok 서비스(`ngrok.service`, www · api와 같은 설정 파일)에 `onprem.unibloom.cloud → http://172.16.1.5:18080` 엔드포인트를 두고, Route 53 CNAME → ngrok, 인증서는 ngrok이 발급해요. 그리고 `targets/onprem.json`에 `"public_url": "https://onprem.unibloom.cloud"`를 넣어요. 러너는 내부 주소 헬스체크 · 스모크 테스트 뒤 공개 주소도 확인하고, **공개 주소를 서버에 알려요**. 공개 주소 확인이 실패하면 그 대상은 failed예요 (`public_url`을 지우면 내부 주소로 알려요). `public_url`은 모듈 변수에 넣지 않아요 |
+| attempt | 서버 명령의 `targets[].attempt`(환경별 앞선 생성 시도 수, #70)에 이어서 세요. AI 시도는 남은 만큼(3 − 앞선 수)만 써요. 서버는 attempt가 줄어드는 보고를 거절해서 apply · 실패 · 취소도 그 값으로 보고하고, 값이 없으면(#70 전) 승인한 plan의 시도 수를 써요. 재사용 plan은 앞선 시도가 0일 때만 `reused_script: true`(서버: 재사용은 attempt 0) |
+| 이미지 | `image_refs`는 서비스 1개, `image_ref` = `<저장소>:<commit_sha>`. 모듈 `image` · `image_tag`로 나눠요. MSA(서비스 여러 개)는 아직 실패로 알려요 |
+| AI | `allow_ai_autofix=false`(롤백)거나 Jenkins 전역 `SERVER_USE_AI=0`(리허설)이면 AI 없이 기준 모듈로 plan해요. 롤백의 `restore_scripts` 복원은 아직이에요 |
+| script 콜백 | `artifact_ref` = `daisy-script:<앱>/<env>/verified/<입력 지문>` (기준 모듈이면 `daisy-script:reference/<env>`), `content_digest` = 3파일 해시, `compatibility_key` = 입력 지문 |
+| plan 콜백 | `source_plan_id` = `<plan ID>/<env>`, `artifact_ref` = `daisy-plan:<앱>/<env>/<plan ID>`, `digest` = `sha256:<plan.tfplan 해시>`, `input_hash` = 받은 값, `attempt` = 통과한 AI 시도(재사용 · 기준 모듈은 0), `expires_at` = plan 생성 + 23시간(하루 지난 plan 폴더는 지워져요) |
+| plan 요약 | 서버 `PlanRevision` 모양 그대로 보내요 (다른 키는 400): `summary` = `{counts: {create, update, delete}, has_delete, risks: []}`, `resources` = `[{address, actions}]` (`actions`는 terraform 동작 배열, 예: 교체는 `["delete", "create"]`이고 추가 · 삭제에 모두 세요). no-op · read는 빼요. 값(before · after)은 비밀값이 있을 수 있어 넣지 않아요. 위험 검사 위반은 승인 대상이 아니라서 `risks`는 비어요. AI 방식 · 호출 수는 usage · script 콜백과 `reused_script` · `attempt`로 가요 (10/2 #35 은현 확인) |
+| log 콜백 | 배포 화면 로그(서버 `log.batch`, A-07 #56)는 **사람이 볼 요약 줄만** 보내요: 재사용 · AI 시도 · AI 메모 · terraform `Success!` · `Plan:` · `Error:` · 위험 검사 결과 · 승인 대기 요약 · `Apply complete!` · 헬스체크 결과 · 실패 사유. 단계 이름(`step`)을 붙여요. 콘솔 전체는 비밀값을 보장할 수 없어 서버 콘솔 수집(`console-sanitized-utf8-confirmed`)은 켜지 않아요 |
+| usage 콜백 | AI 호출 1번 = 1개. 원천 ID `anthropic:<요청 ID>`, `step` generate(처음) · fix(고치기), 토큰, `cost_usd`(§17-2 가격으로 추정, `cost_basis: estimated`) |
+| apply 대조 | `artifact_ref`로 plan 폴더를 찾아 `digest` · 미적용 · 이미지를 대조해요. **폴더가 없거나 만료** → 적용하지 않고 `plan_stale` (서버가 다시 plan · 승인). 해시 불일치 · 이미 적용 · 이미지 다름 → failed. terraform이 "Saved plan is stale"로 거부해도 `plan_stale` |
+| 성공 | 헬스체크 · 스모크 테스트를 통과하면 `succeeded` + `result` = `{plan_id, plan_digest, input_hash, image_refs, public_urls: {<서비스>: service_url}}` (서버가 승인 plan · 입력 · 이미지와 대조해요). 환경마다 apply → 헬스체크를 이어서 해서, 한 환경 실패가 다른 환경 결과를 막지 않아요 |
+| 중간에 멈춤 | 빌드가 끝날 때 결과를 못 보낸 대상은 failed로 알려요. apply 도중이면 "적용 여부 확인 필요"라고 적어요 |
+| CI 빌드 기록 `(가칭)` | `daisy-ci`가 끝나면(성공 · 실패) Jenkins 전역 `DAISY_BUILD_URL`(서버 제안: `https://api.unibloom.cloud/internal/jenkins/builds`, 응답 `{source_version_id, changed}`)로 서버 `BuildRegistry.BuildReport`(PR #53)와 같은 이름의 본문을 보내요: `project_id`(Job 파라미터 `PROJECT_ID`, 기본 `prj_demo_monolith`) · `source`(`jenkins:<인스턴스 ID>`, Jenkins 전역 `DAISY_INSTANCE_ID` · 기본 `unibloom-onprem`, 서버 `DAISY_JENKINS_INSTANCE_ID`와 같아야 해요) · `external_build_id`(`daisy-ci#<N>`, 서버 `DAISY_JENKINS_CI_PROJECTS=daisy-ci=prj_demo_monolith` 매핑에 있어야 해요) · `commit_sha` · `branch` · `status` · `image_refs`(`{<deploy.yaml name>: {image_ref, digest, commit_sha}}`) · `run_url` · 시각 · `error_summary`. 인증은 콜백과 같은 `X-Daisy-Jenkins-Token`. 수신 경로는 서버가 정해요. 배포 생성에 성공 빌드가 필요해서 이게 있어야 웹에서 배포를 시작할 수 있어요 |
+| 헬스체크 DNS | 헬스체크 · 스모크 테스트의 `curl`은 공용 DNS(Cloudflare DoH, `CURL_HOME/.curlrc`)로 이름을 찾아요. 앱을 적용할 때마다 `aws.unibloom.cloud` 레코드가 새로 생기는데, 그 전에 누가 조회하면 온프레미스 DNS(pfSense)가 "없음"을 최대 15분(Route 53 SOA) 캐시해요. 10/2 `daisy-cd-apply` #5가 이걸로 헬스체크에 실패했어요 (앱은 정상, DoH로 200) |
+| 비밀값 | 오류 문구는 서버 금지 패턴(`password=` · `token:` · `AKIA…` 등)을 가린 뒤 보내요. plan 원문 · state · 변수 값은 보내지 않아요 |
+
+Jenkins 준비 (사람이 UI에서 1번):
+- Credentials `daisy-callback-token` (Secret text, 서버와 같은 값)
+- 전역 환경변수 `DAISY_CALLBACK_URL`, `DAISY_RUNNER_ID` (러너 로컬 state를 구분하는 이름, 예: `daisy-cicd`). 선택 `SERVER_USE_AI=0`
+- 서버용 Jenkins 사용자와 API 토큰 (두 Job의 Build · Read · Cancel). 서버 설정 `DAISY_JENKINS_BASE_URL` · `USER` · `TOKEN` · `JOBS=daisy-cd-plan,daisy-cd-apply`
+- Jenkinsfile을 바꾼 뒤 두 Job을 한 번씩 실행해야 새 파라미터(`request_id` · `payload`)가 Job에 생겨요. 그 전에는 Jenkins가 서버가 보낸 값을 버려요
+
+서버에 필요한 것 (서버 영역, #35로 요청):
+1. `/internal/jenkins/callbacks`를 `BearerAuthFilter`의 공개 경로에 넣기 (지금은 사용자 Bearer가 없어서 401이에요)
+2. `ExecutionCallbackAccess` 구현: `X-Daisy-Jenkins-Token`을 상수 시간 비교, `instanceId`, 허용 Job `daisy-cd-plan` · `daisy-cd-apply`
+3. `daisy.jenkins.enabled` · `worker-enabled` · `callbacks-enabled` 켜기, 대상 등록의 `environment_type` · `state_identity`를 위 규칙대로
+4. 빌드 기록(`source_version` · `image_refs`)이 서버로 들어오는 경로 (CI → 서버). 지금은 서버에 넣는 곳이 없어요
+5. Jenkins(`172.16.2.5`)에서 서버로 가는 네트워크 경로
+
+검증 (10/2, 로컬): 서버 검증 규칙(봉투 · kind별 필드 · 순번 · script ID · 금지 패턴)을 흉내 낸 가짜 서버로 plan(상태 · 단계 · usage · script · plan, state 위치 불일치 → failed) · apply(성공 결과 · digest 불일치 · plan 없음 → plan_stale · request_id 불일치 → failed)를 확인했어요. `plan_with_ai.py`의 단계 콜백은 가짜 tf-run 출력으로 확인했어요. **실제 Jenkins · 서버 연결은 아직이에요.**
 
 ## 13. 팀원 서버로 옮길 때
 
@@ -706,6 +776,8 @@ GCP 규칙은 GCP 모듈과 함께 추가해요 (지금은 구조 검사만).
 | 2026-10-01 | 고정 네트워크 분리(§5-0, `infra/bootstrap/aws-network`, `daisy-bootstrap` §12-8). 앱 모듈은 VPC · 서브넷 ID를 받아요. 개인 AWS 계정을 실제 환경으로 변경(§12-5) |
 | 2026-10-01 | AI Terraform 생성 · 수정 루프 · 재사용 구현(§17, `infra/ai/`). 담당이 임채준으로 바뀐 것 기록. CD Plan 단계의 MOCK 위험 검사를 실제 검사로 대체(§12-4). 실제 Claude API로 생성 → 승인 → 배포 → 재사용(AI 0회) → 삭제 plan 검증(§17-5) |
 | 2026-10-01 | 10/1 결정 동기화: AI 담당 변경(§0 · §1 · §3 · §4), Jenkins 실행 확정(D-1 · D-2 · §3-4), 완료 기준 실측(§5-4), state가 아직 로컬인 점(§7), 일정(§9), Job 4개 · `claude-api-key` · `aws.json` 필수(§3-5 · §12), 서버 이전을 "러너만 / 계정까지"로 나눔(§13) |
+| 2026-10-02 | 공개 도메인: AWS 모듈 `domain` · `subdomain`(HTTPS · Route 53, §5-2), 온프레미스 `public_url`(§12-9). `state_identity` 불일치는 경고만 |
+| 2026-10-02 | 서버 요청 연동(§12-9): 두 Job이 `request_id` · `payload`를 받고 대상별 결과를 서버 콜백으로 보내요. `state_identity` 규칙, apply 대조 · `plan_stale`, apply와 헬스체크를 환경마다 이어서 실행 |
 
 ---
 

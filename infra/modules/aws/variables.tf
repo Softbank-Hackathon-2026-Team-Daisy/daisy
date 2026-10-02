@@ -149,3 +149,24 @@ variable "private_subnet_ids" {
     error_message = "database = true면 private 서브넷이 2개 이상 필요해요."
   }
 }
+
+# ---------------------------------------------------------------- 공개 도메인 (대상 환경 등록값, 선택)
+# 비우면 ALB 주소(HTTP)로 열어요. 넣으면 aws-domain 스택의 *.<domain> 인증서로 HTTPS를 열고
+# Route 53에 <subdomain>.<domain> → ALB 레코드를 만들어요. 예: aws.unibloom.cloud
+
+variable "domain" {
+  description = "Route 53 공개 호스팅 영역 도메인. 비우면 도메인 없이 ALB 주소로 열어요"
+  type        = string
+  default     = ""
+}
+
+variable "subdomain" {
+  description = "서비스 주소의 하위 도메인 (domain과 함께 써요)"
+  type        = string
+  default     = ""
+
+  validation {
+    condition     = var.domain == "" || can(regex("^[a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?$", var.subdomain))
+    error_message = "domain을 쓰면 subdomain은 소문자 · 숫자 · - 로 된 이름이어야 해요."
+  }
+}
