@@ -69,11 +69,18 @@ function ApproveView({ d, plan, detail, reload }: { d: Deployment; plan: Plan; d
     setPending(true)
     setError(null)
     try {
-      // 화면에 보인 승인 대기 환경만 보내요. 서버가 pending_approvals를 주기 전(목업)에는 단건 approval_id로 채워요
-      const items = approvable.map((t) => ({
-        target_id: t.target_id,
-        approval_id: d.pending_approvals?.find((a) => a.target_id === t.target_id)?.approval_id ?? d.pending_approval?.approval_id ?? '',
-      }))
+      // 화면에 보인 승인 대기 환경 중 승인 ID가 있는 것만 보내요 (만료된 승인은 서버가 빼서 줘요, #46)
+      const items = approvable.flatMap((t) => {
+        const a = d.pending_approvals.find((x) => x.target_id === t.target_id)
+        return a ? [{ target_id: t.target_id, approval_id: a.approval_id }] : []
+      })
+      // 승인 ID가 하나도 없으면(만료) 서버가 400을 줘요 → 보내지 않고 최신 상태를 다시 불러와요
+      if (items.length === 0) {
+        setError('승인할 수 있는 plan이 없어요. 만료됐을 수 있어서 최신 상태를 다시 불러왔어요.')
+        reload()
+        setPending(false)
+        return
+      }
       await api.approve(d.id, decision, hasDelete ? confirm : undefined, items, newIdempotencyKey())
       if (decision === 'approve') navigate(paths.progress(projectId, d.id), { state: { transition: 'l03' } })
       // Q1(거절하면 어디로)이 정해지기 전까지는 개요로 돌아가요
@@ -115,7 +122,7 @@ function ApproveView({ d, plan, detail, reload }: { d: Deployment; plan: Plan; d
       <Panel title="환경별 요약">
         {d.targets.map((t) => {
           const p = planOf(t.target_id)
-          if (t.state === 'failed') return <EnvStatusRow key={t.target_id} env={t.type} note={`${t.attempt}회 실패 · 이번 승인에서 빠져요`} tone="failed" label="실패" />
+          if (t.state === 'failed') return <EnvStatusRow key={t.target_id} env={t.type} note={`${t.attempt ? `${t.attempt}회 실패` : '실패'} · 이번 승인에서 빠져요`} tone="failed" label="실패" />
           const c = p?.counts
           const note = c ? `리소스 +${c.create} ~${c.update} −${c.delete} · ${p?.summary ?? `위험 설정 ${p?.risks.length ?? 0}건`}` : '—'
           return <EnvStatusRow key={t.target_id} env={t.type} note={note} tone="success" label="검증 통과" />

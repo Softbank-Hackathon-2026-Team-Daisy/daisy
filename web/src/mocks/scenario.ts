@@ -113,7 +113,6 @@ function deployment(id: string, state: Deployment['state'], t: [TargetPatch, Tar
     targets,
     pending_approvals: targets.filter((x) => x.state === 'awaiting_approval').map((x) => ({ target_id: x.target_id, approval_id: `apv_${id}_${x.target_id}` })),
     source_version_id: 'src_a1b2c3d',
-    pending_approval: state === 'awaiting_approval' ? { approval_id: 'apv_7', kind: 'plan' } : null,
     created_by: '도영',
     created_at: ago(10),
     finished_at: null,

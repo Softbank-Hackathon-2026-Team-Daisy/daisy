@@ -1,5 +1,5 @@
 import { useNavigate, useParams } from 'react-router'
-import { api } from '../../api/endpoints.ts'
+import { api, isMocked } from '../../api/endpoints.ts'
 import { deploymentStatus } from '../../api/status.ts'
 import type { Deployment, TargetStatus } from '../../api/types.ts'
 import { POLL_MS, useResource } from '../../api/useResource.ts'
@@ -36,7 +36,7 @@ function OverviewPage() {
 
   return (
     <div className="page">
-      <PageHeader overline="Overview" title="개요" description={`${projectLabel(deployments)}가 지금 어느 환경에 어떤 버전으로 떠 있는지, 다음에 할 일이 뭔지 봐요.`} />
+      <PageHeader mock={isMocked('getTargetsStatus', 'listDeployments')} overline="Overview" title="개요" description={`${projectLabel(deployments)}가 지금 어느 환경에 어떤 버전으로 떠 있는지, 다음에 할 일이 뭔지 봐요.`} />
 
       <div className="page__row page__row--main-side">
         <Panel title="환경별 현재 버전" aside={image && <span className="t-mono-sm t-muted">{shortImage(image)}</span>}>

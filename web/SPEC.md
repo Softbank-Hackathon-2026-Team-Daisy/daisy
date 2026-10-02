@@ -278,7 +278,10 @@ Page ──▶ hook ──▶ api/client ──────────▶ Unibl
 | A-01 `GET /projects` · A-12 `GET /projects/{id}` | ✅ 실서버 | 첫 화면 = 첫 프로젝트, 사이드바 프로젝트 목록, W-13 `default_branch` · `repository_url` · `manifest_path`. `build` · `registry` · `webhook_last_at`은 미제공 |
 | A-02 `GET /projects/{id}/targets/status` | ✅ 실서버 | `{ items, next_cursor }` 봉투, `connection_state`, `current: null` = "확인된 배포 없음", `health: unknown` = "확인 전", digest가 하나도 없으면 동일성 "확인 전" |
 | A-06 `GET /projects/{id}/builds` | ✅ 실서버 | `queued` "대기 중", 커밋 메시지 · 작성자 · 시각 없으면 "—", `image_digest` · `images[]`, W-04로 `?build=source_version_id` |
-| 배포 시작 · 승인 · 취소 · 재시도 · 롤백, A-03 · A-04 · A-05 · A-07, WR-xx, SSE | ⏳ 목업 | 요청 모양만 먼저 맞춤: 배포 시작 `source_version_id`, 승인 `{ decision, confirm_text, items: [{ target_id, approval_id }] }` (A-04 `pending_approvals`) — #40 · #42 |
+| A-03 `GET /projects/{id}/deployments` · A-04 `GET /deployments/{id}` (#46 · #48) | ✅ 실서버 (#42~#48 머지 후) | 목록 · 상세 같은 모양. `version` 없음 → 짧은 커밋, `kind` null, 대상 `step` · `attempt` null → 상태로 추정 · "시도 —", `pending_approvals` |
+| 배포 시작 `POST /projects/{id}/deployments` · 승인 · 취소 · 재시도 `POST /deployments/{id}/retry` · 롤백 (#42) | ✅ 실서버 (#42 머지 후) | 응답 `{ id, project_id, state }`. 시작 `{ source_version_id, target_ids }`, 승인 `{ decision, confirm_text, items }`(빈 items는 보내지 않음), 취소 · 재시도 `{ target_ids }`, 롤백 `{ target_ids, reason }` |
+| WR-04 `GET /projects/{id}/targets` (#42) | ✅ 실서버 (#42 머지 후) | 봉투, `reuse` null → "판단 전", `connection.checked_at` null |
+| A-05 · WR-06 plan, A-07 로그, 스크립트, AI 사용량, manifest, 연결 테스트 · 리소스, SSE | ⏳ 목업 | 실서버 모드에서 연결 테스트 · 리소스 버튼은 꺼요. SSE(`GET /deployments/{id}/events` · `/projects/{id}/events`)는 서버에 열렸지만 웹은 5초 폴링 유지 — 다음 PR |
 
 로컬 확인: `main`의 서버를 로컬 Postgres로 띄우고 `VITE_API_BASE_URL=http://127.0.0.1:8080` · `VITE_USE_MOCK=false`로 owner · viewer 로그인, 개요 · 빌드(대기 중 → 완료) · 설정을 확인했어요.
 
@@ -449,6 +452,7 @@ Page ──▶ hook ──▶ api/client ──────────▶ Unibl
 | 9/30 | 와이어프레임 수정 · 서버 답변 반영: W-00 로그인 추가, W-02b 범위 제외, W-05b 한 환경만 중단, 상태 값(§2-5), 롤백(WR-14) 범위 포함, WR-01 `fetch` 스트리밍, WR-04 · WR-05 모양 확정, W-12 배포별 보기, Q7 · Q9 · Q10 해결 | 김도영 |
 | 9/30 | 승준 님 코멘트 반영: §1-1 앱 범위는 회의 안건으로 표시(ADR-007 기준 유지), §6-1-1 앱 요청(#13) 중 웹도 쓰는 R-09 · A-10 ~ A-12 연결 | 김도영 |
 | 9/30 | W-14 Mac 앱 다운로드(Dialog) 추가 (와이어프레임 갱신) | 김도영 |
+| 10/2 | #42 · #46 · #48 계약: 배포 목록 · 상세 · 생성 · 승인 · 취소 · 재시도(`/retry`) · 롤백 · WR-04 실서버, `version` · `step` · `attempt` null 처리 | 김도영 |
 | 10/2 | 실서버 연결(#38): 서버에 열린 API만 실서버로(§6-0-1), 역할 `owner`, A-02 봉투 · `current` null 문구, A-06 `queued` · `source_version_id`, 승인 `items`, R-09 없음 | 김도영 |
 | 10/1 | 배포 전체 `running` 문구를 "진행 중"으로 (생성 · 검증부터 apply까지 포함, 환경별 `applying` "배포 중"과 구분) | 김도영 |
 | 10/1 | 서비스 이름 Daisy → **Unibloom** (Figma 로고 워드마크 "unibloom"). 팀 이름(Team Daisy) · GitHub 조직 이름은 그대로 | 김도영 |

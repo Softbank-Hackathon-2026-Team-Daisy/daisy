@@ -56,6 +56,7 @@ export type TargetStatus = {
   connection_state?: ConnectionState // #38에서 추가. W-04에서 연결 안 되는 환경을 막을 때 써요
   checked_at: string | null
   current: { commit: string; image: string | null; deployment_id: string; deployed_at: string } | null
+  current_status?: 'confirmed' | 'unverified' | 'none' // current는 confirmed일 때만 와요 (#42)
   image_digest?: string | null // WR-09
   url: string | null
   health: Health
@@ -68,8 +69,9 @@ export type Target = {
   type: EnvKind
   name: string
   title?: string // 예: "ECS Fargate · ap-northeast-2"
-  reuse: { available: boolean; script_id?: string; reason?: string }
-  connection: { state: 'ok' | 'failed' | 'unknown'; checked_at: string }
+  // WR-04 (#42): { items, next_cursor } 봉투. reuse는 인프라 보고가 없으면 null, 한 번도 확인 안 했으면 checked_at null
+  reuse: { available: boolean; script_id?: string; reason?: string } | null
+  connection: { state: 'ok' | 'failed' | 'unknown'; checked_at: string | null }
   // W-10 정보 (#13 가칭 선택 필드)
   runtime?: string
   location?: string
@@ -80,21 +82,27 @@ export type Target = {
   current_commit?: string | null
 }
 
+// A-04 대상 (#46). step · step_state · url · 헬스는 Jenkins 결과 수신(#35) 전까지 null, 생성 전이면 attempt null
 export type DeploymentTarget = {
   target_id: string
   type: EnvKind
+  name?: string
   state: TargetState
-  step: Step
-  attempt: number // 첫 생성을 포함한 총 시도 횟수 (1~3). 화면에는 "시도 n/3"
+  step: Step | null
+  step_state?: string | null
+  attempt: number | null // 첫 생성을 포함한 총 시도 횟수 (1~3). 화면에는 "시도 n/3", 없으면 "—"
   reused_script: boolean
   url: string | null
-  image_digest?: string
+  image_digest?: string | null
   error_summary: string | null
+  cancel_requested_at?: string | null
+  started_at?: string | null
+  finished_at?: string | null
   // 아래는 앱 요청 #13의 선택 필드 (가칭). 없으면 화면이 단계 · 상태에서 추정해요
   title?: string // 예: "ap-northeast-2 · ECS Fargate"
   // skipped = 실행하지 않은 단계 (Jenkins NOT_EXECUTED). 서버가 넘길 값 이름은 은현 님과 맞춰요 (가칭)
   steps?: { name: string; state: 'waiting' | 'running' | 'done' | 'failed' | 'skipped'; duration_ms?: number }[]
-  health_summary?: string // 예: "200 OK · 120ms" (1회 측정, #17)
+  health_summary?: string | null // 예: "200 OK · 120ms" (1회 측정, #17)
 }
 
 // AI 사용량 합계는 A-05 plan 응답에 같이 와요 (#13, 10/1 서버 결정). 확인 못 한 토큰 · 비용은 null
@@ -119,27 +127,32 @@ export type AiUsageItem = {
   status: 'succeeded' | 'failed'
 }
 
-// A-03 목록(요약) · A-04 스냅샷(전체)
+// A-03 목록 · A-04 상세 — 같은 모양 (#46 · #48)
 export type Deployment = {
   id: string
   project_id: string
-  kind: 'deploy' | 'rollback'
+  kind: 'deploy' | 'rollback' | null // 서버는 롤백만 "rollback", 나머지 null
   rolled_back_from: string | null
-  version: string
+  retry_of?: string | null
+  version?: string // 서버 미제공(후순위) — 화면은 짧은 커밋으로 대신 (versionLabel)
   commit: string
   source_version_id?: string // 다시 시도 · 롤백 때 같은 빌드를 고르려고 (#36)
   commit_message?: string
-  image: string
+  image: string | null
+  image_digest?: string | null
+  images?: { service: string; image_ref: string | null; image_digest: string | null }[] | null
   state: DeploymentState
   targets: DeploymentTarget[]
-  pending_approval: { approval_id: string; kind: 'plan' } | null
-  // 승인 대기 환경별 승인 ID — 승인 요청 items에 그대로 담아요 (#40 은현 님, A-04에 추가 예정)
-  pending_approvals?: { target_id: string; approval_id: string }[]
+  // 승인 대기 환경별 승인 ID — 승인 요청 items에 그대로 담아요. 만료된 승인은 빠져요 (#46)
+  pending_approvals: { target_id: string; approval_id: string }[]
   created_by: string
   created_at: string
   finished_at: string | null
   last_seq: number
 }
+
+// 배포 생성 · 승인 · 취소 · 재시도 · 롤백 응답 (#42). 화면은 id로 다음 화면에 가요
+export type DeploymentAccepted = { id: string; project_id: string; state: DeploymentState }
 
 export type Risk = { level: 'high' | 'medium' | 'low'; rule: string; resource: string; message: string }
 

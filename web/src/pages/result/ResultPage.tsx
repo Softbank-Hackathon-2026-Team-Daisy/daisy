@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { useNavigate, useParams } from 'react-router'
 import { useAuth } from '../../api/auth.ts'
-import { api } from '../../api/endpoints.ts'
+import { api, isMocked } from '../../api/endpoints.ts'
 import { deploymentStatus, targetStatus } from '../../api/status.ts'
 import type { Deployment, DeploymentTarget } from '../../api/types.ts'
 import { useAction } from '../../api/useAction.ts'
@@ -16,7 +16,7 @@ import Stepper from '../../components/Stepper.tsx'
 import Toast from '../../components/Toast.tsx'
 import { paths } from '../../paths.ts'
 import { shortCommit } from '../../utils/format.ts'
-import { failedAt, names } from '../flow.ts'
+import { failedAt, names, versionLabel } from '../flow.ts'
 import { ErrorBlock, LoadingBlock } from '../Loading.tsx'
 import ReadOnlyNote from '../ReadOnlyNote.tsx'
 import '../page.css'
@@ -47,9 +47,9 @@ function ResultView({ d }: { d: Deployment }) {
     setToast('URL을 복사했어요')
   }
 
-  // 실패한 환경만 고른 새 배포 (#13 서버 결정)
+  // 실패한 환경만 새 배포로 다시 시도 — POST /deployments/{id}/retry (10/2 확정)
   const retry = async (t: DeploymentTarget) => {
-    const next = await run((key) => api.createDeployment(projectId, d, [t.target_id], key), '다시 시도하지 못했어요')
+    const next = await run((key) => api.retry(d.id, [t.target_id], key), '다시 시도하지 못했어요')
     if (next) navigate(paths.generate(projectId, next.id), { state: { transition: 'l02' } })
   }
 
@@ -57,7 +57,7 @@ function ResultView({ d }: { d: Deployment }) {
   const rows: ParityRow[] = [
     { label: '이미지 digest', values: values((t) => t.image_digest ?? null), failed: d.targets.filter((t) => base && t.image_digest && t.image_digest !== base.image_digest).map((t) => t.target_id) },
     { label: '커밋', values: values(() => shortCommit(d.commit)) },
-    { label: '앱 버전', values: values(() => d.version) },
+    { label: '배포 버전', values: values(() => versionLabel(d)) },
     { label: '헬스체크', values: values((t) => (t.state === 'succeeded' ? (t.health_summary ?? '—') : t.state === 'failed' ? (t.health_summary ?? '실패') : null)), failed: bad.map((t) => t.target_id) },
   ]
 
@@ -66,12 +66,12 @@ function ResultView({ d }: { d: Deployment }) {
       ? '모든 환경이 같은 이미지로 떠 있는지 확인해요.'
       : ok.length === 0
         ? '모든 환경이 실패했어요. 원인을 확인하고 다시 시도해 주세요.'
-        : `${names(ok)}는 성공, ${names(bad)}는 ${failedAt(bad[0])} 실패했어요. 성공한 환경끼리 같은 이미지인지 확인해요.`
+        : `${names(ok)}는 성공, ${names(bad)}는 ${failedAt(bad[0]) ? `${failedAt(bad[0])} ` : ''}실패했어요. 성공한 환경끼리 같은 이미지인지 확인해요.`
 
   return (
     <div className="page">
       <Stepper current={6} />
-      <PageHeader overline="Step 6" title="배포 결과" badge={<StatusBadge tone={status.tone}>{status.label}</StatusBadge>} description={description} />
+      <PageHeader mock={isMocked('getDeployment', 'retry')} overline="Step 6" title="배포 결과" badge={<StatusBadge tone={status.tone}>{status.label}</StatusBadge>} description={description} />
 
       <div className="page__row page__row--3">
         {d.targets.map((t) => {
@@ -87,7 +87,7 @@ function ResultView({ d }: { d: Deployment }) {
               health={
                 failed ? (
                   <button type="button" className="t-body-sm" style={{ padding: 0, border: 0, background: 'none', color: 'var(--color-danger)', cursor: 'pointer' }} onClick={() => navigate(paths.progress(projectId, d.id))}>
-                    {failedAt(t).replace('에서', '')} 실패 · 원인 보기
+                    {failedAt(t) ? `${failedAt(t).replace('에서', '')} 실패` : '실패'} · 원인 보기
                   </button>
                 ) : (
                   <span className="t-muted">{t.health_summary ?? '—'}</span>

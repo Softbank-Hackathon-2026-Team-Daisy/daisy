@@ -6,6 +6,7 @@ import type {
   AuthToken,
   Build,
   Deployment,
+  DeploymentAccepted,
   ListResponse,
   LogLine,
   Manifest,
@@ -22,8 +23,24 @@ import type {
 // 상태를 바꾸는 요청은 마지막 인자로 Idempotency-Key를 받아요 — 화면은 useAction이 사용자 동작마다 하나 만들어 줘요
 
 // 서버에 열린 API (#38 머지, 10/1). 서버 PR이 머지되면 여기에 이름만 더해요
-// 다음 후보: createDeployment · streamEvents · listTargets (#42), getDeployment · approve · cancel · rollback (#42 후속)
-const SERVER_READY = new Set<string>(['login', 'me', 'listProjects', 'getProject', 'getTargetsStatus', 'listBuilds'])
+// 아직 목업: A-05 plan · plan 상세, A-07 로그, 스크립트, AI 사용량, manifest, 프로젝트 연결 · 해제, 연결 테스트 · 리소스
+// #42 · #46 · #48: 배포 목록 · 상세 · 생성 · 승인 · 취소 · 재시도 · 롤백 · 환경 목록
+const SERVER_READY = new Set<string>([
+  'login',
+  'me',
+  'listProjects',
+  'getProject',
+  'getTargetsStatus',
+  'listBuilds',
+  'listTargets',
+  'listDeployments',
+  'getDeployment',
+  'createDeployment',
+  'approve',
+  'cancel',
+  'retry',
+  'rollback',
+])
 
 /** 이 API를 목업으로 답하는지 — 화면이 MOCK 배지를 붙일지 정할 때 써요 */
 export const isMocked = (...names: string[]) => USE_MOCK || names.some((n) => !SERVER_READY.has(n))
@@ -96,7 +113,7 @@ export const api = {
 
   // WR-04
   listTargets: (projectId: string) =>
-    !live('listTargets') ? mock(() => mockApi.listTargets(projectId)) : request<Target[]>('GET', `/projects/${projectId}/targets`),
+    !live('listTargets') ? mock(() => mockApi.listTargets(projectId)) : request<ListResponse<Target>>('GET', `/projects/${projectId}/targets`),
 
   // A-03
   listDeployments: (projectId: string, state?: string) =>
@@ -108,10 +125,16 @@ export const api = {
   createDeployment: (projectId: string, build: { source_version_id?: string; commit: string }, targetIds: string[], key: string) =>
     !live('createDeployment')
       ? mock(() => mockApi.createDeployment(projectId, build.commit, targetIds))
-      : request<Deployment>('POST', `/projects/${projectId}/deployments`, {
+      : request<DeploymentAccepted>('POST', `/projects/${projectId}/deployments`, {
           body: { source_version_id: build.source_version_id, target_ids: targetIds },
           idempotencyKey: key,
         }),
+
+  // 실패한 환경만 새 배포로 다시 시도 (W-05b · W-08). 원래 배포와 같은 빌드를 서버가 골라요 (10/2 확정, #42)
+  retry: (id: string, targetIds: string[], key: string) =>
+    !live('retry')
+      ? mock(() => mockApi.retry(id, targetIds))
+      : request<DeploymentAccepted>('POST', `/deployments/${id}/retry`, { body: { target_ids: targetIds }, idempotencyKey: key }),
 
   // A-04
   getDeployment: (id: string) => (!live('getDeployment') ? mock(() => mockApi.getDeployment(id)) : request<Deployment>('GET', `/deployments/${id}`)),
@@ -132,18 +155,20 @@ export const api = {
   ) =>
     !live('approve')
       ? mock(() => mockApi.approve(id, decision))
-      : request<Deployment>('POST', `/deployments/${id}/approvals`, {
+      : request<DeploymentAccepted>('POST', `/deployments/${id}/approvals`, {
           body: { decision, confirm_text: confirmText, items },
           idempotencyKey: key,
         }),
 
   // WR-08 · WR-14
-  cancel: (id: string, key: string) =>
-    !live('cancel') ? mock(() => mockApi.cancel(id)) : request<Deployment>('POST', `/deployments/${id}/cancel`, { idempotencyKey: key }),
+  cancel: (id: string, targetIds: string[], key: string) =>
+    !live('cancel')
+      ? mock(() => mockApi.cancel(id))
+      : request<DeploymentAccepted>('POST', `/deployments/${id}/cancel`, { body: { target_ids: targetIds }, idempotencyKey: key }),
   rollback: (id: string, targetIds: string[], reason: string | undefined, key: string) =>
     !live('rollback')
       ? mock(() => mockApi.rollback(id, targetIds))
-      : request<Deployment>('POST', `/deployments/${id}/rollback`, { body: { target_ids: targetIds, reason }, idempotencyKey: key }),
+      : request<DeploymentAccepted>('POST', `/deployments/${id}/rollback`, { body: { target_ids: targetIds, reason }, idempotencyKey: key }),
 
   // A-07
   getLogs: (id: string, targetId?: string) =>
