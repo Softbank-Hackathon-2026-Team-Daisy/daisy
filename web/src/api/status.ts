@@ -38,7 +38,7 @@ export const STEP_LABEL: Record<Step, string> = {
 
 const UNKNOWN: StatusView = { tone: 'queued', label: '알 수 없음' }
 
-export function deploymentStatus(state: string, kind?: 'deploy' | 'rollback'): StatusView {
+export function deploymentStatus(state: string, kind?: 'deploy' | 'rollback' | null): StatusView {
   if (kind === 'rollback' && state === 'succeeded') return { tone: 'rolledback', label: '롤백됨' }
   return DEPLOYMENT[state as DeploymentState] ?? UNKNOWN
 }
@@ -48,6 +48,7 @@ export function targetStatus(state: string): StatusView {
 }
 
 // "시도 n/3" — 첫 생성을 포함한 총 시도 횟수예요. "재시도"로 쓰지 않아요
-export function attemptLabel(attempt: number) {
-  return `시도 ${attempt}/3`
+// 생성 전이면 서버가 null을 줘요 (#46) → "시도 —"
+export function attemptLabel(attempt: number | null | undefined) {
+  return attempt == null ? '시도 —' : `시도 ${attempt}/3`
 }

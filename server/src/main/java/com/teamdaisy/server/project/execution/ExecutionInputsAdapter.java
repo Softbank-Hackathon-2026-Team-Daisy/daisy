@@ -7,6 +7,7 @@ import com.teamdaisy.server.common.error.DaisyException;
 import com.teamdaisy.server.common.error.ErrorCode;
 import com.teamdaisy.server.deployment.application.DeploymentExecutionService.BuildResult;
 import com.teamdaisy.server.deployment.application.ExecutionInputs;
+import com.teamdaisy.server.project.domain.ImageRefs;
 import com.teamdaisy.server.project.domain.Project;
 import com.teamdaisy.server.project.domain.ProjectRepository;
 import com.teamdaisy.server.project.domain.SourceVersion;
@@ -17,7 +18,6 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
-import java.util.regex.Pattern;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -38,7 +38,6 @@ public class ExecutionInputsAdapter implements ExecutionInputs {
   static final String STRATEGY_RECREATE = "recreate";
   private static final String SUCCEEDED = "succeeded";
   private static final String DISCONNECTED = "disconnected";
-  private static final Pattern DIGEST = Pattern.compile("sha256:[0-9a-f]{64}");
 
   private final ProjectRepository projects;
   private final TargetRepository targets;
@@ -169,37 +168,9 @@ public class ExecutionInputsAdapter implements ExecutionInputs {
     return new BuildInput(build.id(), build.commitSha(), images.deepCopy());
   }
 
-  /**
-   * 계약 모양 {@code {service: {image_ref, digest?, commit_sha}}} 인지 봐요.
-   *
-   * <p>모든 서비스의 {@code commit_sha} 가 빌드 commit 과 같아야 해요. digest 는 미확인이면 없어도 되지만, 있으면 {@code sha256:}
-   * 과 64자리 hex 여야 해요.
-   */
+  /** 계약 모양인지 봐요. 규칙은 빌드 저장과 같이 {@link ImageRefs} 에 있어요. */
   static boolean validImageRefs(JsonNode images, String commit) {
-    if (images == null || !images.isObject() || images.isEmpty()) {
-      return false;
-    }
-    for (Map.Entry<String, JsonNode> entry : images.properties()) {
-      JsonNode image = entry.getValue();
-      if (entry.getKey().isBlank() || !image.isObject()) {
-        return false;
-      }
-      JsonNode ref = image.get("image_ref");
-      if (ref == null || !ref.isTextual() || ref.asText().isBlank()) {
-        return false;
-      }
-      JsonNode sha = image.get("commit_sha");
-      if (sha == null || !sha.isTextual() || !sha.asText().equals(commit)) {
-        return false;
-      }
-      JsonNode digest = image.get("digest");
-      if (digest != null
-          && !digest.isNull()
-          && (!digest.isTextual() || !DIGEST.matcher(digest.asText()).matches())) {
-        return false;
-      }
-    }
-    return true;
+    return ImageRefs.valid(images, commit);
   }
 
   private Target activeTarget(String projectId, String targetId, ErrorCode missing) {
