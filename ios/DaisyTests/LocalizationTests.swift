@@ -67,12 +67,15 @@ struct LocalizationTests {
 
     /// 앱이 만든 오류 문구는 번역하고, 서버가 보낸 `message`는 받은 그대로예요
     @Test func apiErrorMessages() {
-        let serverMessage = APIError.server(status: 409, code: "STATE_CONFLICT", message: "이미 승인됐어요", retryable: true)
+        // 모르는 코드면 서버 message를 그대로, 아는 코드(서버 ErrorCode 9개)는 앱이 고른 언어로 (#74)
+        let serverMessage = APIError.server(status: 409, code: "SOMETHING_NEW", message: "이미 승인됐어요", retryable: true)
+        let known = APIError.server(status: 409, code: "TARGET_LOCKED", message: "해당 대상에서 다른 배포가 진행 중입니다.", retryable: false)
         AppLanguage.$override.withValue(.english) {
             #expect(APIError.transport("offline").errorDescription == "Couldn't connect to the server. Please try again in a moment.")
             #expect(APIError.server(status: 401, code: "UNAUTHENTICATED", message: "x", retryable: false).errorDescription
                     == "Incorrect username or password.")
             #expect(serverMessage.errorDescription == "이미 승인됐어요")
+            #expect(known.errorDescription == "Another deployment is running on this environment.")
         }
         AppLanguage.$override.withValue(.japanese) {
             #expect(APIError.server(status: 403, code: "FORBIDDEN", message: "x", retryable: false).errorDescription

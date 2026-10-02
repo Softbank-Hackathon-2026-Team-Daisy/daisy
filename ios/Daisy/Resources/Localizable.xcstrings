@@ -2808,6 +2808,22 @@
         }
       }
     },
+    "배포 명세(deploy.yaml)를 확인해 주세요." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Please check the deployment spec (deploy.yaml)."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "デプロイ仕様（deploy.yaml）を確認してください。"
+          }
+        }
+      }
+    },
     "배포 서비스에서 이 프로젝트를 지워요. 이미 떠 있는 인프라는 지워지지 않아요 (terraform destroy는 따로 해요)." : {
       "localizations" : {
         "en" : {
@@ -3844,6 +3860,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "サーバーに接続できませんでした。しばらくしてから再試行してください。"
+          }
+        }
+      }
+    },
+    "서버에서 오류가 났어요. 잠시 후 다시 시도해 주세요." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Something went wrong on the server. Please try again in a moment."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "サーバーでエラーが発生しました。しばらくしてからもう一度お試しください。"
           }
         }
       }
@@ -5160,6 +5192,54 @@
         }
       }
     },
+    "요청 입력을 확인해 주세요." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Please check your input."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "入力内容を確認してください。"
+          }
+        }
+      }
+    },
+    "요청이 많아요. 잠시 후 다시 시도해 주세요." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Too many requests. Please try again in a moment."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "リクエストが多すぎます。しばらくしてからもう一度お試しください。"
+          }
+        }
+      }
+    },
+    "요청한 정보를 찾을 수 없어요." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The requested item wasn't found."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "要求された情報が見つかりません。"
+          }
+        }
+      }
+    },
     "웹훅" : {
       "localizations" : {
         "en" : {
@@ -5328,6 +5408,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "このプロジェクトのリポジトリ接続、デプロイ仕様、シークレット、通知を管理します。"
+          }
+        }
+      }
+    },
+    "이 환경에서 다른 배포가 진행 중이에요." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Another deployment is running on this environment."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "この環境では別のデプロイが進行中です。"
           }
         }
       }
@@ -6092,6 +6188,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "中止"
+          }
+        }
+      }
+    },
+    "지금 상태에서는 할 수 없는 요청이에요." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "This can't be done in the current state."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "現在の状態ではこの操作はできません。"
           }
         }
       }

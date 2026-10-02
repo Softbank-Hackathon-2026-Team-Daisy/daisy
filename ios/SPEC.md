@@ -170,7 +170,7 @@ View ──▶ Store(@Observable) ──▶ APIClient ────────�
 
 | 어디 | 필드 |
 |---|---|
-| 오류 | 에러 봉투 `error.message` (`APIError.server`), deploy.yaml 검증 오류 `errors[].message` · `path` (WR-03) |
+| 오류 | 에러 봉투 `error.message` — **서버 `ErrorCode` 9개는 앱이 `error.code`로 번역**하고 모르는 코드만 그대로 (#74 안 A), deploy.yaml 검증 오류 `errors[].message` · `path` (WR-03) |
 | 배포 (A-04) | `error_summary`, `health_summary`, 레인 부제 `title`, `steps[].name` (서버 단계 이름) |
 | 현황 (A-02) | `health_summary`, 환경 `name` (종류를 모를 때) |
 | plan (A-05 · WR-06) | 위험 `risks[].message` · `rule` · `resource`, 환경 요약 `summary`, `plan_text` |
@@ -543,6 +543,7 @@ API 모양보다 **이 정보가 어딘가에 저장되어 있는지**가 더 �
 
 | 날짜 | 변경 | 작성 |
 |---|---|---|
+| 10/2 | 서버 응답 언어는 #74 안 A로 결정(하은현 제안): 서버는 한국어 그대로, 앱이 `error.code`(서버 `ErrorCode` 9개)를 고른 언어로 번역하고 모르는 코드만 서버 문장을 보여줘요. plan 위험 설명 · 대상 오류 요약은 Jenkins · AI 결과라 받은 그대로예요 | 박승준 |
 | 10/2 | 서버 주소 입력칸을 없앰: 앱은 늘 `https://api.unibloom.cloud`로 가요(우리가 운영하는 서비스라 사용자가 주소를 넣지 않아요). 예전에 저장된 주소(웹 주소 등)는 무시하고, 개발 빌드만 실행 환경변수 `UNIBLOOM_SERVER_URL`로 바꿀 수 있어요. 웹 페이지(HTML)가 오면 "서버 응답이 올바르지 않아요"로 보여줘요 | 박승준 |
 | 10/2 | **앱 언어 설정** (§3-3): 설정 › 언어 "기기 설정 따르기 · 한국어 · English · 日本語", 기본값 기기 언어, 고르면 다시 켜지 않아도 바로 바뀜(iOS · macOS). String Catalog `Localizable.xcstrings`(한국어 원문 + 영어 · 일본어 전부), `String.app` · 루트 `\.locale`, 숫자 · 상대 시각도 고른 언어. 서버 글자는 번역하지 않음(§3-3 표). 요청에 `Accept-Language` (R-10 가칭). 테스트 63 → 72개 (매개변수 경우 포함 75 → 84건) | 박승준 |
 | 10/2 | 서버 #56 · #59 · #60 · #68 · 웹 #61 · #64 리뷰에 맞춤: WR-02 응답 `{ project, manifest }`(manifest null이면 "검증 전"으로 W-03), A-04 `approval_state` · `apply_dispatch`("승인 완료 · 실행 대기" · 승인됨, 다시 승인 안 함), 승인 409 · 만료 문구 웹과 같게, 스크립트 `attempt` · `origin` null 허용과 폐기 · plan 없음 뜻 바로잡음, AI 호출 기록 빈 목록 문구, 연결 표시 "5초마다 새로고침"(폴링), 해제 409 이유 문구, 성공한 빌드만 배포 시작에 고름, 개요 "지금 할 일" 빈 안내 가운데 | 박승준 |
