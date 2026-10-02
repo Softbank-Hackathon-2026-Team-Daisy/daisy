@@ -7,6 +7,8 @@ struct APIClient: Sendable {
     var session: URLSession = .shared
     /// 설정 › 언어에서 고른 언어. 서버가 메시지를 그 언어로 줄 수 있게 `Accept-Language`로 보내요 (10/2, SPEC R-10)
     var language: AppLanguage = .current
+    /// 응답을 못 받은 요청의 Idempotency-Key (웹 #88)
+    var idempotencyKeys: IdempotencyKeys = .shared
 
     /// 요청 하나의 URLRequest: 경로 · 헤더(Bearer, Accept-Language, Idempotency-Key) · 본문
     func request<Response>(for endpoint: Endpoint<Response>) throws -> URLRequest {
@@ -22,21 +24,24 @@ struct APIClient: Sendable {
             request.setValue("application/json", forHTTPHeaderField: "Content-Type")
         }
         if let key = endpoint.idempotencyKey {
-            request.setValue(key, forHTTPHeaderField: "Idempotency-Key")
+            request.setValue(idempotencyKeys.key(for: request, fresh: key), forHTTPHeaderField: "Idempotency-Key")
         }
         return request
     }
 
     func send<Response: Decodable & Sendable>(_ endpoint: Endpoint<Response>) async throws -> Response {
         let request = try request(for: endpoint)
+        let key = request.value(forHTTPHeaderField: "Idempotency-Key")
         let data: Data
         let response: URLResponse
         do {
             (data, response) = try await session.data(for: request)
         } catch {
+            if let key { idempotencyKeys.record(request, key: key, outcomeUnknown: true) }
             throw APIError.transport(error.localizedDescription)
         }
         guard let http = response as? HTTPURLResponse else { throw APIError.invalidResponse }
+        if let key { idempotencyKeys.record(request, key: key, outcomeUnknown: http.statusCode >= 500) }
 
         // API가 아니라 웹 페이지(HTML)가 오면 JSON으로 읽지 않고 "응답이 올바르지 않아요"로 보여줘요 (주소 오류 · 터널 오류 페이지)
         if data.first(where: { ![0x20, 0x0A, 0x0D, 0x09].contains($0) }) == UInt8(ascii: "<") {
@@ -109,6 +114,8 @@ extension JSONEncoder {
     static let daisy: JSONEncoder = {
         let encoder = JSONEncoder()
         encoder.keyEncodingStrategy = .convertToSnakeCase
+        // 같은 내용이면 같은 본문이 되게 키 순서를 고정해요 (응답 유실 재시도 판단, IdempotencyKeys)
+        encoder.outputFormatting = .sortedKeys
         return encoder
     }()
 }
