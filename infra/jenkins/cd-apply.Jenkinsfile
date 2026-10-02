@@ -170,6 +170,9 @@ def applyTarget(String t) {
               returnStatus: true)
   if (rc == 0) {
     if (server) {
+      // terraform 결과 줄(Apply complete! Resources: …)을 배포 화면 로그로 보내요
+      sh(script: "python3 infra/jenkins/daisy_server.py log ${t} info apply \"\$(grep -m1 '^Apply complete!' apply-${t}.log || echo '적용 완료')\"",
+         returnStatus: true)
       sh "python3 infra/jenkins/daisy_server.py stage ${t} apply completed"
       sh "python3 infra/jenkins/daisy_server.py state ${t} verifying"
     }
@@ -222,6 +225,7 @@ def checkTarget(String t) {
   def url = fileExists("url-${t}.txt") ? readFile("url-${t}.txt").trim() : ''
   if (rc == 0) {
     if (server) {
+      sh(script: "python3 infra/jenkins/daisy_server.py log ${t} info health_check '헬스체크 · 스모크 테스트 통과 → ${url}'", returnStatus: true)
       sh "python3 infra/jenkins/daisy_server.py stage ${t} health_check completed"
       sh "python3 infra/jenkins/daisy_server.py applied ${t} '${url}'"
     }

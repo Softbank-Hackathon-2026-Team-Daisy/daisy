@@ -10,6 +10,7 @@
     daisy_server.py state-identity <env> <app>          서버 대상 등록에 넣을 state_identity
     daisy_server.py state <env> <status> [--attempt N] [--error 메시지]
     daisy_server.py stage <env> <step> <started|completed|failed> [--occurrence ID] [--message 메시지]
+    daisy_server.py log <env> <level> <step|-> <메시지>  배포 화면 로그 한 줄 (요약만, 비밀값 패턴은 가려요)
     daisy_server.py plan-ready <env>                    검증된 스크립트 · plan → script · plan 콜백
     daisy_server.py plan-failed <env>                   plan_with_ai.py 실패 → failed (ai.json의 메시지 · 실패 단계)
     daisy_server.py check-plan <env>                    (apply) 승인한 plan 대조: ok · stale · 실패 사유 출력
@@ -342,6 +343,18 @@ def bind_app(deploy_yaml: str) -> None:
 
 # ---------- 결과 ----------
 
+STEPS = {"generate", "validate", "plan", "risk_check", "apply", "health_check"}
+
+
+def log_line(env: str, level: str, step: str | None, message: str) -> None:
+    """배포 화면 로그 한 줄 (서버 log.batch, A-07). 콘솔 전체가 아니라 사람이 볼 요약 줄만 보내요. 비밀값 패턴은 가려요."""
+    t = target(load_job(), env)
+    payload = {"level": level if level in ("debug", "info", "warn", "error") else "info", "message": clean(message, 8000)}
+    if step in STEPS:
+        payload["step"] = step
+    send("log", t["deployment_target_id"], payload)
+
+
 def set_state(env: str, status: str, attempt: int) -> None:
     """진행 상태 (generating · validating · applying · verifying). 끝 상태는 fail_target · applied · stale이 보내요."""
     t = target(load_job(), env)
@@ -352,6 +365,10 @@ def fail_target(env: str, error: str, attempt: int = 0) -> None:
     t = target(load_job(), env)
     if is_done(t["deployment_target_id"]):
         return
+    try:
+        log_line(env, "error", None, error)  # 배포 화면 로그에도 남겨요
+    except Fail as e:
+        print(f"{env}: 실패 로그를 보내지 못했어요 — {e}", file=sys.stderr)
     send("state", t["deployment_target_id"], {"status": "failed", "attempt": attempt, "error_summary": clean(error, 4000)})
     mark_done(t["deployment_target_id"])
     print(f"{env}: 실패로 알렸어요 — {clean(error, 300)}")
@@ -400,6 +417,9 @@ def plan_ready(env: str) -> None:
     created = datetime.datetime.fromisoformat(meta["created_at"].replace("Z", "+00:00"))
     expires = (created + PLAN_TTL).isoformat().replace("+00:00", "Z")
     resources, counts = plan_resources(src / "plan.json")
+    log_line(env, "info", "plan", f"승인 대기: {meta['summary']} · " + {
+        "reused": "검증된 스크립트 재사용 (AI 0회)", "generated": f"AI 생성 {attempt}번째 시도로 통과",
+    }.get(mode, "기준 모듈"))
     send("plan", dt, {
         "source_plan_id": f"{plan_id}/{env}",
         "input_hash": t["input_hash"],
@@ -576,6 +596,8 @@ def main() -> int:
     s = sub.add_parser("stage"); s.add_argument("env"); s.add_argument("step")
     s.add_argument("phase", choices=["started", "completed", "failed"])
     s.add_argument("--occurrence"); s.add_argument("--message")
+    s = sub.add_parser("log"); s.add_argument("env"); s.add_argument("level"); s.add_argument("step")
+    s.add_argument("message")
     s = sub.add_parser("plan-ready"); s.add_argument("env")
     s = sub.add_parser("plan-failed"); s.add_argument("env")
     s = sub.add_parser("check-plan"); s.add_argument("env")
@@ -601,6 +623,8 @@ def main() -> int:
                 set_state(a.env, a.status, a.attempt)
         elif a.cmd == "stage":
             stage(a.env, a.step, a.phase, a.occurrence, a.message)
+        elif a.cmd == "log":
+            log_line(a.env, a.level, a.step, a.message)
         elif a.cmd == "plan-ready":
             plan_ready(a.env)
         elif a.cmd == "plan-failed":

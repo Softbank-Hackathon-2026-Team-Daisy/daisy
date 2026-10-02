@@ -58,6 +58,9 @@ class Server:
     def usage(self, attempt: int, step: str, usage: dict | None, status: str):
         self._call("usage", attempt, step, usage, status)
 
+    def log(self, level: str, step: str | None, message: str):
+        self._call("log_line", level, step, message)
+
 
 def main() -> int:
     if len(sys.argv) != 2 or sys.argv[1] not in ("aws", "gcp", "onprem"):
@@ -89,6 +92,7 @@ def main() -> int:
     if os.environ.get("USE_AI", "1") == "0":
         print("MOCK: USE_AI=0 — AI 없이 기준 모듈을 그대로 써요")
         record["mode"] = "reference"
+        srv.log("info", "generate", "AI 없이 기준 모듈로 plan해요")
         srv.state("validating", 0)
         ok, out = plan_and_check(env, generate.reference_dir(env), plan_dir, srv, 0)
         return finish(plan_dir, ai_dir, record, ok, "" if ok else tail(out[1], 4000))
@@ -97,6 +101,7 @@ def main() -> int:
     if verified.exists():
         print(f"재사용: 검증된 스크립트 {fp[:12]} (AI 호출 0회)")
         record["mode"] = "reused"
+        srv.log("info", "generate", f"입력이 같은 검증된 스크립트 {fp[:12]}를 재사용해요 (AI 호출 0회)")
         srv.state("validating", 0)
         ok, out_or_stage = plan_and_check(env, verified, plan_dir, srv, 0)
         if ok:
@@ -105,6 +110,8 @@ def main() -> int:
         stage, error = out_or_stage
         previous = read_files(verified)
         print(f"재사용 실패 ({stage}) → AI로 고쳐요")
+        srv.log("warn", stage if stage in ("validate", "plan", "risk_check") else None,
+                f"재사용한 스크립트가 {stage} 단계에서 실패했어요 → AI로 고쳐요")
 
     record["mode"] = "generated"
     for attempt in range(1, MAX_AI_CALLS + 1):
@@ -113,6 +120,8 @@ def main() -> int:
         step = "fix" if previous else "generate"  # 서버 ai_usage의 step (처음 생성 · 고치기)
         srv.state("generating", attempt)
         srv.stage("generate", "started", attempt)
+        srv.log("info", "generate", f"AI Terraform {'수정' if previous else '생성'} {attempt}/{MAX_AI_CALLS}"
+                + (f" (이전 실패: {stage})" if previous else ""))
         try:
             files, notes, usage = generate.generate(env, inputs, previous, stage, error, attempt)
         except generate.GenerationError as e:
@@ -121,6 +130,7 @@ def main() -> int:
             print(f"AI 생성 실패: {e}")
             srv.usage(attempt, step, e.usage, "failed")
             srv.stage("generate", "failed", attempt, str(e))
+            srv.log("warn", "generate", f"AI 응답을 쓸 수 없어요: {e}")
             continue  # 같은 입력으로 다시 생성해요
         except anthropic.APIError as e:
             # 키 · 권한 · 네트워크 문제는 고쳐서 될 일이 아니라 바로 멈춰요 (SDK가 429 · 5xx는 이미 재시도했어요)
@@ -128,9 +138,11 @@ def main() -> int:
             record["ai_calls"] = attempt
             srv.usage(attempt, step, None, "failed")
             srv.stage("generate", "failed", attempt, f"AI API 오류: {type(e).__name__}")
+            srv.log("error", "generate", f"AI API 오류로 멈췄어요: {type(e).__name__}")
             return finish(plan_dir, ai_dir, record, False, f"AI API 오류: {type(e).__name__}: {e}")
         srv.usage(attempt, step, usage, "succeeded")
         srv.stage("generate", "completed", attempt)
+        srv.log("info", "generate", f"AI 메모: {notes} (입력 {usage['input_tokens']} · 출력 {usage['output_tokens']} 토큰)")
         generate.write_files(files, cand, env)
         record["ai_calls"] = attempt
         print(f"AI 메모: {notes}  ·  {usage['model']} in={usage['input_tokens']} out={usage['output_tokens']} "
@@ -150,6 +162,8 @@ def main() -> int:
         record["attempts"].append(entry)
         previous = files
         print(f"검증 실패 ({stage}) → {'다시 고쳐요' if attempt < MAX_AI_CALLS else '시도를 다 썼어요'}")
+        srv.log("warn", stage if stage in ("validate", "plan", "risk_check") else None,
+                f"{stage} 단계 실패 → {'오류 로그로 AI가 고쳐요' if attempt < MAX_AI_CALLS else 'AI 시도 3번을 다 썼어요'}")
 
     return finish(plan_dir, ai_dir, record, False, f"AI 생성 {MAX_AI_CALLS}번이 모두 검증을 통과하지 못했어요 (마지막 단계: {stage})")
 
@@ -169,8 +183,10 @@ def plan_and_check(env: str, src: pathlib.Path, plan_dir: pathlib.Path, srv: Ser
     if proc.returncode != 0:
         shutil.rmtree(plan_dir, ignore_errors=True)  # 통과하지 못한 plan은 승인 대상이 아니에요
         srv.stage("risk_check", "failed", attempt, "위험 검사 위반")
+        srv.log("error", "risk_check", "위험 검사 위반:\n" + "\n".join(proc.stdout.strip().splitlines()[:10]))
         return False, ("risk_check", proc.stdout + proc.stderr)
     srv.stage("risk_check", "completed", attempt)
+    srv.log("info", "risk_check", "위험 검사 통과 (공개 포트 · 권한 · 암호화 · 비용 규칙)")
     return True, ""
 
 
@@ -185,6 +201,12 @@ def run_plan(env: str, src: pathlib.Path, plan_dir: pathlib.Path, srv: Server | 
     for line in proc.stdout:
         print(line, end="", flush=True)
         lines.append(line)
+        text = line.strip()
+        # 사람이 볼 terraform 결과 줄만 로그로 보내요 (전체 출력은 Jenkins 콘솔)
+        if text.startswith(("Plan: ", "No changes.", "Success! The configuration is valid")):
+            srv.log("info", current, text)
+        elif text.startswith(("Error: ", "tf-run: ")) and "단계" not in text and "plan ID" not in text:
+            srv.log("error", current, text)
         if "tf-run: 단계 " in line:
             step = "plan" if line.split("tf-run: 단계 ", 1)[1].strip() == "plan" else "validate"
             if step != current:
