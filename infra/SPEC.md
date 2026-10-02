@@ -335,6 +335,29 @@ DB 접속 정보는 앱에 환경변수로 넣어요. 이름은 온프레미스�
 - `daisy-cd-plan` #17 (같은 입력 재plan): `No changes`
 - 같은 날 `aws.unibloom.cloud` · `onprem.unibloom.cloud` · `gcp.unibloom.cloud`가 같은 커밋(`5139b93`)으로 열려요
 
+### 6-5. Azure 기준 모듈 (10/3, #89)
+
+`infra/modules/azure`: **Container Apps** (Consumption, 요청 없으면 0대). GCP와 같은 계약(입력 · `service_url` · 서버 콜백)이에요.
+
+| 항목 | 내용 |
+|---|---|
+| 리전 | `koreacentral` (서울) |
+| 리소스 | `azurerm_container_app` (공개 HTTPS 인그레스, `allow_insecure_connections = false`, 최소 0 · 최대 1~2대, vCPU 0.25 · 0.5 · 1, 메모리 = vCPU × 2Gi) + `azurerm_container_app_custom_domain` (`domain`이 있을 때) |
+| 고정 리소스 | 리소스 그룹 `daisy-tfstate` · `daisy-apps`, Container Apps 환경 `daisy-env`(로그 저장 없음), state 저장소 계정 · 컨테이너 `tfstate`. 준비 때 CLI로 1번 만들고 모듈은 data로 환경을 찾아요. 환경의 기본 도메인이 그대로라 DNS CNAME도 그대로예요 |
+| 공개 도메인 | Route 53 `azure` CNAME → `daisy-<앱>.<환경 기본 도메인>`, `asuid.azure` TXT → 환경의 도메인 확인 ID. azurerm은 도메인만 등록해요(연결 `Disabled`). **관리형 인증서 발급 · 연결은 처음 1번** `az containerapp hostname bind --hostname <주소> -g daisy-apps -n daisy-<앱> --environment daisy-env --validation-method CNAME`. 모듈은 `ignore_changes`로 그 연결을 건드리지 않아요 |
+| state | Azure Blob (`TF_STATE_BUCKET_AZURE` = 저장소 계정 이름, 컨테이너 `tfstate`, blob lease 잠금, 접근 키 대신 배포 주체의 Entra ID 권한). `state_identity` = `azurerm://<계정>/tfstate/<앱>/azure/terraform.tfstate` |
+| 자격증명 | 배포 주체 `daisy-deployer`: `daisy-apps`에 Contributor, state 저장소 계정에 Storage Blob Data Contributor만. Jenkins Credentials `azure-deployer`(Username = 클라이언트 ID, Password = 시크릿), 전역 `ARM_TENANT_ID` · `ARM_SUBSCRIPTION_ID`. provider는 `resource_provider_registrations = "none"`(공급자 등록은 준비 때 구독 권한으로) |
+| 표시 이름 | 샘플 앱이 Container Apps를 스스로 알아보지 못해서 `DEPLOY_PLATFORM = "Azure · Container Apps"`를 기본으로 넣어요 (deploy.yaml env가 우선) |
+| 위험 검사 | `check_azure`: 고정 리소스(리소스 그룹 · 환경 · Log Analytics) · 네트워크 · 공인 IP · 권한 부여 생성 금지, Consumption 프로필만, HTTPS만(TCP 공개 금지), 최소 0대 · 최대 2대 · vCPU 1 · 메모리 2Gi 이하, 코드에 구독 · 테넌트 · 배포 주체 값 금지, 비밀값 리터럴 금지 |
+
+검증 (10/3, 개인 Azure 구독 · koreacentral):
+- 위험 검사: 기준 모듈 통과, 일부러 넣은 위반 14가지 모두 검출
+- `daisy-cd-plan` #30 (Blob state, AI 없이) → `daisy-cd-apply` #14: `2 added` (앱 19초, 도메인 18초). 기본 주소 `/health` 200, 도메인은 인증서 연결 전이라 헬스체크 실패
+- `hostname bind` 뒤 DigiCert 인증서로 `https://azure.unibloom.cloud/health` 200
+- `daisy-cd-plan` #31 → `daisy-cd-apply` #15: `1 changed`(표시 이름), 헬스체크 200 · 스모크 테스트 12개 PASS, 인증서 연결 유지
+- 같은 날 `aws.` · `gcp.` · `azure.` · `onprem.unibloom.cloud`가 같은 커밋(`5139b93`)으로 열려요
+- 아직: 서버 요청(웹 배포 → 승인)으로 Azure plan · apply (서버 V2 · Azure 대상 등록 후), AI 생성 경로
+
 ---
 
 ## 7. state 백엔드 (N-07)
@@ -623,9 +646,9 @@ daisy-cd-apply ◀── 서버가 buildWithParameters(PLAN_BUILD=N, APPROVAL_ID
 | Job | prepare · replan → `daisy-cd-plan`, apply → `daisy-cd-apply` (서버 기본 매핑 그대로). apply 중단은 지원하지 않아요. plan을 Jenkins에서 중단하면 남은 대상을 `cancelled`로 알려요 |
 | 콜백 | `POST $DAISY_CALLBACK_URL` (`…/internal/jenkins/callbacks`), 헤더 `X-Daisy-Jenkins-Token`. 통신 오류 · 5xx는 같은 `external_event_id`로 다시 보내요 (최대 5번). 보낸 콜백과 응답은 빌드 산출물 `server-events.jsonl` |
 | 순번 | `source_sequence`는 실행(빌드) · 대상마다 0부터 1씩 올라가요 (state · stage · plan · plan_stale 공통) |
-| 대상 | `targets[].snapshot.environment_type` = `aws` · `onprem` · `gcp`. 한 요청에 같은 종류는 하나 |
+| 대상 | `targets[].snapshot.environment_type` = `aws` · `onprem` · `gcp` · `azure`. 한 요청에 같은 종류는 하나 |
 | 앱 이름 | `repository_snapshot`의 저장소 · `default_branch` · `manifest_path`에서 `commit_sha`의 deploy.yaml을 읽고, `name`을 state key · 작업 폴더로 써요 |
-| `state_identity` | 러너가 실제로 쓰는 state 위치예요. S3면 `s3://<버킷>/<앱>/aws/terraform.tfstate`, 러너 로컬이면 `local://<DAISY_RUNNER_ID>/<앱>/<env>/terraform.tfstate`. 서버 대상 등록 값과 다르면 기본은 **경고만** 해요 (10/2: 서버 데모 대상이 임시 값 `<프로젝트>/<대상>`을 써요). Jenkins 전역 `DAISY_STATE_IDENTITY_CHECK=strict`면 실행 전에 그 대상을 failed로 알려요 (#70 요청, 서버가 실제 값을 등록한 뒤 켜요). 맞출 값은 `daisy_server.py state-identity <env> <앱>`으로 봐요 |
+| `state_identity` | 러너가 실제로 쓰는 state 위치예요. S3면 `s3://<버킷>/<앱>/aws/terraform.tfstate`, GCS면 `gs://<버킷>/<앱>/gcp/default.tfstate`, Azure Blob이면 `azurerm://<계정>/tfstate/<앱>/azure/terraform.tfstate`, 러너 로컬이면 `local://<DAISY_RUNNER_ID>/<앱>/<env>/terraform.tfstate`. 서버 대상 등록 값과 다르면 기본은 **경고만** 해요 (10/2: 서버 데모 대상이 임시 값 `<프로젝트>/<대상>`을 써요). Jenkins 전역 `DAISY_STATE_IDENTITY_CHECK=strict`면 실행 전에 그 대상을 failed로 알려요 (#70 요청, 서버가 실제 값을 등록한 뒤 켜요). 맞출 값은 `daisy_server.py state-identity <env> <앱>`으로 봐요 |
 | 공개 주소 | AWS는 모듈이 `https://aws.unibloom.cloud`를 만들어요 (`targets/aws.json`에 `"domain": "unibloom.cloud", "subdomain": "aws"`). 온프레미스는 모듈 밖에서 연결해요. 10/2부터 서비스 VM의 ngrok 서비스(`ngrok.service`, www · api와 같은 설정 파일)에 `onprem.unibloom.cloud → http://172.16.1.5:18080` 엔드포인트를 두고, Route 53 CNAME → ngrok, 인증서는 ngrok이 발급해요. 그리고 `targets/onprem.json`에 `"public_url": "https://onprem.unibloom.cloud"`를 넣어요. 러너는 내부 주소 헬스체크 · 스모크 테스트 뒤 공개 주소도 확인하고, **공개 주소를 서버에 알려요**. 공개 주소 확인이 실패하면 그 대상은 failed예요 (`public_url`을 지우면 내부 주소로 알려요). `public_url`은 모듈 변수에 넣지 않아요 |
 | attempt | 서버 명령의 `targets[].attempt`(환경별 앞선 생성 시도 수, #70)에 이어서 세요. AI 시도는 남은 만큼(3 − 앞선 수)만 써요. 서버는 attempt가 줄어드는 보고를 거절해서 apply · 실패 · 취소도 그 값으로 보고하고, 값이 없으면(#70 전) 승인한 plan의 시도 수를 써요. 재사용 plan은 앞선 시도가 0일 때만 `reused_script: true`(서버: 재사용은 attempt 0) |
 | 이미지 | `image_refs`는 서비스 1개, `image_ref` = `<저장소>:<commit_sha>`. 모듈 `image` · `image_tag`로 나눠요. MSA(서비스 여러 개)는 아직 실패로 알려요 |
@@ -778,6 +801,7 @@ GCP 규칙은 GCP 모듈과 함께 추가해요 (지금은 구조 검사만).
 | 2026-10-01 | 10/1 결정 동기화: AI 담당 변경(§0 · §1 · §3 · §4), Jenkins 실행 확정(D-1 · D-2 · §3-4), 완료 기준 실측(§5-4), state가 아직 로컬인 점(§7), 일정(§9), Job 4개 · `claude-api-key` · `aws.json` 필수(§3-5 · §12), 서버 이전을 "러너만 / 계정까지"로 나눔(§13) |
 | 2026-10-02 | 공개 도메인: AWS 모듈 `domain` · `subdomain`(HTTPS · Route 53, §5-2), 온프레미스 `public_url`(§12-9). `state_identity` 불일치는 경고만 |
 | 2026-10-02 | 서버 요청 연동(§12-9): 두 Job이 `request_id` · `payload`를 받고 대상별 결과를 서버 콜백으로 보내요. `state_identity` 규칙, apply 대조 · `plan_stale`, apply와 헬스체크를 환경마다 이어서 실행 |
+| 2026-10-03 | Azure 기준 모듈(§6-5, Container Apps · koreacentral · Blob state · `azure.unibloom.cloud`). GCP · Azure는 state 저장소 설정이 없으면 멈춰요 |
 
 ---
 
