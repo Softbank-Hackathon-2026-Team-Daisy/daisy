@@ -7,9 +7,9 @@ import java.util.Map;
  *
  * <p><b>대상 {@code config} 에 두지 않아요.</b> {@code config} 는 배포를 만들 때 {@code target_snapshot} 으로 고정되고
  * {@code input_hash} 와 재시도 검사({@code config_revision})에 들어가요. 표시용 값 때문에 실행 입력을 바꾸면 진행 중인 배포의 재시도가
- * 409 가 돼요. 지금은 데모 대상 세 개뿐이라 여기 표로 두고, 실제 대상 등록 절차가 생기면 저장 위치를 정해요.
+ * 409 가 돼요. 데모 대상 설명은 여기 표로 두고, 실제 대상 등록 절차가 생기면 저장 위치를 정해요.
  *
- * <p>값은 인프라 실제 구성이에요 (채준 10/2 정리, server/SPEC.md 「배포 결과 · 환경 정보 표시」).
+ * <p>값은 인프라 공유 구성이에요 (채준 10/2 정리와 #89). Azure는 준비 예정 구성이며, 이 표는 실행 준비나 연결 성공을 보장하지 않아요.
  *
  * @param locationLabel 웹 {@code types.ts} 의 {@code '위치' | '리전'} 중 하나예요
  */
@@ -39,6 +39,14 @@ public record TargetProfile(
               "Jenkins → GCP API",
               "https://gcp.unibloom.cloud",
               "GCS (잠금)"),
+          "tgt_demo_azure",
+          new TargetProfile(
+              "Container Apps",
+              "koreacentral 서울",
+              "리전",
+              "Jenkins → Azure API",
+              "https://azure.unibloom.cloud",
+              "Azure Blob (잠금)"),
           "tgt_demo_onprem",
           new TargetProfile(
               "Docker · Proxmox Service VM",

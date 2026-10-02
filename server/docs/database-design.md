@@ -274,7 +274,7 @@ PK(project_id,account_id), INDEX(account_id,project_id). 프로젝트 접근 여
 | id | ID | NN / — | PK, 환경 이름과 구분 |
 | project_id | ID | NN / — | project FK |
 | name | varchar(128) | NN / — | 표시명 |
-| environment_type | varchar(32) | NN / — | onprem/aws/gcp 제안 |
+| environment_type | varchar(32) | NN / — | onprem/aws/gcp/azure (Azure는 V2부터 허용) |
 | state_identity | varchar(512) | NN / — | 실제 Terraform backend/workspace/key 충돌 범위의 정규화 ID |
 | config | jsonb | NN / — | 비밀값 없는 환경 설정 객체 |
 | config_revision | bigint | NN / 1 | 실행 관련 설정·credential 참조 변경마다 증가 |

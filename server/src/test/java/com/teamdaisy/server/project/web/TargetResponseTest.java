@@ -18,6 +18,20 @@ class TargetResponseTest {
   private static final ObjectMapper MAPPER = new ObjectMapper();
 
   @Test
+  @DisplayName("Azure 공유 구성은 전달하되 연결 성공으로 표시하지 않아요")
+  void azureTypeIsPreserved() {
+    var response = TargetResponse.of(target("tgt_demo_azure", "azure"));
+    assertThat(response.type()).isEqualTo("azure");
+    assertThat(response.connection().state()).isEqualTo("unknown");
+    assertThat(response.runtime()).isEqualTo("Container Apps");
+    assertThat(response.location()).isEqualTo("koreacentral 서울");
+    assertThat(response.locationLabel()).isEqualTo("리전");
+    assertThat(response.accessMethod()).isEqualTo("Jenkins → Azure API");
+    assertThat(response.exposure()).isEqualTo("https://azure.unibloom.cloud");
+    assertThat(response.stateBackend()).isEqualTo("Azure Blob (잠금)");
+  }
+
+  @Test
   @DisplayName("연결 상태는 소비자 값(ok·failed·unknown)으로 바뀌고 모르는 값은 그대로예요")
   void connectionStateMapping() {
     assertThat(TargetResponse.connectionState("connected")).isEqualTo("ok");

@@ -1,5 +1,14 @@
 # 서버 개발 명세
 
+## Azure 대상 허용 (2026-10-02)
+
+- 근거: 승환님이 전달한 10/2 회의의 Azure 포함 결정과 웹 #87이에요.
+- V1은 변경하지 않고 `V2__allow_azure_target.sql`로 `target.environment_type`의 허용값에 `azure`를 추가해요. 기존 데이터·FK·state 락은 유지해요.
+- 조회 응답은 저장된 환경 종류를 문자열로 내보내므로 기존 DTO를 사용해요. #89 인프라 답변의 예정 구성을 `tgt_demo_azure` 표시 정보로 추가해요: Container Apps / koreacentral 서울 / 리전 / Jenkins → Azure API / https://azure.unibloom.cloud / Azure Blob (잠금). 다른 대상 ID는 기존처럼 설명 null이며, 실제 대상 ID가 다르면 등록 전에 맞춰요. 표시 정보는 연결 성공·실행 준비 완료를 뜻하지 않아요.
+- Azure 대상 자동 시딩은 하지 않아요. 인프라가 모듈·자격증명·state_identity·Jenkins 실행 경로를 준비한 뒤 실제 대상을 등록해야 해요. DB 허용을 실행 준비 완료로 취급하지 않아요.
+- 검증: V1 상태에서 Azure 거절 → V2 적용 후 기존 3개 환경 보존·Azure 허용·알 수 없는 환경 거절, 조회 DTO의 `type=azure` 보존을 확인해요. 실DB 검증은 `DAISY_TEST_DB_URL`이 필요해요.
+- 로컬 결과: 격리 PostgreSQL 17.11에 `DAISY_TEST_DB_URL`을 연결해 `./gradlew spotlessApply check` 성공, 243개 전부 통과·스킵 0개예요. V1→V2 적용·기존 환경 보존·Azure 허용·잘못된 환경 거절·재적용 0건을 검증했어요. 운영 DB 적용·Jenkins Azure 실행·운영 재배포는 미실행이에요.
+
 개발할 범위와 동작을 이 문서에 먼저 적고, 구현·검증 후 PR로 공유합니다.
 최신 검증(2026-10-02): #84 조회 작업을 실행부에 통합했어요. PostgreSQL 포함 241개 테스트와 격리 DB·실제 서버 jar의 로컬 HTTP 흐름(로그인·멱등 접수·승인·인증된 콜백·현재 배포/결과/사용량 조회·SSE 재생)을 통과했어요. Jenkins/Terraform 산출물은 명시적인 테스트 데이터이며 실제 클라우드 재배포·브라우저 확인과는 구분해요. 아래 날짜별 '미구현/미합의' 표현은 당시 기록이고, 최신 검증은 [작업 일지](docs/sh/2026-10-02-target-observation.md)를 봐주세요.
 현재 상태(2026-10-01): #32의 V1 마이그레이션과 #19 피드백 수정 커밋을 로컬에서 통합했습니다. 아래 날짜별 기록의 마이그레이션 미포함·기동 제한은 당시 범위이며 현재 상태가 아닙니다. 서버 간 계약의 답변안과 항목별 처리 상태는 [#19 정리](docs/sh/2026-10-01-pr19-feedback.md#통합-후-피드백-처리표)를 따릅니다. 합의 전 답변안을 최종 OpenAPI로 취급하지 않습니다.

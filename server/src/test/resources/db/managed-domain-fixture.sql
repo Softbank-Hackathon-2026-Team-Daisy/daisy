@@ -20,7 +20,7 @@ CREATE TABLE project_member (
 CREATE INDEX project_member_account_idx ON project_member(account_id,project_id);
 CREATE TABLE target (
   id varchar(64) PRIMARY KEY, project_id varchar(64) NOT NULL REFERENCES project(id), name varchar(128) NOT NULL,
-  environment_type varchar(32) NOT NULL CHECK(environment_type IN ('onprem','aws','gcp')),
+  environment_type varchar(32) NOT NULL CHECK(environment_type IN ('onprem','aws','gcp','azure')),
   state_identity varchar(512) NOT NULL, config jsonb NOT NULL,
   config_revision bigint NOT NULL DEFAULT 1 CHECK(config_revision>=1), credential_ref text, credential_version varchar(255),
   connection_state varchar(32) NOT NULL DEFAULT 'unknown' CHECK(connection_state IN ('unknown','connected','disconnected')),
