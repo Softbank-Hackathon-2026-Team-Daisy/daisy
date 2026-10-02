@@ -56,7 +56,14 @@ function OverviewPage() {
                   {/* current가 null이면 "확인된 현재 배포 없음" — 배포를 안 했다는 뜻이 아니에요 (#42) */}
                   <span className="t-mono">{tg.current ? shortCommit(tg.current.commit) : '—'}</span>
                   <span className="t-body-sm t-muted">{tg.current ? relativeTime(tg.current.deployed_at) : t('확인된 배포 없음')}</span>
-                  <span className="env-row__url t-mono-sm t-muted">{tg.url ?? '—'}</span>
+                  {/* 한 줄로 두고 넘치면 … — 전체 URL은 title로. 누르면 새 탭에서 열려요 */}
+                  {tg.url ? (
+                    <a className="env-row__url t-mono-sm" href={tg.url} target="_blank" rel="noopener noreferrer" title={tg.url}>
+                      {tg.url}
+                    </a>
+                  ) : (
+                    <span className="env-row__url t-mono-sm t-muted">—</span>
+                  )}
                   <StatusBadge tone={tg.health === 'healthy' ? 'success' : tg.health === 'unhealthy' ? 'failed' : 'queued'}>
                     {tg.health === 'healthy' ? t('정상') : tg.health === 'unhealthy' ? t('이상') : t('확인 전')}
                   </StatusBadge>
@@ -150,7 +157,7 @@ function Parity({ targets, compact }: { targets: TargetStatus[]; compact?: boole
   const rows: ParityRow[] = [
     { label: t('이미지 digest'), values: values((tg) => tg.image_digest ?? null), failed: differs((tg) => tg.image_digest ?? null), format: shortDigest },
     { label: t('커밋'), values: values((tg) => (tg.current ? shortCommit(tg.current.commit) : null)), failed: differs((tg) => tg.current?.commit ?? null) },
-    { label: t('헬스체크'), values: values((tg) => tg.health_summary ?? (tg.health === 'healthy' ? t('정상') : tg.health === 'unhealthy' ? t('실패') : null)), failed: targets.filter((tg) => tg.health === 'unhealthy').map((tg) => tg.target_id) },
+    { label: t('헬스체크'), mono: false, values: values((tg) => tg.health_summary ?? (tg.health === 'healthy' ? t('정상') : tg.health === 'unhealthy' ? t('실패') : null)), failed: targets.filter((tg) => tg.health === 'unhealthy').map((tg) => tg.target_id) },
   ]
   return <ParityTable envs={targets.map((tg) => ({ id: tg.target_id, type: tg.type }))} rows={rows} matched={same} unknown={known === 0} />
 }

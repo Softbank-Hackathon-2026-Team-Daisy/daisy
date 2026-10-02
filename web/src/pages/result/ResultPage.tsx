@@ -9,16 +9,19 @@ import { useDeploymentLive } from '../../api/useRealtime.ts'
 import { useResource } from '../../api/useResource.ts'
 import Alert from '../../components/Alert.tsx'
 import Button from '../../components/Button.tsx'
+import Dialog from '../../components/Dialog.tsx'
+import EnvTag from '../../components/EnvTag.tsx'
 import ParityTable, { type ParityRow } from '../../components/ParityTable.tsx'
 import PageHeader from '../../components/PageHeader.tsx'
-import ResultCard from '../../components/ResultCard.tsx'
+import QrCode from '../../components/QrCode.tsx'
+import ResultCard, { BreakableUrl } from '../../components/ResultCard.tsx'
 import StatusBadge from '../../components/StatusBadge.tsx'
 import Stepper from '../../components/Stepper.tsx'
 import Toast from '../../components/Toast.tsx'
 import { t } from '../../i18n/index.ts'
 import { paths } from '../../paths.ts'
 import { shortCommit, shortDigest } from '../../utils/format.ts'
-import { failedStep, names, versionLabel } from '../flow.ts'
+import { envName, failedStep, names, versionLabel } from '../flow.ts'
 import { ErrorBlock, LoadingBlock } from '../Loading.tsx'
 import ReadOnlyNote from '../ReadOnlyNote.tsx'
 import '../page.css'
@@ -37,12 +40,14 @@ function ResultView({ d }: { d: Deployment }) {
   const navigate = useNavigate()
   const { projectId = '' } = useParams()
   const [toast, setToast] = useState<string | null>(null)
+  const [qrOpen, setQrOpen] = useState(false)
   const { run, pending, error: retryError } = useAction()
   const viewer = useAuth().role === 'viewer'
   const status = deploymentStatus(d.state, d.kind)
   const ok = d.targets.filter((tg) => tg.state === 'succeeded')
   const bad = d.targets.filter((tg) => tg.state === 'failed')
   const base = ok[0]
+  const shareable = ok.filter((tg) => tg.url)
   const matched = ok.filter((tg) => tg.image_digest && tg.image_digest === base?.image_digest).length
 
   const copy = async (url: string) => {
@@ -60,8 +65,9 @@ function ResultView({ d }: { d: Deployment }) {
   const rows: ParityRow[] = [
     { label: t('이미지 digest'), values: values((tg) => tg.image_digest ?? null), failed: d.targets.filter((tg) => base && tg.image_digest && tg.image_digest !== base.image_digest).map((tg) => tg.target_id), format: shortDigest },
     { label: t('커밋'), values: values(() => shortCommit(d.commit)) },
-    { label: t('배포 버전'), values: values(() => versionLabel(d)) },
-    { label: t('헬스체크'), values: values((tg) => (tg.state === 'succeeded' ? (tg.health_summary ?? '—') : tg.state === 'failed' ? (tg.health_summary ?? t('실패')) : null)), failed: bad.map((tg) => tg.target_id) },
+    // 서버가 version을 안 주면 versionLabel이 짧은 커밋으로 돌아가 위 줄과 같아져서 빼요
+    ...(d.version ? [{ label: t('배포 버전'), values: values(() => versionLabel(d)) }] : []),
+    { label: t('헬스체크'), mono: false, values: values((tg) => (tg.state === 'succeeded' ? (tg.health_summary ?? '—') : tg.state === 'failed' ? (tg.health_summary ?? t('실패')) : null)), failed: bad.map((tg) => tg.target_id) },
   ]
 
   const description =
@@ -130,10 +136,27 @@ function ResultView({ d }: { d: Deployment }) {
         <Button variant="outline" onClick={() => navigate(paths.history(projectId))}>
           {t('이력 보기')}
         </Button>
-        <Button variant="ghost" onClick={() => setToast(t('QR 공유는 Mac 앱 · TestFlight 링크가 정해지면 열어요'))}>
+        <Button variant="ghost" disabled={shareable.length === 0} onClick={() => setQrOpen(true)}>
           {t('QR로 공유')}
         </Button>
       </div>
+
+      {/* 심사위원이 휴대폰 카메라로 바로 열어 보게 — 성공한 환경마다 큰 QR */}
+      <Dialog open={qrOpen} onClose={() => setQrOpen(false)} icon="qr-code" title={t('휴대폰으로 바로 열어 보세요')} description={t('카메라로 QR을 비추면 배포된 서비스가 열려요.')}>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-6)', maxHeight: '60vh', overflowY: 'auto' }}>
+          {shareable.map((tg) => (
+            <div key={tg.target_id} style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-4)' }}>
+              <QrCode value={tg.url!} size={180} label={t('{env} QR 코드', { env: envName(tg) })} />
+              <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-start', gap: 'var(--space-2)', minWidth: 0 }}>
+                <EnvTag env={tg.type} />
+                <a className="t-mono-sm" href={tg.url!} target="_blank" rel="noopener noreferrer">
+                  <BreakableUrl url={tg.url!} />
+                </a>
+              </div>
+            </div>
+          ))}
+        </div>
+      </Dialog>
     </div>
   )
 }
