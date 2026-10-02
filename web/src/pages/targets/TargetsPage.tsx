@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { useNavigate, useParams, useSearchParams } from 'react-router'
 import { useAuth } from '../../api/auth.ts'
-import { api } from '../../api/endpoints.ts'
+import { api, isMocked } from '../../api/endpoints.ts'
 import { useAction } from '../../api/useAction.ts'
 import { useResource } from '../../api/useResource.ts'
 import Alert from '../../components/Alert.tsx'
@@ -32,11 +32,18 @@ function TargetsPage() {
   if (targets.error) return <ErrorBlock error={targets.error} />
   if (!targets.data || !builds.data) return <LoadingBlock />
 
-  const build = builds.data.items.find((b) => b.commit === params.get('commit')) ?? builds.data.items[0]
+  // 빌드는 source_version_id(?build=)로 골라요. 같은 커밋이 여러 번 빌드될 수 있어서예요 (#19 · #36)
+  const build =
+    builds.data.items.find((b) => (params.get('build') ? b.source_version_id === params.get('build') : b.commit === params.get('commit'))) ??
+    builds.data.items.find((b) => b.pipeline.status === 'success') ??
+    builds.data.items[0]
   const commit = build?.commit ?? ''
-  const selected = targets.data.filter((t) => !unselected.has(t.target_id) && t.connection.state !== 'failed')
-  const reuse = selected.filter((t) => t.reuse.available)
-  const generate = selected.filter((t) => !t.reuse.available)
+  const list = targets.data.items
+  const selected = list.filter((t) => !unselected.has(t.target_id) && t.connection.state !== 'failed')
+  // reuse가 null이면 인프라가 아직 판단을 안 준 거라 "확인 전"으로 따로 세요 (#42)
+  const reuse = selected.filter((t) => t.reuse?.available === true)
+  const generate = selected.filter((t) => t.reuse?.available === false)
+  const unknown = selected.filter((t) => !t.reuse)
   const names = (list: typeof selected) => list.map((t) => ENV_LABEL[t.type]).join(', ')
 
   const toggle = (id: string, on: boolean) =>
@@ -48,26 +55,30 @@ function TargetsPage() {
     })
 
   const start = async () => {
-    const d = await run((key) => api.createDeployment(projectId, commit, selected.map((t) => t.target_id), key), '배포를 시작하지 못했어요')
+    const d = await run((key) => api.createDeployment(projectId, { source_version_id: build?.source_version_id, commit }, selected.map((t) => t.target_id), key), '배포를 시작하지 못했어요')
     if (d) navigate(paths.generate(projectId, d.id), { state: { transition: 'l02' } })
   }
 
   return (
     <div className="page">
       <Stepper current={3} />
-      <PageHeader
+      <PageHeader mock={isMocked('listTargets', 'listBuilds', 'createDeployment')}
         overline="Step 3"
         title="배포할 환경 선택"
         description={`여러 환경을 동시에 고를 수 있어요. 같은 이미지(${shortCommit(commit)})가 모든 환경에 배포돼요.`}
       />
 
       <div className="page__row page__row--3">
-        {targets.data.map((t) => (
+        {list.map((t) => (
           <EnvSelectCard
             key={t.target_id}
             env={t.type}
             title={t.title ?? t.name}
-            description={t.connection.state === 'failed' ? '연결할 수 없어요 · 환경 화면에서 확인해 주세요' : t.reuse.reason}
+            description={
+              t.connection.state === 'failed'
+                ? '연결할 수 없어요 · 환경 화면에서 확인해 주세요'
+                : (t.reuse?.reason ?? (t.connection.state === 'unknown' ? '연결 확인 전 · 재사용 여부는 생성할 때 정해져요' : '재사용 여부는 생성할 때 정해져요'))
+            }
             selected={!unselected.has(t.target_id) && t.connection.state !== 'failed'}
             disabled={t.connection.state === 'failed'}
             onChange={(on) => toggle(t.target_id, on)}
@@ -80,6 +91,7 @@ function TargetsPage() {
           <InfoRow label="선택한 환경">{`${selected.length}개`}</InfoRow>
           <InfoRow label="스크립트 재사용">{reuse.length ? `${reuse.length}개 · ${names(reuse)}` : '없음'}</InfoRow>
           <InfoRow label="AI가 새로 생성">{generate.length ? `${generate.length}개 · ${names(generate)}` : '없음'}</InfoRow>
+          {unknown.length > 0 && <InfoRow label="판단 전">{`${unknown.length}개 · ${names(unknown)}`}</InfoRow>}
           <InfoRow label="배포할 이미지">{build?.image ?? '—'}</InfoRow>
         </div>
       </Panel>

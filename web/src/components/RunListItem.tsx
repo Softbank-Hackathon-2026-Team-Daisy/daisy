@@ -9,9 +9,10 @@ type RunListItemProps = {
   tone: StatusTone
   label: string
   commit: string
-  message: string
-  author: string
-  at: string
+  // 서버가 아직 안 주는 값(A-06 커밋 메시지 · 작성자 · 시각, #38)은 null → "—" · 아바타 숨김
+  message: string | null | undefined
+  author: string | null | undefined
+  at: string | null | undefined
   to?: string
 }
 
@@ -20,9 +21,9 @@ function RunListItem({ tone, label, commit, message, author, at, to }: RunListIt
     <>
       <StatusBadge tone={tone}>{label}</StatusBadge>
       <span className="t-mono-sm">{shortCommit(commit)}</span>
-      <span className="run-item__message">{message}</span>
-      <Avatar type="human" name={author} />
-      <span className="run-item__time t-body-sm t-muted">{relativeTime(at)}</span>
+      <span className="run-item__message">{message || '—'}</span>
+      {author && <Avatar type="human" name={author} />}
+      <span className="run-item__time t-body-sm t-muted">{at ? relativeTime(at) : '—'}</span>
     </>
   )
   return to ? (
