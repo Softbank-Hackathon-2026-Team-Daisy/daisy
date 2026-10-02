@@ -48,7 +48,8 @@ export type Me = { account_id: string; username: string; role: Role }
 // A-02 GET /projects/{id}/targets/status — { items, next_cursor } 봉투 (#38)
 // current가 null이면 "확인된 현재 배포 없음"이에요. 배포를 한 번도 안 했다는 뜻이 아니에요 (#42, 10/2)
 // url · health_summary · image_digest는 인프라 apply 결과가 들어오기 전까지 null, health는 unknown
-export type ConnectionState = 'connected' | 'disconnected' | 'unknown'
+// WR-04 connection.state와 같은 값 (#42, 10/2에 connected · disconnected에서 바뀜)
+export type ConnectionState = 'ok' | 'failed' | 'unknown'
 export type TargetStatus = {
   target_id: string
   type: EnvKind
@@ -110,8 +111,9 @@ export type AiUsageSummary = {
   calls: number
   tokens: number | null
   cost_krw: number | null
-  exchange_rate: number
+  exchange_rate: number | null // 서버 환율 설정이 없으면 null (#51)
   estimated: boolean
+  unknown_calls?: number // 토큰 · 비용을 모르는 호출 수 (#51)
 }
 
 // GET /projects/{id}/ai-usage?deployment_id= 호출별 기록 (#13, 경로 · 필드는 OpenAPI가 나오면 맞춰요)

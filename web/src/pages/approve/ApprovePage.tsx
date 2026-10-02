@@ -172,7 +172,7 @@ function ApproveView({ d, plan, detail, reload }: { d: Deployment; plan: Plan; d
 
       <ApprovalBar
         title={`${approvable.length}개 환경 · 리소스 +${sum.create} ~${sum.update} −${sum.delete}`}
-        meta={`검증 통과 ${approvable.length}/${d.targets.length} · 이미지 ${shortCommit(d.commit)} · 위험 설정 ${risks.length}건 · AI 비용 ${won(plan.ai_usage.cost_krw)} (추정, 환율 ${plan.ai_usage.exchange_rate.toLocaleString('ko-KR')}원)`}
+        meta={`검증 통과 ${approvable.length}/${d.targets.length} · 이미지 ${shortCommit(d.commit)} · 위험 설정 ${risks.length}건 · AI 비용 ${won(plan.ai_usage.cost_krw)}${plan.ai_usage.exchange_rate ? ` (추정, 환율 ${plan.ai_usage.exchange_rate.toLocaleString('ko-KR')}원)` : ''}`}
         disabled={viewer || needsConfirm || approvable.length === 0}
         pending={pending}
         note={viewer && <p className="t-body-sm" style={{ color: 'var(--color-warning)' }}>읽기 전용 계정이라 승인할 수 없어요.</p>}

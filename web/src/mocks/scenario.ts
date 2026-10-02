@@ -29,9 +29,9 @@ export const projects: Project[] = [
 ]
 
 export const targetStatus: TargetStatus[] = [
-  { target_id: 'tgt_onprem', type: 'onprem', name: 'home-lab', current: { commit: COMMIT, image: IMAGE, deployment_id: 'dep_41', deployed_at: ago(12) }, image_digest: DIGEST, url: 'https://sample.home-lab.unibloom.cloud', connection_state: 'connected', health: 'healthy', health_summary: '200 OK', checked_at: ago(1) },
-  { target_id: 'tgt_aws', type: 'aws', name: 'aws-prod', current: { commit: COMMIT, image: IMAGE, deployment_id: 'dep_41', deployed_at: ago(12) }, image_digest: DIGEST, url: 'https://sample-monolith.aws.unibloom.cloud', connection_state: 'connected', health: 'healthy', health_summary: '200 OK', checked_at: ago(1) },
-  { target_id: 'tgt_gcp', type: 'gcp', name: 'gcp-prod', current: { commit: COMMIT, image: IMAGE, deployment_id: 'dep_41', deployed_at: ago(12) }, image_digest: DIGEST, url: 'https://sample-monolith-x7k.a.run.app', connection_state: 'connected', health: 'healthy', health_summary: '200 OK', checked_at: ago(1) },
+  { target_id: 'tgt_onprem', type: 'onprem', name: 'home-lab', current: { commit: COMMIT, image: IMAGE, deployment_id: 'dep_41', deployed_at: ago(12) }, image_digest: DIGEST, url: 'https://sample.home-lab.unibloom.cloud', connection_state: 'ok', health: 'healthy', health_summary: '200 OK', checked_at: ago(1) },
+  { target_id: 'tgt_aws', type: 'aws', name: 'aws-prod', current: { commit: COMMIT, image: IMAGE, deployment_id: 'dep_41', deployed_at: ago(12) }, image_digest: DIGEST, url: 'https://sample-monolith.aws.unibloom.cloud', connection_state: 'ok', health: 'healthy', health_summary: '200 OK', checked_at: ago(1) },
+  { target_id: 'tgt_gcp', type: 'gcp', name: 'gcp-prod', current: { commit: COMMIT, image: IMAGE, deployment_id: 'dep_41', deployed_at: ago(12) }, image_digest: DIGEST, url: 'https://sample-monolith-x7k.a.run.app', connection_state: 'ok', health: 'healthy', health_summary: '200 OK', checked_at: ago(1) },
 ]
 
 export const targets: Target[] = [
