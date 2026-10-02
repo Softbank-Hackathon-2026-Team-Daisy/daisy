@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { useParams } from 'react-router'
 import { attemptLabel } from '../../api/status.ts'
-import { api } from '../../api/endpoints.ts'
+import { api, isMocked } from '../../api/endpoints.ts'
 import type { Script } from '../../api/types.ts'
 import { useResource } from '../../api/useResource.ts'
 import Alert from '../../components/Alert.tsx'
@@ -20,8 +20,8 @@ import { ErrorBlock, LoadingBlock } from '../Loading.tsx'
 import '../page.css'
 import './ScriptsPage.css'
 
-// W-11 스크립트 — AI가 만들고 검증을 통과한 Terraform (WR-10). 폐기된 것도 남겨서 "몇 번 만에 통과했는지" 보여줘요
-// 저장 위치는 [미정]
+// W-11 스크립트 — AI가 만들고 검증을 통과한 Terraform (WR-10, #68). 원본을 더 쓸 수 없는 것(폐기)도 남겨서 보여줘요
+// 파일 내용은 WR-07이라 실서버에서는 아직 없어요. 저장 위치 · 입력 · 토큰은 서버에 원천이 없어 "—"예요
 function ScriptsPage() {
   const { projectId = '' } = useParams()
   const scripts = useResource(() => api.listScripts(projectId), [projectId])
@@ -30,9 +30,12 @@ function ScriptsPage() {
   return <ScriptsView scripts={scripts.data} />
 }
 
+// 만든 방식 — origin이 null이면 AI 없이 기준 모듈을 썼거나 출처를 몰라요 (#68). AI 생성이라고 하지 않아요
+const originLabel = (s: Script) => (s.origin === 'reused' ? t('재사용') : s.origin === 'ai_generated' ? t('AI 생성') : t('출처 미확인'))
+
 function howMade(s: Script) {
-  if (s.status === 'discarded') return t('AI 생성 · {n}회 실패 → 폐기', { n: s.attempt })
-  const how = t('{origin} · {attempt} 통과', { origin: s.origin === 'reused' ? t('재사용') : t('AI 생성'), attempt: attemptLabel(s.attempt) })
+  if (s.status === 'discarded') return t('{origin} · 원본을 더 쓸 수 없어 폐기', { origin: originLabel(s) })
+  const how = s.attempt == null ? originLabel(s) : t('{origin} · {attempt} 통과', { origin: originLabel(s), attempt: attemptLabel(s.attempt) })
   return s.note ? `${how} (${s.note})` : how
 }
 
@@ -44,7 +47,7 @@ function ScriptsView({ scripts }: { scripts: Script[] }) {
   if (!current) {
     return (
       <div className="page">
-        <PageHeader overline="Scripts" title={t('스크립트')} />
+        <PageHeader mock={isMocked('listScripts')} overline="Scripts" title={t('스크립트')} />
         <EmptyState icon="terminal" title={t('아직 검증된 스크립트가 없어요')} description={t('첫 배포에서 AI가 만든 Terraform이 검증을 통과하면 여기에 쌓여요')} />
       </div>
     )
@@ -55,6 +58,7 @@ function ScriptsView({ scripts }: { scripts: Script[] }) {
   return (
     <div className="page">
       <PageHeader
+        mock={isMocked('listScripts')}
         overline="Scripts"
         title={t('스크립트')}
         description={t('AI가 만들고 검증을 통과한 Terraform이에요. 같은 환경에 다시 배포할 땐 이미지 태그만 바꿔 재사용해서 AI를 부르지 않아요.')}
@@ -71,9 +75,9 @@ function ScriptsView({ scripts }: { scripts: Script[] }) {
             { key: 'env', label: t('환경'), width: 120, render: (s) => <EnvTag env={s.type} /> },
             { key: 'v', label: t('버전'), width: 90, render: (s) => <span className="t-mono-sm">{s.version}</span> },
             { key: 'how', label: t('만든 방식'), render: howMade },
-            { key: 'check', label: t('검증'), width: 180, render: (s) => (s.validation.plan ? t('validate · plan · 위험 {n}', { n: s.validation.risks }) : t('plan 실패')) },
+            { key: 'check', label: t('검증'), width: 180, render: (s) => (s.validation.plan ? t('validate · plan · 위험 {n}', { n: s.validation.risks ?? '—' }) : t('validate 통과 · plan 없음')) },
             { key: 'reuse', label: t('재사용'), width: 90, render: (s) => (s.status === 'verified' ? t('{n}회', { n: s.reuse_count }) : '—') },
-            { key: 'last', label: t('마지막 사용'), width: 110, render: (s) => relativeTime(s.last_used_at) },
+            { key: 'last', label: t('마지막 사용'), width: 110, render: (s) => (s.last_used_at ? relativeTime(s.last_used_at) : '—') },
           ]}
         />
       </Panel>
@@ -88,12 +92,14 @@ function ScriptsView({ scripts }: { scripts: Script[] }) {
           />
           {file ? (
             <CodeBlock
-              ai={current.origin !== 'reused'}
-              file={`${file.path} · ${current.origin === 'reused' ? t('재사용') : t('AI 생성')} · ${attemptLabel(current.attempt)}`}
+              ai={current.origin === 'ai_generated'}
+              file={`${file.path} · ${originLabel(current)} · ${attemptLabel(current.attempt)}`}
               code={file.content}
             />
           ) : (
-            <p className="t-body-sm t-muted">{t('폐기된 스크립트는 내용을 보관하지 않아요.')}</p>
+            <p className="t-body-sm t-muted">
+              {current.status === 'discarded' ? t('폐기된 스크립트는 내용을 보관하지 않아요.') : t('생성된 스크립트는 서버 연결(WR-07) 뒤에 보여요')}
+            </p>
           )}
         </Panel>
 

@@ -25,7 +25,7 @@ import type {
 // 상태를 바꾸는 요청은 마지막 인자로 Idempotency-Key를 받아요 — 화면은 useAction이 사용자 동작마다 하나 만들어 줘요
 
 // 서버에 열린 API (#38 머지, 10/1). 서버 PR이 머지되면 여기에 이름만 더해요
-// 아직 목업: 스크립트(WR-07 · WR-10), manifest(WR-03), 연결 테스트 · 리소스(A-10 · A-11), 비밀값(WR-12)
+// 아직 목업: 스크립트 내용(WR-07), manifest(WR-03), 연결 테스트 · 리소스(A-10 · A-11), 비밀값(WR-12)
 // #42 · #46 · #48: 배포 목록 · 상세 · 생성 · 승인 · 취소 · 재시도 · 롤백 · 환경 목록
 const SERVER_READY = new Set<string>([
   'login',
@@ -53,6 +53,8 @@ const SERVER_READY = new Set<string>([
   // #42: SSE 채널 (useRealtime)
   'projectEvents',
   'deploymentEvents',
+  // #68: WR-10 스크립트 목록 (W-11)
+  'listScripts',
 ])
 
 /** 이 API를 목업으로 답하는지 — 화면이 MOCK 배지를 붙일지 정할 때 써요 */
@@ -207,7 +209,9 @@ export const api = {
       ? mock(() => mockApi.getScript(deploymentId, targetId))
       : request<Script>('GET', `/deployments/${deploymentId}/targets/${targetId}/script`),
   listScripts: (projectId: string) =>
-    !live('listScripts') ? mock(() => mockApi.listScripts(projectId)) : request<Script[]>('GET', `/projects/${projectId}/scripts`),
+    !live('listScripts')
+      ? mock(() => mockApi.listScripts(projectId))
+      : request<ListResponse<Script>>('GET', `/projects/${projectId}/scripts`).then((r) => r.items), // 봉투 · next_cursor 늘 null (#68)
 }
 
 /** 목업으로 답하는 API가 하나라도 있으면 true — 화면 MOCK 배지 기본값 */

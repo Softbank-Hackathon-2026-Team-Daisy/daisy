@@ -216,20 +216,21 @@ export type Script = {
   target_id: string
   type: EnvKind
   version: string
-  origin: 'ai_generated' | 'reused'
-  attempt: number
+  // 재사용 · AI 생성 · null(AI 없이 기준 모듈을 쓴 경로, 출처 미확인 — #68)
+  origin: 'ai_generated' | 'reused' | null
+  attempt: number | null // 통과한 시도 1~3, 모르면 null
   note?: string
-  validation: { validate: boolean; plan: boolean; risks: number }
-  status: 'verified' | 'discarded'
-  reuse_count: number
-  last_used_at: string
-  files?: { path: string; content: string }[]
-  // W-11 정보 카드 (#13 가칭 선택 필드)
+  validation: { validate: boolean; plan: boolean; risks: number | null } // plan이 없으면 risks null
+  status: 'verified' | 'discarded' // discarded = 원본을 더 쓸 수 없음(보관 기한 지남 등)
+  reuse_count: number // 성공한 재사용만 (#68)
+  last_used_at: string | null // 쓴 적 없으면 null
+  files?: { path: string; content: string }[] // WR-07에서만. WR-10에는 없어요
+  // W-11 정보 카드 (#13 가칭 선택 필드) — 서버는 원천이 없어 안 줘요 (#68)
   base_commit?: string
   input?: string
   ai_tokens?: number
   storage?: string | null
-  created_at?: string
+  created_at?: string // 서버: 검증을 마친 시각
 }
 
 // WR-03
