@@ -238,6 +238,23 @@ struct Plan: Decodable, Sendable {
     let aiUsage: AIUsage?
 
     var hasDelete: Bool { targets.contains { $0.hasDelete } }
+
+    /// 요약(A-05)에 상세(WR-06)의 리소스 행 · plan 원문을 환경별로 붙여요. 상세에 없는 값은 요약 것을 그대로 둬요
+    func merging(_ details: [PlanDetail]) -> Plan {
+        Plan(deploymentId: deploymentId, targets: targets.map { target in
+            guard let detail = details.first(where: { $0.targetId == target.targetId }) else { return target }
+            return Target(targetId: target.targetId, counts: target.counts, hasDelete: target.hasDelete, risks: target.risks,
+                          reusedScript: target.reusedScript, resources: detail.resources ?? target.resources,
+                          summary: target.summary, planText: detail.planText ?? target.planText)
+        }, aiUsage: aiUsage)
+    }
+}
+
+/// WR-06 plan 상세 한 환경: `GET /deployments/{id}/plan?detail=resources` 배열의 원소 (서버 #51)
+struct PlanDetail: Decodable, Sendable {
+    let targetId: String
+    let resources: [PlanResource]?
+    let planText: String?
 }
 
 /// AI 사용량 합계. 원화는 고정 환율로 환산한 추정치예요.

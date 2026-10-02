@@ -15,7 +15,6 @@ import Panel from '../../components/Panel.tsx'
 import Select from '../../components/Select.tsx'
 import SourceOptionCard from '../../components/SourceOptionCard.tsx'
 import Stepper from '../../components/Stepper.tsx'
-import { MOCK_PROJECTS } from '../../mocks/workspace.ts'
 import { paths } from '../../paths.ts'
 import '../page.css'
 
@@ -110,7 +109,7 @@ function ConnectPage() {
       )}
 
       <div className="page__actions">
-        <Button variant="ghost" onClick={() => navigate(paths.overview(MOCK_PROJECTS[0].id))}>
+        <Button variant="ghost" onClick={() => navigate('/')}>
           취소
         </Button>
         {/* 노란색은 배포 버튼 전용이라 여기 CTA는 Secondary */}
