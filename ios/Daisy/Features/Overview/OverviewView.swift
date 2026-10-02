@@ -28,6 +28,7 @@ struct OverviewView: View {
                                 currentVersions.frame(minWidth: 460)
                                 todo.frame(width: 340)
                             }
+                            .equalCardHeights()
                             VStack(spacing: 16) { currentVersions; todo }
                         }
                         if !workspace.statuses.isEmpty {

@@ -125,16 +125,48 @@ struct AdaptiveGrid<Content: View>: View {
     var body: some View {
         // LazyVGrid는 카드 높이가 나중에 바뀌면(스크립트 로딩 등) 스크롤 높이를 크게 잡아 아래에 빈 공간이 생겨서 (W-05, 10/1)
         // 카드 몇 개뿐인 화면이라 지연 없는 레이아웃으로 그려요.
-        AdaptiveColumns(minimumWidth: minimumWidth, spacing: 12) {
+        AdaptiveColumns(minimumWidth: minimumWidth, spacing: 12, equalRowHeights: Self.equalRowHeights) {
             content()
         }
+        .environment(\.fillsRowHeight, Self.equalRowHeights)
+    }
+
+    /// Mac에서만 한 줄의 카드를 가장 높은 카드 높이로 맞춰요 (10/3 담당자: 글자 길이에 따라 카드 아래가 들쭉날쭉한 것).
+    /// iPhone · iPad는 지금처럼 카드마다 제 높이예요
+    static var equalRowHeights: Bool {
+        #if os(macOS)
+        true
+        #else
+        false
+        #endif
+    }
+}
+
+extension EnvironmentValues {
+    /// 이 카드가 줄 높이만큼 늘어나도 되는지. `AdaptiveGrid`(Mac)와 `equalCardHeights()`가 바로 아래 카드에만 켜고,
+    /// 카드는 제 안쪽에서 다시 꺼요 (카드 안의 카드 · 내용은 늘어나지 않게)
+    @Entry var fillsRowHeight = false
+}
+
+extension View {
+    /// 가로 줄(HStack)의 카드들을 가장 높은 카드 높이로 맞춰요. Mac에서만, 그 밖에는 아무것도 바꾸지 않아요 (개요 "환경별 현재 버전 · 지금 할 일")
+    @ViewBuilder
+    func equalCardHeights() -> some View {
+        #if os(macOS)
+        environment(\.fillsRowHeight, true).fixedSize(horizontal: false, vertical: true)
+        #else
+        self
+        #endif
     }
 }
 
 /// 폭에 맞춰 열 수를 정하고(최소 폭 이상), 줄마다 가장 큰 카드 높이로 위 정렬해요.
+/// `equalRowHeights`면 놓을 때 그 줄 높이를 같이 제안해서, 늘어날 수 있는 카드(`fillsRowHeight`)가 줄 높이를 채워요.
+/// 줄 높이는 늘 높이 제안 없이(nil) 잰 값이라 켜도 줄 높이 · 전체 높이는 그대로예요
 private struct AdaptiveColumns: Layout {
     let minimumWidth: CGFloat
     let spacing: CGFloat
+    var equalRowHeights = false
 
     private func columns(for width: CGFloat) -> Int {
         max(1, Int((width + spacing) / (minimumWidth + spacing)))
@@ -166,7 +198,7 @@ private struct AdaptiveColumns: Layout {
                 guard index < subviews.count else { break }
                 let x = bounds.minX + CGFloat(column) * (layout.columnWidth + spacing)
                 subviews[index].place(at: CGPoint(x: x, y: y), anchor: .topLeading,
-                                      proposal: ProposedViewSize(width: layout.columnWidth, height: nil))
+                                      proposal: ProposedViewSize(width: layout.columnWidth, height: equalRowHeights ? height : nil))
             }
             y += height + spacing
         }
@@ -180,15 +212,33 @@ extension View {
 
 private struct CardStyle: ViewModifier {
     @State private var hovered = false
+    @Environment(\.fillsRowHeight) private var fillsRowHeight
 
     func body(content: Content) -> some View {
         content
+            .environment(\.fillsRowHeight, false)
             .padding(14)
+            .modifier(RowHeightFill(active: fillsRowHeight))
             .frame(maxWidth: .infinity, alignment: .leading)
             .background(hovered ? AnyShapeStyle(.fill.tertiary) : AnyShapeStyle(.fill.quaternary),
                         in: .rect(cornerRadius: 12))
             .overlay(RoundedRectangle(cornerRadius: 12).strokeBorder(.separator, lineWidth: 0.5))
             .onHover { hovered = $0 }
             .animation(.easeOut(duration: 0.12), value: hovered)
+    }
+}
+
+/// 줄 높이 채우기: 내용은 제 높이 그대로(위 정렬) 두고 카드 면만 제안받은 높이까지 늘려요. 꺼져 있으면 아무것도 하지 않아요
+private struct RowHeightFill: ViewModifier {
+    let active: Bool
+
+    func body(content: Content) -> some View {
+        if active {
+            content
+                .fixedSize(horizontal: false, vertical: true)
+                .frame(maxHeight: .infinity, alignment: .top)
+        } else {
+            content
+        }
     }
 }
