@@ -108,7 +108,7 @@ function ReconnectButton() {
 function Notifications() {
   const [state, setState] = useState<Record<string, boolean>>(() => {
     try {
-      const saved = localStorage.getItem('daisy.notify')
+      const saved = localStorage.getItem('unibloom.notify')
       if (saved) return JSON.parse(saved) as Record<string, boolean>
     } catch {
       // 저장소를 못 쓰면 기본값으로
@@ -119,7 +119,7 @@ function Notifications() {
     const next = { ...state, [key]: on }
     setState(next)
     try {
-      localStorage.setItem('daisy.notify', JSON.stringify(next))
+      localStorage.setItem('unibloom.notify', JSON.stringify(next))
     } catch {
       // 무시해요
     }

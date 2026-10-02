@@ -9,7 +9,7 @@
 배포 흐름 **전체**를 돌리는 웹 대시보드예요 (ADR-007): 저장소 연결, 환경 선택, plan 확인 · 승인, 병렬 배포 진행, 결과 · 이력.
 
 - 화면: W-00 ~ W-14 (W-02b는 범위 제외), 전환 로딩 L-01 ~ L-03 (`SPEC.md` §2)
-- 웹은 GitHub, 클라우드 API, Terraform에 직접 붙지 않아요. 모든 데이터는 Daisy 서버 API를 거쳐요
+- 웹은 GitHub, 클라우드 API, Terraform에 직접 붙지 않아요. 모든 데이터는 Unibloom 서버 API를 거쳐요
 - 화면은 Figma [와이어프레임 v1.0](https://www.figma.com/design/5nqU4xotMh5jcsaDqOcTST/Team-Daisy-%EC%98%88%EC%84%A0?node-id=0-1), 모양은 [디자인 시스템](https://www.figma.com/design/5nqU4xotMh5jcsaDqOcTST/Team-Daisy-%EC%98%88%EC%84%A0?node-id=2-4)을 따라요 (둘 다 9/30 확정)
 
 ## 2. 이 파트가 의존하는 계약
@@ -236,7 +236,8 @@ pnpm lint     # oxlint — 경고 0으로 유지
 | 9/30 | 목업 시나리오는 와이어프레임 예시 값, 화면별 고정 배포 ID + 시간이 흐르는 `dep_live` | 서버 없이 모든 화면과 전체 흐름을 확인 · 시연하려고 | 1 |
 | 9/30 | 토큰은 메모리에만, 역할만 context로 (새로고침 시 재로그인) | 브라우저 저장소에 토큰을 두지 않아요 (SPEC §3-2) | 1 |
 | 9/30 | 롤백 · 연결 해제 확인 문구는 프로젝트 이름 | 환경이 여러 개라 환경 이름으로는 하나를 고를 수 없어서 | 1 |
-| 9/30 | W-14: Mac은 GitHub Releases 고정 주소 `mac-latest/Daisy.dmg`, iPhone은 TestFlight. 값은 `MacAppDialog.tsx` 상수 한 곳 | 승준 님 결정 (PR #9, 9/30 20:32 고정 주소로 바뀜). 새 빌드가 나와도 웹은 안 바꿔요 | 3 (앱 확정) |
+| 9/30 | W-14: Mac은 GitHub Releases 고정 주소 `mac-latest/Unibloom.dmg`(10/1 파일 이름 변경), iPhone은 TestFlight. 값은 `MacAppDialog.tsx` 상수 한 곳 | 승준 님 결정 (PR #9, 9/30 20:32 고정 주소로 바뀜). 새 빌드가 나와도 웹은 안 바꿔요 | 3 (앱 확정) |
+| 10/1 | W-03에 Jenkins 로그 링크를 두지 않아요. 단계는 서버가 넘겨준 것만 | Jenkins 화면은 배포 키가 있어 외부 비공개 (#17 인프라 답) | 1 |
 | 10/1 | 상태를 바꾸는 요청은 `useAction`으로 — 버튼 한 번에 요청 · `Idempotency-Key` 하나, 누르는 동안 비활성 | 두 번 누르면 배포가 두 개 생기던 문제 (#18 리뷰) | 1 |
 | 10/1 | 폴링 간격은 `POLL_MS`(5초) 한 곳, 끝난 빌드 · 배포는 멈춰요 | 서버와 합의한 5초 (9/29), 끝난 걸 계속 부르지 않으려고 | 1 |
 | 10/1 | 403은 `errorMessage()` 공통 문구, viewer는 시작 · 다시 시도 · 승인 · 롤백 버튼 비활성 | 화면마다 따로 처리하던 것을 한 곳으로 (#18 리뷰) | 1 |
