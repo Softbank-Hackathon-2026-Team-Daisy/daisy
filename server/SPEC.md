@@ -1601,3 +1601,57 @@ Jenkins `daisy-ci` 가 끝나면 결과를 `POST /internal/jenkins/builds` 로 �
 - #68 승준님 제안으로 `reuse_count` 는 성공한 재사용(`status = 'succeeded'`)만 셉니다. 실DB 테스트에 실패한 재사용 대상을 하나 더 넣어 빠지는 것을 확인했고, 이 조건을 빼면 테스트가 실패합니다 (3 ≠ 2).
 - 실서버에서 처음 검증한 대상의 `attempt` 가 0 인 경우가 `attempt: 0` 으로 나와, A-04 와 같이 null 로 바꿨습니다 (S2). 실제로는 AI 생성 뒤에만 스크립트가 생겨 1 이상입니다.
 - #68 승환님 리뷰로 `origin` 판정을 고쳤습니다. 재사용이 아니라는 것만으로 `ai_generated` 라고 하지 않고, 생성 시도(1 이상)가 있을 때만 그렇게 봅니다. AI 없이 기준 모듈을 쓴 경로는 null 입니다. 단위 테스트를 더했고, 실서버에서 시도 0 픽스처가 `origin: null` 로 나오는 것을 다시 확인했습니다.
+
+## 배포 결과 · 환경 정보 표시 (10/2 저녁, 하은현)
+
+### 범위
+
+10/2 저녁 채준님이 웹에서 배포 → 승인 → 세 환경 적용을 처음 끝까지 돌렸습니다. 서버는 성공 콜백의 `public_urls`·`image_refs` 를 `deployment_target.result` 에 저장했는데 화면에는 나오지 않았습니다. 채준님이 정리한 네 가지 중 승환님이 나눈 대로 이 절은 둘을 맡습니다.
+
+| 채준님 정리 | 이 절 | 담당 |
+|---|---|---|
+| 1. A-02 `current` — 성공한 배포로 `target.current_deployment_target_id` 갱신 | 아님 | 승환님 |
+| 2. A-04 대상 `url`·`image_digest` | **여기** | 하은현 |
+| 3. `connection_state` — 성공하면 `ok` | 아님 | 승환님 |
+| 4. WR-04 환경 정보 `runtime`·`location`·`location_label`·`access_method`·`exposure`·`state_backend` | **여기** | 하은현 |
+
+### A-04 대상 `url`·`image_digest`
+
+`deployment_target.result` 를 읽기 전용 SQL 로 읽습니다 (`server/AGENTS.md` §3 예외, A-04 와 같은 쿼리). 저장 모양은 실행 서비스 `validateResult` 가 정합니다: `{ plan_id, plan_digest, input_hash, image_refs{서비스: {image_ref, digest, commit_sha}}, public_urls{서비스: URL}, revision }`.
+
+| 필드 | 출처 | 규칙 |
+|---|---|---|
+| `url` | `result.public_urls` | 서비스가 **정확히 하나**이고 값이 문자열이면 그 값. 둘 이상이면 null (대표 하나를 고르지 않음, S5 · A-06 과 같은 규칙) |
+| `image_digest` | `result.image_refs.<서비스>.digest` | 서비스가 정확히 하나이고 `digest` 가 `sha256:` + 64자리 hex 면 그 값. 아니면 null |
+| `health_summary` | — | **계속 null.** `result` 에 헬스 결과 키가 없습니다 (`validateResult` 허용 키 6개에 없음). 인프라가 헬스 결과를 보내는 형식이 정해지면 붙입니다 |
+
+- `result` 가 없거나(성공 전) 모양이 틀리면 그 필드만 null 입니다. 상세 화면 전체를 실패시키지 않습니다.
+- 대상 상태와 상관없이 저장된 `result` 를 그대로 읽습니다. `result` 는 성공 콜백에서만 저장됩니다.
+- A-03 목록도 대상을 같은 쿼리로 읽어서 같은 값이 나옵니다.
+
+### WR-04 환경 정보
+
+**값은 대상 `config` 가 아니라 서버 코드의 데모 대상 표에 둡니다.** 채준님은 `config` 에 넣자고 했는데, `config` 는 배포를 만들 때 `target_snapshot` 으로 고정되고 `input_hash` 계산과 재시도 검사(`config_revision`)에 들어갑니다. 개발 서버에 이미 있는 데모 대상의 `config` 를 바꾸면 `config_revision` 을 올려야 하고, 그러면 진행 중인 배포의 재시도가 409 가 됩니다 (`ExecutionInputsAdapter.requireSameConfig`). 표시용 값 때문에 실행 입력을 바꾸지 않습니다. 실제 대상 등록 절차가 생기면 그때 저장 위치를 정합니다.
+
+값은 인프라 실제 구성입니다 (채준님 10/2 정리).
+
+| 대상 | `runtime` | `location` | `location_label` | `access_method` | `exposure` | `state_backend` |
+|---|---|---|---|---|---|---|
+| `tgt_demo_aws` | ECS Fargate · ALB | ap-northeast-2 서울 | 리전 | Jenkins → AWS API | https://aws.unibloom.cloud | S3 (잠금) |
+| `tgt_demo_gcp` | Cloud Run | asia-northeast1 도쿄 | 리전 | Jenkins → GCP API | https://gcp.unibloom.cloud | GCS (잠금) |
+| `tgt_demo_onprem` | Docker · Proxmox Service VM | 172.16.1.5 | 위치 | Jenkins → SSH | https://onprem.unibloom.cloud (ngrok) | Jenkins 러너 로컬 (flock) |
+
+- 표에 없는 대상은 여섯 필드 모두 null 입니다. 빈 문자열로 채우지 않습니다.
+- `title`·`current_commit` 은 이번에도 내보내지 않습니다. `title` 조립 주체는 S8 에서 미정이고, `current_commit` 은 1번(현재 포인터)이 붙어야 근거가 생깁니다.
+- 웹 `types.ts` `Target` 의 `location_label` 은 `'위치' | '리전'` 이라 그 두 값만 씁니다.
+
+### 검증 계획
+
+| | 검사 | 기대 |
+|---|---|---|
+| R1 | 성공 콜백으로 `public_urls`·`image_refs`(서비스 1개)가 저장된 대상 | A-04 `url`·`image_digest` 가 그 값, `health_summary` null |
+| R2 | `result` 없음 / 서비스 2개 / digest 형식 틀림 / `public_urls` 가 객체 아님 | 해당 필드만 null, 응답 200 |
+| R3 | A-03 목록의 같은 배포 | R1 과 같은 값 |
+| R4 | WR-04 데모 대상 세 개 | 표의 값 그대로 |
+| R5 | 표에 없는 대상 | 여섯 필드 null |
+| R6 | 실제 흐름: 채준님 `daisy_server.py` 로 plan → 승인 → apply 성공 콜백 (계약 검증 스크립트) | A-04 aws `url` 이 `applied` 로 보낸 주소 |
