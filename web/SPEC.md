@@ -283,6 +283,8 @@ Page ──▶ hook ──▶ api/client ──────────▶ Unibl
 | WR-04 `GET /projects/{id}/targets` (#42) | ✅ 실서버 (#42 머지 후) | 봉투, `reuse` null → "판단 전", `connection.checked_at` null |
 | A-05 · WR-06 plan, A-07 로그, 스크립트, AI 사용량, manifest, 연결 테스트 · 리소스, SSE | ⏳ 목업 | 실서버 모드에서 연결 테스트 · 리소스 버튼은 꺼요. SSE(`GET /deployments/{id}/events` · `/projects/{id}/events`)는 서버에 열렸지만 웹은 5초 폴링 유지 — 다음 PR |
 
+**개발 서버 (10/2, 은현 님):** API `https://api.unibloom.cloud`(지금 #38 범위 — 이 PR의 `SERVER_READY`와 같아요), 웹 `https://www.unibloom.cloud`. 개발 API는 CORS로 localhost를 막아서, 로컬 웹은 Vite 프록시로 붙어요: `.env.local`에 `VITE_API_BASE_URL=/api` · `VITE_PROXY_TARGET=https://api.unibloom.cloud` · `VITE_USE_MOCK=false`.
+
 로컬 확인: `main`의 서버를 로컬 Postgres로 띄우고 `VITE_API_BASE_URL=http://127.0.0.1:8080` · `VITE_USE_MOCK=false`로 owner · viewer 로그인, 개요 · 빌드(대기 중 → 완료) · 설정을 확인했어요.
 
 ### 6-1. 웹 신규 요구사항
