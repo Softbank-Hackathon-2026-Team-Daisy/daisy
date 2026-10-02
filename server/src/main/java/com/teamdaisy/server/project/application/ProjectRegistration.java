@@ -14,6 +14,7 @@ import java.util.Map;
 import java.util.UUID;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
+import org.springframework.jdbc.core.ResultSetExtractor;
 import org.springframework.jdbc.core.namedparam.NamedParameterJdbcTemplate;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
@@ -67,7 +68,19 @@ public class ProjectRegistration {
     access.requireWriter(principal);
     Repository repo = parseRepository(repository);
     String defaultBranch = parseBranch(branch);
-    if (projects.existsByRepositoryIdAndArchivedAtIsNull(repo.id())) {
+    // 같은 저장소 연결이 동시에 오면 둘 다 "없음" 을 보고 통과할 수 있어요 (#59 승환님 리뷰). 저장소 이름(소문자)으로
+    // 트랜잭션 잠금을 잡아 한 줄로 세우고, GitHub 처럼 대소문자를 구분하지 않고 비교해요. 잠금은 커밋 때 풀려요.
+    jdbc.query(
+        "select pg_advisory_xact_lock(hashtext(lower(:repo)))",
+        Map.of("repo", repo.id()),
+        (ResultSetExtractor<Void>) rs -> null);
+    Integer active =
+        jdbc.queryForObject(
+            "select count(*) from project where lower(repository_id) = lower(:repo)"
+                + " and archived_at is null",
+            Map.of("repo", repo.id()),
+            Integer.class);
+    if (active != null && active > 0) {
       throw new DaisyException(ErrorCode.STATE_CONFLICT);
     }
     Instant now = clock.instant();
