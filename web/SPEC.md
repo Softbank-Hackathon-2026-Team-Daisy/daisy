@@ -1,4 +1,4 @@
-# SPEC.md — Daisy 웹 대시보드 명세와 백엔드 요구사항
+# SPEC.md — Unibloom 웹 대시보드 명세와 백엔드 요구사항
 
 > 작성: 김도영 · 상태: **초안 (9/30)** · 참조: 루트 `AGENTS.md`, 노션 ADR-002·004·006·007, 플로우차트 설계서, `ios/SPEC.md`, `server/AGENTS.md`
 > 화면은 Figma [와이어프레임 v1.0](https://www.figma.com/design/5nqU4xotMh5jcsaDqOcTST/Team-Daisy-%EC%98%88%EC%84%A0?node-id=0-1) (9/30 확정), 모양은 같은 파일의 [디자인 시스템](https://www.figma.com/design/5nqU4xotMh5jcsaDqOcTST/Team-Daisy-%EC%98%88%EC%84%A0?node-id=2-4)을 따라요.
@@ -33,7 +33,7 @@
 - **웹과 앱이 같이 하는 것:** W-00 ~ W-14 전부 — 저장소 연결, 환경 선택, 배포 시작, plan 확인 · 승인 · 거절, 진행 · 결과 · 이력 · 롤백, 환경 · 스크립트 · AI 사용량 · 설정. 두 쪽이 같은 API(공용 · `WR-xx`)를 써요
 - **나누는 기준:** 앱은 문구(화면 · 메뉴 이름, 상태 이름, 안내 문구)를 웹에서 가져가고, 색 · 모양 · 레이아웃은 앱 디자인을 따라요 (`ios/AGENTS.md`, 9/30 승준 님). 웹에서 문구를 바꾸면 앱에도 알려요
 - **앱만 하는 것:** 푸시 알림(APNs, 그전에는 로컬 알림). 웹은 브라우저 알림
-- 웹은 **GitHub, 클라우드, Terraform에 직접 붙지 않아요.** 모든 데이터는 Daisy 백엔드 API를 거쳐요
+- 웹은 **GitHub, 클라우드, Terraform에 직접 붙지 않아요.** 모든 데이터는 Unibloom 백엔드 API를 거쳐요
 
 ### 1-2. 데모 목표
 
@@ -202,8 +202,8 @@ web/
 ### 3-2. 데이터 흐름
 
 ```
-Page ──▶ hook ──▶ api/client ──────────▶ Daisy 백엔드 (REST)
-  ▲        │ ◀── api/realtime (fetch 스트림 → 이벤트, 실패 시 5초 폴링) ◀── Daisy 백엔드 (SSE)
+Page ──▶ hook ──▶ api/client ──────────▶ Unibloom 백엔드 (REST)
+  ▲        │ ◀── api/realtime (fetch 스트림 → 이벤트, 실패 시 5초 폴링) ◀── Unibloom 백엔드 (SSE)
   └ 상태 ──┘
                 (서버가 없을 때만) api/client → mocks/
 ```
@@ -252,7 +252,7 @@ Page ──▶ hook ──▶ api/client ──────────▶ Daisy
 ## 6. 백엔드 요구사항
 
 - 앱과 같이 쓰는 API는 `ios/SPEC.md` §6의 ID · 이름을 그대로 써요 (9/29 서버 확정). 여기서 다시 적지 않아요
-- 웹 때문에 **새로 필요한 건 `WR-xx` 🆕**로 적었어요. **9/30 은현 님 답변([PR #9](https://github.com/Softbank-Hackathon-2026-Team-Daisy/daisy/pull/9))**을 반영했어요. 서버가 확정한 건 `(가칭)`을 뗐고, 필드는 OpenAPI가 나오면 맞춰요 (루트 §6 3단계)
+- 웹 때문에 **새로 필요한 건 `WR-xx` 🆕**로 적었어요. **9/30 은현 님 답변([PR #9](https://github.com/Softbank-Hackathon-2026-Team-Daisy/unibloom/pull/9))**을 반영했어요. 서버가 확정한 건 `(가칭)`을 뗐고, 필드는 OpenAPI가 나오면 맞춰요 (루트 §6 3단계)
 - 서버의 단일 원천은 OpenAPI 문서(springdoc)예요. 노션 「Backend API Endpoint」는 은현 님이 확정본으로 이어서 고쳐요
 
 ### 6-0. 앱과 같이 쓰는 것 (`ios/SPEC.md` §6)
@@ -289,7 +289,7 @@ Page ──▶ hook ──▶ api/client ──────────▶ Daisy
 | WR-13 🆕 | `DELETE /projects/{id}` | W-13 | 프로젝트 연결 해제. 인프라는 지우지 않아요 | S | ✅ 그대로. 확인 Dialog에서 환경 이름 입력 |
 | WR-14 🆕 | `POST /deployments/{id}/rollback` | W-09 | `{ target_ids[], reason }` + `Idempotency-Key` → `Deployment` (`kind: "rollback"`, `rolled_back_from`) | M | ✅ **범위에 넣어요** (은현 님 담당). 이전 성공 배포의 커밋 + 그때 검증된 스크립트로 재배포, 환경 선택 가능, plan · 승인을 거쳐요 |
 
-### 6-1-1. 앱 요청 중 웹도 쓰는 것 ([#13](https://github.com/Softbank-Hackathon-2026-Team-Daisy/daisy/issues/13))
+### 6-1-1. 앱 요청 중 웹도 쓰는 것 ([#13](https://github.com/Softbank-Hackathon-2026-Team-Daisy/unibloom/issues/13))
 
 승준 님이 앱 화면용으로 서버에 요청한 것 중 웹 화면에도 같은 버튼 · 칸이 있는 것이에요. ID는 `ios/SPEC.md` §6-8 그대로 쓰고, 받을지 · 이름 · 모양은 서버가 정해요. 전부 S이고, 없으면 웹도 버튼 비활성 · "—"로 보여줘요.
 
@@ -416,7 +416,7 @@ Page ──▶ hook ──▶ api/client ──────────▶ Daisy
 - [ ] **웹도 앱과 같은 토큰으로 로그인하나, 토큰 만료 처리** — 가정: 같은 `POST /auth/token`, `401` → W-00 — 서버 답변 대기
 - [x] ~~배포 상태 · 단계 값~~ → §2-5 (9/30 서버)
 - [x] ~~상태 배지 색 매핑~~ → 와이어프레임 기준 (§2-5, 9/30)
-- [x] ~~W-14 Mac 앱 호스팅 · 버전~~ → GitHub Releases 고정 주소 `mac-latest/Daisy.dmg` + iPhone TestFlight (§2-3, 9/30 승준 님)
+- [x] ~~W-14 Mac 앱 호스팅 · 버전~~ → GitHub Releases 고정 주소 `mac-latest/Unibloom.dmg` + iPhone TestFlight (§2-3, 9/30 승준 님)
 - [x] ~~롤백 · 연결 해제 확인 문구~~ → 환경이 여러 개라 환경 이름 대신 **프로젝트 이름**을 입력해요 (9/30, 웹)
 - [x] ~~W-12 AI 사용량 API~~ → 합계는 A-05 plan 응답, 호출별은 `GET /projects/{id}/ai-usage?deployment_id=` (10/1 서버, #13). LLM은 Claude (9/30 21:27)
 - [x] ~~실패한 환경 다시 시도~~ → 실패한 환경만 고른 **새 배포**, 시도 1/3부터 (9/30 서버, #13)
@@ -438,6 +438,7 @@ Page ──▶ hook ──▶ api/client ──────────▶ Daisy
 | 9/30 | 승준 님 코멘트 반영: §1-1 앱 범위는 회의 안건으로 표시(ADR-007 기준 유지), §6-1-1 앱 요청(#13) 중 웹도 쓰는 R-09 · A-10 ~ A-12 연결 | 김도영 |
 | 9/30 | W-14 Mac 앱 다운로드(Dialog) 추가 (와이어프레임 갱신) | 김도영 |
 | 10/1 | 배포 전체 `running` 문구를 "진행 중"으로 (생성 · 검증부터 apply까지 포함, 환경별 `applying` "배포 중"과 구분) | 김도영 |
+| 10/1 | 서비스 이름 Daisy → **Unibloom** (Figma 로고 워드마크 "unibloom"). 팀 이름(Team Daisy) · GitHub 조직 이름은 그대로 | 김도영 |
 | 10/1 | 앱 범위 확정: §1-1을 "웹과 앱이 같은 전체 흐름"으로, §7 앱 범위 해결 | 김도영 |
 | 10/1 | 인프라 답(#17) 반영: W-03 Jenkins 로그 링크 제거 · 단계 이름, 헬스 1회 측정 형식, W-10 state 저장소 이름 | 김도영 |
 | 10/1 | 리뷰 · 결정 반영(#18): W-12 데이터 출처(A-05 + ai-usage), 호출 성공 · 실패, 빌드 Jenkins, W-14 고정 주소, 다시 시도 = 새 배포, 목록 봉투 질문, `pages/image-build` | 김도영 |
