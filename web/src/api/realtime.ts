@@ -42,6 +42,8 @@ export function parseSse(buffer: string): { events: ServerEvent[]; rest: string 
 }
 
 type SubscribeOptions = {
+  // 첫 연결의 Last-Event-ID — 이 seq 다음부터 받아요 (프로젝트 채널은 A-12 last_seq). 없으면 처음부터
+  since?: number | null
   onEvent: (e: ServerEvent) => void
   onState: (s: RealtimeState) => void
   // 서버가 resync를 보내면(놓친 이벤트를 못 채울 때) 스냅샷(A-04)을 다시 불러요
@@ -49,12 +51,16 @@ type SubscribeOptions = {
 }
 
 class Unauthorized extends Error {}
+class TooMany extends Error {}
+
+// 계정당 SSE 연결 상한(서버 4개)에 걸리면 이만큼 쉬었다가 다시 붙어요. 그동안 화면은 5초 폴링으로 버텨요
+const TOO_MANY_WAIT_MS = 60_000
 
 // 채널에 붙고, 끊기면 Last-Event-ID로 다시 붙어요. 3번 연속 실패하면 disconnected → 쓰는 쪽이 폴링으로 버텨요
 // 401이면 다시 붙지 않고 세션 만료로 보내요
-export function subscribe(path: string, { onEvent, onState, onResync }: SubscribeOptions): () => void {
+export function subscribe(path: string, { since = null, onEvent, onState, onResync }: SubscribeOptions): () => void {
   const controller = new AbortController()
-  let lastId: number | null = null
+  let lastId: number | null = since
   let failures = 0
 
   const connect = async () => {
@@ -76,6 +82,7 @@ export function subscribe(path: string, { onEvent, onState, onResync }: Subscrib
         alive()
         const res = await fetch(`${API_BASE_URL}${path}`, { headers, signal: attempt.signal })
         if (res.status === 401) throw new Unauthorized()
+        if (res.status === 429) throw new TooMany()
         if (!res.ok || !res.body) throw new Error(`SSE ${res.status}`)
         failures = 0
         onState('connected')
@@ -89,7 +96,10 @@ export function subscribe(path: string, { onEvent, onState, onResync }: Subscrib
           buffer = parsed.rest
           for (const e of parsed.events) {
             if (e.event === 'resync') {
-              lastId = null
+              // 보관 범위 밖이라는 뜻이라 처음(0)부터 다시 받으면 또 resync가 올 수 있어요.
+              // 서버가 알려 준 last_seq부터 이어 붙고, 화면은 스냅샷을 다시 읽어요
+              const last = (e.data as { last_seq?: number } | null)?.last_seq
+              lastId = typeof last === 'number' ? last : null
               onResync()
               continue
             }
@@ -103,6 +113,11 @@ export function subscribe(path: string, { onEvent, onState, onResync }: Subscrib
           onState('disconnected')
           notifyUnauthorized(path)
           return
+        }
+        if (e instanceof TooMany) {
+          onState('disconnected')
+          await new Promise((r) => setTimeout(r, TOO_MANY_WAIT_MS))
+          continue
         }
       } finally {
         clearTimeout(watchdog)

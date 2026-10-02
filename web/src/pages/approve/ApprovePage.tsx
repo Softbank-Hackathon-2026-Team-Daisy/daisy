@@ -25,7 +25,9 @@ import '../page.css'
 
 // W-06 변경 사항 확인 후 승인 (STEP 5). 승인하면 선택한 모든 환경에 동시에 적용해요 (API W-01)
 function ApprovePage() {
-  const { deploymentId = '' } = useParams()
+  const { projectId = '', deploymentId = '' } = useParams()
+  // 삭제 확인 단어는 프로젝트 이름(A-12) — 서버가 승인 대기를 만들 때 고정한 이름과 비교해요 (#49 리뷰)
+  const project = useResource(() => api.getProject(projectId), [projectId])
   // plan.ready · plan.stale · approval.* 이벤트가 오면 세 개를 다시 불러요 (다른 사람이 앱에서 먼저 승인한 경우 등)
   const live = useDeploymentLive(deploymentId)
   const deployment = useResource(() => api.getDeployment(deploymentId), [deploymentId, live.tick])
@@ -35,10 +37,19 @@ function ApprovePage() {
   const error = deployment.error ?? plan.error ?? detail.error
   if (error) return <ErrorBlock error={error} />
   if (!deployment.data || !plan.data || !detail.data) return <LoadingBlock />
-  return <ApproveView key={deployment.data.id} d={deployment.data} plan={plan.data} detail={detail.data} reload={deployment.reload} />
+  return (
+    <ApproveView
+      key={deployment.data.id}
+      d={deployment.data}
+      plan={plan.data}
+      detail={detail.data}
+      projectName={project.data?.name ?? ''}
+      reload={deployment.reload}
+    />
+  )
 }
 
-function ApproveView({ d, plan, detail, reload }: { d: Deployment; plan: Plan; detail: PlanDetail[]; reload: () => void }) {
+function ApproveView({ d, plan, detail, projectName, reload }: { d: Deployment; plan: Plan; detail: PlanDetail[]; projectName: string; reload: () => void }) {
   const navigate = useNavigate()
   const { projectId = '' } = useParams()
   const { role } = useAuth()
@@ -59,9 +70,9 @@ function ApproveView({ d, plan, detail, reload }: { d: Deployment; plan: Plan; d
   const hasDelete = approvable.some((t) => planOf(t.target_id)?.has_delete)
   const risks = approvable.flatMap((t) => planOf(t.target_id)?.risks ?? [])
   // 삭제가 포함되면 프로젝트 이름을 입력해야 승인할 수 있어요 (서버도 confirm_text를 검증해요)
-  // MOCK: 프로젝트 이름은 A-12(GET /projects/{id})가 열리면 서버 값으로
-  const confirmWord = 'sample-monolith'
-  const needsConfirm = hasDelete && confirm !== confirmWord
+  const confirmWord = projectName
+  // 이름을 아직 못 불러왔으면 확인을 통과시키지 않아요
+  const needsConfirm = hasDelete && (!confirmWord || confirm !== confirmWord)
   const viewer = role === 'viewer'
   const current = d.targets.find((t) => t.target_id === tab) ?? d.targets[0]
   const currentDetail = detail.find((x) => x.target_id === current.target_id)
@@ -90,7 +101,7 @@ function ApproveView({ d, plan, detail, reload }: { d: Deployment; plan: Plan; d
       else navigate(paths.overview(projectId))
     } catch (e) {
       if (e instanceof ApiError && e.status === 409) {
-        setError('다른 곳(앱 등)에서 먼저 처리했어요. 최신 상태를 다시 불러왔어요.')
+        setError('승인 상태가 바뀌어서 최신 상태를 다시 불러왔어요. 다시 확인해 주세요.')
         reload()
       } else {
         setError(errorMessage(e, '처리하지 못했어요'))

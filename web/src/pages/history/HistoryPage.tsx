@@ -26,13 +26,14 @@ import { ErrorBlock, LoadingBlock } from '../Loading.tsx'
 import '../page.css'
 
 // W-09 배포 이력 · 롤백 — 롤백은 이전 성공 배포의 커밋 + 검증된 스크립트로 만드는 새 배포예요 (WR-14, plan · 승인을 거쳐요)
-// MOCK: 프로젝트 이름은 A-01이 열리면 서버 값으로
-const PROJECT_NAME = 'sample-monolith'
 
 function HistoryPage() {
   const { projectId = '' } = useParams()
   const { state: live, tick } = useProjectLive()
   const runs = useResource(() => api.listDeployments(projectId), [projectId, tick], pollFor(live))
+  // 롤백 확인 단어도 프로젝트 이름(A-12)
+  const project = useResource(() => api.getProject(projectId), [projectId])
+  const name = project.data?.name ?? ''
   const [target, setTarget] = useState<Deployment | null>(null)
 
   if (runs.error) return <ErrorBlock error={runs.error} />
@@ -41,14 +42,14 @@ function HistoryPage() {
   return (
     <div className="page">
       <PageHeader mock={isMocked('listDeployments', 'rollback')} overline="History" title="배포 이력" description="버전마다 어떤 이미지와 스크립트로 어느 환경에 배포했는지 남겨요." />
-      <Panel title={PROJECT_NAME}>
+      <Panel title={name || '배포 이력'}>
         {runs.data.items.length === 0 ? (
           <EmptyState icon="clock" title="아직 배포 이력이 없어요" description="첫 배포를 하면 여기에 쌓여요" />
         ) : (
           <HistoryTable projectId={projectId} rows={runs.data.items} onRollback={setTarget} />
         )}
       </Panel>
-      {target && <RollbackDialog projectId={projectId} from={target} onClose={() => setTarget(null)} />}
+      {target && <RollbackDialog projectId={projectId} projectName={name} from={target} onClose={() => setTarget(null)} />}
     </div>
   )
 }
@@ -121,7 +122,7 @@ function HistoryTable({ projectId, rows, onRollback }: { projectId: string; rows
   )
 }
 
-function RollbackDialog({ projectId, from, onClose }: { projectId: string; from: Deployment; onClose: () => void }) {
+function RollbackDialog({ projectId, projectName, from, onClose }: { projectId: string; projectName: string; from: Deployment; onClose: () => void }) {
   const navigate = useNavigate()
   const [picked, setPicked] = useState(() => new Set(from.targets.map((t) => t.target_id)))
   const [confirm, setConfirm] = useState('')
@@ -153,7 +154,7 @@ function RollbackDialog({ projectId, from, onClose }: { projectId: string; from:
           <Button variant="outline" onClick={onClose}>
             취소
           </Button>
-          <Button variant="destructive" disabled={pending || chosen.length === 0 || confirm !== PROJECT_NAME} onClick={() => void start()}>
+          <Button variant="destructive" disabled={pending || chosen.length === 0 || !projectName || confirm !== projectName} onClick={() => void start()}>
             {pending ? '시작하는 중…' : '롤백 배포 시작'}
           </Button>
         </>
@@ -167,8 +168,8 @@ function RollbackDialog({ projectId, from, onClose }: { projectId: string; from:
         ))}
       </div>
       <label style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-        <span className="t-body-sm t-muted">확인을 위해 프로젝트 이름({PROJECT_NAME})을 입력해 주세요.</span>
-        <Input value={confirm} onChange={(e) => setConfirm(e.target.value)} placeholder={PROJECT_NAME} />
+        <span className="t-body-sm t-muted">확인을 위해 프로젝트 이름({projectName})을 입력해 주세요.</span>
+        <Input value={confirm} onChange={(e) => setConfirm(e.target.value)} placeholder={projectName} />
       </label>
       {error && <Alert type="danger" title="롤백을 시작하지 못했어요">{error}</Alert>}
     </Dialog>

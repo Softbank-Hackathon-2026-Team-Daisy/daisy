@@ -15,11 +15,12 @@ export type LiveLogLine = { seq: number; at: string; target_id: string; level: '
 const BATCH_MS = 300
 
 type Options = {
+  since?: number | null
   onChange?: () => void
   onLog?: (lines: LiveLogLine[]) => void
 }
 
-export function useRealtime(path: string | null, { onChange, onLog }: Options = {}): ConnectionState {
+export function useRealtime(path: string | null, { since = null, onChange, onLog }: Options = {}): ConnectionState {
   const enabled = !!path && !USE_MOCK && !isMocked(path.startsWith('/projects/') ? 'projectEvents' : 'deploymentEvents')
   const [state, setState] = useState<ConnectionState>('polling')
   // 콜백은 최신 것을 ref에 담아 두고 연결은 다시 맺지 않아요 (렌더 중이 아니라 effect에서 갱신)
@@ -53,12 +54,14 @@ export function useRealtime(path: string | null, { onChange, onLog }: Options = 
       }
       changed()
     }
-    const stop = subscribe(path, { onEvent: handle, onState: setState, onResync: changed })
+    const stop = subscribe(path, { since, onEvent: handle, onState: setState, onResync: changed })
     return () => {
       clearTimeout(timer)
       stop()
       setState('polling')
     }
+    // since는 처음 붙을 때만 써요 — 바뀌어도 다시 붙지 않아요
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [enabled, path])
 
   return enabled ? state : 'polling'

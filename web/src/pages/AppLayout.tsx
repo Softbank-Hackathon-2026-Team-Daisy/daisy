@@ -1,9 +1,10 @@
 import { useMemo, useState } from 'react'
 import { Navigate, Outlet, useLocation, useParams } from 'react-router'
 import { useAuth } from '../api/auth.ts'
-import { events } from '../api/endpoints.ts'
+import { api, events } from '../api/endpoints.ts'
 import { ProjectLiveContext } from '../api/projectLive.ts'
 import { useRealtime } from '../api/useRealtime.ts'
+import { useResource } from '../api/useResource.ts'
 import Sidebar from '../components/Sidebar.tsx'
 import { isFlowPath } from '../paths.ts'
 import MacAppDialog from './app-download/MacAppDialog.tsx'
@@ -17,9 +18,16 @@ function AppLayout() {
   const [macAppOpen, setMacAppOpen] = useState(false)
   const flow = isFlowPath(pathname)
   const { role } = useAuth()
-  // 프로젝트 채널 하나를 여기서 붙여요 (로그인 뒤에만)
+  // 프로젝트 채널 하나를 여기서 붙여요 (로그인 뒤에만). A-12 last_seq가 있으면 그 지점부터 — 처음부터 전부 다시 받지 않게
   const [tick, setTick] = useState(0)
-  const live = useRealtime(role && projectId ? events.project(projectId) : null, { onChange: () => setTick((t) => t + 1) })
+  const detail = useResource(() => (role && projectId ? api.getProject(projectId) : Promise.resolve(null)), [role, projectId])
+  // 프로젝트를 바꾸면 그 프로젝트의 A-12가 올 때까지 기다려요 (앞 프로젝트의 last_seq로 붙지 않게)
+  const current = detail.data?.id === projectId ? detail.data : null
+  const detailSettled = !!current || (!detail.loading && !!detail.error)
+  const live = useRealtime(role && projectId && detailSettled ? events.project(projectId) : null, {
+    since: current?.last_seq ?? null,
+    onChange: () => setTick((t) => t + 1),
+  })
   const liveValue = useMemo(() => ({ state: live, tick }), [live, tick])
 
   if (!role) return <Navigate to={`/login?next=${encodeURIComponent(pathname)}`} replace />
