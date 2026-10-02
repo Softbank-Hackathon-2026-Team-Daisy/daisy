@@ -24,6 +24,13 @@ export function clockTime(iso: string) {
 // 커밋 해시는 앞 7자리
 export const shortCommit = (commit: string) => commit.slice(0, 7)
 
+// 이미지 digest — "sha256:" + 64자리라 표에 다 넣으면 넘쳐요. 앞 12 · 뒤 4자리만 보여주고 전체는 title로 (동일성 검증 표)
+export function shortDigest(digest: string) {
+  const [algo, hex] = digest.includes(':') ? digest.split(':', 2) : ['', digest]
+  if (hex.length <= 20) return digest
+  return `${algo ? `${algo}:` : ''}${hex.slice(0, 12)}…${hex.slice(-4)}`
+}
+
 // 서버가 확인하지 못한 값은 null로 와요 (0으로 채우지 않아요, #13) → "—"
 export const won = (n: number | null | undefined) => (n == null ? '—' : `₩${n.toLocaleString(locale())}`)
 

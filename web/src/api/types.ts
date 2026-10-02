@@ -1,7 +1,7 @@
 // 서버 응답 모양 — SPEC.md §6-4 (공용 모델은 ios/SPEC.md §6-7). 서버 OpenAPI가 나오면 맞춰요 (가칭)
 // JSON 키는 서버의 snake_case 그대로 써요. 상태 값은 SPEC.md §2-5 (9/30 서버 확정)
 
-export type EnvKind = 'onprem' | 'aws' | 'gcp'
+export type EnvKind = 'onprem' | 'aws' | 'gcp' | 'azure' // Azure는 10/2 회의로 포함 (서버 ck_target_env에 추가 필요)
 
 export type DeploymentState =
   | 'queued'

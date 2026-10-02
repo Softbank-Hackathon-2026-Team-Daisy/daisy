@@ -55,9 +55,16 @@ function ResultCard({ env, tone, label, url, health, actions }: ResultCardProps)
           </span>
         </span>
         <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-1)', minWidth: 0 }}>
-          <span className="t-mono-sm" style={{ overflowWrap: 'anywhere' }}>
-            {url ?? '—'}
-          </span>
+          {/* URL을 누르면 새 탭에서 열려요 — 심사위원이 바로 접속 (10/2 회의) */}
+          {url ? (
+            <a className="t-mono-sm" href={url} target="_blank" rel="noopener noreferrer" style={{ overflowWrap: 'anywhere' }}>
+              {url}
+            </a>
+          ) : (
+            <span className="t-mono-sm" style={{ overflowWrap: 'anywhere' }}>
+              —
+            </span>
+          )}
           <span className="t-body-sm">{health}</span>
         </div>
       </div>

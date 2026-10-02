@@ -88,7 +88,7 @@ function ScriptsView({ scripts }: { scripts: Script[] }) {
             label={t('환경별 스크립트')}
             value={current.type}
             onChange={(type) => setSelected(verified.find((s) => s.type === type)?.script_id ?? current.script_id)}
-            items={(['onprem', 'aws', 'gcp'] as const).map((env) => ({ id: env, label: t(ENV_LABEL[env]), env }))}
+            items={(['onprem', 'aws', 'gcp', 'azure'] as const).map((env) => ({ id: env, label: t(ENV_LABEL[env]), env }))}
           />
           {file ? (
             <CodeBlock

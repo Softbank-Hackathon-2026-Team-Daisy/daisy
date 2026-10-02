@@ -21,7 +21,7 @@ const ago = (min: number) => new Date(Date.now() - min * 60_000).toISOString()
 export const PROJECT_ID = 'prj_monolith'
 export const COMMIT = 'a1b2c3d'
 export const IMAGE = `ghcr.io/team-daisy/sample-monolith:${COMMIT}`
-export const DIGEST = 'sha256:9f3c…e1a'
+export const DIGEST = 'sha256:9f3c2b7d41a8e6f05c3d9b1e7a2f4c6d8e0b1a3c5d7f9e2b4a6c8d0e1f3a5e1a' // 서버와 같은 길이(sha256 64자리)
 
 export const projects: Project[] = [
   { id: 'prj_monolith', name: 'sample-monolith', repository: 'Softbank-Hackathon-2026-Team-Daisy/sample-monolith', default_branch: 'main', repository_url: 'https://github.com/Softbank-Hackathon-2026-Team-Daisy/sample-monolith', manifest_path: 'deploy.yaml', build: 'Jenkins · daisy-build', registry: 'ghcr.io', webhook_last_at: ago(3) },
@@ -77,7 +77,7 @@ export const builds: Build[] = [
       ],
     },
     image: IMAGE,
-    image_digest: 'sha256:9f3c…e21a',
+    image_digest: 'sha256:7b1e4d9a2c6f8e03b5d7a9c1e3f5b7d9a0c2e4f6b8d0a1c3e5f7b9d2a4c6e21a',
     deployed_to: [],
   },
   { source_version_id: 'src_f4e5d6c', commit: 'f4e5d6c', branch: 'main', message: 'fix: 헬스체크 경로 수정 (#41)', author: '도영', committed_at: ago(3), pipeline: { status: 'success' }, image: 'ghcr.io/team-daisy/sample-monolith:f4e5d6c', deployed_to: [] },

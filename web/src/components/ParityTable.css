@@ -33,6 +33,7 @@
 .parity__table {
   width: 100%;
   border-collapse: collapse;
+  table-layout: fixed; /* 긴 값이 있어도 표가 카드 밖으로 넘치지 않게 — 환경 칸은 같은 너비 */
 }
 
 .parity__table th,
@@ -51,12 +52,16 @@
 }
 
 .parity__table tbody th {
-  width: 200px;
   font-weight: 400;
 }
 
+/* table-layout: fixed는 첫 줄로 너비를 정해서, 항목 칸 너비를 머리줄에 둬요 */
+.parity__table thead th:first-child {
+  width: 200px;
+}
+
 .parity__table td {
-  white-space: nowrap;
+  overflow-wrap: anywhere; /* 줄여도 긴 값은 잘리지 않고 다음 줄로 */
 }
 
 .parity__table td > svg {
