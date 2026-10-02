@@ -1029,3 +1029,37 @@ URL 인코딩 자체가 깨진 커서(`%%%bad`)는 Tomcat 이 파라미터를 �
 단위 테스트 7개를 더했습니다 (환산·반올림·잘못된 환율 3개, 응답 변환 4개). `./gradlew --no-daemon spotlessCheck check build` 성공, 182개 통과.
 
 같은 경로의 두 핸들러가 OpenAPI 에서 한 operation 으로 합쳐지면서 처음에는 `detail` 이 필수로 표시됐습니다. 붙이지 않는 A-05 호출이 있으니 문서에서 선택으로 보이게 고쳤습니다.
+
+## 프로젝트 연결 WR-02 (10/2, 하은현)
+
+### 범위
+
+`POST /projects` `{ repository, branch }` 로 GitHub 저장소를 프로젝트로 연결합니다 (W-02 연결하기). 웹·앱 계약은 "`Project` + `deploy.yaml` 검증 결과" 입니다.
+
+- 권한: owner 역할만. viewer 403 (`requireWriter`). 만든 계정이 그 프로젝트의 멤버가 됩니다.
+- 응답 201 `{ project, manifest }`. `project` 는 A-12 상세와 같은 모양입니다. 웹은 이 모양으로 받고 있고, 앱은 `Project` 를 바로 받고 있어서 앱에 맞춰 달라고 알립니다.
+- **`manifest` 는 null 입니다.** `deploy.yaml` 스키마가 팀 결정 대기(WR-03)이고, 서버가 저장소를 읽어 검증하는 경로도 아직 없습니다. 검증하지 않은 것을 통과로 보이지 않게 null 로 둡니다.
+- **새 프로젝트에는 배포 대상이 없습니다.** 대상을 등록하는 API(W-10 환경 추가)는 범위가 정해지지 않았습니다. 그래서 연결한 프로젝트로 바로 배포까지 이어지지는 않고, 데모 배포는 시드된 `prj_demo_monolith` 로 합니다.
+
+### 입력
+
+| 필드 | 규칙 |
+|---|---|
+| `repository` | `owner/repo` 또는 `https://github.com/owner/repo` (끝의 `.git`·`/` 허용). owner 는 영문·숫자·`-` 1~39자, repo 는 영문·숫자·`.`·`_`·`-` 1~100자. 저장은 `owner/repo` 로 맞춤. 다른 호스트는 400 |
+| `branch` | 필수. 255자 이하, 영문·숫자·`.`·`_`·`/`·`-` 만, `-`·`/` 로 시작하지 않고 `..` 없음 |
+
+- 이름은 저장소 이름(`repo`)입니다. `repository_url` 은 `https://github.com/owner/repo`, `manifest_path` 는 기본값 `deploy.yaml` 입니다.
+- 보관되지 않은 프로젝트가 같은 저장소를 이미 쓰고 있으면 409 입니다. 한 저장소는 한 프로젝트입니다.
+- 저장소가 실제로 있는지는 GitHub 에 묻지 않습니다. 있는지 모르는 값을 확인한 것처럼 보이지 않게, 응답에서도 검증 결과를 비워 둡니다.
+
+### 검증 계획
+
+| | 검사 | 기대 |
+|---|---|---|
+| C1 | 토큰 없음 / viewer | 401 / 403 |
+| C2 | `owner/repo` + `main` | 201, `project` 상세 모양, `manifest: null`, A-01 목록에 보이고 A-12 상세 200 |
+| C3 | URL 형태(`https://github.com/o/r.git`) | `repository: "o/r"` 로 저장 |
+| C4 | 같은 저장소 다시 | 409 |
+| C5 | 다른 호스트·잘못된 이름·빈 branch·`..` 포함 branch | 400 |
+| C6 | 만든 계정이 아닌 다른 owner 계정 | 그 프로젝트 404 (멤버 아님) |
+| C7 | OpenAPI | 경로·요청 스키마 노출, `principal` 0건, 서버 로그 ERROR 0건 |
