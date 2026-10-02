@@ -295,6 +295,7 @@ export const MESSAGES: Record<string, { en: string; ja: string }> = {
   '열기': { en: 'Open', ja: '開く' },
   '예': { en: 'Yes', ja: 'はい' },
   '예선 범위 결정 전이에요': { en: 'Pending the preliminary-round scope decision', ja: '予選の範囲が決まる前です' },
+  '예선에서는 온프레미스 · AWS · GCP · Azure 4개 환경을 써요': { en: 'The preliminary round uses 4 environments: on-premises · AWS · GCP · Azure', ja: '予選ではオンプレミス · AWS · GCP · Azure の4つの環境を使います' },
   '오류 로그 보기': { en: 'View error logs', ja: 'エラーログを見る' },
   '오류 로그와 AI 수정 이력을 확인해 주세요': { en: 'Check the error logs and AI fix history', ja: 'エラーログと AI の修正履歴を確認してください' },
   '오류가 나면 AI가 로그를 읽고 최대 3번까지 고쳐요': { en: 'On errors, AI reads the logs and fixes the code up to 3 times', ja: 'エラーが出ると、AI がログを読んで最大3回まで修正します' },

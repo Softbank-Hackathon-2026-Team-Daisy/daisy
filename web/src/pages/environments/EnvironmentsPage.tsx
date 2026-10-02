@@ -75,8 +75,7 @@ function EnvironmentsPage() {
           <Button variant="outline" disabled title={t('예선 범위 결정 전이에요')}>
             {t('+ 환경 추가')}
           </Button>
-          <EnvTag env="azure" />
-          <span className="t-body-sm t-muted">{t('예선 범위 결정 전이에요')}</span>
+          <span className="t-body-sm t-muted">{t('예선에서는 온프레미스 · AWS · GCP · Azure 4개 환경을 써요')}</span>
         </div>
       </Panel>
 
