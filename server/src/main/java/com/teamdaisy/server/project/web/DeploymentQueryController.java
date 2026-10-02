@@ -8,8 +8,11 @@ import com.teamdaisy.server.deployment.domain.DeploymentStatus;
 import com.teamdaisy.server.identity.auth.AuthPrincipal;
 import com.teamdaisy.server.identity.web.CurrentAccount;
 import com.teamdaisy.server.project.access.ProjectAccessService;
+import com.teamdaisy.server.project.application.AiCostConverter;
 import com.teamdaisy.server.project.application.DeploymentDetailReader;
 import com.teamdaisy.server.project.application.DeploymentDetailReader.DeploymentDetail;
+import com.teamdaisy.server.project.application.DeploymentPlanReader;
+import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.security.SecurityRequirement;
 import java.util.Arrays;
 import java.util.List;
@@ -21,7 +24,7 @@ import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 /**
- * 배포 조회 API 예요. 지금은 상세(A-04)만 있고, 목록(A-03)·plan(A-05)·로그(A-07)가 여기 더해져요.
+ * 배포 조회 API 예요. 상세(A-04)·목록(A-03)·plan(A-05·WR-06)이 있고, 로그(A-07)가 여기 더해져요.
  *
  * <p>권한은 승환의 {@code projectIdOf} 로 확인해요. 없는 배포와 접근할 수 없는 배포는 404 예요.
  */
@@ -37,12 +40,20 @@ public class DeploymentQueryController {
   private final DeploymentQueryService queries;
   private final DeploymentDetailReader details;
   private final ProjectAccessService access;
+  private final DeploymentPlanReader plans;
+  private final AiCostConverter cost;
 
   public DeploymentQueryController(
-      DeploymentQueryService queries, DeploymentDetailReader details, ProjectAccessService access) {
+      DeploymentQueryService queries,
+      DeploymentDetailReader details,
+      ProjectAccessService access,
+      DeploymentPlanReader plans,
+      AiCostConverter cost) {
     this.queries = queries;
     this.details = details;
     this.access = access;
+    this.plans = plans;
+    this.cost = cost;
   }
 
   /** 배포 한 건의 스냅샷이에요 (A-04). 승인할 때 보낼 {@code approval_id} 는 {@code pending_approvals} 에 있어요. */
@@ -87,5 +98,43 @@ public class DeploymentQueryController {
       nextCursor = new BuildCursor(last.createdAt(), last.id()).encode();
     }
     return new PageResponse<>(page.stream().map(DeploymentDetailResponse::of).toList(), nextCursor);
+  }
+
+  /**
+   * 승인 화면의 plan 요약과 이 배포의 AI 사용량 합계예요 (A-05).
+   *
+   * <p>현재 plan 이 있는 대상만 나와요. 리소스 전체 목록은 {@code ?detail=resources} 예요 (WR-06).
+   */
+  @GetMapping(value = "/deployments/{deploymentId}/plan", params = "!detail")
+  public PlanResponse plan(
+      @CurrentAccount AuthPrincipal principal, @PathVariable String deploymentId) {
+    String projectId = queries.projectIdOf(principal.accountId(), deploymentId);
+    return PlanResponse.of(
+        deploymentId,
+        plans.currentPlans(projectId, deploymentId),
+        plans.usage(projectId, deploymentId),
+        cost);
+  }
+
+  /**
+   * 대상별 리소스 전체 목록이에요 (WR-06). 웹 계약대로 같은 경로에서 배열을 돌려줘요.
+   *
+   * <p>{@code detail} 은 {@code resources} 만 받아요. 다른 값은 400 이에요.
+   */
+  @GetMapping(value = "/deployments/{deploymentId}/plan", params = "detail")
+  public List<PlanDetailResponse> planDetail(
+      @CurrentAccount AuthPrincipal principal,
+      @PathVariable String deploymentId,
+      // 핸들러 둘이 OpenAPI 에서 한 operation 으로 합쳐져요. 붙이지 않는 호출(A-05)도 있어서 문서에는 선택으로 보여요.
+      @Parameter(description = "resources 만 받아요. 붙이면 대상별 리소스 목록 배열(WR-06)을 돌려줘요")
+          @RequestParam(required = false)
+          String detail) {
+    String projectId = queries.projectIdOf(principal.accountId(), deploymentId);
+    if (!"resources".equals(detail)) {
+      throw new DaisyException(ErrorCode.VALIDATION_FAILED);
+    }
+    return plans.currentPlans(projectId, deploymentId).stream()
+        .map(PlanDetailResponse::of)
+        .toList();
   }
 }

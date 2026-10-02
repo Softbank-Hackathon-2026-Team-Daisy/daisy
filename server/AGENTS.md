@@ -180,6 +180,9 @@ docker compose up -d postgres    # Postgres 17
 | 2026-10-02 | **재시도 공개 경로 `POST /deployments/{id}/retry` `{ target_ids }`** | 원본 배포의 빌드·연결을 서버가 이어받아 소비자는 원본 ID 와 대상만 보냄. 승환·승준(#42)·도영(Slack) 동의 | 2 |
 | 2026-10-02 | **조회 API 는 배포 테이블을 읽기 전용 SQL 로 직접 읽음 (§3 예외)** | 조회 서비스를 기능마다 승환이 먼저 만들고 기다리는 구조를 피함. 쓰기는 실행 서비스로만. #42 승환 제안·은현 수락 | 1 |
 | 2026-10-02 | **#42 조회 연결: 권한 확인 후 프로젝트 반환·대상별 current 결과** | `projectIdOf`는 requireRead 후 반환, 명령 requireWrite는 유지. `currentByTarget`은 포인터 실패만 none/confirmed/unverified로 구분하고 권한·DB 오류는 전파. 기존 current는 호환 유지, [계약](docs/execution-service-contract.md) | 2 (서버 내부 소비자 은현) |
+| 2026-10-02 | **A-05 AI 사용량: 모르는 값은 합계에서 빼고 `unknown_calls` 로 따로, 행이 없으면 토큰·원화 null** | 지금 Jenkins 는 호출별 기록을 주지 않아 행이 없다고 "안 썼다" 가 아님. 0원으로 보이면 틀린 정보. 설계 5.13 "미확인 호출 수" | 1 |
+| 2026-10-02 | **환율은 설정값 `DAISY_AI_KRW_PER_USD`, 없으면 원화 null, 잘못된 값이면 기동 실패. 반올림 HALF_UP** | 숫자는 아직 미정이라 코드에 넣지 않음. 틀린 금액을 보여주는 것보다 기동 실패가 나음 | 1 |
+| 2026-10-02 | **WR-06 `action`: delete+create → replace, read·no-op 만이면 목록에서 뺌** | 웹 `PlanDetail` 값에 맞춤. 바뀌지 않는 리소스는 승인 판단에 쓰지 않음 | 1 |
 
 ## 11. 아직 정하지 못한 것
 
