@@ -807,3 +807,79 @@ V9 의 실제 Jenkins 실행은 하지 않습니다. 기본 비활성 설정 그
 | T3 | 판정 없음 → `reuse: null`, 정상 판정 → 네 필드 그대로, `available: "yes"` 처럼 모양이 틀린 판정 → 그 대상만 `reuse: null`, 응답은 200 |
 | T4 | 보관된 대상은 목록에 없음 |
 | T5 | OpenAPI 에 경로가 나오고 파라미터는 `projectId` 하나 (`principal` 노출 없음) |
+
+## 배포 상세 A-04 (10/2, 하은현)
+
+### 범위
+
+`GET /deployments/{id}` 는 배포 한 건의 스냅샷을 돌려줍니다. 웹·앱의 배포 진행·승인·결과 화면이 이걸로 상태를 그리고, 승인할 때 보낼 `approval_id` 를 `pending_approvals` 에서 얻습니다 (#40 승준, #42).
+
+- 권한: `projectIdOf(actorId, deploymentId)` (044a436). 없는 배포·접근할 수 없는 배포는 404, viewer 도 조회는 됩니다.
+- 데이터: `server/AGENTS.md` §3 예외대로 `deployment`·`deployment_target`·`approval` 을 읽기 전용 SQL 로 직접 읽습니다. 쓰지 않습니다.
+- 소비자 모델: `ios/SPEC.md` 326행 `Deployment`, 웹 `web/src/api/types.ts` `Deployment`.
+
+### 응답 필드
+
+| 필드 | 출처 | 비고 |
+|---|---|---|
+| `id`·`project_id` | `deployment.id`·`project_id` | |
+| `source_version_id`·`commit` | `deployment.source_version_id`·`commit_sha` | |
+| `image`·`image_digest`·`images` | `deployment.image_refs` | 배포를 만들 때 고른 성공 빌드의 이미지. 서비스가 하나면 scalar, 여럿이면 scalar null + `images[]` (S5, A-06 과 같은 규칙). 값이 없으면 전부 null |
+| `state` | `deployment.status` | 배포 전체 7값 그대로 (계약과 코드값이 같음) |
+| `kind` | `deployment.kind` | `rollback` 이면 `"rollback"`, 아니면 null. `normal`·`retry` 는 내부 값이라 내보내지 않음 (AGENTS §5) |
+| `rolled_back_from` | `deployment.rollback_of_deployment_id` | 설계 6장 매핑 |
+| `retry_of` | `deployment.retry_of_deployment_id` | 계약에 없던 필드. 재시도 화면이 원본으로 돌아갈 때 쓸 수 있게 둠 |
+| `targets[]` | `deployment_target` | 아래 표. 정렬은 `target_id` |
+| `pending_approvals[]` | `approval` (`state='pending'`) | `{ target_id, approval_id }`. 승인 요청 `items` 와 같은 모양. 없으면 `[]` |
+| `created_by` | `deployment.requested_by` → `account.display_name` | 계정이 없으면 계정 ID 그대로 |
+| `created_at`·`finished_at` | 같은 이름 | |
+| `last_seq` | `deployment.last_event_seq` | SSE 재연결 기준점 |
+
+`targets[]`
+
+| 필드 | 출처 | 비고 |
+|---|---|---|
+| `target_id` | `deployment_target.target_id` | |
+| `type`·`name` | `target_snapshot` 의 `environment_type`·`name` | 배포 당시 고정값 |
+| `state` | `deployment_target.status` | 대상별 9값 그대로 |
+| `attempt` | `deployment_target.attempt` | **0 이면 null** (S2: "API null, DB 0 유지") |
+| `reused_script` | `deployment_target.ai_reused` | |
+| `error_summary` | 같은 이름 | |
+| `cancel_requested_at` | 같은 이름 | 취소 요청이 접수됐지만 아직 끝나지 않은 상태를 보여 줄 수 있게 둠 |
+| `started_at`·`finished_at` | 같은 이름 | |
+| `step`·`step_state`·`url`·`image_digest`·`health_summary` | — | **null.** `url`·`image_digest`·`health_summary` 는 근거 데이터가 아직 없음 (apply 결과 수신 #35 대기). `step`·`step_state` 는 승환님 Jenkins 수신이 `deployment_log` 에 `step.started`·`completed`·`failed` 로 남기지만 아직 읽지 않음 — A-07 로그 조회와 함께 붙임 (10/2 점검에서 정정). 0·빈 값으로 채우지 않음 |
+
+내보내지 않는 것: `version`("v7")·`commit_message` 는 S8 후순위, 단건 `pending_approval` 은 `pending_approvals` 로 대체 (#40 승준 질문에 답한 대로).
+
+### 검증 계획
+
+| | 검사 | 기대 |
+|---|---|---|
+| Q1 | 토큰 없음 / 없는 배포 / 비멤버 / viewer | 401 / 404 / 404 / 200 |
+| Q2 | 막 만든 배포 (대상 2개) | `state: "queued"`, 대상 2개 `waiting`, `attempt: null`, `pending_approvals: []`, 고른 빌드의 이미지 |
+| Q3 | 승인 대기 행이 있는 배포 | `pending_approvals` 에 `{target_id, approval_id}`, 만료·처리된 승인은 빠짐 |
+| Q4 | 롤백 배포 | `kind: "rollback"`, `rolled_back_from` 채워짐 |
+| Q5 | 이미지가 고정된 배포 (서비스 1개 / 2개) | scalar / `images[]` |
+| Q6 | 다른 프로젝트 배포가 섞이지 않음 | 경로의 배포 한 건만 |
+| Q7 | OpenAPI | 경로가 나오고 `principal` 노출 0건 |
+
+### 검증 결과 (10/2 오전)
+
+단위 테스트 4개(승인 ID 옮김, `kind` 변환, 시도 0·근거 없는 필드 null, 이미지 단일·여럿·없음)를 추가했고, 빈 PostgreSQL 17 에 jar 로 띄워 확인했습니다.
+
+| | 결과 |
+|---|---|
+| Q1 | 401 / 404 / 404(다른 프로젝트, Q6 와 같이 확인) / 200 |
+| Q2 | `queued`, 대상 2개 `waiting`·`attempt: null`·`step: null`, `pending_approvals: []`, 고른 빌드의 이미지, `created_by: "데모 운영자"`, `last_seq: 1` |
+| Q3 | 유효한 승인만 `[{tgt_demo_aws, apv_ok}]`. 만료 시각이 지난 pending 승인은 빠짐 |
+| Q4 | `kind: "rollback"`, `rolled_back_from` 에 원본 배포 |
+| Q5 | 서비스 2개면 `image: null`, `images[]` 2개 (digest 없는 서비스는 null 그대로) |
+| Q6 | 접근 권한 없는 다른 프로젝트 배포는 404 |
+| Q7 | 경로 노출, `principal` 0건. 500 0건 |
+
+처음 스펙에는 "막 만든 배포는 이미지 null" 이라고 적었는데, 실제로는 생성 때 고른 성공 빌드의 이미지가 고정됩니다. 코드가 맞고 스펙을 고쳤습니다.
+
+### 후속·통합 검증으로 남기는 것 (10/2 승환님 #46 리뷰)
+
+- **일부 승인만 만료된 대상 / 전부 만료된 대상.** A-04 는 `state='pending'` 이고 기한이 남은 승인만 `pending_approvals` 로 줍니다. 그런데 실행 서비스의 승인은 `awaiting_approval` 인 대상 전체와 요청 `items` 가 같아야 통과합니다. 대상 A 는 유효하고 B 는 기한이 지났는데 아직 `awaiting_approval` 이면, A-04 응답 그대로 승인해도 409 입니다. 만료된 ID 를 다시 내보내거나 승인 검사를 느슨하게 하지 않고, 승환님 실행부가 만료 대상을 정리하도록 연결합니다(승환님 담당). 그 전까지 "A-04 의 승인 대기만 보내면 승인된다" 는 완료로 보지 않습니다. 연결 뒤 두 경우를 통합 검증에 넣습니다.
+- **단계(`step`·`step_state`).** 두 가지를 나눠 둡니다. ① 저장된 `step.*` 이벤트를 읽는 조회 구현은 A-07 과 함께 제가 붙입니다. ② 실제 Jenkins 에서 그 이벤트가 들어오는 것은 #35 수신 대기입니다.
