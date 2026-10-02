@@ -883,3 +883,53 @@ V9 의 실제 Jenkins 실행은 하지 않습니다. 기본 비활성 설정 그
 
 - **일부 승인만 만료된 대상 / 전부 만료된 대상.** A-04 는 `state='pending'` 이고 기한이 남은 승인만 `pending_approvals` 로 줍니다. 그런데 실행 서비스의 승인은 `awaiting_approval` 인 대상 전체와 요청 `items` 가 같아야 통과합니다. 대상 A 는 유효하고 B 는 기한이 지났는데 아직 `awaiting_approval` 이면, A-04 응답 그대로 승인해도 409 입니다. 만료된 ID 를 다시 내보내거나 승인 검사를 느슨하게 하지 않고, 승환님 실행부가 만료 대상을 정리하도록 연결합니다(승환님 담당). 그 전까지 "A-04 의 승인 대기만 보내면 승인된다" 는 완료로 보지 않습니다. 연결 뒤 두 경우를 통합 검증에 넣습니다.
 - **단계(`step`·`step_state`).** 두 가지를 나눠 둡니다. ① 저장된 `step.*` 이벤트를 읽는 조회 구현은 A-07 과 함께 제가 붙입니다. ② 실제 Jenkins 에서 그 이벤트가 들어오는 것은 #35 수신 대기입니다.
+
+## 배포 목록 A-03 (10/2, 하은현)
+
+### 범위
+
+`GET /projects/{id}/deployments?state=&cursor=&limit=` 는 프로젝트의 배포를 최신순으로 돌려줍니다. 배포 이력(W-09)·현황(W-01)·AI 사용량 배포 고르기(W-12) 화면이 쓰고, 승인 대기 목록은 별도 API 없이 `state=awaiting_approval` 로 거릅니다 (9/29 결정, PR #1).
+
+- 권한: `ProjectAccessService.requireRead` — 없는 프로젝트·비멤버 404, viewer 도 조회는 됩니다.
+- 데이터: A-04 와 같이 배포 테이블을 읽기 전용 SQL 로 읽습니다 (`server/AGENTS.md` §3 예외).
+- 봉투: `{ items, next_cursor }`. **목록 한 줄은 A-04 상세와 같은 모양**입니다. 웹은 목록을 `ListResponse<Deployment>` 로 받아서, 모양을 둘로 나누면 화면마다 다른 필드를 다뤄야 합니다.
+
+### 동작
+
+| 항목 | 규칙 |
+|---|---|
+| 정렬 | `created_at DESC, id DESC`. 설계의 `INDEX(project_id, created_at DESC, id)`·`INDEX(project_id, status, created_at DESC, id)` 와 맞춤 |
+| `state` | 배포 전체 7값 중 하나. 다른 값은 400. 생략하면 전부 |
+| `cursor` | A-06 과 같은 불투명 문자열 (base64url 로 감싼 `created_at` + `id`). 깨진 커서는 400. 같은 시각의 배포가 페이지 경계에 걸려도 건너뛰지 않음 |
+| `limit` | 기본 20, 최대 100. 넘으면 100 으로 깎고, 0·음수는 400 (A-06 과 같음) |
+| 대상·승인 대기 | 한 페이지의 배포 ID 로 `deployment_target`·`approval` 을 한 번씩만 읽음. 배포마다 따로 읽지 않음 |
+
+### 검증 계획
+
+| | 검사 | 기대 |
+|---|---|---|
+| L1 | 토큰 없음 / 비멤버 / viewer | 401 / 404 / 200 |
+| L2 | 배포 3개 | 최신순, 각 항목이 A-04 모양 (대상·`pending_approvals` 포함) |
+| L3 | `state=awaiting_approval` / `state=bogus` | 그 상태만 / 400 |
+| L4 | `limit=2` 로 커서 왕복, 같은 `created_at` 두 건 포함 | 중복·누락 0, 마지막 페이지 `next_cursor: null` |
+| L5 | 깨진 커서 / `limit=0` | 400 / 400 |
+| L6 | 다른 프로젝트 배포 | 섞이지 않음 |
+| L7 | OpenAPI | 경로·`state`·`cursor`·`limit` 노출, `principal` 노출 0건 |
+
+### 검증 결과 (10/2 오전)
+
+빈 PostgreSQL 17 에 jar 로 띄워, API 로 만든 배포 3개와 SQL 로 넣은 배포 4개(그중 2개는 `created_at` 이 똑같음), 다른 프로젝트 배포 1개로 확인했습니다.
+
+| | 결과 |
+|---|---|
+| L1 | 401 / 404 / 200 |
+| L2 | 7개 최신순, 각 항목이 A-04 모양 (대상 수·`pending_approvals` 포함) |
+| L3 | `awaiting_approval` 은 그 1건만 / `bogus` 400 |
+| L4 | `limit=2` 로 4페이지, 7개 모두, 중복 0, 전체 목록과 순서가 같음 (같은 시각 2건이 경계에 걸려도 빠지지 않음), 마지막 `next_cursor: null` |
+| L5 | 구분자 없는 base64·base64 아닌 문자 커서 400 / `limit=0` 400 |
+| L6 | 다른 프로젝트 배포가 섞이지 않음 |
+| L7 | 파라미터 `state`·`cursor`·`limit`, `principal` 노출 0건. 500 0건. 조회 코드를 바꾼 뒤 A-04 상세도 200 |
+
+URL 인코딩 자체가 깨진 커서(`%%%bad`)는 Tomcat 이 파라미터를 버려서 커서 없이 첫 페이지(200)가 나갑니다. A-06 도 같습니다. 서블릿 컨테이너 동작이라 따로 막지 않았습니다.
+
+**회귀 테스트 (10/2, 승환님 #48 리뷰).** `DeploymentQueryPostgresTest` 가 실제 PostgreSQL 에서 같은 시각 배포 두 건이 페이지 경계에 걸리는 경우(첫 페이지가 `dep_c` 로 끝나고 다음 페이지가 같은 시각 `dep_b` 부터), 상태 필터, 다른 프로젝트가 섞이지 않는 것, 다른 프로젝트 배포 상세 404 를 고정합니다. `DAISY_TEST_DB_URL` 이 있을 때만 돕니다. 같은 시각 비교 조건을 빼면 커서 테스트 2개가 실패하는 것을 확인했습니다.
