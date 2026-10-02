@@ -17,4 +17,7 @@ public interface ProjectRepository extends JpaRepository<Project, String> {
       order by p.createdAt desc, p.id desc
       """)
   List<Project> findAccessible(String accountId);
+
+  /** 보관되지 않은 프로젝트가 이 저장소를 쓰고 있는지 봐요. 한 저장소는 한 프로젝트예요. */
+  boolean existsByRepositoryIdAndArchivedAtIsNull(String repositoryId);
 }

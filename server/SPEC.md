@@ -1063,3 +1063,19 @@ URL 인코딩 자체가 깨진 커서(`%%%bad`)는 Tomcat 이 파라미터를 �
 | C5 | 다른 호스트·잘못된 이름·빈 branch·`..` 포함 branch | 400 |
 | C6 | 만든 계정이 아닌 다른 owner 계정 | 그 프로젝트 404 (멤버 아님) |
 | C7 | OpenAPI | 경로·요청 스키마 노출, `principal` 0건, 서버 로그 ERROR 0건 |
+
+### 검증 결과 (10/2 낮)
+
+단위 테스트 3개(저장소 정규화 5가지 입력, 잘못된 저장소 10가지, 브랜치 규칙)와, 빈 PostgreSQL 17 에 jar 로 띄운 실서버로 확인했습니다.
+
+| | 결과 |
+|---|---|
+| C1 | 토큰 없음 401 / viewer 403 |
+| C2 | 201 `{ project, manifest: null }`, `project` 는 A-12 상세 모양(`name: sample-msa`, `repository_url` GitHub 주소, `manifest_path: deploy.yaml`), A-01 목록에 보이고 A-12 상세 200 |
+| C3 | `https://github.com/someone/other-app.git` → `repository: "someone/other-app"` |
+| C4 | 같은 저장소를 `owner/repo`·URL 두 형태로 다시 보내도 둘 다 409, 행 1개 |
+| C5 | 다른 호스트·잘못된 이름·빈 branch·`..` branch·branch 없음·빈 본문 모두 400 |
+| C6 | 멤버는 만든 계정 하나. viewer 는 그 프로젝트 404, 목록에도 없음 |
+| C7 | OpenAPI `POST /projects` 요청 스키마, 응답 201, `principal` 0건, 서버 로그 ERROR 0건 |
+
+처음에는 OpenAPI 에 응답 코드가 200 으로 나와서 `@ResponseStatus(CREATED)` 로 바꿨습니다. 실제 응답은 처음부터 201 이었습니다.
