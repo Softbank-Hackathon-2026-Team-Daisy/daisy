@@ -313,6 +313,15 @@ DB 접속 정보는 앱에 환경변수로 넣어요. 이름은 온프레미스�
 6. 기본 Compute SA를 쓰지 않고 전용 SA를 만들어요 (R-6)
 7. 조직 정책(도메인 제한 공유)이 걸린 프로젝트면 `allUsers` 바인딩이 막혀요. 해커톤 프로젝트에 조직 정책이 없는지 먼저 확인해요
 
+### 6-3-1. 10/2 구현 결정
+
+- 리전은 **asia-northeast1(도쿄)**: Cloud Run 도메인 매핑이 서울(asia-northeast3)을 지원하지 않아서예요. `gcp.unibloom.cloud`를 로드밸런서(시간당 비용) 없이 붙여요
+- 공개 도메인은 선택 입력 `domain` · `subdomain` (`targets/gcp.json`). 있으면 `google_cloud_run_domain_mapping`을 만들고 `service_url`이 `https://<subdomain>.<domain>`이에요. 준비: Search Console에서 도메인 소유 확인 + 배포 서비스 계정을 확인된 소유자로 추가, Route 53 `<subdomain>` CNAME → `ghs.googlehosted.com`. 인증서는 Google이 처음 15~60분 걸려 발급해요. 이미지만 바꾸는 재배포는 매핑을 그대로 둬요
+- state는 GCS (`TF_STATE_BUCKET_GCP`, prefix `<앱>/gcp`, 잠금 자동). `state_identity` = `gs://<버킷>/<앱>/gcp/default.tfstate`
+- CPU 1 고정, 메모리 512 · 1024 · 2048 MiB, 최대 1~2대, 최소 0대. `database = true`는 아직 거절해요 (Cloud SQL은 S)
+- 위험 검사 `check_gcp`: 기본 역할(owner · editor) 금지, `allUsers`는 Cloud Run `run.invoker`에만, 최소 0대 · 최대 2대 · CPU 1 · 메모리 2Gi 이하, VPC · 고정 IP 금지, 삭제 보호 끔
+- 프로젝트 준비(사람이 1번): API(run · iam · secretmanager · storage · cloudresourcemanager), 배포 서비스 계정 `daisy-deployer` + 키 → Jenkins Credentials `gcp-deployer`(Secret file), GCS state 버킷
+
 ### 6-4. 완료 기준
 
 §5-4와 같아요. 차이만 적으면:

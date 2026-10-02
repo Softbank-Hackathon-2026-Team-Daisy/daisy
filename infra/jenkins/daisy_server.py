@@ -330,9 +330,10 @@ def image(p: dict) -> dict:
 
 def state_identity(env: str, app: str) -> str:
     """tf-run.sh가 실제로 쓰는 state 위치. 서버는 이 문자열로 같은 state의 동시 실행을 막아요 (#35 §4)."""
-    bucket = os.environ.get("TF_STATE_BUCKET_AWS", "") if env == "aws" else ""
-    if bucket:
-        return f"s3://{bucket}/{app}/{env}/terraform.tfstate"
+    if env == "aws" and os.environ.get("TF_STATE_BUCKET_AWS"):
+        return f"s3://{os.environ['TF_STATE_BUCKET_AWS']}/{app}/{env}/terraform.tfstate"
+    if env == "gcp" and os.environ.get("TF_STATE_BUCKET_GCP"):  # GCS backend는 prefix 아래 default.tfstate
+        return f"gs://{os.environ['TF_STATE_BUCKET_GCP']}/{app}/{env}/default.tfstate"
     runner = os.environ.get("DAISY_RUNNER_ID") or os.uname().nodename
     return f"local://{runner}/{app}/{env}/terraform.tfstate"
 

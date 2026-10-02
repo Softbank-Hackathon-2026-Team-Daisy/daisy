@@ -6,7 +6,7 @@
 #   aws · gcp · onprem        앱 모듈 (infra/modules/<env>). 매 배포
 #   aws-network · aws-state · aws-domain · aws-server   고정 리소스 bootstrap (infra/bootstrap/<stack>). $WORK_ROOT/_bootstrap/<stack>/
 #
-# state는 환경마다 그 환경의 저장소예요 (SPEC §7-1). AWS 스택은 TF_STATE_BUCKET_AWS가 있으면 S3, 없으면 로컬
+# state는 환경마다 그 환경의 저장소예요 (SPEC §7-1). AWS 스택은 TF_STATE_BUCKET_AWS가 있으면 S3, GCP는 TF_STATE_BUCKET_GCP가 있으면 GCS, 없으면 로컬
 #   onprem은 러너 로컬 (온프레미스 저장소 [미정])
 #
 # 작업 디렉터리는 레포 밖이에요. state·plan에 비밀값이 들어가요.
@@ -42,6 +42,7 @@ usage() {
   WORK_ROOT            작업 루트, 레포 밖 (기본 ~/daisy-work)
   VAR_FILE             비밀값 없는 변수 파일 (기본 $WORK_ROOT/$APP/$ENV.tfvars.json). plan 때 plan 폴더로 복사해요
   TF_STATE_BUCKET_AWS  AWS 스택의 S3 state 버킷 (key $APP/$ENV/terraform.tfstate, 잠금 use_lockfile). 없으면 로컬 state
+  TF_STATE_BUCKET_GCP  GCP의 GCS state 버킷 (prefix $APP/$ENV, 잠금은 GCS가 자동으로). 없으면 로컬 state
   TF_STATE_REGION      state 버킷 리전 (기본 ap-northeast-2)
   EXPECTED_AWS_ACCOUNT apply·destroy 전에 AWS 계정 ID 확인
   EXPECTED_GCP_PROJECT apply·destroy 전에 변수 파일의 project_id 확인
@@ -88,12 +89,13 @@ mkdir -p "$WORK/state" "$WORK/plans" "$TF_PLUGIN_CACHE_DIR"
 exec 9>"$WORK/.lock"
 flock -w "${TF_RUN_LOCK_WAIT:-600}" 9 || die "${WORK#"$WORK_ROOT"/} 에서 다른 작업이 끝나지 않았어요 (${TF_RUN_LOCK_WAIT:-600}초 대기). 끝난 뒤 다시 실행해요"
 
-# state 저장소: 환경마다 그 환경의 저장소 (SPEC §7-1). 지금은 AWS(S3)만, GCP(GCS)는 GCP 모듈과 함께 넣어요
+# state 저장소: 환경마다 그 환경의 저장소 (SPEC §7-1). AWS는 S3, GCP는 GCS, 온프레미스는 러너 로컬
 case $ENV in
-aws*) BUCKET=${TF_STATE_BUCKET_AWS:-} ;;
-*) BUCKET="" ;;
+aws*) BUCKET=${TF_STATE_BUCKET_AWS:-} BKIND=s3 ;;
+gcp*) BUCKET=${TF_STATE_BUCKET_GCP:-} BKIND=gcs ;;
+*) BUCKET="" BKIND="" ;;
 esac
-BACKEND=$([[ -n $BUCKET ]] && echo "s3:$BUCKET" || echo local)
+BACKEND=$([[ -n $BUCKET ]] && echo "$BKIND:$BUCKET" || echo local) # plan meta에 남겨서 apply 때 같은 저장소인지 봐요
 MIGRATED="$WORK/state/MIGRATED" # migrate-state가 남기는 표시. 내용은 옮긴 곳(s3://…)
 
 PLAN_DIR="" # set_plan_dir에서 정해요
@@ -111,7 +113,11 @@ need_tag() {
 init() { # $1 = 디렉터리 (기본 plan 폴더의 src). -reconfigure: 예전 plan 폴더도 지금 backend를 보게 해요
   local dir=${1:-$PLAN_DIR/src}
   local args=(-input=false -no-color -reconfigure)
-  if [[ -n $BUCKET ]]; then
+  if [[ -n $BUCKET && $BKIND == gcs ]]; then
+    # GCS는 prefix 아래 default.tfstate에 저장하고 잠금을 자동으로 걸어요
+    printf 'terraform {\n  backend "gcs" {}\n}\n' >"$dir/backend.tf"
+    args+=(-backend-config="bucket=$BUCKET" -backend-config="prefix=${STATE_KEY%/terraform.tfstate}")
+  elif [[ -n $BUCKET ]]; then
     printf 'terraform {\n  backend "s3" {}\n}\n' >"$dir/backend.tf"
     args+=(-backend-config="bucket=$BUCKET"
       -backend-config="key=$STATE_KEY"
@@ -248,6 +254,7 @@ state_diff() { # $1 로컬 요약, $2 S3 요약 → 사람이 읽는 차이 (주
 }
 
 migrate_state() { # 로컬 state를 S3로 옮겨요. S3에 다른 state가 있으면 덮어쓰지 않고, 멈췄다 다시 돌리면 이어가요
+  [[ $BKIND == s3 ]] || die "state 이전은 AWS 스택(S3)만 해요. GCP는 처음부터 GCS를 써요"
   [[ -n $BUCKET ]] || die "TF_STATE_BUCKET_AWS가 필요해요 (옮길 S3 버킷)"
   local src="$WORK/state/terraform.tfstate"
   if [[ -f $MIGRATED ]]; then
