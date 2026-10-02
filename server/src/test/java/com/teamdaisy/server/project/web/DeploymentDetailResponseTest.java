@@ -57,6 +57,7 @@ class DeploymentDetailResponseTest {
         null,
         null,
         null,
+        null,
         null);
   }
 
@@ -149,7 +150,7 @@ class DeploymentDetailResponseTest {
     var row =
         new TargetRow(
             "tgt_aws", snapshot, "running", 1, false, null, null, AT, null, "plan", "running", null,
-            null);
+            null, null);
     var target = DeploymentDetailResponse.target(row);
 
     assertThat(target.step()).isEqualTo("plan");
@@ -179,7 +180,8 @@ class DeploymentDetailResponseTest {
                 null,
                 null,
                 "approved",
-                "queued"));
+                "queued",
+                null));
     assertThat(target.state()).isEqualTo("awaiting_approval");
     assertThat(target.approvalState()).isEqualTo("approved");
     assertThat(target.applyDispatch()).isEqualTo("queued");
@@ -191,5 +193,78 @@ class DeploymentDetailResponseTest {
     assertThat(DeploymentDetailReader.applyDispatch("apply", "rejected")).isEqualTo("rejected");
     assertThat(DeploymentDetailReader.applyDispatch("prepare", "accepted")).isNull();
     assertThat(DeploymentDetailReader.applyDispatch(null, null)).isNull();
+  }
+
+  private static final String DIGEST = "sha256:" + "ab".repeat(32);
+
+  private static ObjectNode result(int services, String digest) {
+    ObjectNode result = MAPPER.createObjectNode().put("plan_id", "plan_1");
+    ObjectNode urls = result.putObject("public_urls");
+    ObjectNode images = result.putObject("image_refs");
+    for (int i = 0; i < services; i++) {
+      String name = i == 0 ? "hellocalc" : "svc" + i;
+      urls.put(name, "https://aws.unibloom.cloud" + (i == 0 ? "" : "/" + i));
+      images
+          .putObject(name)
+          .put("image_ref", "img:" + name)
+          .put("digest", digest)
+          .put("commit_sha", "c");
+    }
+    return result;
+  }
+
+  private static DeploymentDetailResponse.Target succeeded(ObjectNode result) {
+    ObjectNode snapshot = MAPPER.createObjectNode().put("environment_type", "aws");
+    return DeploymentDetailResponse.target(
+        new TargetRow(
+            "tgt_aws",
+            snapshot,
+            "succeeded",
+            1,
+            false,
+            null,
+            null,
+            AT,
+            AT,
+            "health_check",
+            "done",
+            "approved",
+            null,
+            result));
+  }
+
+  @Test
+  @DisplayName("성공 결과의 서비스가 하나면 url·image_digest 는 그 값이고 health_summary 는 null 이에요 (R1)")
+  void urlAndDigestFromResult() {
+    var target = succeeded(result(1, DIGEST));
+    assertThat(target.url()).isEqualTo("https://aws.unibloom.cloud");
+    assertThat(target.imageDigest()).isEqualTo(DIGEST);
+    assertThat(target.healthSummary()).isNull();
+  }
+
+  @Test
+  @DisplayName("결과가 없거나 서비스가 여럿이거나 모양이 틀리면 그 필드만 null 이에요 (R2)")
+  void resultEdgeCases() {
+    assertThat(succeeded(null).url()).isNull();
+    assertThat(succeeded(null).imageDigest()).isNull();
+
+    var two = succeeded(result(2, DIGEST));
+    assertThat(two.url()).isNull();
+    assertThat(two.imageDigest()).isNull();
+
+    var badDigest = succeeded(result(1, "sha256:short"));
+    assertThat(badDigest.url()).isEqualTo("https://aws.unibloom.cloud");
+    assertThat(badDigest.imageDigest()).isNull();
+
+    ObjectNode notObject = result(1, DIGEST);
+    notObject.put("public_urls", "https://aws.unibloom.cloud");
+    notObject.putArray("image_refs");
+    assertThat(succeeded(notObject).url()).isNull();
+    assertThat(succeeded(notObject).imageDigest()).isNull();
+
+    ObjectNode urlNotText = result(1, DIGEST);
+    urlNotText.putObject("public_urls").put("hellocalc", 1);
+    assertThat(succeeded(urlNotText).url()).isNull();
+    assertThat(succeeded(urlNotText).imageDigest()).isEqualTo(DIGEST);
   }
 }
