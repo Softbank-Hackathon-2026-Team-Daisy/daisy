@@ -1030,6 +1030,34 @@ URL 인코딩 자체가 깨진 커서(`%%%bad`)는 Tomcat 이 파라미터를 �
 
 같은 경로의 두 핸들러가 OpenAPI 에서 한 operation 으로 합쳐지면서 처음에는 `detail` 이 필수로 표시됐습니다. 붙이지 않는 A-05 호출이 있으니 문서에서 선택으로 보이게 고쳤습니다.
 
+## AI 호출별 기록 WR-11 (10/2, 하은현)
+
+### 범위
+
+`GET /projects/{id}/ai-usage?deployment_id=` 로 배포 한 건의 AI 호출 기록을 줍니다 (W-12). 합계는 A-05 `ai_usage` 가 맡고, 여기는 호출 한 줄씩입니다 (#13, 승환님 `docs/sh/2026-10-01-pr19-feedback.md` S3).
+
+- 권한: `requireRead`. 비멤버·없는 프로젝트 404, viewer 200.
+- `deployment_id` 는 필수입니다. 없으면 400, 그 프로젝트의 배포가 아니면 404 입니다.
+- 데이터: `ai_usage` 를 읽기 전용 SQL 로 읽습니다 (`server/AGENTS.md` §3 예외). 대상 소속은 `deployment_target` 으로 확인합니다.
+- 봉투 `{ items, next_cursor }`. 한 배포의 호출은 대상당 많아야 몇 번이라 한 번에 주고 `next_cursor` 는 null 입니다. 넘칠 때를 대비해 1000 행까지만 줍니다.
+- 순서: 호출 시각(`occurred_at`), 같은 시각이면 ID 순.
+
+### 한 줄
+
+| 필드 | 출처 | 비고 |
+|---|---|---|
+| `at` | `occurred_at` | |
+| `deployment_id` | `deployment_target.deployment_id` | |
+| `target_id` | `deployment_target.target_id` | |
+| `step` | `step` | `generate`·`fix` 등 원천 값 그대로 |
+| `attempt` | `attempt` | 1~3 |
+| `tokens` | `input_tokens + output_tokens` | 둘 중 하나라도 모르면 null. 0 으로 만들지 않음 |
+| `cost_krw` | `cost_usd` × 고정 환율, 원 단위 반올림(HALF_UP) | 비용을 모르거나 환율 설정이 없으면 null |
+| `status` | `status` | LLM 호출 결과 `succeeded`·`failed`·`unknown` 그대로 (Terraform 검증 결과 아님) |
+| `note` | 없음 | null. 원본 설명이 오면 채움 |
+
+- 줄마다 원화로 반올림하므로, 줄의 `cost_krw` 를 더한 값은 A-05 합계(USD 를 먼저 더한 뒤 한 번 반올림)와 1~2원 다를 수 있습니다. 합계는 A-05 를 기준으로 봅니다.
+- 지금 Jenkins 는 호출별 기록을 주지 않아서 대부분 빈 목록입니다. 빈 목록을 "AI 를 안 썼다" 로 보여주지 않게 웹·앱에 알립니다.
 ## 배포 로그 A-07 · A-04 단계 (10/2, 하은현)
 
 ### 범위
@@ -1135,6 +1163,27 @@ record Recorded(String sourceVersionId, boolean changed)
 
 | | 검사 | 기대 |
 |---|---|---|
+| U1 | 토큰 없음 / 비멤버 프로젝트 / viewer | 401 / 404 / 200 |
+| U2 | `deployment_id` 없음 / 다른 프로젝트 배포 / 없는 배포 | 400 / 404 / 404 |
+| U3 | 호출 3행 (하나는 토큰·비용 모름, 하나는 출력 토큰만 모름) | 시각 순, `tokens`·`cost_krw` 는 아는 줄만, 나머지 null |
+| U4 | 환율 1400, 0.0003 USD | `cost_krw` 0 (0.42원 반올림) |
+| U5 | 같은 프로젝트 다른 배포의 호출 | 섞이지 않음 |
+| U6 | OpenAPI | 경로·`deployment_id` 노출, `principal` 0건, 서버 로그 ERROR 0건 |
+
+### 검증 결과 (10/2 낮)
+
+단위 테스트 2개(줄 변환·환율 없음)와, 빈 PostgreSQL 17 에 jar 로 띄운 실서버(`DAISY_AI_KRW_PER_USD=1400`)로 확인했습니다. API 로 만든 배포 2개에 호출 4행을 SQL 로 넣었습니다.
+
+| | 결과 |
+|---|---|
+| U1 | 토큰 없음 401 / 비멤버 프로젝트 404 / viewer 200 |
+| U2 | `deployment_id` 없음 400 / 다른 프로젝트 배포 404 / 없는 배포 404 |
+| U3 | 시각 순 3줄. 토큰·비용 모르는 줄은 둘 다 null, 출력 토큰만 모르는 줄은 `tokens: null`·`cost_krw: 48` |
+| U4 | 0.0003 USD → `cost_krw: 0`, 0.0343 USD → 48 |
+| U5 | 같은 프로젝트 다른 배포의 호출은 그 배포에서만 보임 |
+| U6 | 파라미터 `projectId`·`deployment_id`, `principal` 0건, 서버 로그 ERROR 0건 |
+
+`./gradlew --no-daemon spotlessCheck check build` 성공.
 | G1 | 토큰 없음 / 없는 배포 / viewer | 401 / 404 / 200 |
 | G2 | 로그 5행 (대상 2개 + 대상 없는 콘솔 1행) + 상태 이벤트 1행 | 로그 5행만, `seq` 오름차순, 봉투, `next_cursor: null` |
 | G3 | `tail=2` / `tail=0` / `tail=5000` | 마지막 2행 / 400 / 1000 으로 깎임 |
