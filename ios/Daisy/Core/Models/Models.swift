@@ -129,11 +129,24 @@ struct Deployment: Decodable, Identifiable, Hashable, Sendable {
         let healthSummary: String?
         /// W-08 동일성 검증: 이 환경에 올라간 이미지 digest (웹 A-04 `image_digest`)
         let imageDigest: String?
+        /// 이 환경 plan의 승인 상태 (서버 #56). `awaiting_approval`인데 `approved`면 "승인 완료 · 실행 대기"예요
+        let approvalState: ApprovalState?
+        /// apply 명령을 Jenkins에 넘긴 상태 (서버 #56): `queued` · `unknown` · `rejected`
+        let applyDispatch: String?
+
+        enum ApprovalState: String, ServerEnum {
+            case pending, approved, rejected, superseded, expired, unknown
+            static let unknownCase = ApprovalState.unknown
+        }
 
         var id: String { targetId }
 
+        /// 이미 승인했고 apply가 아직 시작 전이에요. 다시 승인하지 않아요 (웹 #64와 같아요)
+        var isApprovedWaiting: Bool { resolvedState == .awaitingApproval && approvalState == .approved }
+
         private enum CodingKeys: String, CodingKey {
             case targetId, state, step, stepState, attempt, reusedScript, url, errorSummary, title, steps, healthSummary, imageDigest
+            case approvalState, applyDispatch
         }
 
         /// A-04 모양은 서버가 아직 확정 전이라 단계 · 시도는 없을 수 있어요 (서버 안: 확인 전이면 null · 생략).
@@ -152,6 +165,8 @@ struct Deployment: Decodable, Identifiable, Hashable, Sendable {
             steps = try c.decodeIfPresent([StepItem].self, forKey: .steps)
             healthSummary = try c.decodeIfPresent(String.self, forKey: .healthSummary)
             imageDigest = try c.decodeIfPresent(String.self, forKey: .imageDigest)
+            approvalState = try c.decodeIfPresent(ApprovalState.self, forKey: .approvalState)
+            applyDispatch = try c.decodeIfPresent(String.self, forKey: .applyDispatch)
         }
     }
 

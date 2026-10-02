@@ -230,9 +230,10 @@ struct Script: Decodable, Identifiable, Hashable, Sendable {
     let targetId: String
     /// "s2"
     let version: String
-    let origin: Origin
-    /// 통과한 시도 (n/3)
-    let attempt: Int
+    /// 서버는 모르면 null을 줘요 (#68)
+    let origin: Origin?
+    /// 통과한 시도 (n/3). 시도 0(생성 전)이면 null이에요 (#68)
+    let attempt: Int?
     let validation: Validation?
     let status: Status
     let reuseCount: Int?
@@ -269,4 +270,10 @@ struct LogLine: Decodable, Hashable, Sendable {
     }
 
     private enum CodingKeys: String, CodingKey { case ts, at, targetId, level, text, message }
+}
+
+/// WR-02 연결 응답 `{ project, manifest }` (서버 #59). `manifest`가 null이면 "검증 전"이에요
+struct ConnectResult: Decodable, Sendable {
+    let project: Project
+    let manifest: Manifest?
 }

@@ -692,6 +692,16 @@ class ExecutionPostgresTest {
     execution.decide(decision(prepared, "approval-key"));
     assertEquals(1, count("target_lock"));
     String apply = value("current_execution_id", "deployment_target", prepared.target());
+    assertEquals(
+        1,
+        context
+            .getBean(JenkinsCommandService.class)
+            .lookup(apply)
+            .payload()
+            .path("targets")
+            .get(0)
+            .path("attempt")
+            .asInt(-1));
     long approvedSeq =
         jdbc.queryForObject(
             "select last_event_seq from deployment where id=?", Long.class, prepared.deployment());
@@ -889,6 +899,16 @@ class ExecutionPostgresTest {
     assertEquals("superseded", value("state", "approval", prepared.approval()));
     assertEquals("approved", value("decision", "approval", prepared.approval()));
     String replan = value("current_execution_id", "deployment_target", prepared.target());
+    assertEquals(
+        attempt,
+        context
+            .getBean(JenkinsCommandService.class)
+            .lookup(replan)
+            .payload()
+            .path("targets")
+            .get(0)
+            .path("attempt")
+            .asInt(-1));
     assertNotEquals(apply, replan);
     assertEquals("replan", value("operation", "jenkins_execution", replan));
     assertEquals(apply, value("parent_execution_id", "jenkins_execution", replan));
@@ -1212,6 +1232,139 @@ class ExecutionPostgresTest {
                 "insert into deployment_target(id,deployment_id,project_id,target_id,target_snapshot,state_identity) values('dt_wrong',?,'prj_1','tgt_other','{}','test:other-state')",
                 deployment));
     assertEquals(1, count("deployment_target"));
+  }
+
+  @Test
+  void expiredApprovalWaitsForExecutionEndThenClearsAndEmitsOnce() {
+    Prepared p = prepare("expiry");
+    ageApproval(p);
+    assertTrue(execution.expiredApprovals().isEmpty());
+    assertEquals(
+        ErrorCode.STATE_CONFLICT,
+        assertThrows(
+                DaisyException.class, () -> execution.expire("prj_1", p.deployment(), p.target()))
+            .errorCode());
+    assertEquals("pending", value("state", "approval", p.approval()));
+    jdbc.update(
+        "update jenkins_execution set run_status='succeeded',finished_at=now() where id=?",
+        p.prepare());
+    assertEquals(1, execution.expiredApprovals().size());
+    execution.expire("prj_1", p.deployment(), p.target());
+    assertEquals("expired", value("state", "approval", p.approval()));
+    assertEquals("expired", value("state", "plan_revision", p.plan()));
+    assertNull(value("current_plan_id", "deployment_target", p.target()));
+    assertEquals("cancelled", value("status", "deployment", p.deployment()));
+    long events = count("deployment_log");
+    assertTrue(execution.expiredApprovals().isEmpty());
+    assertThrows(DaisyException.class, () -> execution.expire("prj_1", p.deployment(), p.target()));
+    assertEquals(events, count("deployment_log"));
+    assertEquals(0, count("target_lock"));
+  }
+
+  @Test
+  void partialExpiryLeavesOnlyLiveTargetForApprovalAndNeverCancelsApprovedApply() {
+    jdbc.update(
+        "insert into target(id,project_id,name,environment_type,state_identity,config) values('tgt_2','prj_1','Second','aws','test:second','{}')");
+    String deployment =
+        execution
+            .create(
+                new DeploymentExecutionService.CreateRequest(
+                    "acct_1",
+                    "prj_1",
+                    "src_1",
+                    List.of("tgt_1", "tgt_2"),
+                    mapper.createObjectNode().put("hash_format_version", 1),
+                    "mixed-expiry"))
+            .body()
+            .path("deployment_id")
+            .asText();
+    String t1 =
+        jdbc.queryForObject(
+            "select id from deployment_target where deployment_id=? and target_id='tgt_1'",
+            String.class,
+            deployment);
+    String t2 =
+        jdbc.queryForObject(
+            "select id from deployment_target where deployment_id=? and target_id='tgt_2'",
+            String.class,
+            deployment);
+    Prepared first = prepareTarget(deployment, t1, "first");
+    Prepared second = prepareTarget(deployment, t2, "second");
+    ageApproval(first);
+    jdbc.update(
+        "update jenkins_execution set run_status='succeeded',finished_at=now() where id=?",
+        first.prepare());
+    assertEquals(1, execution.expiredApprovals().size());
+    execution.expire("prj_1", deployment, first.target());
+    assertEquals("awaiting_approval", value("status", "deployment", deployment));
+    var reader =
+        new com.teamdaisy.server.project.application.DeploymentDetailReader(
+            new org.springframework.jdbc.core.namedparam.NamedParameterJdbcTemplate(jdbc),
+            org.mockito.Mockito.mock(com.teamdaisy.server.identity.domain.AccountRepository.class),
+            mapper);
+    // The public reader and execution service must agree on the remaining approval IDs.
+    var pending = reader.read("prj_1", deployment).pendingApprovals();
+    assertEquals(1, pending.size());
+    assertEquals(second.approval(), pending.getFirst().approvalId());
+    execution.decide(
+        new DeploymentExecutionService.DecisionRequest(
+            "acct_1",
+            "prj_1",
+            deployment,
+            Map.of(
+                "tgt_2",
+                new DeploymentExecutionService.Decision(second.approval(), true, "Fixture")),
+            "approve-live"));
+    ageApproval(second);
+    assertTrue(execution.expiredApprovals().isEmpty());
+    assertThrows(
+        DaisyException.class, () -> execution.expire("prj_1", deployment, second.target()));
+    assertEquals("approved", value("state", "approval", second.approval()));
+    assertEquals(1, count("target_lock"));
+  }
+
+  private void ageApproval(Prepared p) {
+    jdbc.update(
+        "update approval set created_at=now()-interval '2 hours', expires_at=now()-interval '1 hour' where id=?",
+        p.approval());
+  }
+
+  @Test
+  void archiveCommittedBeforeCommandGetsProjectLockPreventsAction() throws Exception {
+    var locked = new java.util.concurrent.CountDownLatch(1);
+    var attempted = new java.util.concurrent.CountDownLatch(1);
+    try (var pool = Executors.newFixedThreadPool(2)) {
+      var archive =
+          pool.submit(
+              () ->
+                  transaction()
+                      .execute(
+                          status -> {
+                            jdbc.update("update project set archived_at=now() where id='prj_1'");
+                            locked.countDown();
+                            try {
+                              assertTrue(attempted.await(5, TimeUnit.SECONDS));
+                            } catch (InterruptedException e) {
+                              throw new IllegalStateException(e);
+                            }
+                            return true;
+                          }));
+      var command =
+          pool.submit(
+              () -> {
+                assertTrue(locked.await(5, TimeUnit.SECONDS));
+                attempted.countDown();
+                return assertThrows(
+                        DaisyException.class,
+                        () -> execution.create(createRequest("after-archive")))
+                    .errorCode();
+              });
+      assertTrue(archive.get(15, TimeUnit.SECONDS));
+      assertEquals(ErrorCode.NOT_FOUND, command.get(15, TimeUnit.SECONDS));
+    }
+    assertEquals(0, count("deployment"));
+    assertEquals(0, count("jenkins_execution"));
+    assertEquals(0, count("idempotency"));
   }
 
   private record Prepared(

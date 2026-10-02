@@ -157,7 +157,8 @@ final class Workspace {
             } else {
                 statuses = []; targets = []; awaitingApproval = []
             }
-            connection = .connected
+            // 앱은 아직 SSE 없이 5초 폴링이라 "실시간 연결됨"이 아니에요 (웹 #61과 같아요)
+            connection = .polling
         } catch {
             app.handle(error)
             connection = loadedOnce ? .reconnecting : .disconnected

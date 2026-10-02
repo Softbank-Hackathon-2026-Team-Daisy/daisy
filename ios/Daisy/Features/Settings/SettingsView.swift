@@ -143,6 +143,10 @@ struct SettingsView: View {
             app.selectedProjectID = nil
             await workspace.refresh(using: app)
             router.open(.connectProject, in: .overview)
+        } catch let error as APIError where error.isStateConflict {
+            // 서버 409는 일반 문구라, 이유를 알 수 있게 바꿔 보여줘요 (#59 · 웹 #64 리뷰)
+            throw APIError.server(status: 409, code: "STATE_CONFLICT",
+                                  message: "진행 중인 배포(대기 · 승인 대기 포함)가 있어 해제할 수 없어요", retryable: false)
         } catch {
             app.handle(error)
             throw error

@@ -101,8 +101,9 @@ struct ScriptsView: View {
 
     /// 웹: "AI 생성 · 시도 2/3 통과 (보안 그룹 수정)" / "재사용 · 시도 1/3 통과" / "AI 생성 · 3회 실패 → 폐기"
     private func origin(_ script: Script) -> String {
-        if script.status == .discarded { return "AI 생성 · \(script.attempt)회 실패 → 폐기" }
-        let base = "\(howMade(script)) · 시도 \(script.attempt)/3 통과"
+        // 폐기 = 원본 없음 · 보관 기한 지남 (서버 #68, "3회 실패"가 아니에요)
+        if script.status == .discarded { return "\(howMade(script)) · 원본 보관 기한 지남 → 폐기" }
+        let base = script.attempt.map { "\(howMade(script)) · 시도 \($0)/3 통과" } ?? howMade(script)
         return script.note.map { "\(base) (\($0))" } ?? base
     }
 
@@ -117,7 +118,8 @@ struct ScriptsView: View {
     private func checks(_ script: Script) -> String {
         guard let v = script.validation else { return "—" }
         if v.validate == false { return "validate 실패" }
-        if v.plan == false { return "plan 실패" }
+        // `plan: false`는 "아직 plan 없음"이에요 (서버 #68)
+        if v.plan == false { return "validate 통과 · plan 없음" }
         return "validate · plan · 위험 \(v.risks ?? 0)"
     }
 
@@ -140,10 +142,12 @@ struct ScriptsView: View {
                                })
             }
             if let file {
-                CodeBlock(header: "\(file.path) · \(howMade(script)) · 시도 \(script.attempt)/3",
+                CodeBlock(header: [file.path, howMade(script), script.attempt.map { "시도 \($0)/3" }].compactMap { $0 }.joined(separator: " · "),
                           aiGenerated: script.origin != .reused, code: file.content)
             } else {
-                Text("폐기된 스크립트는 내용을 보관하지 않아요.").font(.subheadline).foregroundStyle(.secondary)
+                // 목록(WR-10)에는 파일이 오지 않아요. 내용은 WR-07(배포별 스크립트)로만 받아요
+                Text(script.status == .discarded ? "폐기된 스크립트는 내용을 보관하지 않아요." : "스크립트 내용은 아직 서버에서 받지 않아요 (WR-07).")
+                    .font(.subheadline).foregroundStyle(.secondary)
             }
         }
     }

@@ -1,10 +1,10 @@
-# Jenkins HTTP 연결 제안
+# Jenkins HTTP 연결 계약 — 실제 연동 검증 전
 
-이 문서는 백엔드 transport의 **제안**이다. 현재 인프라는 `daisy-cd-plan` / `daisy-cd-apply`를 분리하고 사용자 승인은 서버가 담당하는 방향이다. plan은 `DEPLOY_AWS/GCP`, `IMAGE_TAG`, `IMAGE_REPO`, `APP`, `APP_REPO` 등의 파라미터, apply는 `PLAN_BUILD`, `APPROVAL_ID`, `APP`, `APP_REPO`를 사용한다. 아래 백엔드의 초기 `request_id/payload` form과 같지 않다. **Job 이름만 맞았다고 활성화하지 않는다.** 실제 대상 집합·승인 N건·plan digest·입력 hash·원천 결과·request_id 연결은 #35 확인 후 adapter를 바꾼다. Terraform·AI 구현은 인프라가 소유한다.
+10/2 #35에서 인프라는 `daisy-cd-plan` / `daisy-cd-apply` 모두 `request_id`(string)와 `payload`(text JSON)를 받도록 구현했다고 답했어요. 서버 요청은 기존 수동 파라미터보다 payload가 우선이고, prepare/replan은 plan Job, apply는 apply Job이에요. Terraform·AI는 인프라 소유예요. **가짜 서버 검증과 실제 Jenkins↔서버 검증은 달라요.** attempt 유지, 실제 state 주소·서버 락 일치, 인증·CI 빌드 수신을 맞춘 뒤 연결해요.
 
 `daisy.jenkins.enabled` 기본값은 false다. 활성화 시 `base-url`(context 포함), `user`, `token`(API token), `jobs`(허용 Job 전체 이름, 쉼표 구분)를 모두 공급한다. 예: `DAISY_JENKINS_BASE_URL=https://jenkins.example.invalid/jenkins/`, `DAISY_JENKINS_JOBS=daisy/prepare,daisy/apply`. 비밀값은 환경변수로만 공급한다. `connect-timeout-ms` 기본 3000, `read-timeout-ms` 기본 15000, `max-response-bytes` 기본 262144(최대 1048576)이다. transport 자체는 기동 시 호출하거나 주기적으로 실행하지 않는다. 자동 요청 전달에는 아래 워커 활성화도 필요하다.
 
-제안 adapter는 `POST /job/{folder}/job/{job}/buildWithParameters`에 form string parameter `request_id`와 `payload`(JSON)를 보낸다. JSON에도 동일 `request_id`를 넣는다. prepare/replan/apply/stop별 Job 또는 재개 방식, payload schema, 정확한 승인 plan digest/input hash 검사, 구조화된 대상 결과·callback은 인프라와 확인해야 한다. API token Basic 인증을 사용한다([공식 인증 안내](https://www.jenkins.io/doc/book/system-administration/authenticating-scripted-clients/), [공식 Remote API](https://www.jenkins.io/doc/book/using/remote-access-api/)).
+adapter는 `POST /job/{folder}/job/{job}/buildWithParameters`에 form string parameter `request_id`와 `payload`(JSON)를 보내요. JSON에도 동일 request_id가 들어가요. `targets[].attempt`는 현재 환경별 생성 시도 횟수(0~3)이며 replan/apply가 이를 초기화하지 않아요. 승인 plan·digest·input hash는 기존 plans 배열로 전달해요. API token Basic 인증을 사용해요([공식 인증 안내](https://www.jenkins.io/doc/book/system-administration/authenticating-scripted-clients/), [공식 Remote API](https://www.jenkins.io/doc/book/using/remote-access-api/)).
 
 201 응답의 Location은 설정 origin/context의 정확한 `/queue/item/{positive-id}/`만 수용한다. redirects는 따르지 않는다. 이후 queue item JSON, 허용 Job의 build JSON, `POST queue/cancelItem?id=...`, `POST {build}/stop`, `{build}/logText/progressiveText?start=...`를 조회한다. callback·executable URL을 HTTP 목적지로 사용하지 않는다. 실제 Jenkins 버전·권한·API token CSRF 동작·queue/stop/progressive headers는 인프라 연결 검증에서 확인해야 한다.
 
@@ -22,4 +22,4 @@ build `result=SUCCESS`와 stop/cancel ACK는 배포 성공·실제 종료를 뜻
 
 HTTP 제출 거부가 확실한 명령만 실행 서비스에 거부 결과를 전달한다. 이 후속 처리가 실패해도 거부 기록과 다음 확인 시각이 DB에 남아 재처리한다. Jenkins queue가 build 번호 없이 취소됐다고 확인되면 남은 대상의 취소·락 해제를 별도 트랜잭션에서 처리하며, 처리 전까지 DB 재확인 대상으로 남긴다. 응답 유실은 거부와 구별하며 자동 재제출하지 않는다. 구조화된 대상 결과가 누락됐을 때 Jenkins build SUCCESS만으로 대상 성공을 만들어내지 않는다.
 
-로컬 HTTP 대역·단위·실제 PostgreSQL 테스트는 실행했다. 실제 Jenkins 호출은 하지 않았다. 이전 ‘테스트 소스만 작성’ 단계의 기록과 현재 검증 상태를 혼동하지 않는다. 기존 callback은 기본 비활성인 내부 수신 초안이고, 실제 인프라의 주 수신 방식은 폴링이다. 구조화 산출물이 미확정인 동안 build SUCCESS나 콘솔 문구만으로 대상별 배포 성공·위험 검사 완료를 만들지 않는다.
+실행 상태 조회·응답 유실 복구는 폴링하고 상세 단계·로그·plan·스크립트·사용량·대상 결과는 인증된 콜백으로 받아요(#35, 인증 #63). build SUCCESS나 콘솔 문구만으로 대상 성공을 만들지 않아요. 콜백·워커·HTTP 클라이언트는 명시적인 설정 전까지 비활성이에요. 활성 워커는 한 주기당 최대 100개의 만료 pending 승인을 정리하되, prepare/replan 종료가 확인되지 않았거나 이미 승인되어 apply에 넘어간 대상은 취소하지 않아요. 로컬 HTTP 대역·실제 PostgreSQL 테스트와 실제 Jenkins 연결 결과를 구분해서 기록해요.
