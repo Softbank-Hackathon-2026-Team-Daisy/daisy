@@ -98,4 +98,24 @@ class PlanResponseTest {
     assertThat(noRate.estimated()).isFalse();
     assertThat(noRate.tokens()).isEqualTo(7920L);
   }
+
+  @Test
+  @DisplayName("인프라 초안처럼 action 문자열로 와도 읽어요 (#35)")
+  void singleActionString() throws Exception {
+    var detail =
+        PlanDetailResponse.of(
+            new PlanRow(
+                "tgt_aws",
+                json("{}"),
+                json(
+                    "[{'address':'a.x','type':'aws_s3_bucket','action':'create'},"
+                        + "{'address':'a.y','type':'t','action':'replace'},"
+                        + "{'address':'a.z','type':'t','action':'no-op'},"
+                        + "{'address':'a.w','type':'t','action':'delete'}]")));
+    assertThat(detail.resources())
+        .containsExactly(
+            new PlanDetailResponse.Resource("a.x", "create"),
+            new PlanDetailResponse.Resource("a.y", "replace"),
+            new PlanDetailResponse.Resource("a.w", "delete"));
+  }
 }
