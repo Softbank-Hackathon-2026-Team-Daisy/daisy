@@ -1,10 +1,11 @@
 import SwiftUI
 
-/// W-13 설정: 이 프로젝트의 저장소 연결(프로젝트 상세), 배포 명세(WR-03), 비밀값, 알림. 맨 아래에 앱 설정(서버 · 계정 · 버전).
+/// W-13 설정: 이 프로젝트의 저장소 연결(프로젝트 상세), 배포 명세(WR-03), 비밀값, 알림. 맨 아래에 앱 설정(언어 · 서버 · 계정 · 버전).
 struct SettingsView: View {
     @Environment(AppModel.self) private var app
     @Environment(Router.self) private var router
     @Environment(Workspace.self) private var workspace
+    @Environment(LanguageStore.self) private var language
     @State private var detail: ProjectDetail?
     @State private var manifest: Manifest?
     @State private var disconnecting = false
@@ -14,7 +15,7 @@ struct SettingsView: View {
     @AppStorage("notify.failed") private var notifyFailed = true
 
     var body: some View {
-        PageScaffold("설정", subtitle: "이 프로젝트의 저장소 연결, 배포 명세, 비밀값, 알림을 관리해요.") {
+        PageScaffold(.app("설정"), subtitle: .app("이 프로젝트의 저장소 연결, 배포 명세, 비밀값, 알림을 관리해요.")) {
             EmptyView()
         } content: {
             ScrollView {
@@ -39,36 +40,36 @@ struct SettingsView: View {
     @ViewBuilder
     private var projectSettings: some View {
         AdaptiveGrid(minimumWidth: 320) {
-            SectionCard("저장소") {
+            SectionCard(.app("저장소")) {
                 InfoRow("GitHub", detail?.repository ?? workspace.project?.repository)
-                InfoRow("기준 브랜치", detail?.branch ?? workspace.project?.branch, monospaced: true)
-                InfoRow("빌드", detail?.build)
+                InfoRow(.app("기준 브랜치"), detail?.branch ?? workspace.project?.branch, monospaced: true)
+                InfoRow(.app("빌드"), detail?.build)
                 // 레지스트리는 팀이 아직 정하지 않았어요 (Docker Hub / GHCR)
-                InfoRow("레지스트리", "\(detail?.registry ?? "—") [미정]")
-                InfoRow("웹훅", detail?.webhookLastAt.map { "수신 중 · 마지막 \(TimeText.clock($0))" })
+                InfoRow(.app("레지스트리"), .app("\(detail?.registry ?? "—") [미정]"))
+                InfoRow(String.app("웹훅"), detail?.webhookLastAt.map { String.app("수신 중 · 마지막 \(TimeText.clock($0))") })
                 Button("저장소 다시 연결") { router.open(.connectProject) }
                     .buttonStyle(.glassCapsule)
                     .disabled(app.isViewer)
             }
-            SectionCard("배포 명세 (deploy.yaml)") {
+            SectionCard(.app("배포 명세 (deploy.yaml)")) {
                 Text("저장소의 deploy.yaml이 기준이에요. 여기서는 읽기만 해요.").font(.subheadline).foregroundStyle(.secondary)
                 if let manifest {
                     // 웹: 원문 코드 블록 (원문이 없으면 포트 · 헬스체크)
                     CodeBlock(header: manifest.ref ?? "deploy.yaml",
                               code: manifest.raw ?? "port: \(manifest.port.map(String.init) ?? "")\nhealthcheck: \(manifest.healthcheck ?? "")")
                     ForEach(manifest.errors ?? [], id: \.self) { problem in
-                        InlineAlert(.danger, "deploy.yaml을 확인해 주세요", [problem.path, problem.message].compactMap { $0 }.joined(separator: ": "))
+                        InlineAlert(.danger, .app("deploy.yaml을 확인해 주세요"), [problem.path, problem.message].compactMap { $0 }.joined(separator: ": "))
                     }
                 } else {
                     Text("deploy.yaml을 불러오지 못했어요").foregroundStyle(.secondary)
                 }
             }
-            SectionCard("비밀값") {
+            SectionCard(.app("비밀값")) {
                 Text("deploy.yaml의 secrets에 적힌 이름만 값을 넣어요. 값은 다시 볼 수 없어요.")
                     .font(.subheadline).foregroundStyle(.secondary)
                 if let secrets = manifest?.secrets, !secrets.isEmpty {
                     ForEach(secrets, id: \.self) { name in
-                        InfoRow(name, "●●●● (전달 방식 [미정])", monospaced: true)
+                        InfoRow(name, .app("●●●● (전달 방식 [미정])"), monospaced: true)
                     }
                 } else {
                     VStack(spacing: 6) {
@@ -86,14 +87,14 @@ struct SettingsView: View {
                     .padding(.vertical, 12)
                 }
             }
-            SectionCard("알림") {
+            SectionCard(.app("알림")) {
                 Toggle("승인이 필요할 때 · Swift 앱 푸시", isOn: $notifyApproval)
                 Toggle("배포가 끝났을 때", isOn: $notifyFinished)
                 Toggle("배포가 실패했을 때", isOn: $notifyFailed)
                 Text("브라우저 알림은 웹에서 켜요.").font(.caption).foregroundStyle(.secondary)
             }
         }
-        SectionCard("프로젝트 연결 해제") {
+        SectionCard(.app("프로젝트 연결 해제")) {
             Text("배포 서비스에서 이 프로젝트를 지워요. 이미 떠 있는 인프라는 지워지지 않아요 (terraform destroy는 따로 해요).")
                 .font(.subheadline).foregroundStyle(.secondary)
             Button("연결 해제", role: .destructive) { disconnecting = true }
@@ -106,21 +107,42 @@ struct SettingsView: View {
 
     private var appSettings: some View {
         @Bindable var app = app
-        return SectionCard("앱") {
-            VStack(alignment: .leading, spacing: 6) {
-                Text("서버 주소").font(.subheadline.weight(.medium))
-                TextField(AppModel.defaultServerURL, text: $app.serverURLString)
-                    .urlInput()
-                    .textFieldStyle(.roundedBorder)
-                if !app.serverURLString.isEmpty && app.serverURL == nil {
-                    Text("https://로 시작하는 주소를 넣어 주세요.").font(.caption).foregroundStyle(.red)
-                }
-            }
-            InfoRow("계정", app.username)
-            InfoRow("권한", app.isViewer ? "읽기 전용" : "승인 가능")
-            InfoRow("버전", Bundle.main.versionText)
+        return SectionCard(.app("앱")) {
+            languagePicker
+            // 서버는 Unibloom 고정이라 바꾸는 칸 없이 보여만 줘요
+            InfoRow(.app("서버"), app.serverURL?.host() ?? "—", monospaced: true)
+            InfoRow(.app("계정"), app.displayName)
+            InfoRow(String.app("권한"), app.isViewer ? String.app("읽기 전용") : String.app("승인 가능"))
+            InfoRow(.app("버전"), Bundle.main.versionText)
             Button("로그아웃", role: .destructive) { app.signOut() }
                 .buttonStyle(.glassCapsule)
+        }
+    }
+
+    /// 언어 (10/2): 기기 설정 따르기 · 한국어 · English · 日本語. 고르면 바로 바뀌어요 (다시 켜지 않아도 돼요).
+    /// 한 줄에 다 들어가면 세그먼트, 좁은 화면(iPhone)은 같은 글래스 캡슐 메뉴로 보여줘요.
+    private var languagePicker: some View {
+        @Bindable var language = language
+        let items = LanguageSetting.allCases.map { GlassSegmented.Item(value: $0, title: $0.title) }
+        return VStack(alignment: .leading, spacing: 6) {
+            Text("언어").font(.subheadline.weight(.medium))
+            ViewThatFits(in: .horizontal) {
+                GlassSegmented(selection: $language.setting, items: items)
+                Menu {
+                    Picker("언어", selection: $language.setting) {
+                        ForEach(LanguageSetting.allCases) { Text(verbatim: $0.title).tag($0) }
+                    }
+                    .pickerStyle(.inline)
+                } label: {
+                    Label { Text(verbatim: language.setting.title) } icon: { Image(systemName: "globe") }
+                }
+                .menuStyle(.button)
+                .menuIndicator(.hidden)
+                .buttonStyle(.glassCapsule)
+                .fixedSize()
+            }
+            Text("앱 화면 글자가 바뀌어요. 서버가 보낸 메시지(오류 · 로그 · plan 위험 설명 등)는 받은 그대로 보여요.")
+                .font(.caption).foregroundStyle(.secondary)
         }
     }
 
@@ -143,6 +165,10 @@ struct SettingsView: View {
             app.selectedProjectID = nil
             await workspace.refresh(using: app)
             router.open(.connectProject, in: .overview)
+        } catch let error as APIError where error.isStateConflict {
+            // 서버 409는 일반 문구라, 이유를 알 수 있게 바꿔 보여줘요 (#59 · 웹 #64 리뷰)
+            throw APIError.server(status: 409, code: "PROJECT_BUSY",
+                                  message: .app("진행 중인 배포(대기 · 승인 대기 포함)가 있어 해제할 수 없어요"), retryable: false)
         } catch {
             app.handle(error)
             throw error
@@ -166,7 +192,7 @@ private struct DisconnectDialog: View {
             TextField(name, text: $confirm)
                 .textFieldStyle(.roundedBorder)
                 .plainInput()
-            if let errorMessage { InlineAlert(.danger, "연결을 해제하지 못했어요", errorMessage) }
+            if let errorMessage { InlineAlert(.danger, .app("연결을 해제하지 못했어요"), errorMessage) }
             HStack {
                 Spacer()
                 Button("취소") { dismiss() }.buttonStyle(.glassCapsule)
@@ -198,18 +224,18 @@ struct ManifestRows: View {
     let manifest: Manifest
 
     var body: some View {
-        InfoRow("포트", manifest.port.map(String.init))
-        InfoRow("헬스체크 경로", manifest.healthcheck, monospaced: true)
-        InfoRow("환경변수", Self.summary(manifest.env ?? []))
-        InfoRow("DB 필요", manifest.database.map { $0 ? "예" : "아니요 (상태 없는 앱)" })
+        InfoRow(.app("포트"), manifest.port.map(String.init))
+        InfoRow(.app("헬스체크 경로"), manifest.healthcheck, monospaced: true)
+        InfoRow(.app("환경변수"), Self.summary(manifest.env ?? []))
+        InfoRow(String.app("DB 필요"), manifest.database.map { $0 ? String.app("예") : String.app("아니요 (상태 없는 앱)") })
         ForEach(manifest.errors ?? [], id: \.self) { problem in
-            InlineAlert(.danger, "deploy.yaml을 확인해 주세요", [problem.path, problem.message].compactMap { $0 }.joined(separator: ": "))
+            InlineAlert(.danger, .app("deploy.yaml을 확인해 주세요"), [problem.path, problem.message].compactMap { $0 }.joined(separator: ": "))
         }
     }
 
     /// 웹: "LOG_LEVEL 외 1개"
     static func summary(_ env: [String]) -> String {
-        guard let first = env.first else { return "없음" }
-        return env.count > 1 ? "\(first) 외 \(env.count - 1)개" : first
+        guard let first = env.first else { return .app("없음") }
+        return env.count > 1 ? String.app("\(first) 외 \(env.count - 1)개") : first
     }
 }

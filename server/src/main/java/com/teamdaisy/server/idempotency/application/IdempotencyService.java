@@ -50,7 +50,9 @@ public class IdempotencyService {
       if (value == null || value.isBlank() || value.length() > 255)
         throw new DaisyException(ErrorCode.VALIDATION_FAILED);
     }
-    if (jdbc.queryForList("select id from project where id=:id for update", Map.of("id", project))
+    if (jdbc.queryForList(
+            "select id from project where id=:id and archived_at is null for update",
+            Map.of("id", project))
         .isEmpty()) throw new DaisyException(ErrorCode.NOT_FOUND);
     String hash =
         json.hash(

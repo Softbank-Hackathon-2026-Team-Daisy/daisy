@@ -822,14 +822,23 @@ public class DeploymentExecutionService {
     stateEvent(deployment, now);
   }
 
-  public void expire(String project, String deploymentId, String targetId) {
+  @Transactional(readOnly = true)
+  public List<DeploymentStore.ExpiredApproval> expiredApprovals() {
+    return store.expiredApprovals();
+  }
+
+  public void expire(String project, String deploymentId, String deploymentTargetId) {
     Deployment deployment = store.lock(project, deploymentId);
     var all = store.targets(deployment.id());
-    var target = find(all, targetId);
+    var target = find(all, deploymentTargetId);
     require(target.currentPlanId() != null, ErrorCode.STATE_CONFLICT);
     var plan = store.plan(target.currentPlanId());
     var approval = store.approvalForPlan(plan.id());
     Instant now = Instant.now();
+    require(
+        target.status() == DeploymentTargetStatus.AWAITING_APPROVAL
+            && "pending".equals(approval.state()),
+        ErrorCode.STATE_CONFLICT);
     require(!now.isBefore(approval.expiresAt()), ErrorCode.STATE_CONFLICT);
     requireSafeToReplace(target);
     plan.invalidate("expired", now);
@@ -1012,6 +1021,7 @@ public class DeploymentExecutionService {
               .addObject()
               .put("deployment_target_id", target.id())
               .put("target_id", target.targetId())
+              .put("attempt", target.attempt())
               .put("state_identity", target.stateIdentity());
       item.set("snapshot", target.targetSnapshot());
       if (target.inputHash() != null) item.put("input_hash", target.inputHash());

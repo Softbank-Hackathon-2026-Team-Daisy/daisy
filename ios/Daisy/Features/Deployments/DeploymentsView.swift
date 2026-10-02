@@ -37,7 +37,7 @@ struct DeploymentsView: View {
     }
 
     private func empty(@ViewBuilder _ content: () -> some View) -> some View {
-        PageScaffold("배포", subtitle: workspace.project.map { "\($0.name)의 배포" }) {
+        PageScaffold(String.app("배포"), subtitle: workspace.project.map { String.app("\($0.name)의 배포") }) {
             newDeploymentButton.buttonStyle(.glassCapsule)
         } content: {
             content()

@@ -65,7 +65,29 @@ class JenkinsWorkerTest {
     order.verify(commands).claimPending();
     order.verify(client).submit(eq("daisy/apply"), eq("request_1"), anyMap());
     order.verify(commands).dispatched("job_1", 11L, null, "queued");
-    verifyNoInteractions(deployments);
+    verify(deployments).expiredApprovals();
+    verifyNoMoreInteractions(deployments);
+  }
+
+  @Test
+  void expiryConflictDoesNotSkipOtherCandidatesOrDispatch() {
+    when(client.enabled()).thenReturn(true);
+    var candidate =
+        new com.teamdaisy.server.deployment.infrastructure.DeploymentStore.ExpiredApproval(
+            "prj_1", "dep_1", "tgt_1");
+    var second =
+        new com.teamdaisy.server.deployment.infrastructure.DeploymentStore.ExpiredApproval(
+            "prj_1", "dep_2", "tgt_2");
+    when(deployments.expiredApprovals()).thenReturn(java.util.List.of(candidate, second));
+    doThrow(
+            new com.teamdaisy.server.common.error.DaisyException(
+                com.teamdaisy.server.common.error.ErrorCode.STATE_CONFLICT))
+        .when(deployments)
+        .expire("prj_1", "dep_1", "tgt_1");
+    worker.start();
+    worker.tick();
+    verify(deployments).expire("prj_1", "dep_2", "tgt_2");
+    verify(commands).claimPending();
   }
 
   @Test

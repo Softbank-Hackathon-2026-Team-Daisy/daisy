@@ -2,6 +2,8 @@ package com.teamdaisy.server.jenkins.application;
 
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.teamdaisy.server.common.error.DaisyException;
+import com.teamdaisy.server.common.error.ErrorCode;
 import com.teamdaisy.server.deployment.application.DeploymentExecutionService;
 import com.teamdaisy.server.jenkins.application.JenkinsCommandService.CommandScope;
 import com.teamdaisy.server.jenkins.infrastructure.JenkinsClient;
@@ -50,6 +52,15 @@ public class JenkinsWorker {
   @Scheduled(fixedDelayString = "${daisy.jenkins.worker-delay-ms:1000}")
   public synchronized void tick() {
     if (!ready || !client.enabled()) return;
+    var service = deployments.getObject();
+    for (var expired : service.expiredApprovals()) {
+      try {
+        service.expire(expired.projectId(), expired.deploymentId(), expired.deploymentTargetId());
+      } catch (DaisyException error) {
+        // Approval or a new plan may win after the candidate query. Its transaction stays intact.
+        if (error.errorCode() != ErrorCode.STATE_CONFLICT) throw error;
+      }
+    }
     CommandScope pending = commands.claimPending();
     if (pending != null) dispatch(pending);
     CommandScope check = commands.claimCheck();

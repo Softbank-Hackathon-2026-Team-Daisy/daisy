@@ -17,4 +17,7 @@ public interface ProjectRepository extends JpaRepository<Project, String> {
       order by p.createdAt desc, p.id desc
       """)
   List<Project> findAccessible(String accountId);
+
+  /** 보관되지 않은 프로젝트인지 봐요. 연결을 해제한(보관된) 프로젝트는 어디서도 열리지 않아요 (WR-13). */
+  boolean existsByIdAndArchivedAtIsNull(String id);
 }

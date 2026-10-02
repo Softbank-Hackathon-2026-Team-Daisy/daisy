@@ -39,13 +39,13 @@ struct LoadStateView<Value, Content: View>: View {
     }
 }
 
-/// 서버 주소나 로그인이 없을 때.
+/// 로그인이 없을 때 (서버 주소는 고정이에요).
 struct NotConnectedView: View {
     var body: some View {
         ContentUnavailableView(
             "서버에 연결되지 않았어요",
             systemImage: "network.slash",
-            description: Text("설정 탭에서 서버 주소를 넣고 로그인해 주세요.")
+            description: Text("다시 로그인해 주세요.")
         )
     }
 }

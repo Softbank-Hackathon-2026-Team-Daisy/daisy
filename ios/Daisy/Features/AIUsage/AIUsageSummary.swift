@@ -30,10 +30,10 @@ struct AIUsageSummary: Equatable {
 
         var text: String {
             switch self {
-            case .passed: "호출 성공"
-            case .failed: "호출 실패"
+            case .passed: .app("호출 성공")
+            case .failed: .app("호출 실패")
             case .unknown: "—"
-            case .noCall: "AI 호출 없음"
+            case .noCall: .app("AI 호출 없음")
             }
         }
     }
@@ -59,14 +59,14 @@ struct AIUsageSummary: Equatable {
         reusedTargetIDs = reused
         let callRows = items.map { call in
             Row(id: call.id, at: call.at, targetID: call.targetId,
-                task: call.note ?? call.title ?? (call.step == .fix ? "Terraform 수정" : "Terraform 생성 (deploy.yaml)"),
+                task: call.note ?? call.title ?? (call.step == .fix ? String.app("Terraform 수정") : String.app("Terraform 생성 (deploy.yaml)")),
                 attempt: call.attempt.map { "\($0)/3" } ?? "—",
                 tokens: call.tokens, costKrw: call.costKrw,
                 result: Result(call.status))
         }
         // 재사용한 환경은 호출 기록이 없어서 한 줄을 따로 보여줘요 (웹 "— 검증된 스크립트 재사용")
         let reuseRows = reused.map { id in
-            Row(id: "reuse-\(id)", at: deployment.createdAt, targetID: id, task: "— 검증된 스크립트 재사용",
+            Row(id: "reuse-\(id)", at: deployment.createdAt, targetID: id, task: .app("— 검증된 스크립트 재사용"),
                 attempt: "—", tokens: 0, costKrw: 0, result: .noCall)
         }
         rows = callRows.sorted { ($0.at ?? .distantPast) > ($1.at ?? .distantPast) } + reuseRows
@@ -78,7 +78,7 @@ struct AIUsageSummary: Equatable {
             format: "\(hour: .twoDigits(clock: .twentyFourHour, hourCycle: .zeroBased)):\(minute: .twoDigits)",
             timeZone: timeZone, calendar: Calendar(identifier: .gregorian))
         let time = deployment.createdAt.map { $0.formatted(format) }
-        return [deployment.version ?? deployment.id, String(deployment.commit.prefix(7)), time.map { "\($0) 배포" }]
+        return [deployment.version ?? deployment.id, String(deployment.commit.prefix(7)), time.map { String.app("\($0) 배포") }]
             .compactMap { $0 }.joined(separator: " · ")
     }
 }

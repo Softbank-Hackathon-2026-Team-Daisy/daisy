@@ -41,7 +41,7 @@ class ExecutionAccessAdapterTest {
   }
 
   private void givenMember(String accountId) {
-    when(projects.existsById(PROJECT)).thenReturn(true);
+    when(projects.existsByIdAndArchivedAtIsNull(PROJECT)).thenReturn(true);
     when(members.findByIdProjectIdAndIdAccountId(PROJECT, accountId))
         .thenReturn(Optional.of(ProjectMember.grant(PROJECT, accountId, "acc_o", Instant.now())));
   }
@@ -76,7 +76,7 @@ class ExecutionAccessAdapterTest {
   @DisplayName("비멤버는 owner 여도 404 예요")
   void nonMemberIsNotFound() {
     givenAccount("acc_o", "owner", false);
-    when(projects.existsById(PROJECT)).thenReturn(true);
+    when(projects.existsByIdAndArchivedAtIsNull(PROJECT)).thenReturn(true);
     when(members.findByIdProjectIdAndIdAccountId(PROJECT, "acc_o")).thenReturn(Optional.empty());
 
     assertThatThrownBy(() -> adapter.requireWrite("acc_o", PROJECT))

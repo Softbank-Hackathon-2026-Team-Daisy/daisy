@@ -66,7 +66,7 @@ struct Parity: Sendable {
             // 웹: 헬스 요약이 있으면 그대로, 없으면 "정상" · "실패"
             Row(key: "health", cells: statuses.map {
                 Row.Cell(targetId: $0.targetId,
-                         value: $0.healthSummary ?? ($0.health == .healthy ? "정상" : $0.health == .unhealthy ? "실패" : nil),
+                         value: $0.healthSummary ?? ($0.health == .healthy ? String.app("정상") : $0.health == .unhealthy ? String.app("실패") : nil),
                          failed: $0.health == .unhealthy)
             }),
         ]
@@ -89,7 +89,7 @@ struct Parity: Sendable {
             // 웹: 성공은 헬스 요약 그대로("200 OK · 120ms", 없으면 "—"), 실패는 요약 또는 "실패"
             Row(key: "health", cells: all.map {
                 Row.Cell(targetId: $0.targetId,
-                         value: $0.state == .succeeded ? ($0.healthSummary ?? "—") : $0.state == .failed ? ($0.healthSummary ?? "실패") : nil,
+                         value: $0.state == .succeeded ? ($0.healthSummary ?? "—") : $0.state == .failed ? ($0.healthSummary ?? String.app("실패")) : nil,
                          failed: $0.state == .failed)
             }),
         ]
@@ -230,9 +230,10 @@ struct Script: Decodable, Identifiable, Hashable, Sendable {
     let targetId: String
     /// "s2"
     let version: String
-    let origin: Origin
-    /// 통과한 시도 (n/3)
-    let attempt: Int
+    /// 서버는 모르면 null을 줘요 (#68)
+    let origin: Origin?
+    /// 통과한 시도 (n/3). 시도 0(생성 전)이면 null이에요 (#68)
+    let attempt: Int?
     let validation: Validation?
     let status: Status
     let reuseCount: Int?
@@ -269,4 +270,10 @@ struct LogLine: Decodable, Hashable, Sendable {
     }
 
     private enum CodingKeys: String, CodingKey { case ts, at, targetId, level, text, message }
+}
+
+/// WR-02 연결 응답 `{ project, manifest }` (서버 #59). `manifest`가 null이면 "검증 전"이에요
+struct ConnectResult: Decodable, Sendable {
+    let project: Project
+    let manifest: Manifest?
 }

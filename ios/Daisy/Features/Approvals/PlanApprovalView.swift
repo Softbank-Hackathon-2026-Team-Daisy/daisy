@@ -23,22 +23,27 @@ struct PlanApprovalView: View {
         LoadStateView(state: store.plan, retry: { await store.load(using: app) }) { plan in
             let model = Model(plan: plan, deployment: store.deployment)
             if model.approvable.isEmpty {
-                FlowPage(step: 5, title: "변경 사항 확인 후 승인", description: "") {
-                    InlineAlert(.info, "승인을 기다리는 plan이 없어요", "이미 처리됐거나 아직 검증 중이에요.")
+                FlowPage(step: 5, title: .app("변경 사항 확인 후 승인"), description: "") {
+                    if model.approvedWaiting.isEmpty {
+                        InlineAlert(.info, .app("승인을 기다리는 plan이 없어요"), .app("이미 처리됐거나 아직 검증 중이에요."))
+                    } else {
+                        // 웹 #64: 승인은 끝났고 Jenkins가 apply를 시작하기를 기다려요
+                        InlineAlert(.success, .app("승인 완료 · 실행 대기"), .app("승인한 plan을 적용하려고 기다리고 있어요."))
+                    }
                     FlowButtons {
                         Button("배포 진행 보기") { router.replaceTop(with: .run(deploymentID)) }
                             .buttonStyle(.glassCapsule)
                     }
                 }
             } else {
-                FlowPage(step: 5, title: "변경 사항 확인 후 승인",
-                         description: "환경별 plan 결과예요. 승인하면 선택한 모든 환경에 동시에 적용해요.") {
+                FlowPage(step: 5, title: .app("변경 사항 확인 후 승인"),
+                         description: .app("환경별 plan 결과예요. 승인하면 선택한 모든 환경에 동시에 적용해요.")) {
                     summary(model)
                     let tab = selectedTarget ?? model.defaultTab
                     EnvironmentTabs(selection: Binding(get: { tab }, set: { selectedTarget = $0 }), targetIDs: model.targetIDs)
                     if let tab { planCard(tab, model) }
                     if model.hasDelete { deleteConfirm }
-                    if let error = store.errorMessage { InlineAlert(.danger, "처리하지 못했어요", error) }
+                    if let error = store.errorMessage { InlineAlert(.danger, .app("처리하지 못했어요"), error) }
                 } bottom: {
                     approvalBar(model)
                 }
@@ -65,13 +70,16 @@ struct PlanApprovalView: View {
         let targetIDs: [String]
         let failed: [Deployment.Target]
         let approvable: [Plan.Target]
+        /// 이미 승인하고 apply를 기다리는 환경 (웹 #64): 다시 승인하지 않아요
+        let approvedWaiting: [Deployment.Target]
 
         init(plan: Plan, deployment: Deployment?) {
             self.plan = plan
             let targets = deployment?.targets ?? []
             targetIDs = targets.isEmpty ? plan.targets.map(\.targetId) : targets.map(\.targetId)
             failed = targets.filter { $0.resolvedState == .failed }
-            let waiting = Set(targets.filter { $0.resolvedState == .awaitingApproval }.map(\.targetId))
+            approvedWaiting = targets.filter(\.isApprovedWaiting)
+            let waiting = Set(targets.filter { $0.resolvedState == .awaitingApproval && !$0.isApprovedWaiting }.map(\.targetId))
             approvable = plan.targets.filter { targets.isEmpty || waiting.contains($0.targetId) }
         }
 
@@ -91,19 +99,19 @@ struct PlanApprovalView: View {
     // MARK: 환경별 요약
 
     private func summary(_ model: Model) -> some View {
-        SectionCard("환경별 요약") {
+        SectionCard(.app("환경별 요약")) {
             VStack(spacing: 10) {
                 ForEach(model.targetIDs, id: \.self) { id in
                     let type = workspace.type(of: id)
                     if let failed = model.failed.first(where: { $0.targetId == id }) {
-                        ProgressLine(name: type, text: "\(failed.attempt)회 실패 · 이번 승인에서 빠져요") {
-                            StatusBadge(text: "실패", color: .red)
+                        ProgressLine(name: type, text: .app("\(failed.attempt)회 실패 · 이번 승인에서 빠져요")) {
+                            StatusBadge(text: .app("실패"), color: .red)
                         }
                     } else {
                         // 웹: "리소스 +6 ~0 −0 · 위험 설정 0건" / "리소스 +0 ~1 −0 · 이미지 태그만 교체"
                         let target = model.plan(of: id)
-                        let text = target.map { "\($0.counts.summaryText) · \($0.summary ?? "위험 설정 \($0.risks.count)건")" } ?? "—"
-                        ProgressLine(name: type, text: text) { StatusBadge(text: "검증 통과", color: .green) }
+                        let text = target.map { "\($0.counts.summaryText) · \($0.summary ?? String.app("위험 설정 \($0.risks.count)건"))" } ?? "—"
+                        ProgressLine(name: type, text: text) { StatusBadge(text: .app("검증 통과"), color: .green) }
                     }
                 }
             }
@@ -122,10 +130,10 @@ struct PlanApprovalView: View {
                     Text(target.counts.summaryText).font(.subheadline.monospacedDigit())
                 }
                 if target.risks.isEmpty {
-                    InlineAlert(.success, "사전 검증 통과", "validate · plan · 위험 설정 검사를 모두 통과했어요.")
+                    InlineAlert(.success, .app("사전 검증 통과"), .app("validate · plan · 위험 설정 검사를 모두 통과했어요."))
                 } else {
                     ForEach(target.risks, id: \.self) { risk in
-                        InlineAlert(.warning, "위험 설정 · \(risk.level.rawValue)",
+                        InlineAlert(.warning, .app("위험 설정 · \(risk.level.rawValue)"),
                                     risk.message + (risk.resource.map { " (\($0))" } ?? ""))
                     }
                 }
@@ -142,7 +150,7 @@ struct PlanApprovalView: View {
     private var deleteConfirm: some View {
         @Bindable var store = store
         return VStack(alignment: .leading, spacing: 8) {
-            InlineAlert(.danger, "삭제되는 리소스가 있어요", "확인을 위해 프로젝트 이름(\(confirmWord))을 입력해 주세요.")
+            InlineAlert(.danger, .app("삭제되는 리소스가 있어요"), .app("확인을 위해 프로젝트 이름(\(confirmWord))을 입력해 주세요."))
             TextField(confirmWord, text: $store.confirmText)
                 .plainInput()
                 .textFieldStyle(.roundedBorder)
@@ -165,12 +173,12 @@ struct PlanApprovalView: View {
 
     private func barText(_ model: Model) -> some View {
         // 웹: "2개 환경 · 리소스 +3 ~1 −1" / "검증 통과 2/3 · 이미지 a1b2c3d · 위험 설정 1건 · AI 비용 ₩206 (추정, 환율 1,380원)"
-        let meta = [
-            "검증 통과 \(model.approvable.count)/\(model.targetIDs.count)",
-            store.deployment.map { "이미지 \($0.commit.prefix(7))" },
-            "위험 설정 \(model.risks.count)건",
-            model.plan.aiUsage?.costText.map { "AI 비용 \($0)" },
-        ].compactMap { $0 }.joined(separator: " · ")
+        let meta: String = ([
+            .app("검증 통과 \(model.approvable.count)/\(model.targetIDs.count)"),
+            store.deployment.map { String.app("이미지 \(String($0.commit.prefix(7)))") },
+            .app("위험 설정 \(model.risks.count)건"),
+            model.plan.aiUsage?.costText.map { String.app("AI 비용 \($0)") },
+        ] as [String?]).compactMap { $0 }.joined(separator: " · ")
         return VStack(alignment: .leading, spacing: 2) {
             Text("\(model.approvable.count)개 환경 · 리소스 +\(model.sum(\.create)) ~\(model.sum(\.update)) \u{2212}\(model.sum(\.delete))")
                 .font(.subheadline.weight(.semibold).monospacedDigit())
@@ -180,7 +188,8 @@ struct PlanApprovalView: View {
     }
 
     private func barButtons(_ model: Model) -> some View {
-        let needsConfirm = model.hasDelete && store.confirmText != confirmWord
+        // 프로젝트 이름을 못 불러왔으면 확인할 수 없으니 막아요
+        let needsConfirm = model.hasDelete && (confirmWord.isEmpty || store.confirmText != confirmWord)
         return HStack(spacing: 8) {
             Button("거절") { Task { await store.submit(.reject, needsConfirm: false, targetIDs: model.approvable.map(\.targetId), using: app) } }
                 .buttonStyle(.glassCapsule(height: 44))
