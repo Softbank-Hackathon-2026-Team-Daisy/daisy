@@ -8,11 +8,6 @@ private func jsonBody(_ value: some Encodable) -> Data? {
 }
 
 extension Endpoint {
-    /// R-09 (가칭) · W-00 "데모 계정으로 둘러보기 (읽기 전용)". 인증 범위는 9/30 회의 안건
-    static func demoToken() -> Endpoint<AuthToken> {
-        .init(method: "POST", path: "auth/demo")
-    }
-
     /// WR-02 · W-02 연결하기. 응답에 deploy.yaml 검증 결과가 같이 와요
     static func connectProject(repository: String, branch: String) -> Endpoint<Project> {
         .init(method: "POST", path: "projects",
@@ -36,9 +31,11 @@ extension Endpoint {
     }
 
     /// WR-05 · W-04 "인프라 코드 생성 · 검증 시작". W-05b "○○만 다시 시도", W-08 "다시 시도"도 같은 커밋으로 새 배포를 만들어요
-    static func startDeployment(projectID: String, commit: String, targetIDs: [String]) -> Endpoint<Deployment> {
+    /// 빌드는 `source_version_id`로 골라요 (필수, 서버 #36 · #42: 같은 커밋을 다시 빌드해도 고른 빌드로, 커밋으로 추정하지 않아요). `commit`은 확인용으로 같이 보내요
+    /// 응답은 생성 결과 `{ id, project_id, state }`만 와요 (10/2 01:07 #42) → 화면은 `id`로 진행 화면을 다시 불러와요
+    static func startDeployment(projectID: String, commit: String, sourceVersionID: String, targetIDs: [String]) -> Endpoint<CreatedDeployment> {
         .init(method: "POST", path: "projects/\(projectID)/deployments",
-              body: jsonBody(StartDeploymentBody(commit: commit, targetIds: targetIDs)),
+              body: jsonBody(StartDeploymentBody(sourceVersionId: sourceVersionID, commit: commit, targetIds: targetIDs)),
               idempotencyKey: UUID().uuidString)
     }
 
@@ -48,7 +45,7 @@ extension Endpoint {
     }
 
     /// WR-14 · W-09 롤백. 이전 성공 배포의 커밋 + 그때 검증된 스크립트로 새 배포가 생기고, plan 승인을 거쳐요
-    static func rollback(deploymentID: String, targetIDs: [String], reason: String) -> Endpoint<Deployment> {
+    static func rollback(deploymentID: String, targetIDs: [String], reason: String) -> Endpoint<CreatedDeployment> {
         .init(method: "POST", path: "deployments/\(deploymentID)/rollback",
               body: jsonBody(RollbackBody(targetIds: targetIDs, reason: reason)), idempotencyKey: UUID().uuidString)
     }
@@ -85,5 +82,5 @@ extension Endpoint {
 }
 
 private struct ConnectProjectBody: Encodable, Sendable { let repository: String; let branch: String }
-private struct StartDeploymentBody: Encodable, Sendable { let commit: String; let targetIds: [String] }
+private struct StartDeploymentBody: Encodable, Sendable { let sourceVersionId: String; let commit: String; let targetIds: [String] }
 private struct RollbackBody: Encodable, Sendable { let targetIds: [String]; let reason: String }

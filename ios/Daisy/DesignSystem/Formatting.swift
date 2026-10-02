@@ -104,6 +104,7 @@ extension StepState {
 extension PipelineStatus {
     var badge: StatusBadge {
         switch self {
+        case .queued: StatusBadge(text: "대기 중", color: .gray)
         case .running: StatusBadge(text: "빌드 중", color: .blue)
         case .success: StatusBadge(text: "성공", color: .green)
         case .failed: StatusBadge(text: "실패", color: .red)

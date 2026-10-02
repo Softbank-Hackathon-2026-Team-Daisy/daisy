@@ -131,7 +131,7 @@ M = 예선 데모 필수, S = 선택 (S도 모두 만들었어요, §5)
 
 | 구분 | 값 | 화면 표시 (Status Badge) |
 |---|---|---|
-| 배포 전체 | `queued` · `running` · `awaiting_approval` · `succeeded` · `partially_succeeded` · `failed` · `cancelled` | 대기 중 · 배포 중 · 승인 대기 · 성공 · **일부 성공** · 실패 · 취소됨 |
+| 배포 전체 | `queued` · `running` · `awaiting_approval` · `succeeded` · `partially_succeeded` · `failed` · `cancelled` | 대기 중 · **진행 중** · 승인 대기 · 성공 · **일부 성공** · 실패 · 취소됨 |
 | 환경별 | `waiting` · `generating` · `validating` · `awaiting_approval` · `applying` · `verifying` · `succeeded` · `failed` · `cancelled` | 대기 중 · 생성 중 · 검증 중 · 승인 대기 · 배포 중 · 확인 중 · 성공 · 실패 · 취소됨 |
 | 단계 (`step`) | `generate` · `validate` · `plan` · `risk_check` · `apply` · `health_check` | W-05는 앞 4개, W-07은 `apply` · `health_check` |
 
@@ -450,6 +450,7 @@ Page ──▶ hook ──▶ api/client ──────────▶ Unibl
 | 9/30 | 승준 님 코멘트 반영: §1-1 앱 범위는 회의 안건으로 표시(ADR-007 기준 유지), §6-1-1 앱 요청(#13) 중 웹도 쓰는 R-09 · A-10 ~ A-12 연결 | 김도영 |
 | 9/30 | W-14 Mac 앱 다운로드(Dialog) 추가 (와이어프레임 갱신) | 김도영 |
 | 10/2 | 실서버 연결(#38): 서버에 열린 API만 실서버로(§6-0-1), 역할 `owner`, A-02 봉투 · `current` null 문구, A-06 `queued` · `source_version_id`, 승인 `items`, R-09 없음 | 김도영 |
+| 10/1 | 배포 전체 `running` 문구를 "진행 중"으로 (생성 · 검증부터 apply까지 포함, 환경별 `applying` "배포 중"과 구분) | 김도영 |
 | 10/1 | 서비스 이름 Daisy → **Unibloom** (Figma 로고 워드마크 "unibloom"). 팀 이름(Team Daisy) · GitHub 조직 이름은 그대로 | 김도영 |
 | 10/1 | 앱 범위 확정: §1-1을 "웹과 앱이 같은 전체 흐름"으로, §7 앱 범위 해결 | 김도영 |
 | 10/1 | 인프라 답(#17) 반영: W-03 Jenkins 로그 링크 제거 · 단계 이름, 헬스 1회 측정 형식, W-10 state 저장소 이름 | 김도영 |
