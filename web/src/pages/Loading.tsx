@@ -1,5 +1,6 @@
 import Alert from '../components/Alert.tsx'
 import Skeleton from '../components/Skeleton.tsx'
+import { t } from '../i18n/index.ts'
 
 // 화면 데이터를 불러오는 중 · 실패했을 때 공통 표시
 export function LoadingBlock() {
@@ -14,7 +15,7 @@ export function LoadingBlock() {
 
 export function ErrorBlock({ error }: { error: Error }) {
   return (
-    <Alert type="danger" title="불러오지 못했어요">
+    <Alert type="danger" title={t('불러오지 못했어요')}>
       {error.message}
     </Alert>
   )

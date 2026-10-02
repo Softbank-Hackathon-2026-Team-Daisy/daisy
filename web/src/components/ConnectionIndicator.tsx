@@ -1,3 +1,4 @@
+import { t } from '../i18n/index.ts'
 import Icon from './Icon.tsx'
 import './ConnectionIndicator.css'
 
@@ -20,7 +21,7 @@ type ConnectionIndicatorProps = {
 
 function ConnectionIndicator({ state, compact, onRetry }: ConnectionIndicatorProps) {
   if (compact) {
-    return <span className={`connection-dot connection--${state}`} role="status" aria-label={LABEL[state]} />
+    return <span className={`connection-dot connection--${state}`} role="status" aria-label={t(LABEL[state])} />
   }
   const clickable = state === 'disconnected' && onRetry
   const Tag = clickable ? 'button' : 'span'
@@ -32,7 +33,7 @@ function ConnectionIndicator({ state, compact, onRetry }: ConnectionIndicatorPro
       onClick={clickable ? onRetry : undefined}
     >
       <Icon name="signal" size={16} />
-      {LABEL[state]}
+      {t(LABEL[state])}
     </Tag>
   )
 }

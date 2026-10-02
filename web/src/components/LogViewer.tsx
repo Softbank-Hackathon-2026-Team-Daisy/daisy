@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
+import { t } from '../i18n/index.ts'
 import type { EnvType } from './env.ts'
 import Icon from './Icon.tsx'
 import './LogViewer.css'
@@ -9,11 +10,12 @@ import './LogViewer.css'
 export type LogViewerLine = { key: string | number; time: string; env: EnvType | null; level: 'INFO' | 'WARN' | 'ERROR'; message: string }
 
 // ISO 시각이면 HH:MM:SS로
-const clock = (t: string) => (t.includes('T') ? new Date(t).toTimeString().slice(0, 8) : t)
+const clock = (time: string) => (time.includes('T') ? new Date(time).toTimeString().slice(0, 8) : time)
 
 const LEVEL_TONE = { INFO: 'success', WARN: 'warning', ERROR: 'failed' } as const
 
-function LogViewer({ lines, title = '로그 · 전체 환경' }: { lines: LogViewerLine[]; title?: string }) {
+function LogViewer({ lines, title: titleProp }: { lines: LogViewerLine[]; title?: string }) {
+  const title = titleProp ?? t('로그 · 전체 환경')
   const bodyRef = useRef<HTMLDivElement>(null)
   const [follow, setFollow] = useState(true)
 
@@ -33,7 +35,7 @@ function LogViewer({ lines, title = '로그 · 전체 환경' }: { lines: LogVie
       <header className="log-viewer__header">
         <Icon name="terminal" size={16} />
         <span className="t-label">{title}</span>
-        <span className="log-viewer__follow t-body-sm">{follow ? '자동 스크롤 켜짐' : '자동 스크롤 꺼짐'}</span>
+        <span className="log-viewer__follow t-body-sm">{follow ? t('자동 스크롤 켜짐') : t('자동 스크롤 꺼짐')}</span>
       </header>
       <div className="log-viewer__body" ref={bodyRef} onScroll={onScroll} role="log">
         {lines.map((l) => (

@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { useNavigate } from 'react-router'
 import { initials, ROLE_LABEL, useWorkspace } from '../api/useWorkspace.ts'
+import { t } from '../i18n/index.ts'
 import { paths } from '../paths.ts'
 import Avatar from './Avatar.tsx'
 import Button from './Button.tsx'
@@ -29,7 +30,7 @@ function Sidebar({ projectId, collapsed, canToggle, onToggle, onOpenMacApp }: Si
   const switcherRef = useRef<HTMLDivElement>(null)
   // 프로젝트 · 환경 · 사용자는 A-01 · A-02 · R-03 (목업 모드면 목업이 답해요)
   const ws = useWorkspace(projectId)
-  const name = ws.project?.name ?? '프로젝트'
+  const name = ws.project?.name ?? t('프로젝트')
 
   useEffect(() => {
     if (!menuOpen) return
@@ -47,7 +48,7 @@ function Sidebar({ projectId, collapsed, canToggle, onToggle, onOpenMacApp }: Si
   const p = projectId
 
   return (
-    <nav className={['sidebar', collapsed && 'sidebar--collapsed'].filter(Boolean).join(' ')} aria-label="프로젝트 메뉴">
+    <nav className={['sidebar', collapsed && 'sidebar--collapsed'].filter(Boolean).join(' ')} aria-label={t('프로젝트 메뉴')}>
       <Logo type={collapsed ? 'mark' : 'lockup'} color="ink" />
 
       <div className="sidebar__switcher" ref={switcherRef}>
@@ -56,7 +57,7 @@ function Sidebar({ projectId, collapsed, canToggle, onToggle, onOpenMacApp }: Si
           className="sidebar__project"
           aria-haspopup="menu"
           aria-expanded={menuOpen}
-          aria-label={`프로젝트: ${name}`}
+          aria-label={t('프로젝트: {name}', { name })}
           onClick={() => setMenuOpen((v) => !v)}
         >
           <span className="project-initials">{initials(name)}</span>
@@ -89,31 +90,31 @@ function Sidebar({ projectId, collapsed, canToggle, onToggle, onOpenMacApp }: Si
       </div>
 
       {collapsed ? (
-        <Tooltip text="새 배포">
-          <button type="button" className="sidebar__new" aria-label="새 배포" onClick={() => navigate(paths.build(p))}>
+        <Tooltip text={t('새 배포')}>
+          <button type="button" className="sidebar__new" aria-label={t('새 배포')} onClick={() => navigate(paths.build(p))}>
             <Icon name="plus" />
           </button>
         </Tooltip>
       ) : (
         <Button variant="outline" className="sidebar__new-wide" onClick={() => navigate(paths.build(p))}>
-          새 배포
+          {t('새 배포')}
         </Button>
       )}
 
       <div className="sidebar__group">
         {!collapsed && <p className="t-overline t-muted">Project</p>}
-        <NavItem collapsed={collapsed} icon="cloud" label="개요" to={paths.overview(p)} end />
+        <NavItem collapsed={collapsed} icon="cloud" label={t('개요')} to={paths.overview(p)} end />
         <NavItem
           collapsed={collapsed}
           icon="play"
-          label="배포"
+          label={t('배포')}
           to={paths.currentDeployment(p)}
           activePrefix={`/projects/${p}/deploy`}
           badge={ws.pendingApprovals || undefined}
         />
-        <NavItem collapsed={collapsed} icon="server" label="환경" to={paths.environments(p)} />
-        <NavItem collapsed={collapsed} icon="clock" label="이력" to={paths.history(p)} />
-        <NavItem collapsed={collapsed} icon="terminal" label="스크립트" to={paths.scripts(p)} />
+        <NavItem collapsed={collapsed} icon="server" label={t('환경')} to={paths.environments(p)} />
+        <NavItem collapsed={collapsed} icon="clock" label={t('이력')} to={paths.history(p)} />
+        <NavItem collapsed={collapsed} icon="terminal" label={t('스크립트')} to={paths.scripts(p)} />
       </div>
 
       <div className="sidebar__envs">
@@ -126,14 +127,14 @@ function Sidebar({ projectId, collapsed, canToggle, onToggle, onOpenMacApp }: Si
         )}
         {ws.envs.map((env) =>
           collapsed ? (
-            <span key={env.targetId} className="sidebar__env-dots" aria-label={`${ENV_LABEL[env.type]} · ${env.label}`} role="img">
+            <span key={env.targetId} className="sidebar__env-dots" aria-label={`${t(ENV_LABEL[env.type])} · ${env.label}`} role="img">
               <span className="sidebar__env-color" style={{ background: `var(--color-env-${env.type})` }} />
               <span className="sidebar__status-dot" style={{ background: `var(--color-status-${env.tone})` }} />
             </span>
           ) : (
             <button key={env.targetId} type="button" className="sidebar__env" onClick={() => navigate(paths.environments(p))}>
               <span className="sidebar__env-color" style={{ background: `var(--color-env-${env.type})` }} />
-              <span className="sidebar__env-name">{ENV_LABEL[env.type]}</span>
+              <span className="sidebar__env-name">{t(ENV_LABEL[env.type])}</span>
               <span className="sidebar__status-dot" style={{ background: `var(--color-status-${env.tone})` }} />
               <span className="t-mono-sm t-muted">{env.label}</span>
             </button>
@@ -144,9 +145,9 @@ function Sidebar({ projectId, collapsed, canToggle, onToggle, onOpenMacApp }: Si
       <div className="sidebar__spacer" />
 
       <div className="sidebar__group">
-        <NavItem collapsed={collapsed} icon="download" label="Mac 앱 받기" onClick={onOpenMacApp} />
-        <NavItem collapsed={collapsed} icon="signal" label="AI 사용량" to={paths.aiUsage(p)} />
-        <NavItem collapsed={collapsed} icon="settings" label="설정" to={paths.settings(p)} />
+        <NavItem collapsed={collapsed} icon="download" label={t('Mac 앱 받기')} onClick={onOpenMacApp} />
+        <NavItem collapsed={collapsed} icon="signal" label={t('AI 사용량')} to={paths.aiUsage(p)} />
+        <NavItem collapsed={collapsed} icon="settings" label={t('설정')} to={paths.settings(p)} />
       </div>
 
       <hr className="sidebar__divider" />
@@ -159,14 +160,14 @@ function Sidebar({ projectId, collapsed, canToggle, onToggle, onOpenMacApp }: Si
         {!collapsed && (
           <span className="sidebar__user-text">
             <span className="t-label">{ws.user?.username ?? '—'}</span>
-            <span className="t-mono-sm t-muted">{ws.user ? ROLE_LABEL[ws.user.role] : ''}</span>
+            <span className="t-mono-sm t-muted">{ws.user ? t(ROLE_LABEL[ws.user.role]) : ''}</span>
           </span>
         )}
         {canToggle && (
           <button
             type="button"
             className={['sidebar__toggle', !collapsed && 'sidebar__toggle--open'].filter(Boolean).join(' ')}
-            aria-label={collapsed ? '사이드바 펼치기' : '사이드바 접기'}
+            aria-label={collapsed ? t('사이드바 펼치기') : t('사이드바 접기')}
             onClick={onToggle}
           >
             <Icon name="chevron-right" />

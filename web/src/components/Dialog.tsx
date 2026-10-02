@@ -1,4 +1,5 @@
 import { useEffect, useId, useRef, type ReactNode } from 'react'
+import { t } from '../i18n/index.ts'
 import Icon from './Icon.tsx'
 import type { IconName } from './icons.ts'
 import './Dialog.css'
@@ -32,7 +33,7 @@ function Dialog({ open, onClose, title, icon, description, children, actions }: 
         <h2 className="dialog__title t-h2" id={titleId}>
           {title}
         </h2>
-        <button type="button" className="dialog__close" aria-label="닫기" onClick={onClose}>
+        <button type="button" className="dialog__close" aria-label={t('닫기')} onClick={onClose}>
           <Icon name="x" size={16} />
         </button>
       </div>

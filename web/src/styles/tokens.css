@@ -70,6 +70,11 @@
   --border-focus: 2px solid var(--color-focus);
 }
 
+/* 일본어 화면은 같은 Plex 계열의 JP 글꼴로 — KR 글꼴의 한자 모양이 섞이지 않게 (#75) */
+:root:lang(ja) {
+  --font-sans: 'IBM Plex Sans JP', 'IBM Plex Sans KR', system-ui, -apple-system, sans-serif;
+}
+
 /* Color · Dark — OS가 다크이고 사용자가 라이트로 고정하지 않았을 때 */
 @media (prefers-color-scheme: dark) {
   :root:not([data-theme='light']) {

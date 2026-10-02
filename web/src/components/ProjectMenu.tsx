@@ -1,3 +1,4 @@
+import { t } from '../i18n/index.ts'
 import Icon from './Icon.tsx'
 import './ProjectMenu.css'
 
@@ -13,7 +14,7 @@ type ProjectMenuProps = {
 
 function ProjectMenu({ projects, currentId, onSelect, onConnect }: ProjectMenuProps) {
   return (
-    <div className="project-menu" role="menu" aria-label="프로젝트 전환">
+    <div className="project-menu" role="menu" aria-label={t('프로젝트 전환')}>
       <p className="project-menu__title t-overline t-muted">Projects</p>
       {projects.map((p) => (
         <button
@@ -35,7 +36,7 @@ function ProjectMenu({ projects, currentId, onSelect, onConnect }: ProjectMenuPr
       <hr className="project-menu__divider" />
       <button type="button" role="menuitem" className="project-menu__item project-menu__connect" onClick={onConnect}>
         <Icon name="plus" />
-        <span className="t-label">새 프로젝트 연결</span>
+        <span className="t-label">{t('새 프로젝트 연결')}</span>
       </button>
     </div>
   )

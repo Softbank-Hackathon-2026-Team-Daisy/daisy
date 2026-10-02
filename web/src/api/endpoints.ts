@@ -1,3 +1,4 @@
+import { t } from '../i18n/index.ts'
 import { mockApi, MockError } from '../mocks/api.ts'
 import { ApiError, request, USE_MOCK } from './client.ts'
 import { toLevel } from './types.ts'
@@ -86,7 +87,7 @@ export const api = {
   loginDemo: () =>
     USE_MOCK
       ? mock(() => mockApi.login('demo', ''))
-      : Promise.reject(new ApiError(400, 'DEMO_ACCOUNT', '데모 계정은 따로 받은 아이디 · 비밀번호로 위 폼에서 로그인해 주세요.')),
+      : Promise.reject(new ApiError(400, 'DEMO_ACCOUNT', t('데모 계정은 따로 받은 아이디 · 비밀번호로 위 폼에서 로그인해 주세요.'))),
 
   // A-01
   listProjects: () => (!live('listProjects') ? mock(mockApi.listProjects) : request<ListResponse<Project>>('GET', '/projects')),

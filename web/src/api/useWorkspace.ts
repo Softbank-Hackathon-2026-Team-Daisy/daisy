@@ -1,3 +1,4 @@
+import { t } from '../i18n/index.ts'
 import type { StatusTone } from '../components/StatusBadge.tsx'
 import { USE_MOCK } from './client.ts'
 import { api, isMocked } from './endpoints.ts'
@@ -50,11 +51,12 @@ export function useWorkspace(projectId: string) {
 
   const list: Project[] = projects.data?.items ?? []
   const project = list.find((p) => p.id === projectId) ?? null
-  const envs: SidebarEnv[] = (status.data?.items ?? []).map((t) => ({
-    targetId: t.target_id,
-    type: t.type,
-    name: t.name,
-    ...HEALTH[t.health],
+  const envs: SidebarEnv[] = (status.data?.items ?? []).map((tg) => ({
+    targetId: tg.target_id,
+    type: tg.type,
+    name: tg.name,
+    tone: HEALTH[tg.health].tone,
+    label: t(HEALTH[tg.health].label),
   }))
 
   return {

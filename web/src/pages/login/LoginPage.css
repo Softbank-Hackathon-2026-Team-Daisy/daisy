@@ -25,10 +25,18 @@
 }
 
 .login__form-area {
+  position: relative;
   display: flex;
   align-items: center;
   justify-content: center;
   padding: var(--space-8);
+}
+
+.login__lang {
+  position: absolute;
+  top: var(--space-6);
+  right: var(--space-6);
+  width: 200px;
 }
 
 .login__form {
