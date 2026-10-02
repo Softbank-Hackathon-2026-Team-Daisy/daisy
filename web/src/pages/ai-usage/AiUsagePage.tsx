@@ -69,7 +69,7 @@ function AiUsagePage() {
           value={id}
           onChange={setPicked}
           leading={<Icon name="git-branch" size={16} />}
-          options={runs.data.items.map((r) => ({ value: r.id, label: `${r.version} · ${shortCommit(r.commit)} · ${clockTime(r.created_at)} 배포` }))}
+          options={runs.data.items.map((r) => ({ value: r.id, label: `${r.version ? `${r.version} · ` : ''}${shortCommit(r.commit)} · ${clockTime(r.created_at)} 배포` }))}
         />
       </div>
 

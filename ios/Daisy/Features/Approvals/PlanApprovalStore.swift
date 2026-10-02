@@ -25,7 +25,10 @@ final class PlanApprovalStore {
         if plan.value == nil { plan = .loading }
         do {
             async let latest = try? client.send(.deployment(id: deploymentID))
-            plan = .loaded(try await client.send(.plan(deploymentID: deploymentID, detail: true)))
+            // 리소스 행은 상세 요청으로 따로 와요 (서버 #51). 상세가 실패해도 요약만으로 승인 화면은 떠요
+            async let details = try? client.send(.planDetail(deploymentID: deploymentID))
+            let summary = try await client.send(.plan(deploymentID: deploymentID))
+            plan = .loaded(summary.merging(await details ?? []))
             deployment = await latest ?? deployment
         } catch {
             app.handle(error)
