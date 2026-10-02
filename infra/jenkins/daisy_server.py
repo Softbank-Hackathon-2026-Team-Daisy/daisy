@@ -690,7 +690,8 @@ def build_report(status: str, started_at: str, deploy_yaml: str, error: str | No
 
     commit = os.environ["IMAGE_TAG"]
     report = {
-        "project_id": os.environ["PROJECT_ID"],
+        # 파라미터가 Jenkinsfile에 새로 생긴 첫 빌드에는 값이 없어요. Job 기본값과 같은 데모 프로젝트를 써요
+        "project_id": os.environ.get("PROJECT_ID") or "prj_demo_monolith",
         # 서버는 source가 jenkins:<서버 설정 daisy.jenkins.instance-id>일 때만 받아요 (#72). Job은 external_build_id로 알려요
         "source": f"jenkins:{os.environ.get('DAISY_INSTANCE_ID') or 'unibloom-onprem'}",
         "external_build_id": f"{os.environ['JOB_NAME']}#{os.environ['BUILD_NUMBER']}",
