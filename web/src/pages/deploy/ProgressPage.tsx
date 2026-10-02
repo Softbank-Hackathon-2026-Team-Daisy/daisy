@@ -1,8 +1,10 @@
-import { useEffect, useRef } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useNavigate, useParams } from 'react-router'
-import { api } from '../../api/endpoints.ts'
+import { api, isMocked } from '../../api/endpoints.ts'
+import { pollFor } from '../../api/projectLive.ts'
 import { deploymentStatus, targetStatus } from '../../api/status.ts'
 import type { Deployment } from '../../api/types.ts'
+import { liveLogs, useDeploymentLive, type LiveLogLine } from '../../api/useRealtime.ts'
 import { POLL_MS, useResource } from '../../api/useResource.ts'
 import Button from '../../components/Button.tsx'
 import DeployLane from '../../components/DeployLane.tsx'
@@ -16,30 +18,42 @@ import TransitionGate from '../loading/TransitionGate.tsx'
 import { ErrorBlock, LoadingBlock } from '../Loading.tsx'
 import '../page.css'
 
-// W-07 배포 중 (STEP 5) — 환경별 terraform apply를 레인 3개로. 로그는 서버 SSE 전까지 5초 폴링(A-07), 배포가 끝나면 멈춰요
+// W-07 배포 중 (STEP 5) — 환경별 terraform apply를 레인 3개로. 로그는 배포 채널(SSE) log.batch로 받고,
+// 채널이 없으면(목업) A-07을 5초 폴링해요. 배포가 끝나면 멈춰요
 const APPLY_STARTED = new Set(['applying', 'verifying', 'succeeded', 'failed'])
 const FINISHED = new Set(['succeeded', 'partially_succeeded', 'failed', 'cancelled'])
 
 function ProgressPage() {
   const { deploymentId = '' } = useParams()
-  const deployment = useResource(() => api.getDeployment(deploymentId), [deploymentId], POLL_MS, (d) => FINISHED.has(d.state))
+  // SSE 로그는 seq로 모아요 — 다시 붙을 때(resync) 처음부터 재생돼도 겹치지 않게
+  const [sseLines, setSseLines] = useState<Map<number, LiveLogLine>>(() => new Map())
+  const live = useDeploymentLive(deploymentId, (lines) =>
+    setSseLines((prev) => {
+      const next = new Map(prev)
+      for (const l of lines) next.set(l.seq, l)
+      return next
+    }),
+  )
+  const deployment = useResource(() => api.getDeployment(deploymentId), [deploymentId, live.tick], pollFor(live.state), (d) => FINISHED.has(d.state))
   const d = deployment.data
   // L-03: 승인에서 넘어왔으면 한 환경이라도 apply를 시작할 때까지 전환 로딩
   const ready = !!d && d.targets.some((t) => APPLY_STARTED.has(t.state))
 
   return (
     <TransitionGate kind="l03" ready={ready} meta={d ? `Step 5 · ${d.targets.length} envs` : 'Step 5'}>
-      {deployment.error ? <ErrorBlock error={deployment.error} /> : !d ? <LoadingBlock /> : <ProgressView key={d.id} d={d} />}
+      {deployment.error ? <ErrorBlock error={deployment.error} /> : !d ? <LoadingBlock /> : <ProgressView key={d.id} d={d} sseLines={[...sseLines.values()].sort((a, b) => a.seq - b.seq)} />}
     </TransitionGate>
   )
 }
 
-function ProgressView({ d }: { d: Deployment }) {
+function ProgressView({ d, sseLines }: { d: Deployment; sseLines: LiveLogLine[] }) {
   const navigate = useNavigate()
   const { projectId = '' } = useParams()
   const finished = FINISHED.has(d.state)
-  // 끝난 배포는 로그를 한 번만 불러요
-  const logs = useResource(() => api.getLogs(d.id), [d.id, finished], finished ? undefined : POLL_MS)
+  // SSE로 로그를 받으면 A-07은 부르지 않아요. 아니면 끝난 배포는 로그를 한 번만 불러요
+  const sse = liveLogs()
+  const logs = useResource(() => (sse ? Promise.resolve([]) : api.getLogs(d.id)), [d.id, finished, sse], sse || finished ? undefined : POLL_MS)
+  const lines = sse ? sseLines : (logs.data ?? [])
   const status = deploymentStatus(d.state, d.kind)
 
   // 끝나면 W-08로 넘어가요 (처음부터 끝난 배포였으면 버튼으로)
@@ -56,6 +70,7 @@ function ProgressView({ d }: { d: Deployment }) {
       <Stepper current={5} />
       <PageHeader
         overline="Step 5"
+        mock={isMocked('getDeployment') || (!sse && isMocked('getLogs'))}
         title="배포 중"
         badge={<StatusBadge tone={status.tone}>{status.label}</StatusBadge>}
         description={`${d.targets.length}개 환경에 terraform apply를 동시에 실행하고 있어요. 환경마다 state는 따로 저장해요.`}
@@ -69,7 +84,7 @@ function ProgressView({ d }: { d: Deployment }) {
       </div>
 
       <LogViewer
-        lines={(logs.data ?? []).map((l) => ({ key: l.seq, time: l.at, env: typeOf(l.target_id), level: l.level, message: l.message }))}
+        lines={lines.map((l) => ({ key: l.seq, time: l.at, env: typeOf(l.target_id), level: l.level, message: l.message }))}
       />
 
       {finished && (

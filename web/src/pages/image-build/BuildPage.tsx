@@ -1,7 +1,8 @@
 import { useNavigate, useParams } from 'react-router'
 import { api, isMocked } from '../../api/endpoints.ts'
 import type { Build } from '../../api/types.ts'
-import { POLL_MS, useResource } from '../../api/useResource.ts'
+import { pollFor, useProjectLive } from '../../api/projectLive.ts'
+import { useResource } from '../../api/useResource.ts'
 import Button from '../../components/Button.tsx'
 import ConnectionIndicator from '../../components/ConnectionIndicator.tsx'
 import EmptyState from '../../components/EmptyState.tsx'
@@ -22,7 +23,9 @@ const STEP_STATE: Record<string, StepItemState> = { waiting: 'pending', running:
 
 function BuildPage() {
   const { projectId = '' } = useParams()
-  const builds = useResource(() => api.listBuilds(projectId), [projectId], POLL_MS, (b) => b.items[0]?.pipeline.status === 'success' || b.items[0]?.pipeline.status === 'failed')
+  // 빌드 수신(build.received)은 프로젝트 채널로 와요 → tick으로 다시 불러요
+  const { state: live, tick } = useProjectLive()
+  const builds = useResource(() => api.listBuilds(projectId), [projectId, tick], pollFor(live), (b) => b.items[0]?.pipeline.status === 'success' || b.items[0]?.pipeline.status === 'failed')
   // L-01: 저장소를 연결하고 넘어왔으면 첫 빌드가 나타날 때까지 전환 로딩
   const ready = !!builds.data && builds.data.items.length > 0
 
@@ -41,6 +44,7 @@ function BuildPage() {
 
 function BuildView({ projectId, build }: { projectId: string; build: Build | undefined }) {
   const navigate = useNavigate()
+  const { state: live } = useProjectLive()
   const status = build?.pipeline.status
 
   return (
@@ -107,8 +111,8 @@ function BuildView({ projectId, build }: { projectId: string; build: Build | und
                 ))}
               </div>
               <div>
-                {/* 서버 SSE(D3) 전까지는 폴링 */}
-                <ConnectionIndicator state="polling" />
+                {/* 프로젝트 채널(SSE) 상태 */}
+                <ConnectionIndicator state={live} />
               </div>
             </Panel>
           </div>

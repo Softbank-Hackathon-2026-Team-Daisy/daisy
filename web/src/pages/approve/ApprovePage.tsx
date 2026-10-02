@@ -4,6 +4,7 @@ import { useAuth } from '../../api/auth.ts'
 import { ApiError, errorMessage, newIdempotencyKey } from '../../api/client.ts'
 import { api, isMocked } from '../../api/endpoints.ts'
 import type { Deployment, Plan, PlanDetail } from '../../api/types.ts'
+import { useDeploymentLive } from '../../api/useRealtime.ts'
 import { useResource } from '../../api/useResource.ts'
 import Alert from '../../components/Alert.tsx'
 import ApprovalBar from '../../components/ApprovalBar.tsx'
@@ -25,9 +26,11 @@ import '../page.css'
 // W-06 변경 사항 확인 후 승인 (STEP 5). 승인하면 선택한 모든 환경에 동시에 적용해요 (API W-01)
 function ApprovePage() {
   const { deploymentId = '' } = useParams()
-  const deployment = useResource(() => api.getDeployment(deploymentId), [deploymentId])
-  const plan = useResource(() => api.getPlan(deploymentId), [deploymentId])
-  const detail = useResource(() => api.getPlanDetail(deploymentId), [deploymentId])
+  // plan.ready · plan.stale · approval.* 이벤트가 오면 세 개를 다시 불러요 (다른 사람이 앱에서 먼저 승인한 경우 등)
+  const live = useDeploymentLive(deploymentId)
+  const deployment = useResource(() => api.getDeployment(deploymentId), [deploymentId, live.tick])
+  const plan = useResource(() => api.getPlan(deploymentId), [deploymentId, live.tick])
+  const detail = useResource(() => api.getPlanDetail(deploymentId), [deploymentId, live.tick])
 
   const error = deployment.error ?? plan.error ?? detail.error
   if (error) return <ErrorBlock error={error} />

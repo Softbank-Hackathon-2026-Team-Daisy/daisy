@@ -5,7 +5,8 @@ import { api, isMocked } from '../../api/endpoints.ts'
 import { deploymentStatus } from '../../api/status.ts'
 import type { Deployment } from '../../api/types.ts'
 import { useAction } from '../../api/useAction.ts'
-import { POLL_MS, useResource } from '../../api/useResource.ts'
+import { pollFor, useProjectLive } from '../../api/projectLive.ts'
+import { useResource } from '../../api/useResource.ts'
 import Alert from '../../components/Alert.tsx'
 import Avatar from '../../components/Avatar.tsx'
 import Button from '../../components/Button.tsx'
@@ -30,7 +31,8 @@ const PROJECT_NAME = 'sample-monolith'
 
 function HistoryPage() {
   const { projectId = '' } = useParams()
-  const runs = useResource(() => api.listDeployments(projectId), [projectId], POLL_MS)
+  const { state: live, tick } = useProjectLive()
+  const runs = useResource(() => api.listDeployments(projectId), [projectId, tick], pollFor(live))
   const [target, setTarget] = useState<Deployment | null>(null)
 
   if (runs.error) return <ErrorBlock error={runs.error} />

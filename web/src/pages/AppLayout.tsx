@@ -1,6 +1,9 @@
-import { useState } from 'react'
+import { useMemo, useState } from 'react'
 import { Navigate, Outlet, useLocation, useParams } from 'react-router'
 import { useAuth } from '../api/auth.ts'
+import { events } from '../api/endpoints.ts'
+import { ProjectLiveContext } from '../api/projectLive.ts'
+import { useRealtime } from '../api/useRealtime.ts'
 import Sidebar from '../components/Sidebar.tsx'
 import { isFlowPath } from '../paths.ts'
 import MacAppDialog from './app-download/MacAppDialog.tsx'
@@ -14,10 +17,15 @@ function AppLayout() {
   const [macAppOpen, setMacAppOpen] = useState(false)
   const flow = isFlowPath(pathname)
   const { role } = useAuth()
+  // 프로젝트 채널 하나를 여기서 붙여요 (로그인 뒤에만)
+  const [tick, setTick] = useState(0)
+  const live = useRealtime(role && projectId ? events.project(projectId) : null, { onChange: () => setTick((t) => t + 1) })
+  const liveValue = useMemo(() => ({ state: live, tick }), [live, tick])
 
   if (!role) return <Navigate to={`/login?next=${encodeURIComponent(pathname)}`} replace />
 
   return (
+    <ProjectLiveContext.Provider value={liveValue}>
     <div className="app-layout">
       <Sidebar
         projectId={projectId}
@@ -31,6 +39,7 @@ function AppLayout() {
       </main>
       <MacAppDialog open={macAppOpen} onClose={() => setMacAppOpen(false)} />
     </div>
+    </ProjectLiveContext.Provider>
   )
 }
 
