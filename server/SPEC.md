@@ -1029,3 +1029,37 @@ URL 인코딩 자체가 깨진 커서(`%%%bad`)는 Tomcat 이 파라미터를 �
 단위 테스트 7개를 더했습니다 (환산·반올림·잘못된 환율 3개, 응답 변환 4개). `./gradlew --no-daemon spotlessCheck check build` 성공, 182개 통과.
 
 같은 경로의 두 핸들러가 OpenAPI 에서 한 operation 으로 합쳐지면서 처음에는 `detail` 이 필수로 표시됐습니다. 붙이지 않는 A-05 호출이 있으니 문서에서 선택으로 보이게 고쳤습니다.
+
+## Jenkins 콜백 인증 (10/2, 하은현)
+
+### 범위
+
+인프라(#35, 10/2 채준님)가 Jenkins 결과를 `POST /internal/jenkins/callbacks` 로 보냅니다. 받는 코드는 승환님 `JenkinsCallbackService` 이고, 서비스 인증은 제가 `ExecutionCallbackAccess` 로 제공하기로 돼 있습니다 (`docs/jenkins-callbacks.md`). 이번에 두 가지를 합니다.
+
+1. `BearerAuthFilter` 공개 경로에 `/internal/jenkins/callbacks` 추가. 사용자 로그인(Bearer)을 요구하지 않고, 아래 서비스 토큰이 그 경로를 지킵니다.
+2. `ExecutionCallbackAccess` 구현 `JenkinsCallbackTokenAccess` (`identity/auth`).
+
+### 인증 규칙
+
+| 상황 | 결과 |
+|---|---|
+| 서버에 콜백 토큰 설정(`DAISY_JENKINS_CALLBACK_TOKEN`)이 없거나 빔 | 403. 콜백 전체를 막음 |
+| 요청에 `X-Daisy-Jenkins-Token` 헤더가 없음 | 401 |
+| 헤더 값이 다름 | 401 |
+| 같음 | 통과. `instanceId` = `daisy.jenkins.instance-id`(명령 서비스와 같은 값), 허용 Job = `daisy.jenkins.operation-jobs.prepare`·`replan`·`apply` 설정값(기본 `daisy-cd-plan`·`daisy-cd-apply`) |
+
+- 비교는 상수 시간입니다. 두 값을 SHA-256 으로 같은 길이로 만든 뒤 `MessageDigest.isEqual` 로 비교해서, 길이나 앞부분 일치 여부가 응답 시간에 드러나지 않게 합니다.
+- 토큰 값은 로그에 남기지 않습니다.
+- 콜백 경로는 `daisy.jenkins.callbacks-enabled=true` 일 때만 등록됩니다(승환님 설정). 꺼져 있으면 공개 경로여도 404 입니다.
+- CI 빌드 수신(`/internal/jenkins/builds`)은 승환님 답을 받은 뒤 같은 토큰으로 붙입니다. 이번 범위가 아닙니다.
+
+### 검증 계획
+
+| | 검사 | 기대 |
+|---|---|---|
+| K1 | 콜백 켜고 토큰 설정, 헤더 없음 / 틀린 토큰 | 401 / 401 (Bearer 필터가 아니라 콜백 인증이 낸 401) |
+| K2 | 맞는 토큰 + 형식이 틀린 본문 | 400 (인증 통과 후 본문 검사에서 막힘) |
+| K3 | 토큰 설정 없이 콜백 켬 | 맞는 헤더를 보내도 403 |
+| K4 | 콜백 끔 | 404 |
+| K5 | 다른 경로 | `/projects` 는 여전히 Bearer 없으면 401 |
+| K6 | 서버 로그 | 토큰 값 0회 출력, ERROR 0건 |
