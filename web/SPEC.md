@@ -416,7 +416,7 @@ Page ──▶ hook ──▶ api/client ──────────▶ Unibl
 - [ ] **웹도 앱과 같은 토큰으로 로그인하나, 토큰 만료 처리** — 가정: 같은 `POST /auth/token`, `401` → W-00 — 서버 답변 대기
 - [x] ~~배포 상태 · 단계 값~~ → §2-5 (9/30 서버)
 - [x] ~~상태 배지 색 매핑~~ → 와이어프레임 기준 (§2-5, 9/30)
-- [x] ~~W-14 Mac 앱 호스팅 · 버전~~ → GitHub Releases 고정 주소 `mac-latest/Daisy.dmg` + iPhone TestFlight (§2-3, 9/30 승준 님)
+- [x] ~~W-14 Mac 앱 호스팅 · 버전~~ → GitHub Releases 고정 주소 `mac-latest/Unibloom.dmg` + iPhone TestFlight (§2-3, 9/30 승준 님)
 - [x] ~~롤백 · 연결 해제 확인 문구~~ → 환경이 여러 개라 환경 이름 대신 **프로젝트 이름**을 입력해요 (9/30, 웹)
 - [x] ~~W-12 AI 사용량 API~~ → 합계는 A-05 plan 응답, 호출별은 `GET /projects/{id}/ai-usage?deployment_id=` (10/1 서버, #13). LLM은 Claude (9/30 21:27)
 - [x] ~~실패한 환경 다시 시도~~ → 실패한 환경만 고른 **새 배포**, 시도 1/3부터 (9/30 서버, #13)
