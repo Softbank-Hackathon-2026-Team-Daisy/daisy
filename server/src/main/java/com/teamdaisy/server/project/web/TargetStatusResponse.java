@@ -4,6 +4,7 @@ import com.teamdaisy.server.deployment.application.DeploymentQueryService.Curren
 import com.teamdaisy.server.project.application.DeploymentHistoryReader.CurrentView;
 import com.teamdaisy.server.project.domain.Target;
 import com.teamdaisy.server.project.web.BuildResponse.ServiceImage;
+import io.swagger.v3.oas.annotations.media.Schema;
 import java.time.Instant;
 import java.util.List;
 
@@ -22,22 +23,24 @@ public record TargetStatusResponse(
     String type,
     String name,
     String connectionState,
-    Instant checkedAt,
-    Current current,
+    @Schema(nullable = true) Instant checkedAt,
+    @Schema(nullable = true, description = "검증된 현재 포인터가 없으면 null이에요. 배포 이력이 없다는 뜻은 아니에요")
+        Current current,
     String currentStatus,
-    String url,
+    @Schema(nullable = true) String url,
     String health,
-    String healthSummary,
-    String imageDigest) {
+    @Schema(nullable = true, description = "배포 시점의 검사 결과. HTTP 응답 시간 원본은 아직 미제공이에요")
+        String healthSummary,
+    @Schema(nullable = true) String imageDigest) {
 
-  /** 아직 헬스 결과를 받는 경로가 없어요. 인프라의 {@code apply-result.json} 이 생기면 채워요. */
+  /** 유효한 배포 시점 헬스 단계 관측이 없으면 모르는 상태로 표시해요. */
   private static final String HEALTH_UNKNOWN = "unknown";
 
   /**
    * 대상의 현재 포인터가 가리키는 성공 배포예요 (승환 조회 계약).
    *
-   * <p><b>null 은 "배포가 없다" 가 아니라 "확인된 현재 참조가 없다" 예요.</b> 지금은 포인터를 갱신하는 곳이 없어서 실제로 배포됐어도 null 이에요.
-   * 그래서 {@code current_status} 를 함께 보내요. {@code []} 나 빈 객체로 바꾸지 않아요.
+   * <p><b>null 은 "배포가 없다" 가 아니라 "확인된 현재 참조가 없다" 예요.</b> 실행부가 검증된 성공 시 갱신한 포인터만 읽고, {@code
+   * current_status} 를 함께 보내요. 과거 성공 이력을 임의로 현재로 간주하지 않아요.
    *
    * <p>이미지는 서비스가 정확히 하나일 때만 {@code image}·{@code image_digest} 에 넣어요. 여럿이면 둘 다 null 로 두고 {@code
    * images} 를 줘요. 대표 하나를 고르지 않아요 (S5, A-06 과 같은 규칙).
@@ -47,9 +50,12 @@ public record TargetStatusResponse(
   public record Current(
       String deploymentId,
       String commit,
-      String image,
-      String imageDigest,
-      List<ServiceImage> images,
+      @Schema(nullable = true) String image,
+      @Schema(nullable = true) String imageDigest,
+      @Schema(
+              nullable = true,
+              description = "다중 서비스의 이미지 목록. 단일 서비스면 scalar image/image_digest를 사용해요")
+          List<ServiceImage> images,
       Instant deployedAt) {
 
     static Current of(CurrentDeployment deployment) {
@@ -75,17 +81,19 @@ public record TargetStatusResponse(
   }
 
   public static TargetStatusResponse of(Target target, CurrentView view) {
+    Current current = view.deployment() == null ? null : Current.of(view.deployment());
+    var detail = view.detail();
     return new TargetStatusResponse(
         target.id(),
         target.environmentType(),
         target.name(),
         TargetResponse.connectionState(target.connectionState()),
         target.connectionCheckedAt(),
-        view.deployment() == null ? null : Current.of(view.deployment()),
+        current,
         view.status(),
-        null,
-        HEALTH_UNKNOWN,
-        null,
-        null);
+        detail == null ? null : DeploymentDetailResponse.url(detail.result()),
+        detail == null ? HEALTH_UNKNOWN : detail.healthState(),
+        DeploymentDetailResponse.healthSummary(detail),
+        current == null ? null : current.imageDigest());
   }
 }

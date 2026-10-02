@@ -3,6 +3,7 @@ package com.teamdaisy.server.project.web;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.teamdaisy.server.project.domain.Target;
 import com.teamdaisy.server.project.domain.TargetProfile;
+import io.swagger.v3.oas.annotations.media.Schema;
 import java.time.Instant;
 import java.time.format.DateTimeParseException;
 
@@ -20,22 +21,29 @@ public record TargetResponse(
     String targetId,
     String type,
     String name,
-    Reuse reuse,
+    @Schema(nullable = true, description = "재사용 가능 여부의 원천 판정. 미수신이면 null이며 false가 아니에요")
+        Reuse reuse,
     Connection connection,
-    String runtime,
-    String location,
-    String locationLabel,
-    String accessMethod,
-    String exposure,
-    String stateBackend) {
+    @Schema(nullable = true) String runtime,
+    @Schema(nullable = true) String location,
+    @Schema(nullable = true) String locationLabel,
+    @Schema(nullable = true) String accessMethod,
+    @Schema(nullable = true) String exposure,
+    @Schema(nullable = true) String stateBackend) {
 
-  public record Reuse(Boolean available, String scriptId, String reason, Instant assessedAt) {}
+  public record Reuse(
+      Boolean available,
+      @Schema(nullable = true) String scriptId,
+      @Schema(nullable = true) String reason,
+      @Schema(nullable = true) Instant assessedAt) {}
 
   /**
    * @param state {@code ok}·{@code failed}·{@code unknown}. DB 값을 소비자 값으로 바꿔요
    * @param checkedAt 연결을 확인한 시각. 확인한 적 없으면 null 이에요
    */
-  public record Connection(String state, Instant checkedAt) {}
+  public record Connection(
+      @Schema(description = "ok·failed·unknown. 마지막 관측이며 지속 상태를 보장하지 않아요") String state,
+      @Schema(nullable = true) Instant checkedAt) {}
 
   public static TargetResponse of(Target target) {
     TargetProfile profile = TargetProfile.of(target.id());

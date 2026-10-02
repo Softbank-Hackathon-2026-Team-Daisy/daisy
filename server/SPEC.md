@@ -1,9 +1,38 @@
 # 서버 개발 명세
 
 개발할 범위와 동작을 이 문서에 먼저 적고, 구현·검증 후 PR로 공유합니다.
-최신 검증(2026-10-02): 서버 PR #53·#56·#60·#63·#66을 main에 반영했어요. 실행 경계 후속은 이 브랜치에서 PostgreSQL 포함 215개 테스트를 통과했어요. #35의 실제 Jenkins 연결, CI 빌드 수신, 인프라 attempt·state 주소 일치는 별도 후속이에요. 아래 날짜별 '미구현/미합의' 표현은 당시 기록이며, 최신 경계는 마지막 「실행 경계 보완」과 [Jenkins 계약](docs/jenkins-transport.md)을 함께 봐주세요.
+최신 검증(2026-10-02): #84 조회 작업을 실행부에 통합했어요. PostgreSQL 포함 241개 테스트와 격리 DB·실제 서버 jar의 로컬 HTTP 흐름(로그인·멱등 접수·승인·인증된 콜백·현재 배포/결과/사용량 조회·SSE 재생)을 통과했어요. Jenkins/Terraform 산출물은 명시적인 테스트 데이터이며 실제 클라우드 재배포·브라우저 확인과는 구분해요. 아래 날짜별 '미구현/미합의' 표현은 당시 기록이고, 최신 검증은 [작업 일지](docs/sh/2026-10-02-target-observation.md)를 봐주세요.
 현재 상태(2026-10-01): #32의 V1 마이그레이션과 #19 피드백 수정 커밋을 로컬에서 통합했습니다. 아래 날짜별 기록의 마이그레이션 미포함·기동 제한은 당시 범위이며 현재 상태가 아닙니다. 서버 간 계약의 답변안과 항목별 처리 상태는 [#19 정리](docs/sh/2026-10-01-pr19-feedback.md#통합-후-피드백-처리표)를 따릅니다. 합의 전 답변안을 최종 OpenAPI로 취급하지 않습니다.
-기존 팀 규칙과 컨벤션은 [AGENTS.md](AGENTS.md), 실행 방법은 [README.md](README.md)를 따릅니다. Jenkins CI/CD·AI·Terraform 실행은 인프라, 실행 규칙·추적·수신은 승환, 인증·인가·관리·공개 API·조회는 은현 담당입니다. 외부 계약의 미결과 실제 구현 범위는 구분합니다.
+기존 팀 규칙과 컨벤션은 [AGENTS.md](AGENTS.md), 실행 방법은 [README.md](README.md)를 따릅니다. Jenkins CI/CD·AI·Terraform 실행은 인프라 담당이에요. 서버는 승환의 실행부와 은현의 인증·관리·조회 구현을 통합했고, 현재 후속 보완·검증은 승환이 전체를 이어받아요. 아래 과거 분담 기록은 작성 당시 책임을 보존한 것이에요. 외부 계약의 미결과 실제 구현 범위는 구분합니다.
+
+## 전체 API 연결 점검 (2026-10-02)
+
+후속 통합 보완(승환 지시): 인증·조회 담당의 기존 작성 기록은 유지하고, 이제 승환이 서버 전체 Swagger와 조회 연결까지 관리해요. 회원가입은 추가하지 않아요. 컨트롤러/DTO의 OpenAPI 응답 코드·nullable·필수 입력·멱등 키·SSE·오류를 실제 동작에 맞추며, Swagger 때문에 런타임 입력 규칙을 바꾸지 않아요. A-02 현재 결과와 저장된 단계 기반 헬스/단계 조회도 연결했어요. 미수신 HTTP 코드/응답 시간·원문 파일은 꾸미지 않아요.
+
+검사 결과: 공개 22개·내부 2개 HTTP 경로 연결, PostgreSQL 포함 테스트 241개 통과(실패·오류·건너뜀 0). Swagger UI는 Safari에서 렌더링을 확인했어요. A-02 현재 URL/digest·헬스, A-04 헬스/단계 조회와 OpenAPI 상태 코드·nullable·필수 입력을 로컬에서 보완하고 HTTP 재검사를 통과했어요. **전체 기능 완료가 아니며 #13·#35는 유지해요.** 원본 미제공·제외 범위·실제 인프라 검증은 별개예요. 항목별 근거·재실행 방법은 [API 점검 결과](docs/sh/2026-10-02-backend-api-audit.md)를 봐주세요.
+
+- A-02는 검증된 현재 포인터의 결과만 연결해요. A-04 `steps[]`는 단계별 최신 실행·발생 식별자를 기준으로 `name`, `state`, `duration_ms`, `started_at`을 제공해요. 오래된 발생의 늦은 실패와 `ignored_stale` 이벤트는 최신 결과를 덮지 않아요.
+- 헬스는 현재 apply 실행의 유효한 `health_check` 완료·실패를 근거로 배포 시점의 `healthy`/`unhealthy`를 표시해요. 관측이 없으면 `unknown`/요약 null이며 실시간 가용성이나 HTTP 응답 시간을 의미하지 않아요.
+- OpenAPI 3.1의 nullable 참조는 `anyOf: [참조, null]`로 표현해요. 같은 이름의 중첩 DTO는 `DeploymentTarget`·`PlanTarget`으로 구분해 스키마 충돌을 막아요. 경로별 실제 201/202·오류 봉투·SSE 문자열 응답을 문서와 대조해요.
+
+- 기존 springdoc `/v3/api-docs`·Swagger UI를 사용해 공개 경로 전부와 내부 CI/배포 콜백을 목록화해요. 격리된 로컬 PostgreSQL·실제 jar에 요청하고, 문서 응답과 실제 JSON을 대조해요.
+- `scripts/verify-result-flow.py`를 확장해 로그인·권한·프로젝트·빌드 수신·배포·승인·취소·재시도·롤백·조회·SSE를 확인해요. Jenkins 제출과 Terraform 산출물만 명시적인 MOCK이며 실제 인프라를 바꾸지 않아요.
+- 값마다 정상 제공, 저장됐으나 조회 미연결, 원본 미제공, 합의된 제외를 구분해요. 단계 소요 시간을 HTTP 응답 시간으로 바꾸거나 미확인을 성공으로 채우지 않아요.
+- 공통 `ModelResolver`에 HTTP 응답과 같은 `ObjectMapper`를 연결해요. 실제 JSON은 snake_case인데 Swagger가 camelCase였던 불일치를 고쳐요. URL·요청/응답 JSON 계약 자체는 바꾸지 않으며 로컬 HTTP 검사에서 생성 스키마와 실제 필드 이름을 대조해요.
+- Swagger에 이미 노출된 Jenkins 콜백은 `Envelope` 본문과 `X-Daisy-Jenkins-Token` 보안 헤더를 문서화해요. 실제 인증·본문 크기 제한·엄격 파싱은 기존 수신 서비스를 그대로 사용해요. CI 빌드 수신은 기존 `@Hidden` 정책을 유지하되 HTTP 검사에는 포함해요.
+- #13·#35는 필요한 후속이 남으면 닫지 않아요. 10/2 저녁 승환·은현 분담에 따라 승환이 서버 전체 통합 보완을 맡고 기존 작성 기록은 유지해요. 추가 응답 필드는 #85·#13에서 웹·앱에 안내했어요.
+
+## 성공 결과의 현재 배포·연결 상태 반영 (2026-10-02)
+
+- #84 조회 코드를 통합하고, 요청 ID가 없는 AI 호출의 `daisy-cd-plan#18/aws/ai-1` 같은 외부 ID를 원문 그대로 받아요. `external_call_id`에만 `#`를 추가 허용하며 길이·제어 문자·비밀값 검사는 유지해요. 다른 ID·provider·model 검증은 넓히지 않아요. 실제 Jenkins 대신 격리 DB와 로컬 HTTP 서버로 승인·인증된 콜백·멱등 수신·A-02/A-04/WR-04 응답을 연결 검증해요.
+
+- 승환 실행부가 `acceptState`에서 검증한 apply 성공을 근거로 `target.current_deployment_target_id`, `connection_state=connected`, `connection_checked_at`, `updated_at`을 함께 갱신해요. 아래 과거 기록의 포인터 갱신 미구현·관리 서비스 후속 설명을 대체해요. 은현의 공개 조회는 기존 필드를 읽으며 API 이름·응답 형태는 바꾸지 않아요.
+- 현재 execution·증가하는 sequence·승인된 plan ID/digest·입력 hash·이미지가 맞아야 해요. 프로젝트 락 아래에서 해당 실행이 state 락을 소유한 동안, 대상 상태·결과·이벤트와 같은 트랜잭션으로 기록하고 락을 해제해요.
+- 연결 해제한 프로젝트·대상, state 주소·설정 revision·자격증명 참조/버전이 달라진 대상에는 옛 실행의 관측을 덮어쓰지 않아요. 해당 실행의 성공 이력은 보존해요.
+- 실패·취소·unknown·오래된 결과는 현재 포인터를 갱신하지 않아요. 중복 성공도 확인 시각을 새로 쓰지 않아요. 롤백도 새 plan 승인·apply 성공 후 새 배포 대상을 현재로 기록해요.
+- `connected`는 이 배포 성공 시점의 연결 근거예요. 지속적인 가용성·별도 헬스체크 성공을 뜻하지 않으며, 실패만으로 `disconnected`라고 추정하지 않아요. 확인 시각은 서버의 성공 수신 시각이에요.
+- 이미 종료된 과거 배포를 최신 시각으로 검색해 소급 반영하지 않아요. 배포 이후 새 성공 콜백부터 적용해요. 공개 조회는 #84를 통합하고 위 전체 API 점검의 후속 보완까지 연결했어요.
+- 검증 완료: PostgreSQL 17 포함 `spotlessCheck check build --rerun-tasks --no-daemon --offline`에서 236개 통과(실패·오류·건너뜀 0개). 성공·동시 중복·늦은 콜백·실패/취소·설정 변경·롤백·트랜잭션 롤백과 A-02 내부 조회의 `confirmed`를 확인했어요. 갱신 호출 제거 시 회귀 테스트 실패, 복원 후 전체 통과도 확인했어요. 운영 DB·실제 Jenkins·공개 화면 연결은 실행하지 않았어요. [작업 일지](docs/sh/2026-10-02-target-observation.md)
 
 ## 실행 기능 구현 2026-10-01
 
@@ -281,10 +310,10 @@
 | `current.commit` | `deployment.commit_sha` | 제공 |
 | `current.deployed_at` | `deployment_target.finished_at` | 제공 |
 | `current.image` | `deployment.image_refs` 평탄화 | ~~미제공 (null)~~ → #42 부터 제공. 서비스가 둘 이상이면 `images[]` |
-| `url` | `deployment_target.result` 의 `service_url` | **미제공 (null)** — `apply-result.json` 이 아직 인프라에 없습니다 (#17) |
+| `url` | 확인된 현재 대상의 `result.public_urls` | #85에서 연결. 서비스가 정확히 하나이고 URL이 유효할 때 제공해요 |
 | `health` | 같은 곳 | **항상 `unknown`** — 헬스 결과가 지금 apply 로그에만 있습니다 (#17) |
-| `health_summary` | 같은 곳 | **미제공 (null)** |
-| `image_digest` | `source_version.image_refs` | **미제공 (null)** — WR-09 동일성 검증은 빌드 수신 뒤입니다 |
+| `health_summary` | 현재 apply 실행의 유효한 `health_check` 단계 | #85에서 배포 시점 검사 통과/실패로 연결. 관측이 없으면 null이에요 |
+| `image_digest` | 검증된 현재 배포의 이미지 | #85에서 연결. 단일 서비스일 때만 대표 digest를 제공해요 |
 
 `current` 는 그 대상에 한 번도 배포가 끝난 적이 없으면 통째로 null 입니다. **이번 PR 시점에는 항상 null** 이고, 이유가 둘입니다.
 
@@ -306,7 +335,7 @@
 
 ### 후속 범위
 
-- `url`·`health`·`health_summary`·`image_digest`·`current.image` 는 인프라 산출물이 생긴 뒤 채웁니다. 어느 것도 기본값으로 채우지 않습니다.
+- #85에서 `url`·`health`·`health_summary`·`image_digest`·`current.image`를 검증된 현재 포인터·저장 결과·헬스 단계에 연결했어요. 관측이 없는 값은 기본값으로 채우지 않아요. `health`는 배포 시점 검사 결과이며 지속적인 가용성을 뜻하지 않아요.
 - 커서 페이지네이션은 넣지 않습니다. 대상이 많아지면 `(environment_type, name)` 기준 커서를 붙입니다.
 - A-10 `POST /targets/{id}/test`(연결 테스트)와 A-11 `GET /targets/{id}/resources`(리소스 보기)는 이번 범위가 아닙니다. 둘 다 실제 대상·Terraform state 에 붙어야 해서 인프라 쪽 경로가 필요합니다 (이슈 #13).
 - 대상 생성·수정·삭제는 넣지 않습니다. `work.md` §2 가 삭제 지원 범위를 별도 합의 사항으로 두었습니다.
@@ -848,7 +877,8 @@ V9 의 실제 Jenkins 실행은 하지 않습니다. 기본 비활성 설정 그
 | `error_summary` | 같은 이름 | |
 | `cancel_requested_at` | 같은 이름 | 취소 요청이 접수됐지만 아직 끝나지 않은 상태를 보여 줄 수 있게 둠 |
 | `started_at`·`finished_at` | 같은 이름 | |
-| `step`·`step_state`·`url`·`image_digest`·`health_summary` | — | **null.** `url`·`image_digest`·`health_summary` 는 근거 데이터가 아직 없음 (apply 결과 수신 #35 대기). `step`·`step_state` 는 승환님 Jenkins 수신이 `deployment_log` 에 `step.started`·`completed`·`failed` 로 남기지만 아직 읽지 않음 — A-07 로그 조회와 함께 붙임 (10/2 점검에서 정정). → 10/2 A-07 에서 붙였습니다 (「배포 로그 A-07 · A-04 단계」). 0·빈 값으로 채우지 않음. → 10/2 저녁 `url`·`image_digest` 는 `deployment_target.result` 에서 붙였습니다 (「배포 결과 · 환경 정보 표시」). `health_summary` 는 근거가 없어 계속 null |
+| `step`·`step_state`·`url`·`image_digest`·`health_summary` | 대상 결과·유효한 단계 이벤트 | #56에서 현재 단계, #84에서 URL·digest, #85에서 배포 시점 헬스 요약과 단계별 최신 발생을 연결했어요. 근거가 없는 필드는 null이에요 |
+| `steps[]` | `deployment_log`의 유효한 단계별 최신 발생 | #85에서 `{name,state,duration_ms,started_at}`을 제공해요. 미관측 단계는 만들지 않으며 단계 시간은 HTTP 응답 시간이 아니에요 |
 
 내보내지 않는 것: `version`("v7")·`commit_message` 는 S8 후순위, 단건 `pending_approval` 은 `pending_approvals` 로 대체 (#40 승준 질문에 답한 대로).
 
@@ -1623,7 +1653,7 @@ Jenkins `daisy-ci` 가 끝나면 결과를 `POST /internal/jenkins/builds` 로 �
 |---|---|---|
 | `url` | `result.public_urls` | 서비스가 **정확히 하나**이고 값이 문자열이면 그 값. 둘 이상이면 null (대표 하나를 고르지 않음, S5 · A-06 과 같은 규칙) |
 | `image_digest` | `result.image_refs.<서비스>.digest` | 서비스가 정확히 하나이고 `digest` 가 `sha256:` + 64자리 hex 면 그 값. 아니면 null |
-| `health_summary` | — | **계속 null.** `result` 에 헬스 결과 키가 없습니다 (`validateResult` 허용 키 6개에 없음). 인프라가 헬스 결과를 보내는 형식이 정해지면 붙입니다 |
+| `health_summary` | 현재 apply 실행의 유효한 `health_check` 단계 | #85에서 배포 시점 검사 통과/실패로 연결했어요. result에 새 키를 추가한 것은 아니에요. 단계 관측이 없으면 null이고 HTTP 코드·응답 시간 원본은 미제공이에요 |
 
 - `result` 가 없거나(성공 전) 모양이 틀리면 그 필드만 null 입니다. 상세 화면 전체를 실패시키지 않습니다.
 - 대상 상태와 상관없이 저장된 `result` 를 그대로 읽습니다. `result` 는 성공 콜백에서만 저장됩니다.

@@ -110,6 +110,61 @@ class AiUsageServiceTest {
   }
 
   @Test
+  void fallbackCallIdAllowsHashWithoutRelaxingOtherFieldsOrSafetyChecks() {
+    var original = input(null, null);
+    for (String id : List.of("daisy-cd-plan#18/aws/ai-1", "anthropic:req_123")) {
+      assertDoesNotThrow(() -> service.validate(withCallId(original, id)));
+    }
+    for (String id :
+        List.of(
+            "bad\n#id",
+            "x".repeat(256),
+            "",
+            "#'",
+            "#<script>",
+            "Bearer fixture#value",
+            "secret:fixture#value")) {
+      assertThrows(DaisyException.class, () -> service.validate(withCallId(original, id)));
+    }
+    assertThrows(
+        DaisyException.class,
+        () ->
+            service.validate(
+                new AiUsageService.UsageInput(
+                    "source",
+                    "call#1",
+                    "provider#bad",
+                    "model",
+                    "generate",
+                    1,
+                    "unknown",
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    original.occurredAt())));
+    verifyNoInteractions(jdbc, commands);
+  }
+
+  private AiUsageService.UsageInput withCallId(AiUsageService.UsageInput input, String id) {
+    return new AiUsageService.UsageInput(
+        input.source(),
+        id,
+        input.provider(),
+        input.model(),
+        input.step(),
+        input.attempt(),
+        input.status(),
+        input.inputTokens(),
+        input.outputTokens(),
+        input.usageDetails(),
+        input.costUsd(),
+        input.costBasis(),
+        input.occurredAt());
+  }
+
+  @Test
   void numericLimitsAndUnknownDetailKeysFailBeforeDatabase() {
     for (BigDecimal invalid :
         List.of(

@@ -36,6 +36,8 @@ import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.condition.EnabledIfEnvironmentVariable;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 import org.springframework.boot.WebApplicationType;
 import org.springframework.boot.autoconfigure.EnableAutoConfiguration;
 import org.springframework.boot.autoconfigure.domain.EntityScan;
@@ -725,11 +727,26 @@ class ExecutionPostgresTest {
     var success = state(prepared, apply, "success", 2, DeploymentTargetStatus.SUCCEEDED, result);
     execution.acceptState(success);
     assertEquals("succeeded", value("status", "deployment", prepared.deployment()));
+    assertEquals(prepared.target(), value("current_deployment_target_id", "target", "tgt_1"));
+    assertEquals("connected", value("connection_state", "target", "tgt_1"));
+    var current =
+        context
+            .getBean(DeploymentQueryService.class)
+            .currentByTarget(
+                "acct_1",
+                "prj_1",
+                List.of(new DeploymentQueryService.CurrentPointer("tgt_1", prepared.target())));
+    assertEquals("confirmed", current.get("tgt_1").status());
+    assertEquals(prepared.deployment(), current.get("tgt_1").deployment().deploymentId());
+    String checkedAt = value("connection_checked_at", "target", "tgt_1");
+    assertNotNull(checkedAt);
+    assertEquals(value("finished_at", "deployment_target", prepared.target()), checkedAt);
     assertEquals(0, count("target_lock"));
     long seq =
         jdbc.queryForObject(
             "select last_event_seq from deployment where id=?", Long.class, prepared.deployment());
     execution.acceptState(success);
+    assertEquals(checkedAt, value("connection_checked_at", "target", "tgt_1"));
     assertEquals(
         seq,
         jdbc.queryForObject(
@@ -775,6 +792,101 @@ class ExecutionPostgresTest {
         jdbc.queryForObject(
             "select cost_usd from ai_usage where id=?", java.math.BigDecimal.class, usage.id()));
     assertEquals("succeeded", value("status", "deployment", prepared.deployment()));
+  }
+
+  @Test
+  void successfulObservationIsAtomicAndOldResultsCannotReplaceANewerSuccess() throws Exception {
+    Prepared first = prepare("first-observation");
+    var firstSuccess = approvedSuccess(first);
+    transaction()
+        .executeWithoutResult(
+            tx -> {
+              execution.acceptState(firstSuccess);
+              assertEquals(
+                  first.target(), value("current_deployment_target_id", "target", "tgt_1"));
+              tx.setRollbackOnly();
+            });
+    assertNull(value("current_deployment_target_id", "target", "tgt_1"));
+    assertEquals("unknown", value("connection_state", "target", "tgt_1"));
+    assertEquals("awaiting_approval", value("status", "deployment_target", first.target()));
+    assertEquals(1, count("target_lock"));
+    assertEquals(
+        List.of(true, true),
+        concurrent(
+            () -> {
+              execution.acceptState(firstSuccess);
+              return true;
+            },
+            () -> {
+              execution.acceptState(firstSuccess);
+              return true;
+            }));
+    Prepared second = prepare("second-observation");
+    execution.acceptState(approvedSuccess(second));
+    var observation = jdbc.queryForMap("select * from target where id='tgt_1'");
+    assertEquals(second.target(), observation.get("current_deployment_target_id"));
+    execution.acceptState(firstSuccess);
+    execution.acceptState(
+        state(
+            first,
+            firstSuccess.executionId(),
+            "late-failure",
+            99,
+            DeploymentTargetStatus.FAILED,
+            null));
+    assertEquals(observation, jdbc.queryForMap("select * from target where id='tgt_1'"));
+
+    Prepared failed = prepare("failed-after-success");
+    var failedApply = approvedSuccess(failed);
+    jdbc.update(
+        "update jenkins_execution set dispatch_status='unknown' where id=?",
+        failedApply.executionId());
+    assertEquals(observation, jdbc.queryForMap("select * from target where id='tgt_1'"));
+    execution.acceptState(
+        state(failed, failedApply.executionId(), "failed", 1, DeploymentTargetStatus.FAILED, null));
+    Prepared cancelled = prepare("cancel-after-success");
+    approvedSuccess(cancelled);
+    execution.cancel(
+        new DeploymentExecutionService.ControlRequest(
+            "acct_1", "prj_1", cancelled.deployment(), List.of("tgt_1"), "cancel-observation"));
+    assertEquals("cancelled", value("status", "deployment_target", cancelled.target()));
+    assertEquals(observation, jdbc.queryForMap("select * from target where id='tgt_1'"));
+  }
+
+  @ParameterizedTest
+  @ValueSource(
+      strings = {
+        "update target set config_revision=2",
+        "update target set state_identity='different-state'",
+        "update target set credential_ref='different-ref'",
+        "update target set credential_version='different-version'",
+        "update target set archived_at=now()",
+        "update project set archived_at=now()",
+        "delete from target_lock"
+      })
+  void oldConfigurationOrMissingLockCannotConfirmCurrentTarget(String change) {
+    Prepared prepared = prepare("changed-observation");
+    var success = approvedSuccess(prepared);
+    jdbc.update(change);
+    execution.acceptState(success);
+    assertEquals("succeeded", value("status", "deployment_target", prepared.target()));
+    assertNull(value("current_deployment_target_id", "target", "tgt_1"));
+    assertEquals("unknown", value("connection_state", "target", "tgt_1"));
+    assertNull(value("connection_checked_at", "target", "tgt_1"));
+    assertEquals(0, count("target_lock"));
+  }
+
+  private DeploymentExecutionService.StateResult approvedSuccess(Prepared prepared) {
+    execution.decide(decision(prepared, "approve-" + prepared.deployment()));
+    String apply = value("current_execution_id", "deployment_target", prepared.target());
+    var result =
+        mapper
+            .createObjectNode()
+            .put("plan_id", prepared.plan())
+            .put("plan_digest", DIGEST)
+            .put("input_hash", prepared.inputHash());
+    result.set("image_refs", prepared.images());
+    return state(prepared, apply, "success", 1, DeploymentTargetStatus.SUCCEEDED, result);
   }
 
   @Test
@@ -1032,6 +1144,59 @@ class ExecutionPostgresTest {
     assertEquals(
         prepared.target(),
         payload.path("restore_scripts").get(0).path("restored_from_deployment_target_id").asText());
+    assertEquals(prepared.target(), value("current_deployment_target_id", "target", "tgt_1"));
+    var oldPlan = prepared.planReceipt();
+    execution.acceptPlan(
+        new DeploymentExecutionService.PlanResult(
+            "prj_1",
+            rollback,
+            command,
+            target,
+            "test:" + command,
+            "rollback-plan",
+            1,
+            "rollback-plan",
+            value("input_hash", "deployment_target", target),
+            script,
+            true,
+            0,
+            "artifact:rollback-plan",
+            DIGEST,
+            oldPlan.summary(),
+            mapper.createArrayNode(),
+            Instant.now().plusSeconds(3600),
+            null,
+            Instant.now()));
+    String plan = value("current_plan_id", "deployment_target", target);
+    String approval =
+        jdbc.queryForObject("select id from approval where plan_id=?", String.class, plan);
+    Prepared restored =
+        new Prepared(
+            rollback,
+            target,
+            command,
+            plan,
+            approval,
+            value("input_hash", "deployment_target", target),
+            prepared.images(),
+            null);
+    var restoredSuccess = approvedSuccess(restored);
+    execution.acceptState(
+        new DeploymentExecutionService.StateResult(
+            "prj_1",
+            rollback,
+            restoredSuccess.executionId(),
+            target,
+            restoredSuccess.source(),
+            "success",
+            1,
+            DeploymentTargetStatus.SUCCEEDED,
+            0,
+            null,
+            restoredSuccess.result(),
+            Instant.now()));
+    assertEquals(target, value("current_deployment_target_id", "target", "tgt_1"));
+    assertEquals("succeeded", value("status", "deployment", rollback));
   }
 
   @Test

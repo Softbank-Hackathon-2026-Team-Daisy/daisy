@@ -12,6 +12,7 @@ import java.sql.SQLException;
 import java.sql.Timestamp;
 import java.time.Instant;
 import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -74,7 +75,16 @@ public class DeploymentDetailReader {
       String stepState,
       String approvalState,
       String applyDispatch,
-      JsonNode result) {}
+      JsonNode result,
+      List<StepDetails> steps,
+      String healthState) {}
+
+  /** 단계 이름별 가장 최근 시도의 관측이에요. durationMs는 단계 시간이지 HTTP 응답 시간이 아니에요. */
+  public record StepDetails(
+      String name,
+      String state,
+      @io.swagger.v3.oas.annotations.media.Schema(nullable = true) Long durationMs,
+      @io.swagger.v3.oas.annotations.media.Schema(nullable = true) Instant startedAt) {}
 
   /** 대상의 지금 단계예요. 가장 최근 {@code step.*} 이벤트로 정해요. */
   record StepRow(String step, String state) {}
@@ -142,24 +152,77 @@ public class DeploymentDetailReader {
         new MapSqlParameterSource()
             .addValue("project", projectId)
             .addValue("ids", rows.stream().map(DeploymentRow::id).toList());
-    // 대상마다 가장 최근 단계 이벤트 하나만 읽어요. 쓰는 쪽은 승환의 Jenkins 수신이에요 (#35 연결 대기).
+    // occurrence 시작 순서를 먼저 봐서 늦게 끝난 이전 시도가 새 시도를 덮지 않게 해요.
     Map<String, StepRow> steps = new HashMap<>();
+    Map<String, Long> latestStepSequences = new HashMap<>();
+    Map<String, List<StepDetails>> stepDetails = new HashMap<>();
+    Map<String, String> healthStates = new HashMap<>();
     jdbc.query(
         """
-        select distinct on (e.deployment_target_id) e.deployment_target_id, e.step, e.event_type
-        from deployment_log e
-        join deployment_target dt on dt.id = e.deployment_target_id
-        where dt.deployment_id in (:ids) and dt.project_id = :project
-          and e.event_type in ('step.started', 'step.completed', 'step.failed')
-          and e.processing_result = 'applied'
-        order by e.deployment_target_id, e.seq desc
+        with observed as (
+          select e.*, je.created_at as execution_created_at, dt.current_execution_id, je.operation,
+                 max(e.source_sequence) filter (where e.event_type = 'step.started') over (
+                   partition by e.deployment_target_id, e.execution_id, e.step, e.stage_occurrence_id
+                 ) as occurrence_sequence
+          from deployment_log e
+          join deployment_target dt on dt.id = e.deployment_target_id
+          left join jenkins_execution je on je.id = e.execution_id
+          where dt.deployment_id in (:ids) and dt.project_id = :project
+            and e.event_type in ('step.started', 'step.completed', 'step.failed')
+            and e.processing_result = 'applied'
+            and (e.step not in ('apply', 'health_check')
+                 or dt.current_execution_id is null
+                 or (e.execution_id = dt.current_execution_id and je.operation = 'apply'))
+        )
+        select distinct on (deployment_target_id, step)
+               deployment_target_id, step, event_type, occurred_at, execution_id, current_execution_id,
+               operation, seq,
+               (payload->>'duration_ms')::bigint as duration_ms,
+               (payload->>'started_at')::timestamptz as stage_started_at
+        from observed
+        order by deployment_target_id, step, execution_created_at desc nulls last,
+                 coalesce(occurrence_sequence, source_sequence, seq) desc,
+                 coalesce(source_sequence, seq) desc, seq desc
         """,
         params,
         (ResultSet rs) -> {
-          steps.put(
-              rs.getString("deployment_target_id"),
-              new StepRow(rs.getString("step"), stepState(rs.getString("event_type"))));
+          String id = rs.getString("deployment_target_id");
+          String name = rs.getString("step");
+          String state = stepState(rs.getString("event_type"));
+          String currentExecution = rs.getString("current_execution_id");
+          boolean current =
+              currentExecution != null && currentExecution.equals(rs.getString("execution_id"));
+          long seq = rs.getLong("seq");
+          if ((current || currentExecution == null)
+              && seq > latestStepSequences.getOrDefault(id, 0L)) {
+            steps.put(id, new StepRow(name, state));
+            latestStepSequences.put(id, seq);
+          }
+          stepDetails
+              .computeIfAbsent(id, key -> new ArrayList<>())
+              .add(
+                  new StepDetails(
+                      name,
+                      state,
+                      (Long) rs.getObject("duration_ms"),
+                      "running".equals(state)
+                          ? instant(rs, "occurred_at")
+                          : instant(rs, "stage_started_at")));
+          if (current && "apply".equals(rs.getString("operation")) && "health_check".equals(name)) {
+            healthStates.put(
+                id,
+                "done".equals(state)
+                    ? "healthy"
+                    : "failed".equals(state) ? "unhealthy" : "unknown");
+          }
         });
+    List<String> order =
+        List.of("generate", "validate", "plan", "risk_check", "apply", "health_check");
+    stepDetails.replaceAll(
+        (id, values) ->
+            values.stream()
+                .sorted(Comparator.comparingInt(value -> order.indexOf(value.name())))
+                .toList());
     Map<String, List<TargetRow>> targets = new HashMap<>();
     jdbc.query(
         """
@@ -192,7 +255,9 @@ public class DeploymentDetailReader {
                       step(steps, rs.getString("id")).state(),
                       rs.getString("approval_state"),
                       applyDispatch(rs.getString("operation"), rs.getString("dispatch_status")),
-                      json(rs.getString("result"))));
+                      json(rs.getString("result")),
+                      stepDetails.getOrDefault(rs.getString("id"), List.of()),
+                      healthStates.getOrDefault(rs.getString("id"), "unknown")));
         });
     // 만료 시각이 지난 승인은 아직 pending 으로 남아 있어도 빼요. 보내 봐야 옛 승인이라 409 예요.
     Map<String, List<PendingApproval>> pending = new HashMap<>();

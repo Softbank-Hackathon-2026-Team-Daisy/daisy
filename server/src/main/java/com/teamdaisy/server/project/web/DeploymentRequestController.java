@@ -12,6 +12,11 @@ import com.teamdaisy.server.identity.auth.AuthPrincipal;
 import com.teamdaisy.server.identity.web.CurrentAccount;
 import com.teamdaisy.server.project.access.ProjectAccessService;
 import com.teamdaisy.server.project.domain.SourceVersionRepository;
+import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.Parameter;
+import io.swagger.v3.oas.annotations.media.Content;
+import io.swagger.v3.oas.annotations.media.Schema;
+import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import io.swagger.v3.oas.annotations.security.SecurityRequirement;
 import jakarta.servlet.http.HttpServletResponse;
 import java.util.List;
@@ -71,7 +76,18 @@ public class DeploymentRequestController {
    * @param strategy 생략하면 {@code recreate}. 다른 값은 400 이에요
    */
   public record CreateDeployment(
-      String sourceVersionId, List<String> targetIds, String commit, String strategy) {}
+      @Schema(
+              requiredMode = Schema.RequiredMode.REQUIRED,
+              description = "빌드 목록에서 고른 성공 빌드 ID",
+              maxLength = 64)
+          String sourceVersionId,
+      @Schema(
+              requiredMode = Schema.RequiredMode.REQUIRED,
+              description = "배포할 대상 ID 목록. 1~50개, 중복 불가")
+          List<String> targetIds,
+      @Schema(nullable = true, description = "호환용 선택 값. 제공하면 선택 빌드의 커밋과 같아야 해요") String commit,
+      @Schema(nullable = true, description = "생략/null이면 recreate. 다른 전략은 지원하지 않아요")
+          String strategy) {}
 
   /**
    * 배포를 접수해요 (WR-05).
@@ -79,10 +95,21 @@ public class DeploymentRequestController {
    * <p>권한을 먼저 봐요. 빌드의 commit 을 읽기 전에 막아야 다른 프로젝트 빌드의 존재가 응답 차이로 새지 않아요.
    */
   @PostMapping("/deployments")
+  @Operation(
+      summary = "배포 접수",
+      description = "성공 빌드와 대상 설정을 고정하고 비동기 prepare 명령을 만들어요. 인프라 배포 성공 응답이 아니에요.")
+  @ApiResponse(
+      responseCode = "201",
+      description = "새 배포를 접수했어요. 같은 멱등 키·본문은 기존 응답을 돌려줘요",
+      useReturnTypeSchema = true)
   public ResponseEntity<DeploymentAccepted> create(
       @CurrentAccount AuthPrincipal principal,
       @PathVariable String projectId,
-      @RequestHeader(value = DeploymentAccepted.IDEMPOTENCY_KEY, required = false)
+      @Parameter(
+              required = true,
+              description = "명령의 멱등 키. 같은 키에 다른 본문은 409예요",
+              schema = @Schema(minLength = 1, maxLength = 255))
+          @RequestHeader(value = DeploymentAccepted.IDEMPOTENCY_KEY, required = false)
           String idempotencyKey,
       @RequestBody CreateDeployment request) {
     access.requireWrite(principal, projectId);
@@ -115,6 +142,14 @@ public class DeploymentRequestController {
    * @param eventType 받을 이벤트 이름 하나. 생략하면 전부예요
    */
   @GetMapping(value = "/events", produces = MediaType.TEXT_EVENT_STREAM_VALUE)
+  @Operation(
+      summary = "프로젝트 SSE",
+      description =
+          "채널별 seq를 id로 보내요. Last-Event-ID 이후 재생, heartbeat 15초, 재생 불가 시 resync예요. 인증 오류는 스트림 시작 전 JSON으로 반환해요.")
+  @ApiResponse(
+      responseCode = "200",
+      description = "SSE 스트림. JSON 객체 하나가 아니에요",
+      content = @Content(mediaType = "text/event-stream", schema = @Schema(type = "string")))
   public SseEmitter projectEvents(
       @CurrentAccount AuthPrincipal principal,
       @PathVariable String projectId,

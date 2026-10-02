@@ -14,6 +14,8 @@ import com.teamdaisy.server.project.domain.SourceVersion;
 import com.teamdaisy.server.project.domain.SourceVersionRepository;
 import com.teamdaisy.server.project.domain.Target;
 import com.teamdaisy.server.project.domain.TargetRepository;
+import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.security.SecurityRequirement;
 import java.util.List;
 import java.util.Map;
@@ -25,7 +27,7 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
-/** 프로젝트 조회예요. 생성·연결은 저장소 연결 절차가 정해진 뒤에 넣어요. */
+/** 프로젝트 조회예요. 등록·연결 해제는 ProjectCreateController에서 처리해요. */
 @RestController
 @RequestMapping("/projects")
 @SecurityRequirement(name = "bearerAuth")
@@ -54,6 +56,7 @@ public class ProjectController {
   }
 
   @GetMapping
+  @Operation(summary = "접근 가능한 프로젝트 목록")
   public PageResponse<ProjectResponse> list(@CurrentAccount AuthPrincipal principal) {
     List<ProjectResponse> items =
         projects.findAccessible(principal.accountId()).stream()
@@ -63,6 +66,9 @@ public class ProjectController {
   }
 
   @GetMapping("/{projectId}")
+  @Operation(
+      summary = "프로젝트 상세",
+      description = "접근할 수 없는 프로젝트도 없는 프로젝트와 같이 404예요. last_seq는 프로젝트 SSE 재연결 시작점이에요.")
   public ProjectResponse detail(
       @CurrentAccount AuthPrincipal principal, @PathVariable String projectId) {
     // 접근 판정을 먼저 해요. 없는 프로젝트와 권한 없는 프로젝트가 모두 404 라 조회 결과로 존재를 알 수 없어요.
@@ -78,6 +84,9 @@ public class ProjectController {
    * <p>A-02 와 따로 둬요 (9/30 결정). 연결 상태는 소비자 값으로 바꾸고, 인프라 보고가 없는 재사용 판정은 null 로 둬요.
    */
   @GetMapping("/{projectId}/targets")
+  @Operation(
+      summary = "배포 가능한 대상 목록",
+      description = "환경 선택용이에요. 등록한 대상이 없으면 빈 목록이고, 재사용 판정·환경 프로필 미제공은 null이에요.")
   public PageResponse<TargetResponse> targetList(
       @CurrentAccount AuthPrincipal principal, @PathVariable String projectId) {
     access.requireRead(principal, projectId);
@@ -93,6 +102,10 @@ public class ProjectController {
    * <p>대상이 하나도 없으면 오류가 아니라 빈 목록이에요. 프로젝트에 환경을 아직 연결하지 않은 정상 상태예요.
    */
   @GetMapping("/{projectId}/targets/status")
+  @Operation(
+      summary = "대상별 현재 배포 상태",
+      description =
+          "current_status는 none·confirmed·unverified예요. current=null은 확인된 현재 참조 없음이지 배포 이력 없음이 아니에요.")
   public PageResponse<TargetStatusResponse> targetStatus(
       @CurrentAccount AuthPrincipal principal, @PathVariable String projectId) {
     access.requireRead(principal, projectId);
@@ -114,11 +127,17 @@ public class ProjectController {
    * <p>수신(`POST`)은 승환 소유예요. 이 경로는 조회만 해요.
    */
   @GetMapping("/{projectId}/builds")
+  @Operation(
+      summary = "빌드 이력",
+      description =
+          "커서 기반 최신순 목록이에요. 단일 서비스는 image/image_digest, 다중 서비스는 images를 사용해요. deployed_to는 과거 성공 이력이에요.")
   public PageResponse<BuildResponse> builds(
       @CurrentAccount AuthPrincipal principal,
       @PathVariable String projectId,
       @RequestParam(required = false) String cursor,
-      @RequestParam(required = false, defaultValue = "" + DEFAULT_LIMIT) int limit) {
+      @Parameter(description = "기본 20, 최대 100으로 제한해요. 0 이하는 400이에요")
+          @RequestParam(required = false, defaultValue = "" + DEFAULT_LIMIT)
+          int limit) {
     access.requireRead(principal, projectId);
     int size = normalizeLimit(limit);
     // 다음 페이지가 있는지 알려면 한 건 더 받아 봐야 해요. 따로 count 질의를 돌리지 않아요.

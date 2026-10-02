@@ -7,6 +7,7 @@ import com.teamdaisy.server.identity.auth.AuthPrincipal;
 import com.teamdaisy.server.identity.web.CurrentAccount;
 import com.teamdaisy.server.project.access.ProjectAccessService;
 import com.teamdaisy.server.project.application.ScriptReader;
+import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.security.SecurityRequirement;
 import java.time.Clock;
 import java.time.Instant;
@@ -31,6 +32,10 @@ public class ScriptController {
 
   /** 대상 순, 버전 내림차순이에요. {@code target_id} 를 주면 그 대상만이에요. */
   @GetMapping("/projects/{projectId}/scripts")
+  @Operation(
+      summary = "검증된 스크립트 목록",
+      description =
+          "대상 순·버전 내림차순이에요. 파일 본문은 제공하지 않아요. created_at은 원천 검증 시각이고 보관 만료/사용 불가는 discarded예요.")
   public PageResponse<ScriptResponse> list(
       @CurrentAccount AuthPrincipal principal,
       @PathVariable String projectId,

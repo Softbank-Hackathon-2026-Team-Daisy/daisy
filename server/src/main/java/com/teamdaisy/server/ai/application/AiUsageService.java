@@ -155,7 +155,7 @@ public class AiUsageService {
   void validate(UsageInput input) {
     require(input != null, ErrorCode.VALIDATION_FAILED);
     text(input.source(), 512);
-    text(input.externalCallId(), 255);
+    text(input.externalCallId(), 255, "[A-Za-z0-9_.:/ #-]+");
     text(input.provider(), 64);
     text(input.model(), 128);
     require(
@@ -207,9 +207,13 @@ public class AiUsageService {
   }
 
   private static void text(String value, int max) {
+    text(value, max, "[A-Za-z0-9_.:/ -]+");
+  }
+
+  private static void text(String value, int max, String allowed) {
     require(
         value != null
-            && value.matches("[A-Za-z0-9_.:/ -]+")
+            && value.matches(allowed)
             && !value.isBlank()
             && value.getBytes(StandardCharsets.UTF_8).length <= max
             && !SECRET.matcher(value).find(),
