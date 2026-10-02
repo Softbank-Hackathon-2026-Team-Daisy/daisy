@@ -977,6 +977,8 @@ URL 인코딩 자체가 깨진 커서(`%%%bad`)는 Tomcat 이 파라미터를 �
 
 `monthly_cost_krw` 는 원천이 없어 넣지 않습니다.
 
+10/2 오후: 인프라 #35 초안은 리소스 한 줄을 `{address, type, action}`(문자열)로 보냅니다. 서버 저장 모양(`actions` 배열)과 어느 쪽으로 정해질지 몰라 둘 다 읽게 했습니다. 문자열은 `create`·`update`·`delete`·`replace` 만 그대로 쓰고, 그 밖의 값(`no-op` 등)은 뺍니다.
+
 ### `ai_usage` 합계
 
 이 배포에 속한 모든 대상·회차의 `ai_usage` 행을 더합니다. 설계 5.13 과 9/29 결정을 따릅니다.
@@ -1030,6 +1032,67 @@ URL 인코딩 자체가 깨진 커서(`%%%bad`)는 Tomcat 이 파라미터를 �
 
 같은 경로의 두 핸들러가 OpenAPI 에서 한 operation 으로 합쳐지면서 처음에는 `detail` 이 필수로 표시됐습니다. 붙이지 않는 A-05 호출이 있으니 문서에서 선택으로 보이게 고쳤습니다.
 
+## A-12 `last_seq` — 프로젝트 채널 시작 지점 (10/2, 하은현)
+
+### 왜
+
+프로젝트 SSE(`GET /projects/{id}/events`)는 `Last-Event-ID` 가 없으면 그 프로젝트의 이벤트를 처음부터 다시 보냅니다 (1초에 100개씩). 웹 #61 은 처음 붙을 때 시작 지점을 알 값이 없어서, 이벤트가 쌓인 프로젝트를 열 때마다 몇 초 동안 화면을 계속 다시 불러옵니다 (#61 리뷰 2번). 배포 채널은 A-04 `last_seq` 가 이미 있습니다.
+
+### 무엇
+
+- A-12 `GET /projects/{id}` 에 `last_seq` 를 더합니다. 값은 `project.last_event_seq` 로, 프로젝트 채널 SSE 가 범위를 잴 때 쓰는 값과 같습니다.
+- A-01 목록에는 넣지 않고 null 로 둡니다. 상세 전용 필드는 목록에서 비우는 기존 방식과 같습니다.
+- 쓰는 순서: A-12 로 `last_seq` 를 먼저 읽고 → 스냅샷(A-02·A-03 등)을 읽고 → `Last-Event-ID: last_seq` 로 붙습니다. 그 사이에 생긴 이벤트는 SSE 로 다시 오므로 빠지지 않습니다. 계약에 필드를 더하는 것이라 기존 소비자는 그대로 동작합니다.
+## Jenkins 콜백 인증 (10/2, 하은현)
+
+### 범위
+
+인프라(#35, 10/2 채준님)가 Jenkins 결과를 `POST /internal/jenkins/callbacks` 로 보냅니다. 받는 코드는 승환님 `JenkinsCallbackService` 이고, 서비스 인증은 제가 `ExecutionCallbackAccess` 로 제공하기로 돼 있습니다 (`docs/jenkins-callbacks.md`). 이번에 두 가지를 합니다.
+
+1. `BearerAuthFilter` 공개 경로에 `/internal/jenkins/callbacks` 추가. 사용자 로그인(Bearer)을 요구하지 않고, 아래 서비스 토큰이 그 경로를 지킵니다.
+2. `ExecutionCallbackAccess` 구현 `JenkinsCallbackTokenAccess` (`identity/auth`).
+
+### 인증 규칙
+
+| 상황 | 결과 |
+|---|---|
+| 서버에 콜백 토큰 설정(`DAISY_JENKINS_CALLBACK_TOKEN`)이 없거나 빔 | 403. 콜백 전체를 막음 |
+| 요청에 `X-Daisy-Jenkins-Token` 헤더가 없음 | 401 |
+| 헤더 값이 다름 | 401 |
+| 같음 | 통과. `instanceId` = `daisy.jenkins.instance-id`(명령 서비스와 같은 값), 허용 Job = `daisy.jenkins.operation-jobs.prepare`·`replan`·`apply` 설정값(기본 `daisy-cd-plan`·`daisy-cd-apply`) |
+
+- 비교는 상수 시간입니다. 두 값을 SHA-256 으로 같은 길이로 만든 뒤 `MessageDigest.isEqual` 로 비교해서, 길이나 앞부분 일치 여부가 응답 시간에 드러나지 않게 합니다.
+- 토큰 값은 로그에 남기지 않습니다.
+- 콜백 경로는 `daisy.jenkins.callbacks-enabled=true` 일 때만 등록됩니다(승환님 설정). 꺼져 있으면 공개 경로여도 404 입니다.
+- CI 빌드 수신(`/internal/jenkins/builds`)은 승환님 답을 받은 뒤 같은 토큰으로 붙입니다. 이번 범위가 아닙니다.
+## AI 호출별 기록 WR-11 (10/2, 하은현)
+
+### 범위
+
+`GET /projects/{id}/ai-usage?deployment_id=` 로 배포 한 건의 AI 호출 기록을 줍니다 (W-12). 합계는 A-05 `ai_usage` 가 맡고, 여기는 호출 한 줄씩입니다 (#13, 승환님 `docs/sh/2026-10-01-pr19-feedback.md` S3).
+
+- 권한: `requireRead`. 비멤버·없는 프로젝트 404, viewer 200.
+- `deployment_id` 는 필수입니다. 없으면 400, 그 프로젝트의 배포가 아니면 404 입니다.
+- 데이터: `ai_usage` 를 읽기 전용 SQL 로 읽습니다 (`server/AGENTS.md` §3 예외). 대상 소속은 `deployment_target` 으로 확인합니다.
+- 봉투 `{ items, next_cursor }`. 한 배포의 호출은 대상당 많아야 몇 번이라 한 번에 주고 `next_cursor` 는 null 입니다. 넘칠 때를 대비해 1000 행까지만 줍니다.
+- 순서: 호출 시각(`occurred_at`), 같은 시각이면 ID 순.
+
+### 한 줄
+
+| 필드 | 출처 | 비고 |
+|---|---|---|
+| `at` | `occurred_at` | |
+| `deployment_id` | `deployment_target.deployment_id` | |
+| `target_id` | `deployment_target.target_id` | |
+| `step` | `step` | `generate`·`fix` 등 원천 값 그대로 |
+| `attempt` | `attempt` | 1~3 |
+| `tokens` | `input_tokens + output_tokens` | 둘 중 하나라도 모르면 null. 0 으로 만들지 않음 |
+| `cost_krw` | `cost_usd` × 고정 환율, 원 단위 반올림(HALF_UP) | 비용을 모르거나 환율 설정이 없으면 null |
+| `status` | `status` | LLM 호출 결과 `succeeded`·`failed`·`unknown` 그대로 (Terraform 검증 결과 아님) |
+| `note` | 없음 | null. 원본 설명이 오면 채움 |
+
+- 줄마다 원화로 반올림하므로, 줄의 `cost_krw` 를 더한 값은 A-05 합계(USD 를 먼저 더한 뒤 한 번 반올림)와 1~2원 다를 수 있습니다. 합계는 A-05 를 기준으로 봅니다.
+- 지금 Jenkins 는 호출별 기록을 주지 않아서 대부분 빈 목록입니다. 빈 목록을 "AI 를 안 썼다" 로 보여주지 않게 웹·앱에 알립니다.
 ## 배포 로그 A-07 · A-04 단계 (10/2, 하은현)
 
 ### 범위
@@ -1158,6 +1221,65 @@ record Recorded(String sourceVersionId, boolean changed)
 
 | | 검사 | 기대 |
 |---|---|---|
+| Q1 | 새 프로젝트 A-12 | `last_seq: 0`, A-01 목록은 null |
+| Q2 | 배포를 하나 만든 뒤 A-12 | `last_seq` 가 늘어남 |
+| Q3 | 그 값으로 `Last-Event-ID` 를 주고 프로젝트 채널에 붙은 뒤 배포를 하나 더 만듦 | 그 뒤 이벤트만 오고, 처음부터 다시 오지 않음 |
+| Q4 | `Last-Event-ID` 없이 붙음 | 처음부터 다시 옴 (비교용) |
+
+### 검증 결과 (10/2 오후)
+
+단위 테스트 1개와, 빈 PostgreSQL 17 에 jar 로 띄워 실제로 SSE 를 열어 확인했습니다.
+
+| | 결과 |
+|---|---|
+| Q1 | 시드 프로젝트 A-12 `last_seq: 0`, A-01 목록은 null |
+| Q2 | 배포 하나 만든 뒤 `last_seq` 0 → 1, DB `project.last_event_seq` 와 같음 |
+| Q3 | `Last-Event-ID: 1` 로 붙은 뒤 배포를 하나 더 만듦 → 받은 이벤트 id `[2]` (`heartbeat`, `deployment.created`). 처음부터 다시 오지 않음 |
+| Q4 | `Last-Event-ID` 없이 붙음 → id `[1, 2]`, 처음부터 다시 옴 (비교용) |
+
+서버 로그 ERROR 0건. `./gradlew --no-daemon spotlessCheck check build` 성공.
+| K1 | 콜백 켜고 토큰 설정, 헤더 없음 / 틀린 토큰 | 401 / 401 (Bearer 필터가 아니라 콜백 인증이 낸 401) |
+| K2 | 맞는 토큰 + 형식이 틀린 본문 | 400 (인증 통과 후 본문 검사에서 막힘) |
+| K3 | 토큰 설정 없이 콜백 켬 | 맞는 헤더를 보내도 403 |
+| K4 | 콜백 끔 | 404 |
+| K5 | 다른 경로 | `/projects` 는 여전히 Bearer 없으면 401 |
+| K6 | 서버 로그 | 토큰 값 0회 출력, ERROR 0건 |
+
+### 검증 결과 (10/2 오후)
+
+단위 테스트 5개와, 빈 PostgreSQL 17 에 jar 를 설정만 바꿔 세 번 띄운 실서버로 확인했습니다. 토큰·인스턴스 ID 는 인프라가 쓸 환경변수 이름(`DAISY_JENKINS_CALLBACK_TOKEN`·`DAISY_JENKINS_INSTANCE_ID`) 그대로 넣었습니다.
+
+| | 결과 |
+|---|---|
+| K1 | 헤더 없음 401, 틀린 토큰 401 (`UNAUTHENTICATED`) |
+| K2 | 맞는 토큰 + `{}` 본문 400, 맞는 토큰 + JSON 아닌 본문 400. 인증을 통과해 본문 검사까지 갔다는 뜻이고, Bearer 필터가 더는 이 경로를 막지 않는다는 근거입니다 |
+| K3 | 토큰 설정 없이 콜백만 켬 → 맞는 헤더를 보내도 403 |
+| K4 | 콜백 끔 → 404 |
+| K5 | `/projects` 는 Bearer 없으면 401. 콜백 토큰을 보내도 401 (콜백 토큰이 다른 경로를 열지 않음) |
+| K6 | 세 번 띄운 서버 로그에 토큰 값 0회, ERROR 0건 |
+
+실DB 포함 테스트 190개 통과 (승환님 `ExecutionPostgresTest` 포함). 실제 Jenkins 가 보낸 콜백은 아직 받아 보지 못했습니다. plan 콜백은 #35 에 적은 `summary`·`resources` 모양 불일치가 정리돼야 통과합니다.
+| U1 | 토큰 없음 / 비멤버 프로젝트 / viewer | 401 / 404 / 200 |
+| U2 | `deployment_id` 없음 / 다른 프로젝트 배포 / 없는 배포 | 400 / 404 / 404 |
+| U3 | 호출 3행 (하나는 토큰·비용 모름, 하나는 출력 토큰만 모름) | 시각 순, `tokens`·`cost_krw` 는 아는 줄만, 나머지 null |
+| U4 | 환율 1400, 0.0003 USD | `cost_krw` 0 (0.42원 반올림) |
+| U5 | 같은 프로젝트 다른 배포의 호출 | 섞이지 않음 |
+| U6 | OpenAPI | 경로·`deployment_id` 노출, `principal` 0건, 서버 로그 ERROR 0건 |
+
+### 검증 결과 (10/2 낮)
+
+단위 테스트 2개(줄 변환·환율 없음)와, 빈 PostgreSQL 17 에 jar 로 띄운 실서버(`DAISY_AI_KRW_PER_USD=1400`)로 확인했습니다. API 로 만든 배포 2개에 호출 4행을 SQL 로 넣었습니다.
+
+| | 결과 |
+|---|---|
+| U1 | 토큰 없음 401 / 비멤버 프로젝트 404 / viewer 200 |
+| U2 | `deployment_id` 없음 400 / 다른 프로젝트 배포 404 / 없는 배포 404 |
+| U3 | 시각 순 3줄. 토큰·비용 모르는 줄은 둘 다 null, 출력 토큰만 모르는 줄은 `tokens: null`·`cost_krw: 48` |
+| U4 | 0.0003 USD → `cost_krw: 0`, 0.0343 USD → 48 |
+| U5 | 같은 프로젝트 다른 배포의 호출은 그 배포에서만 보임 |
+| U6 | 파라미터 `projectId`·`deployment_id`, `principal` 0건, 서버 로그 ERROR 0건 |
+
+`./gradlew --no-daemon spotlessCheck check build` 성공.
 | G1 | 토큰 없음 / 없는 배포 / viewer | 401 / 404 / 200 |
 | G2 | 로그 5행 (대상 2개 + 대상 없는 콘솔 1행) + 상태 이벤트 1행 | 로그 5행만, `seq` 오름차순, 봉투, `next_cursor: null` |
 | G3 | `tail=2` / `tail=0` / `tail=5000` | 마지막 2행 / 400 / 1000 으로 깎임 |
