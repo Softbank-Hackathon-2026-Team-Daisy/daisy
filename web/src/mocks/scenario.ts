@@ -14,7 +14,7 @@ import type {
 } from '../api/types.ts'
 
 // MOCK: 와이어프레임 v1.0 예시 값 그대로의 시나리오 (SPEC.md §6-4 모양). 서버가 열리면 지워요
-// sample-monolith · 커밋 a1b2c3d · 환경 4개(10/2 Azure 포함) · AWS 시도 2/3 · GCP 헬스체크 실패 → 일부 성공
+// sample-monolith · 커밋 a1b2c3d · 환경 4개(10/2 Azure 포함, 리전 · 주소는 실제 개발 환경과 같게) · AWS 시도 2/3 · GCP 헬스체크 실패 → 일부 성공
 
 const ago = (min: number) => new Date(Date.now() - min * 60_000).toISOString()
 
@@ -29,17 +29,17 @@ export const projects: Project[] = [
 ]
 
 export const targetStatus: TargetStatus[] = [
-  { target_id: 'tgt_onprem', type: 'onprem', name: 'home-lab', current: { commit: COMMIT, image: IMAGE, deployment_id: 'dep_41', deployed_at: ago(12) }, image_digest: DIGEST, url: 'https://sample.home-lab.unibloom.cloud', connection_state: 'ok', health: 'healthy', health_summary: '200 OK', checked_at: ago(1) },
-  { target_id: 'tgt_aws', type: 'aws', name: 'aws-prod', current: { commit: COMMIT, image: IMAGE, deployment_id: 'dep_41', deployed_at: ago(12) }, image_digest: DIGEST, url: 'https://sample-monolith.aws.unibloom.cloud', connection_state: 'ok', health: 'healthy', health_summary: '200 OK', checked_at: ago(1) },
-  { target_id: 'tgt_gcp', type: 'gcp', name: 'gcp-prod', current: { commit: COMMIT, image: IMAGE, deployment_id: 'dep_41', deployed_at: ago(12) }, image_digest: DIGEST, url: 'https://sample-monolith-x7k.a.run.app', connection_state: 'ok', health: 'healthy', health_summary: '200 OK', checked_at: ago(1) },
-  { target_id: 'tgt_azure', type: 'azure', name: 'azure-prod', current: { commit: COMMIT, image: IMAGE, deployment_id: 'dep_41', deployed_at: ago(12) }, image_digest: DIGEST, url: 'https://sample-monolith.koreacentral.azurecontainerapps.io', connection_state: 'ok', health: 'healthy', health_summary: '200 OK', checked_at: ago(1) },
+  { target_id: 'tgt_onprem', type: 'onprem', name: 'home-lab', current: { commit: COMMIT, image: IMAGE, deployment_id: 'dep_41', deployed_at: ago(12) }, image_digest: DIGEST, url: 'https://onprem.unibloom.cloud', connection_state: 'ok', health: 'healthy', health_summary: '200 OK', checked_at: ago(1) },
+  { target_id: 'tgt_aws', type: 'aws', name: 'aws-prod', current: { commit: COMMIT, image: IMAGE, deployment_id: 'dep_41', deployed_at: ago(12) }, image_digest: DIGEST, url: 'https://aws.unibloom.cloud', connection_state: 'ok', health: 'healthy', health_summary: '200 OK', checked_at: ago(1) },
+  { target_id: 'tgt_gcp', type: 'gcp', name: 'gcp-prod', current: { commit: COMMIT, image: IMAGE, deployment_id: 'dep_41', deployed_at: ago(12) }, image_digest: DIGEST, url: 'https://gcp.unibloom.cloud', connection_state: 'ok', health: 'healthy', health_summary: '200 OK', checked_at: ago(1) },
+  { target_id: 'tgt_azure', type: 'azure', name: 'azure-prod', current: { commit: COMMIT, image: IMAGE, deployment_id: 'dep_41', deployed_at: ago(12) }, image_digest: DIGEST, url: 'https://azure.unibloom.cloud', connection_state: 'ok', health: 'healthy', health_summary: '200 OK', checked_at: ago(1) },
 ]
 
 export const targets: Target[] = [
   { target_id: 'tgt_onprem', type: 'onprem', name: 'home-lab', title: '온프레미스 · Docker Compose', runtime: 'Proxmox VM · Docker Compose', location: 'home-lab', location_label: '위치', access_method: '사설망(VPN) + SSH', exposure: '팀 도메인 HTTPS', state_backend: null, current_commit: COMMIT, reuse: { available: true, script_id: 'scr_onprem_s3', reason: 'home-lab Proxmox VM · 사설망 · 검증된 스크립트 있음 → 태그만 교체' }, connection: { state: 'ok', checked_at: ago(1) } },
   { target_id: 'tgt_aws', type: 'aws', name: 'aws-prod', title: 'AWS · ECS + ALB', runtime: 'ECS Fargate + ALB', location: 'ap-northeast-2', location_label: '리전', access_method: 'IAM 역할', exposure: 'ALB · 팀 도메인', state_backend: 'S3 (잠금)', current_commit: COMMIT, reuse: { available: false, reason: 'ap-northeast-2 · 처음 배포 → AI가 Terraform 생성' }, connection: { state: 'ok', checked_at: ago(1) } },
-  { target_id: 'tgt_gcp', type: 'gcp', name: 'gcp-prod', title: 'GCP · Cloud Run', runtime: 'Cloud Run', location: 'asia-northeast3', location_label: '리전', access_method: '서비스 계정', exposure: 'run.app 자동 URL', state_backend: 'GCS (잠금)', current_commit: COMMIT, reuse: { available: false, reason: 'asia-northeast3 · 처음 배포 → AI가 Terraform 생성' }, connection: { state: 'ok', checked_at: ago(1) } },
-  { target_id: 'tgt_azure', type: 'azure', name: 'azure-prod', title: 'Azure · Container Apps', runtime: 'Container Apps', location: 'koreacentral', location_label: '리전', access_method: '서비스 주체', exposure: 'azurecontainerapps.io 자동 URL', state_backend: 'Blob Storage (잠금)', current_commit: COMMIT, reuse: { available: false, reason: 'koreacentral · 처음 배포 → AI가 Terraform 생성' }, connection: { state: 'ok', checked_at: ago(1) } },
+  { target_id: 'tgt_gcp', type: 'gcp', name: 'gcp-prod', title: 'GCP · Cloud Run', runtime: 'Cloud Run', location: 'asia-northeast1', location_label: '리전', access_method: '서비스 계정', exposure: 'gcp.unibloom.cloud (도메인 매핑)', state_backend: 'GCS (잠금)', current_commit: COMMIT, reuse: { available: false, reason: 'asia-northeast1 · 처음 배포 → AI가 Terraform 생성' }, connection: { state: 'ok', checked_at: ago(1) } },
+  { target_id: 'tgt_azure', type: 'azure', name: 'azure-prod', title: 'Azure · Container Apps', runtime: 'Container Apps', location: 'koreacentral', location_label: '리전', access_method: '서비스 주체', exposure: 'azure.unibloom.cloud (커스텀 도메인)', state_backend: 'Blob Storage (잠금)', current_commit: COMMIT, reuse: { available: false, reason: 'koreacentral · 처음 배포 → AI가 Terraform 생성' }, connection: { state: 'ok', checked_at: ago(1) } },
 ]
 
 export const manifest: Manifest = {
@@ -100,7 +100,7 @@ function deployment(id: string, state: Deployment['state'], t: [TargetPatch, Tar
   const base: DeploymentTarget[] = [
     { target_id: 'tgt_onprem', type: 'onprem', title: 'home-lab · Docker', state: 'waiting', step: 'generate', attempt: 1, reused_script: true, url: null, error_summary: null },
     { target_id: 'tgt_aws', type: 'aws', title: 'ap-northeast-2 · ECS Fargate', state: 'waiting', step: 'generate', attempt: 1, reused_script: false, url: null, error_summary: null },
-    { target_id: 'tgt_gcp', type: 'gcp', title: 'asia-northeast3 · Cloud Run', state: 'waiting', step: 'generate', attempt: 1, reused_script: false, url: null, error_summary: null },
+    { target_id: 'tgt_gcp', type: 'gcp', title: 'asia-northeast1 · Cloud Run', state: 'waiting', step: 'generate', attempt: 1, reused_script: false, url: null, error_summary: null },
     { target_id: 'tgt_azure', type: 'azure', title: 'koreacentral · Container Apps', state: 'waiting', step: 'generate', attempt: 1, reused_script: false, url: null, error_summary: null },
   ]
   const targets = base.map((b, i) => ({ ...b, ...t[i] }))
@@ -308,7 +308,7 @@ const ONPREM_MAIN_TF = `resource "docker_container" "web" {
 
 const GCP_MAIN_TF = `resource "google_cloud_run_v2_service" "web" {
   name     = "sample-monolith"
-  location = "asia-northeast3"
+  location = "asia-northeast1"
   template {
     containers {
       image = "ghcr.io/team-daisy/sample-monolith:\${var.image_tag}"
