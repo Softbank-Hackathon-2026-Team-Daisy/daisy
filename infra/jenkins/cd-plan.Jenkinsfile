@@ -13,14 +13,17 @@
 //   plan과 apply가 다른 빌드라, 빌드마다 바뀌는 임시 경로를 쓰면 apply 때 키를 못 찾아요.
 //
 // 필요한 Jenkins Credentials: aws-deployer (Username/Password = 액세스 키 ID/시크릿), gcp-deployer (Secret file = SA JSON),
+//   azure-deployer (Username/Password = 배포 주체 클라이언트 ID/시크릿),
 //   claude-api-key (Secret text = Anthropic API 키, USE_AI일 때), daisy-callback-token (Secret text, 서버 요청일 때)
 // Jenkins 전역 환경변수: TF_STATE_BUCKET_AWS (AWS state S3 버킷, 없으면 러너 로컬), 선택 EXPECTED_AWS_ACCOUNT, EXPECTED_GCP_PROJECT
+//   Azure: ARM_TENANT_ID · ARM_SUBSCRIPTION_ID, TF_STATE_BUCKET_AZURE (state 저장소 계정 이름, 컨테이너 tfstate)
 //   서버 요청: DAISY_CALLBACK_URL (…/internal/jenkins/callbacks), DAISY_RUNNER_ID (러너 로컬 state 구분, 예: daisy-cicd),
 //   선택 SERVER_USE_AI=0 (리허설 때 AI 비용 없이 기준 모듈로)
 // 러너에 1번 등록: $JENKINS_HOME/daisy-work/targets/<env>.json (레포 밖, 계정 · 주소 값)
 //   aws.json: daisy-bootstrap이 만들어요 (region · vpc_id · 서브넷 ID)
 //   onprem.json: {"docker_host": "ssh://<user>@<Service VM>:22", "ssh_key_path": "...", "known_hosts_path": "...", "host_ip": "<Service VM>", "host_port": 8080}
-//   gcp.json: {"project_id": "...", "region": "asia-northeast3"}
+//   gcp.json: {"project_id": "...", "region": "asia-northeast1", "domain": "...", "subdomain": "gcp"}
+//   azure.json: {"resource_group": "daisy-apps", "environment_name": "daisy-env", "domain": "...", "subdomain": "azure"}
 pipeline {
   agent any
   options {
@@ -31,6 +34,7 @@ pipeline {
     booleanParam(name: 'DEPLOY_ONPREM', defaultValue: false, description: '온프레미스 (Service VM의 Docker 컨테이너)')
     booleanParam(name: 'DEPLOY_AWS', defaultValue: true, description: 'AWS (ECS Fargate · ALB)')
     booleanParam(name: 'DEPLOY_GCP', defaultValue: false, description: 'GCP (Cloud Run)')
+    booleanParam(name: 'DEPLOY_AZURE', defaultValue: false, description: 'Azure (Container Apps)')
     booleanParam(name: 'DESTROY', defaultValue: false, description: '체크하면 삭제 plan을 만들어요 (승인되면 daisy-cd-apply가 지워요)')
     booleanParam(name: 'USE_AI', defaultValue: true, description: 'AI로 Terraform을 생성 · 수정해요. 끄면 기준 모듈을 그대로 써요 (MOCK 대안 경로)')
     string(name: 'IMAGE_TAG', defaultValue: '', description: '커밋 해시 40자')
@@ -229,6 +233,7 @@ def manualTargets() {
   if (params.DEPLOY_ONPREM) { selected << 'onprem' }
   if (params.DEPLOY_AWS) { selected << 'aws' }
   if (params.DEPLOY_GCP) { selected << 'gcp' }
+  if (params.DEPLOY_AZURE) { selected << 'azure' }
   return selected
 }
 
@@ -276,6 +281,10 @@ def withCloud(String target, Closure body) {
   }
   if (target == 'gcp') {
     creds << file(credentialsId: 'gcp-deployer', variable: 'GOOGLE_APPLICATION_CREDENTIALS')
+  }
+  if (target == 'azure') {
+    // 배포 주체: Username = 클라이언트 ID, Password = 클라이언트 시크릿. 테넌트 · 구독은 Jenkins 전역 ARM_TENANT_ID · ARM_SUBSCRIPTION_ID
+    creds << usernamePassword(credentialsId: 'azure-deployer', usernameVariable: 'ARM_CLIENT_ID', passwordVariable: 'ARM_CLIENT_SECRET')
   }
   if (env.D_USE_AI == '1' && !env.D_DESTROY) {
     creds << string(credentialsId: 'claude-api-key', variable: 'ANTHROPIC_API_KEY')

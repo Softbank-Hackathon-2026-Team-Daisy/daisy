@@ -43,7 +43,7 @@ import time
 import urllib.error
 import urllib.request
 
-ENVS = ("aws", "gcp", "onprem")
+ENVS = ("aws", "gcp", "azure", "onprem")
 FILES = ("main.tf", "variables.tf", "outputs.tf")
 SEQUENCED = {"plan", "plan_stale", "state", "log", "stage"}  # source_sequence가 필요한 kind
 PLAN_TTL = datetime.timedelta(hours=23)  # tf-run.sh가 하루 지난 plan 폴더를 지워요. 그 전에 만료
@@ -242,7 +242,7 @@ def parse(kind: str, payload_file: str) -> None:
         raise Fail(f"이 Job은 {'/'.join(expected)} 요청만 받아요: {job['operation']}")
     bad = [k for k in job["targets"] if k.startswith("?")]
     if bad:
-        raise Fail("대상 환경 종류(snapshot.environment_type)가 aws · gcp · onprem이 아니거나 한 요청에 겹쳐요: "
+        raise Fail("대상 환경 종류(snapshot.environment_type)가 aws · gcp · azure · onprem이 아니거나 한 요청에 겹쳐요: "
                    + ", ".join(job["targets"][k]["deployment_target_id"] for k in bad))
     for env, t in job["targets"].items():
         if not isinstance(t["input_hash"], str) or not t["input_hash"]:
@@ -334,6 +334,9 @@ def state_identity(env: str, app: str) -> str:
         return f"s3://{os.environ['TF_STATE_BUCKET_AWS']}/{app}/{env}/terraform.tfstate"
     if env == "gcp" and os.environ.get("TF_STATE_BUCKET_GCP"):  # GCS backend는 prefix 아래 default.tfstate
         return f"gs://{os.environ['TF_STATE_BUCKET_GCP']}/{app}/{env}/default.tfstate"
+    if env == "azure" and os.environ.get("TF_STATE_BUCKET_AZURE"):  # 저장소 계정 / 컨테이너 / key
+        container = os.environ.get("TF_STATE_CONTAINER_AZURE") or "tfstate"
+        return f"azurerm://{os.environ['TF_STATE_BUCKET_AZURE']}/{container}/{app}/{env}/terraform.tfstate"
     runner = os.environ.get("DAISY_RUNNER_ID") or os.uname().nodename
     return f"local://{runner}/{app}/{env}/terraform.tfstate"
 

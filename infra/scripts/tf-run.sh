@@ -1,12 +1,13 @@
 #!/usr/bin/env bash
 # infra/SPEC.md §3-4 러너 규약의 참고 구현이에요 (Jenkins 러너 · 사람이 직접 실행 공용).
 #
-#   tf-run.sh <aws|gcp|onprem|aws-network|aws-state|aws-domain|aws-server> <plan|apply|destroy|output|migrate-state>
+#   tf-run.sh <aws|gcp|azure|onprem|aws-network|aws-state|aws-domain|aws-server> <plan|apply|destroy|output|migrate-state>
 #
-#   aws · gcp · onprem        앱 모듈 (infra/modules/<env>). 매 배포
+#   aws · gcp · azure · onprem   앱 모듈 (infra/modules/<env>). 매 배포
 #   aws-network · aws-state · aws-domain · aws-server   고정 리소스 bootstrap (infra/bootstrap/<stack>). $WORK_ROOT/_bootstrap/<stack>/
 #
-# state는 환경마다 그 환경의 저장소예요 (SPEC §7-1). AWS 스택은 TF_STATE_BUCKET_AWS가 있으면 S3, GCP는 TF_STATE_BUCKET_GCP가 있으면 GCS, 없으면 로컬
+# state는 환경마다 그 환경의 저장소예요 (SPEC §7-1). AWS 스택은 TF_STATE_BUCKET_AWS가 있으면 S3, GCP는 TF_STATE_BUCKET_GCP가 있으면 GCS,
+#   Azure는 TF_STATE_BUCKET_AZURE(저장소 계정 이름)가 있으면 Blob, 없으면 로컬
 #   onprem은 러너 로컬 (온프레미스 저장소 [미정])
 #
 # 작업 디렉터리는 레포 밖이에요. state·plan에 비밀값이 들어가요.
@@ -24,9 +25,9 @@ umask 077
 
 usage() {
   cat >&2 <<'EOF'
-사용법: tf-run.sh <aws|gcp|onprem|aws-network|aws-state|aws-domain|aws-server> <plan|apply|destroy|output|migrate-state>
+사용법: tf-run.sh <aws|gcp|azure|onprem|aws-network|aws-state|aws-domain|aws-server> <plan|apply|destroy|output|migrate-state>
 
-  aws · gcp · onprem        앱 모듈 (infra/modules/<env>). IMAGE_TAG 필요
+  aws · gcp · azure · onprem   앱 모듈 (infra/modules/<env>). IMAGE_TAG 필요
   aws-network · aws-state · aws-domain · aws-server   고정 리소스 bootstrap (infra/bootstrap/<stack>). IMAGE_TAG 필요 없음
 
   plan           plans/<PLAN_ID>/에 plan을 만들어요 (TF_DESTROY=1이면 삭제 plan)
@@ -59,7 +60,7 @@ die() { echo "tf-run: $*" >&2; exit 1; }
 [[ $# -eq 2 ]] || usage
 ENV=$1 CMD=$2
 case $ENV in
-aws | gcp | onprem) KIND=app ;;
+aws | gcp | azure | onprem) KIND=app ;;
 aws-network | aws-state | aws-domain | aws-server) KIND=bootstrap ;;
 *) usage ;;
 esac
@@ -89,10 +90,11 @@ mkdir -p "$WORK/state" "$WORK/plans" "$TF_PLUGIN_CACHE_DIR"
 exec 9>"$WORK/.lock"
 flock -w "${TF_RUN_LOCK_WAIT:-600}" 9 || die "${WORK#"$WORK_ROOT"/} 에서 다른 작업이 끝나지 않았어요 (${TF_RUN_LOCK_WAIT:-600}초 대기). 끝난 뒤 다시 실행해요"
 
-# state 저장소: 환경마다 그 환경의 저장소 (SPEC §7-1). AWS는 S3, GCP는 GCS, 온프레미스는 러너 로컬
+# state 저장소: 환경마다 그 환경의 저장소 (SPEC §7-1). AWS는 S3, GCP는 GCS, Azure는 Blob, 온프레미스는 러너 로컬
 case $ENV in
 aws*) BUCKET=${TF_STATE_BUCKET_AWS:-} BKIND=s3 ;;
 gcp*) BUCKET=${TF_STATE_BUCKET_GCP:-} BKIND=gcs ;;
+azure*) BUCKET=${TF_STATE_BUCKET_AZURE:-} BKIND=azurerm ;; # 저장소 계정 이름
 *) BUCKET="" BKIND="" ;;
 esac
 BACKEND=$([[ -n $BUCKET ]] && echo "$BKIND:$BUCKET" || echo local) # plan meta에 남겨서 apply 때 같은 저장소인지 봐요
@@ -117,6 +119,13 @@ init() { # $1 = 디렉터리 (기본 plan 폴더의 src). -reconfigure: 예전 p
     # GCS는 prefix 아래 default.tfstate에 저장하고 잠금을 자동으로 걸어요
     printf 'terraform {\n  backend "gcs" {}\n}\n' >"$dir/backend.tf"
     args+=(-backend-config="bucket=$BUCKET" -backend-config="prefix=${STATE_KEY%/terraform.tfstate}")
+  elif [[ -n $BUCKET && $BKIND == azurerm ]]; then
+    # Azure Blob은 blob lease로 잠금을 자동으로 걸어요. 접근 키 대신 배포 주체의 Entra ID 권한(Storage Blob Data Contributor)으로 읽고 써요
+    printf 'terraform {\n  backend "azurerm" {}\n}\n' >"$dir/backend.tf"
+    args+=(-backend-config="storage_account_name=$BUCKET"
+      -backend-config="container_name=${TF_STATE_CONTAINER_AZURE:-tfstate}"
+      -backend-config="key=$STATE_KEY"
+      -backend-config="use_azuread_auth=true")
   elif [[ -n $BUCKET ]]; then
     printf 'terraform {\n  backend "s3" {}\n}\n' >"$dir/backend.tf"
     args+=(-backend-config="bucket=$BUCKET"
@@ -254,7 +263,7 @@ state_diff() { # $1 로컬 요약, $2 S3 요약 → 사람이 읽는 차이 (주
 }
 
 migrate_state() { # 로컬 state를 S3로 옮겨요. S3에 다른 state가 있으면 덮어쓰지 않고, 멈췄다 다시 돌리면 이어가요
-  [[ $BKIND == s3 ]] || die "state 이전은 AWS 스택(S3)만 해요. GCP는 처음부터 GCS를 써요"
+  [[ $BKIND == s3 ]] || die "state 이전은 AWS 스택(S3)만 해요. GCP · Azure는 처음부터 GCS · Blob을 써요"
   [[ -n $BUCKET ]] || die "TF_STATE_BUCKET_AWS가 필요해요 (옮길 S3 버킷)"
   local src="$WORK/state/terraform.tfstate"
   if [[ -f $MIGRATED ]]; then

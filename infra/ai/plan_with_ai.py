@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """환경 하나의 AI 생성 · 검증 루프 (infra/SPEC.md §17). daisy-cd-plan이 환경마다 불러요.
 
-    plan_with_ai.py <aws|gcp|onprem>
+    plan_with_ai.py <aws|gcp|azure|onprem>
 
 환경변수: APP · PLAN_ID · IMAGE_TAG · WORK_ROOT (tf-run.sh와 같아요), USE_AI(기본 1), ANTHROPIC_API_KEY, TF_DESTROY
 
@@ -65,8 +65,8 @@ class Server:
 
 
 def main() -> int:
-    if len(sys.argv) != 2 or sys.argv[1] not in ("aws", "gcp", "onprem"):
-        print("사용법: plan_with_ai.py <aws|gcp|onprem>", file=sys.stderr)
+    if len(sys.argv) != 2 or sys.argv[1] not in ("aws", "gcp", "azure", "onprem"):
+        print("사용법: plan_with_ai.py <aws|gcp|azure|onprem>", file=sys.stderr)
         return 2
     env = sys.argv[1]
     srv = Server(env)
