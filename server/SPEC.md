@@ -566,7 +566,7 @@ Idempotency-Key: <키>
 
 | 규칙 | 실패하면 |
 |---|---|
-| `kind` 는 `plan` 만 | 400 |
+| `kind` 는 생략하면 `plan`, 다른 값은 거절 (웹·앱이 `plan` 만 써서 빼고 보내기도 함, #43) | 400 |
 | `decision` 은 공개 값 **`approve`·`reject`** 만. 내부로는 `approved=true/false`. 저장 상태 `approved`·`rejected` 는 받지 않습니다 | 400 |
 | `items` 가 비어 있지 않다 | 400 |
 | **`target_id` 가 중복되지 않는다 — Map 으로 바꾸기 전에 검사합니다.** 중복을 Map 에 넣으면 앞 항목이 조용히 덮입니다 | 400 |

@@ -58,10 +58,12 @@ class ApprovalRequestTest {
   }
 
   @Test
-  @DisplayName("kind 는 plan 만 받아요")
+  @DisplayName("kind 는 생략하면 plan, 다른 값은 400 이에요")
   void onlyPlanKind() {
     assertInvalid(request("deploy", "approve", TWO));
-    assertInvalid(request(null, "approve", TWO));
+    // 웹은 kind 를 빼고 보내요 (#43). 생략은 plan 으로 받아요.
+    org.assertj.core.api.Assertions.assertThat(request(null, "approve", TWO).toDecisions())
+        .hasSize(2);
   }
 
   @Test

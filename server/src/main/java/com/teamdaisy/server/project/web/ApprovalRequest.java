@@ -18,7 +18,7 @@ import java.util.Set;
  * <p>사용자가 본 대상만 승인해요 (S4). 그래서 {@code items} 가 비면 승인 대기 전체로 해석하지 않고 거절해요. 서버가 대상을 채우면 화면에 없던 대상까지
  * 승인될 수 있어요.
  *
- * @param kind 승인 종류. {@code plan} 만 받아요
+ * @param kind 승인 종류. 생략하면 {@code plan} 이고, 다른 값은 거절해요 (웹·앱이 {@code plan} 만 써서 빼고 보내기도 해요)
  * @param decision {@code approve} 또는 {@code reject}
  * @param confirmText 삭제가 있는 plan 의 확인 문구. 맞는지는 실행 서비스가 판정해요
  * @param comment 받지만 저장할 자리가 없어 지금은 쓰지 않아요
@@ -41,7 +41,7 @@ public record ApprovalRequest(
    * <p><b>중복 {@code target_id} 는 Map 으로 바꾸기 전에 거절해요.</b> 그대로 넣으면 앞 항목이 조용히 덮여요.
    */
   public Map<String, Decision> toDecisions() {
-    if (!KIND_PLAN.equals(kind)) {
+    if (kind != null && !KIND_PLAN.equals(kind)) {
       throw invalid();
     }
     boolean approved = approved(decision);
