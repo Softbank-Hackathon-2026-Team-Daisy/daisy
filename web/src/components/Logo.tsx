@@ -1,6 +1,6 @@
 import './Logo.css'
 
-// Figma 「02 Core · Logo」 — 꽃잎 8개 + 코어. brand는 코어만 노란색이에요
+// Figma 「02 Core · Logo」 — 꽃잎 8개 + 코어, 워드마크 "unibloom"(소문자, 10/1 서비스 이름 변경). brand는 코어만 노란색이에요
 type LogoProps = {
   type?: 'mark' | 'lockup'
   color?: 'ink' | 'brand'
@@ -20,14 +20,14 @@ const PETALS = [
 
 function Logo({ type = 'lockup', color = 'brand', size = 32 }: LogoProps) {
   return (
-    <span className="logo" role="img" aria-label="Daisy">
+    <span className="logo" role="img" aria-label="Unibloom">
       <svg viewBox="0 0 32 32" width={size} height={size} aria-hidden="true">
         {PETALS.map((d) => (
           <path key={d} d={d} fill="currentColor" />
         ))}
         <path d="M20.5 11.5H11.5V20.5H20.5V11.5Z" fill={color === 'brand' ? 'var(--color-primary)' : 'currentColor'} />
       </svg>
-      {type === 'lockup' && <span className="logo__wordmark">daisy</span>}
+      {type === 'lockup' && <span className="logo__wordmark">unibloom</span>}
     </span>
   )
 }

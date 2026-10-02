@@ -80,16 +80,39 @@ struct PageScaffold<Trailing: View, Content: View>: View {
         self.content = content()
     }
 
-    /// 본문은 머리줄 뒤까지 스크롤되고, 머리줄은 뒤가 비치는 반투명 재질(`.ultraThinMaterial`)이에요 (10/1 담당자 결정).
     var body: some View {
         content
             .frame(maxWidth: .infinity, maxHeight: .infinity)
-            .safeAreaInset(edge: .top, spacing: 0) {
-                PageHeader(title, subtitle: subtitle) { trailing }
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                    .background(.ultraThinMaterial, ignoresSafeAreaEdges: .top)
-            }
+            .pinnedHeader { PageHeader(title, subtitle: subtitle) { trailing } }
             .navigationTitle(title)
             .hidesSystemTitleBar()
+    }
+}
+
+extension View {
+    /// 화면 위 머리줄.
+    /// - iOS: 본문이 머리줄 뒤까지 스크롤되고, 머리줄은 뒤가 비치는 반투명 재질(`.ultraThinMaterial`)이에요 (10/1).
+    /// - macOS: 머리줄을 본문 위에 그냥 얹어요. 재질 띠가 창 툴바까지 덮어 내비게이션 바처럼 보이지 않게 (10/1 담당자 결정).
+    func pinnedHeader<Header: View>(@ViewBuilder _ header: () -> Header) -> some View {
+        modifier(PinnedHeader(header: header()))
+    }
+}
+
+private struct PinnedHeader<Header: View>: ViewModifier {
+    let header: Header
+
+    func body(content: Content) -> some View {
+        #if os(iOS)
+        content.safeAreaInset(edge: .top, spacing: 0) {
+            header
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .background(.ultraThinMaterial, ignoresSafeAreaEdges: .top)
+        }
+        #else
+        VStack(spacing: 0) {
+            header.frame(maxWidth: .infinity, alignment: .leading)
+            content
+        }
+        #endif
     }
 }

@@ -32,20 +32,20 @@ enum RunStage: Equatable {
     }
 }
 
-/// "다시 시도"가 만드는 새 배포 요청 (WR-05). 같은 커밋으로 고른 환경만 다시 해요.
+/// "다시 시도" 요청: 원본 배포 ID + 다시 할 환경만 보내요 (`POST /deployments/{id}/retry`, 10/2 09:57 확정).
+/// 서버가 원본에서 빌드 · 연결을 그대로 이어받아 새 배포를 만들고, 성공한 환경은 건드리지 않아요.
 struct RetryRequest: Equatable {
-    let projectID: String
-    let commit: String
+    let deploymentID: String
     let targetIDs: [String]
 
-    /// W-05b "AWS만 다시 시도", W-08 실패 카드 "다시 시도"
+    /// W-08 실패 카드 "다시 시도"
     static func only(_ targetID: String, of deployment: Deployment) -> RetryRequest {
-        RetryRequest(projectID: deployment.projectId, commit: deployment.commit, targetIDs: [targetID])
+        RetryRequest(deploymentID: deployment.id, targetIDs: [targetID])
     }
 
-    /// W-05b "AWS만 다시 시도": 실패한 환경 전부를 한 번에 (웹과 같아요)
+    /// W-05b "○○만 다시 시도": 실패한 환경 전부를 한 번에 (웹과 같아요)
     static func failed(of deployment: Deployment) -> RetryRequest {
-        RetryRequest(projectID: deployment.projectId, commit: deployment.commit,
+        RetryRequest(deploymentID: deployment.id,
                      targetIDs: (deployment.targets ?? []).filter(\.isFailed).map(\.targetId))
     }
 }

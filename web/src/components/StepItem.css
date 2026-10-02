@@ -44,3 +44,7 @@
 .step-item--failed .step-item__icon {
   color: var(--color-status-failed);
 }
+
+.step-item--skipped {
+  color: var(--color-ink-muted);
+}
