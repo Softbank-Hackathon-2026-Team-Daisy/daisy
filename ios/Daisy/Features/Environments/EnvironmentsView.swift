@@ -26,14 +26,10 @@ struct EnvironmentsView: View {
                             SectionCard(.app("환경 추가")) {
                                 Text("퍼블릭 클라우드(소규모 사업자 포함)나 다른 온프레미스 서버를 대상 환경으로 추가해요. 준비된 기준 모듈이 없어도 AI가 deploy.yaml로 Terraform을 처음부터 만들어요.")
                                     .font(.subheadline).foregroundStyle(.secondary)
-                                // 웹도 추가 흐름 화면이 아직 없어요 (예선 범위 결정 대기)
-                                HStack(spacing: 10) {
-                                    Button { } label: { Label("환경 추가", systemImage: "plus") }
-                                        .buttonStyle(.glassCapsule)
-                                        .disabled(true)
-                                        .help("예선 범위 결정 전이에요")
-                                    EnvTag(type: .unknown, label: "Azure")
-                                    Text("예선 범위 결정 전이에요").font(.caption).foregroundStyle(.secondary)
+                                // 웹도 추가 흐름 화면이 없어요. 예선은 4개 환경 (10/2 회의, 웹 #87)
+                                ViewThatFits(in: .horizontal) {
+                                    HStack(spacing: 10) { addButton; roundNote }
+                                    VStack(alignment: .leading, spacing: 8) { addButton; roundNote }
                                 }
                             }
                         }
@@ -46,6 +42,16 @@ struct EnvironmentsView: View {
         .task(id: app.selectedProjectID) { await load() }
         .toast($toast)
         .sheet(item: $resourcesFor) { ResourcesSheet(target: $0) }
+    }
+
+    private var addButton: some View {
+        Button { } label: { Label("환경 추가", systemImage: "plus") }
+            .buttonStyle(.glassCapsule)
+            .disabled(true)
+    }
+
+    private var roundNote: some View {
+        Text("예선에서는 온프레미스 · AWS · GCP · Azure 4개 환경을 써요").font(.caption).foregroundStyle(.secondary)
     }
 
     private func panel(_ target: DeployTarget) -> some View {

@@ -5016,18 +5016,18 @@
         }
       }
     },
-    "예선 범위 결정 전이에요" : {
+    "예선에서는 온프레미스 · AWS · GCP · Azure 4개 환경을 써요" : {
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Pending the preliminary-round scope decision"
+            "value" : "The preliminary round uses 4 environments: on-premises · AWS · GCP · Azure"
           }
         },
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "予選の範囲が決まる前です"
+            "value" : "予選ではオンプレミス · AWS · GCP · Azure の4つの環境を使います"
           }
         }
       }

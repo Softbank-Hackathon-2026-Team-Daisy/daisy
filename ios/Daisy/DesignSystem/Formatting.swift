@@ -6,6 +6,7 @@ extension TargetType {
         case .onprem: .app("온프레미스")
         case .aws: "AWS"
         case .gcp: "GCP"
+        case .azure: "Azure"
         case .unknown: .app("알 수 없는 환경")
         }
     }
