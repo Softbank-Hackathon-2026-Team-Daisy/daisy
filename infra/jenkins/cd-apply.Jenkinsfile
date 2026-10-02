@@ -199,7 +199,11 @@ def checkTarget(String t) {
   if (server) {
     sh "python3 infra/jenkins/daisy_server.py stage ${t} health_check started"
   }
+  // 헬스체크 · 스모크 테스트의 curl은 공용 DNS(Cloudflare DoH)로 이름을 찾아요. 방금 만든 레코드(aws.unibloom.cloud)를
+  // 그 전에 누가 조회했으면 온프레미스 DNS(pfSense)가 "없음"을 최대 15분 캐시해서 헬스체크가 실패해요 (10/2 daisy-cd-apply #5)
   def rc = sh(script: planEnv(t) + """
+    export CURL_HOME="\$PWD/.curl-${t}"
+    mkdir -p "\$CURL_HOME" && echo 'doh-url = "https://1.1.1.1/dns-query"' > "\$CURL_HOME/.curlrc"
     url=\$(bash infra/scripts/tf-run.sh ${t} output)
     hc=\$(jq -r '.healthcheck' "\$WORK_ROOT/\$APP/${t}/plans/\$PLAN_ID/vars.json")
     echo "\$url" > "url-${t}.txt"
