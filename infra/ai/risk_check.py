@@ -168,6 +168,47 @@ def _gcp_mib(value) -> float:
     return n * {"Mi": 1, "Gi": 1024, "M": 1 / 1.048576, "G": 1000 / 1.048576}[unit]
 
 
+FORBIDDEN_AZURE = {  # 고정 리소스(준비 때 만든 것) · 네트워크 · 고정 IP · 비용 · 권한 부여
+    "azurerm_resource_group", "azurerm_container_app_environment", "azurerm_log_analytics_workspace",
+    "azurerm_virtual_network", "azurerm_subnet", "azurerm_public_ip", "azurerm_nat_gateway",
+    "azurerm_application_gateway", "azurerm_lb", "azurerm_cdn_frontdoor_profile", "azurerm_container_registry",
+    "azurerm_role_assignment", "azurerm_role_definition",
+}
+
+
+def check_azure(plan: dict, src_text: str) -> list[str]:
+    """Azure Container Apps 규칙. 공개는 HTTPS 인그레스만, Consumption 프로필, 요청이 없으면 0대."""
+    v = []
+    for typ, addr, after in changes(plan):
+        if typ in FORBIDDEN_AZURE:
+            v.append(f"{addr}: {typ}는 만들지 않아요 (리소스 그룹 · Container Apps 환경은 준비 때 만든 것을 data로 찾아요."
+                     " 네트워크 · 고정 IP · 권한 부여 · 비용 제약)")
+        if typ != "azurerm_container_app":
+            continue
+        if after.get("workload_profile_name") != "Consumption":
+            v.append(f"{addr}: workload_profile_name은 \"Consumption\"이에요 (전용 프로필은 시간 과금, 비용 제약)")
+        for ing in after.get("ingress") or []:
+            if ing.get("allow_insecure_connections") is not False:
+                v.append(f"{addr}: allow_insecure_connections = false여야 해요 (인터넷 공개는 HTTPS만, R-1)")
+            if ing.get("transport") == "tcp" or ing.get("exposed_port"):
+                v.append(f"{addr}: TCP 공개 포트는 열지 않아요 (인터넷 공개는 80 · 443만, R-1)")
+        for t in after.get("template") or []:
+            if (t.get("min_replicas") or 0) > 0:
+                v.append(f"{addr}: min_replicas는 0이어야 해요 (요청이 없으면 과금 0)")
+            if not isinstance(t.get("max_replicas"), int) or t["max_replicas"] > 2:
+                v.append(f"{addr}: max_replicas를 2 이하로 정해요 (비용 상한)")
+            for c in t.get("container") or []:
+                if (c.get("cpu") or 0) > 1:
+                    v.append(f"{addr}: CPU는 1 이하예요 (비용 상한)")
+                if _gcp_mib(c.get("memory")) > 2048:
+                    v.append(f"{addr}: 메모리는 2Gi 이하예요 (비용 상한)")
+    if re.search(r"^\s*(client_id|client_secret|client_certificate\w*|tenant_id|subscription_id)\s*=", src_text, re.M):
+        v.append("구독 · 테넌트 · 배포 주체 값은 코드에 쓰지 않아요. 러너 환경변수(ARM_*)로 받아요")
+    if re.search(r'\bsecret\s*\{[^{}]*\bvalue\s*=\s*"(?!\$\{)', src_text):
+        v.append("비밀값을 문자열로 쓰지 않아요. secrets 변수 → Container Apps 비밀값으로 넣어요 (R-4)")
+    return v + check_common(plan, src_text)
+
+
 def check_common(plan: dict, src_text: str) -> list[str]:
     v = []
     if re.search(r"^\s*backend\s+\"[a-z0-9_]+\"\s*\{", _without_runner_backend(src_text), re.M):
@@ -215,7 +256,7 @@ def _wildcard_action(policy_json: str) -> bool:
 
 def _without_runner_backend(src_text: str) -> str:
     # 러너가 넣는 backend.tf의 빈 backend 블록은 빼고 봐요
-    return re.sub(r'terraform\s*\{\s*backend\s+"(s3|local|gcs)"\s*\{\s*\}\s*\}', "", src_text)
+    return re.sub(r'terraform\s*\{\s*backend\s+"(s3|local|gcs|azurerm)"\s*\{\s*\}\s*\}', "", src_text)
 
 
 def main() -> int:
@@ -233,13 +274,16 @@ def main() -> int:
         violations = check_onprem(plan, src_text)
     elif a.env == "gcp":
         violations = check_gcp(plan, src_text)
+    elif a.env == "azure":
+        violations = check_azure(plan, src_text)
     else:
         violations = check_common(plan, src_text)
     for line in violations:
         print(f"위험: {line}")
     if not violations:
         scope = {"aws": "R-1~R-6 · 비용 제약 · 고정 네트워크", "onprem": "컨테이너 격리 · 바인딩 · 구조",
-                 "gcp": "R-4 · R-6 · 공개 범위 · 비용 제약"}.get(a.env, "구조")
+                 "gcp": "R-4 · R-6 · 공개 범위 · 비용 제약",
+                 "azure": "R-1 · R-4 · R-6 · 고정 리소스 · 비용 제약"}.get(a.env, "구조")
         print(f"risk_check: {a.env} 통과 ({scope})")
     return 1 if violations else 0
 

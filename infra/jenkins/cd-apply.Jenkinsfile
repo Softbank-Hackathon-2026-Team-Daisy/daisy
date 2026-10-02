@@ -9,7 +9,7 @@
 //             승인 plan이 없어졌거나 낡았으면 적용하지 않고 plan_stale을 알려요 (서버가 다시 plan · 승인을 받아요)
 //   사람이 직접: PLAN_BUILD · APPROVAL_ID로 실행해요. APPROVAL_ID는 manual-<이름>. 승인 ID 없이는 실행되지 않아요
 //
-// 필요한 Jenkins Credentials: aws-deployer, gcp-deployer, daisy-callback-token (daisy-cd-plan과 같아요). 온프레미스는 러너의 고정 경로 SSH 키를 써요
+// 필요한 Jenkins Credentials: aws-deployer, gcp-deployer, azure-deployer, daisy-callback-token (daisy-cd-plan과 같아요). 온프레미스는 러너의 고정 경로 SSH 키를 써요
 pipeline {
   agent any
   options {
@@ -309,6 +309,10 @@ def withCloud(String target, Closure body) {
   }
   if (target == 'gcp') {
     creds << file(credentialsId: 'gcp-deployer', variable: 'GOOGLE_APPLICATION_CREDENTIALS')
+  }
+  if (target == 'azure') {
+    // 배포 주체: Username = 클라이언트 ID, Password = 클라이언트 시크릿. 테넌트 · 구독은 Jenkins 전역 ARM_TENANT_ID · ARM_SUBSCRIPTION_ID
+    creds << usernamePassword(credentialsId: 'azure-deployer', usernameVariable: 'ARM_CLIENT_ID', passwordVariable: 'ARM_CLIENT_SECRET')
   }
   withCredentials(creds) { withServer { body() } }
 }
