@@ -41,7 +41,8 @@ final class PlanApprovalStore {
         // 서버는 빈 items를 400으로 거절해요 (10/2 00:40). 승인 ID를 못 받았으면 보내지 않고 다시 불러와요
         let items = deployment?.approvalItems(for: targetIDs) ?? []
         guard !items.isEmpty else {
-            errorMessage = "승인할 환경 정보를 아직 받지 못했어요. 잠시 뒤 다시 시도해 주세요."
+            // 웹 #64와 같은 문구예요
+            errorMessage = "승인할 수 있는 plan이 없어요. 만료됐을 수 있어서 최신 상태를 다시 불러왔어요."
             await load(using: app)
             return
         }
@@ -57,8 +58,8 @@ final class PlanApprovalStore {
             ))
             decided = decision
         } catch let error as APIError where error.isStateConflict {
-            // 웹에서 먼저 처리됐거나 plan이 다시 떠서 상태가 바뀌었어요.
-            errorMessage = "다른 곳(앱 등)에서 먼저 처리했어요. 최신 상태를 다시 불러왔어요."
+            // 웹에서 먼저 처리됐거나 plan이 다시 떠서 상태가 바뀌었어요 (웹 #64와 같은 문구)
+            errorMessage = "승인 상태가 바뀌어서 최신 상태를 다시 불러왔어요. 다시 확인해 주세요."
             await load(using: app)
         } catch APIError.server(403, _, _, _) {
             errorMessage = "읽기 전용 계정이라 승인할 수 없어요."
