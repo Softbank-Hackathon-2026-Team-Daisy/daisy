@@ -182,7 +182,7 @@ View ──▶ Store(@Observable) ──▶ APIClient ────────�
 
 - **TestFlight 외부 테스트는 첫 빌드에 Beta App Review가 필요해요.** 보통 하루 안팎이지만 보장되지 않아서 **10/1에 제출**하는 게 목표예요. 이후 빌드는 심사가 짧거나 생략되는 경우가 많지만 이것도 보장되지 않아요
 - **업로드 준비 (9/30 완료):** App Store Connect 앱 **"Daisy Deploy"** 등록 (번들 ID `com.teamdaisy.daisy`, "Daisy"는 다른 계정이 써서 등록 이름만 달라요. 홈 화면 이름은 Daisy), 서명 팀 `X5F5WM2H6M`, 개인정보 매니페스트, **첫 빌드 0.1.0 (1) 업로드 완료**. 다음 빌드부터는 `ios/scripts/testflight.sh` 한 번이면 돼요
-- **Mac 직접 다운로드 (9/30):** Developer ID 서명 · Apple 공증 · 스테이플한 DMG를 GitHub Releases에 올려요 (웹 W-14 "Mac 앱 받기"). 고정 주소는 **https://github.com/Softbank-Hackathon-2026-Team-Daisy/unibloom/releases/download/mac-latest/Unibloom.dmg** 예요 (10/1 이름 변경, 새 빌드 때 파일만 바꿔요). 웹 W-14가 새 주소로 바꿀 때까지 같은 파일을 옛 이름 `Daisy.dmg`로도 올려 둬요. 지금 0.1.0 (2610011659, 예시 데이터 포함, `mac-v0.1.0-2610011659`), macOS 15 이상. 앱이 바뀔 때마다 새 릴리스 + 고정 주소 파일을 바꿔요 (10/1). 만들기는 `scripts/mac-dmg.sh`
+- **Mac 직접 다운로드 (9/30):** Developer ID 서명 · Apple 공증 · 스테이플한 DMG를 GitHub Releases에 올려요 (웹 W-14 "Mac 앱 받기"). 고정 주소는 **https://github.com/Softbank-Hackathon-2026-Team-Daisy/unibloom/releases/download/mac-latest/Unibloom.dmg** 예요 (10/1 이름 변경, 새 빌드 때 파일만 바꿔요). 웹 W-14도 이 주소를 써요 (#37). 옛 이름 `Daisy.dmg`는 10/2부터 더 올리지 않아요 (도영 님 #39 리뷰). 지금 0.1.0 (2610020304, 예시 데이터 포함, `mac-v0.1.0-2610020304`), macOS 15 이상. 앱이 바뀔 때마다 새 릴리스 + 고정 주소 파일을 바꿔요 (10/1). 만들기는 `scripts/mac-dmg.sh`
 - **TestFlight 그룹 (9/30):** 내부 `Team Daisy`(자동 배포, 심사 없음) · 외부 `Public Link` → **https://testflight.apple.com/join/wF5sjQPG** (Beta App Review 통과 뒤 열려요). macOS 플랫폼 추가, macOS 빌드 0.1.0 (2609301801) 업로드 · 처리 완료
 - **남은 것:** 외부 테스트 공개 링크는 Beta App Review용 서버 HTTPS 주소 · 데모 계정(R-03)이 필요해요. 앱 아이콘 원본이 200×200이라 1024에서 조금 흐려서 **1024 이상 원본(또는 SVG)으로 바꿔야 해요**
 - 앱은 로그인이 필요해서 심사 때 **Apple 심사자용 계정**을 적어 내야 해요. 그래서 데모 계정(§6-1 `R-03`)과 HTTPS 서버(`R-04`)가 **D2까지 꼭 필요해요.** 데모 계정은 D2 약속을 받았고, HTTPS는 9/29 회의에서 도메인을 사서 적용하기로 했어요 (서버 담당, 9/30 오후 전)
@@ -512,6 +512,7 @@ API 모양보다 **이 정보가 어딘가에 저장되어 있는지**가 더 �
 
 | 날짜 | 변경 | 작성 |
 |---|---|---|
+| 10/2 | Mac DMG는 `Unibloom.dmg` 하나만 올려요 (W-14가 #37에서 새 주소로 바뀜, `Daisy.dmg` 복사본 중단) | 박승준 |
 | 10/2 | 감사에서 찾은 앱 버그 3개: 승인 · 취소가 본문 없는 202 · 204여도 성공으로(전에는 디코딩 실패로 "실패" 표시), A-04 환경의 `step` · `step_state` · `attempt`가 없어도 배포 화면이 뜨게(없으면 모름 · 시도 0), "데모 계정으로 둘러보기" 버튼 삭제(서버는 `/auth/demo`를 만들지 않고 viewer 계정으로 로그인, #13 김승환 답 → §6-9 S-7 해결) | 박승준 |
 | 10/2 | 서버 #42 결정 반영: 배포 시작 · 다시 시도에 `source_version_id` 필수(없으면 막음), 생성 · 롤백 응답은 `{ id, project_id, state }`, 승인 ID는 `pending_approvals`에서만 · 빈 `items`는 보내지 않음, A-02 `current_status`와 "확인된 배포 없음" 문구. 예시 데이터에 `source_version_id` · `pending_approvals` | 박승준 |
 | 10/2 | 서버 주소 기본값을 앱 심사용 서버 `https://ios.unibloom.cloud`로 (처음 켤 때만 채워요, 로그인 · 설정에서 바꿀 수 있어요. 10/1 임채준 심사 서버 작업 · 박승준 답 23:52) | 박승준 |
