@@ -213,7 +213,20 @@ def checkTarget(String t) {
       sleep 10
     done
     if [ -f app/scripts/smoke-test.sh ]; then
-      BASE_URL="\$url" EXPECTED_COMMIT="\$D_COMMIT" sh app/scripts/smoke-test.sh
+      if BASE_URL="\$url" EXPECTED_COMMIT="\$D_COMMIT" sh app/scripts/smoke-test.sh > "smoke-${t}.log" 2>&1; then
+        cat "smoke-${t}.log"
+      else
+        cat "smoke-${t}.log"
+        # Cloud Run(Google 프런트엔드)은 /healthz 경로를 예약해서 앱까지 보내지 않아요 (Google 404 페이지).
+        # gcp에서 실패한 항목이 /healthz 하나뿐이면 통과로 봐요. 다른 항목이 하나라도 실패하면 그대로 실패예요
+        fails=\$(grep -c '^FAIL ' "smoke-${t}.log" || true)
+        healthz=\$(grep -c '^FAIL  GET /healthz' "smoke-${t}.log" || true)
+        if [ "${t}" = gcp ] && [ "\$fails" = 1 ] && [ "\$healthz" = 1 ] && grep -q 'Error 404 (Not Found)' "smoke-${t}.log"; then
+          echo "gcp: /healthz는 Cloud Run 예약 경로라 건너뛰어요 (나머지 스모크 테스트 통과)"
+        else
+          exit 1
+        fi
+      fi
     fi
     pub=\$(jq -r '.public_url // empty' "\$WORK_ROOT/targets/${t}.json")
     if [ -n "\$pub" ]; then
