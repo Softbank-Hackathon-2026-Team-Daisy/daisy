@@ -61,7 +61,12 @@ function TargetsPage() {
     })
 
   const start = async () => {
-    const d = await run((key) => api.createDeployment(projectId, { source_version_id: build?.source_version_id, commit }, selected.map((tg) => tg.target_id), key), t('배포를 시작하지 못했어요'))
+    const ids = selected.map((tg) => tg.target_id)
+    const d = await run(
+      (key) => api.createDeployment(projectId, { source_version_id: build?.source_version_id, commit }, ids, key),
+      t('배포를 시작하지 못했어요'),
+      ['create', projectId, build?.source_version_id, ids], // 같은 내용으로 다시 누르면 같은 키 (#86)
+    )
     if (d) navigate(paths.generate(projectId, d.id), { state: { transition: 'l02' } })
   }
 

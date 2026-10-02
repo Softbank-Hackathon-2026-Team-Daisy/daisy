@@ -52,7 +52,7 @@ function ResultView({ d }: { d: Deployment }) {
 
   // 실패한 환경만 새 배포로 다시 시도 — POST /deployments/{id}/retry (10/2 확정)
   const retry = async (tg: DeploymentTarget) => {
-    const next = await run((key) => api.retry(d.id, [tg.target_id], key), t('다시 시도하지 못했어요'))
+    const next = await run((key) => api.retry(d.id, [tg.target_id], key), t('다시 시도하지 못했어요'), ['retry', d.id, [tg.target_id]])
     if (next) navigate(paths.generate(projectId, next.id), { state: { transition: 'l02' } })
   }
 
