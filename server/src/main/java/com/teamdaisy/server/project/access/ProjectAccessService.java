@@ -29,9 +29,9 @@ public class ProjectAccessService {
     this.members = members;
   }
 
-  /** 조회 권한을 확인해요. 없으면 404 예요. */
+  /** 조회 권한을 확인해요. 없거나 연결을 해제한(보관된) 프로젝트면 404 예요. */
   public ProjectAccess requireRead(AuthPrincipal principal, String projectId) {
-    if (!projects.existsById(projectId)) {
+    if (!projects.existsByIdAndArchivedAtIsNull(projectId)) {
       throw new DaisyException(ErrorCode.NOT_FOUND);
     }
     Optional<ProjectMember> member =
