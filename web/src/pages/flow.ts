@@ -9,7 +9,7 @@ import { duration } from '../utils/format.ts'
 
 export type StepView = { label: string; state: StepItemState; duration?: string }
 
-const STEP_STATE: Record<string, StepItemState> = { waiting: 'pending', running: 'running', done: 'done', failed: 'failed' }
+const STEP_STATE: Record<string, StepItemState> = { waiting: 'pending', running: 'running', done: 'done', failed: 'failed', skipped: 'skipped' }
 
 const GENERATE_STEPS: Step[] = ['generate', 'validate', 'plan', 'risk_check']
 const APPLY_ORDER = ['applying', 'verifying', 'succeeded', 'failed']

@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Mac 앱 DMG 한 번에 (웹 W-14 "Mac 앱 받기"용): 테스트 → 아카이브 → Developer ID 서명 · Apple 공증 → 스테이플 → DMG.
+# Mac 앱(Unibloom) DMG 한 번에 (웹 W-14 "Mac 앱 받기"용): 테스트 → 아카이브 → Developer ID 서명 · Apple 공증 → 스테이플 → DMG.
 #   ./scripts/mac-dmg.sh                       새로 아카이브해서 만들기
 #   ARCHIVE=build/archives/X.xcarchive ./scripts/mac-dmg.sh   이미 있는 macOS 아카이브로 만들기
 #   SKIP_TESTS=1 ./scripts/mac-dmg.sh
@@ -51,7 +51,7 @@ for i in $(seq 1 40); do
   [[ $i -eq 40 ]] && { echo "공증이 20분 안에 끝나지 않았어요. Xcode Organizer에서 상태를 확인해 주세요." >&2; exit 1; }
   sleep 30
 done
-APP="build/notarized/Daisy.app"
+APP="build/notarized/Unibloom.app"
 
 echo "▶ 검증"
 codesign --verify --deep --strict "$APP"
@@ -59,16 +59,16 @@ xcrun stapler validate "$APP"
 spctl --assess --type execute "$APP"
 
 echo "▶ DMG"
-DMG="build/Daisy-${VERSION}-${BUILD}.dmg"
+DMG="build/Unibloom-${VERSION}-${BUILD}.dmg"
 STAGE="$(mktemp -d)"
 cp -R "$APP" "$STAGE/"
 ln -s /Applications "$STAGE/Applications"
 rm -f "$DMG"
-hdiutil create -volname "Daisy" -srcfolder "$STAGE" -ov -format UDZO "$DMG" -quiet
+hdiutil create -volname "Unibloom" -srcfolder "$STAGE" -ov -format UDZO "$DMG" -quiet
 rm -rf "$STAGE"
 
 echo "✅ $DMG ($(du -h "$DMG" | cut -f1), sha256 $(shasum -a 256 "$DMG" | cut -d' ' -f1))"
 echo "   앱은 Developer ID 서명 + Apple 공증 + 스테이플 완료. 다운로드한 Mac에서 경고 없이 열려요."
 echo "   릴리스(담당자가 요청할 때만):"
 echo "     gh release create mac-v${VERSION}-${BUILD} $DMG --prerelease --target <커밋>"
-echo "     cp $DMG /tmp/Daisy.dmg && gh release upload mac-latest /tmp/Daisy.dmg --clobber   # 웹 W-14 고정 주소"
+echo "     cp $DMG /tmp/Unibloom.dmg && gh release upload mac-latest /tmp/Unibloom.dmg --clobber   # 웹 W-14 고정 주소 (10/1부터 Unibloom.dmg)"
