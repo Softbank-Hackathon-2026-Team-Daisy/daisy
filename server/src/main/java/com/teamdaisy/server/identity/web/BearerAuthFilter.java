@@ -42,7 +42,9 @@ public class BearerAuthFilter extends OncePerRequestFilter {
           "/v3/api-docs",
           "/v3/api-docs/**",
           "/swagger-ui.html",
-          "/swagger-ui/**");
+          "/swagger-ui/**",
+          // Jenkins 콜백은 사용자 로그인이 아니라 서비스 토큰으로 지켜요 (JenkinsCallbackTokenAccess, #35)
+          "/internal/jenkins/callbacks");
 
   private final AuthService authService;
   private final HandlerExceptionResolver exceptionResolver;

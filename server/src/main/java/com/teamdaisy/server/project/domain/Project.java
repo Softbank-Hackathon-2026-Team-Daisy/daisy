@@ -99,6 +99,11 @@ public class Project {
     return repositoryCredentialRef;
   }
 
+  /** 프로젝트 채널 SSE 의 마지막 순번이에요. 쓰는 쪽은 승환의 이벤트 기록이에요. */
+  public long lastEventSeq() {
+    return lastEventSeq;
+  }
+
   public Instant createdAt() {
     return createdAt;
   }
