@@ -905,3 +905,80 @@ V9 의 실제 Jenkins 실행은 하지 않습니다. 기본 비활성 설정 그
 | L7 | 파라미터 `state`·`cursor`·`limit`, `principal` 노출 0건. 500 0건. 조회 코드를 바꾼 뒤 A-04 상세도 200 |
 
 URL 인코딩 자체가 깨진 커서(`%%%bad`)는 Tomcat 이 파라미터를 버려서 커서 없이 첫 페이지(200)가 나갑니다. A-06 도 같습니다. 서블릿 컨테이너 동작이라 따로 막지 않았습니다.
+
+## 배포 plan 조회 A-05 · WR-06 (10/2, 하은현)
+
+### 범위
+
+승인 화면(W-06)이 대상별 변경 개수·삭제 여부·위험 설정과 이 배포의 AI 사용량 합계를 읽습니다.
+
+| 경로 | 응답 | 소비자 모델 |
+|---|---|---|
+| `GET /deployments/{id}/plan` | `{ deployment_id, targets[], ai_usage }` | `ios/SPEC.md` `Plan`, `web/src/api/types.ts` `Plan` |
+| `GET /deployments/{id}/plan?detail=resources` | `[{ target_id, resources[], plan_text }]` (배열) | `web/src/api/types.ts` `PlanDetail[]` (WR-06) |
+
+- 권한: A-04 와 같이 승환님 `projectIdOf` 로 봅니다. 없는 배포·접근할 수 없는 배포는 404, viewer 도 조회는 됩니다.
+- 데이터: `deployment_target.current_plan_id` 가 가리키는 `plan_revision` 과 `ai_usage` 를 읽기 전용 SQL 로 읽습니다 (`server/AGENTS.md` §3 예외에 두 테이블이 이미 들어 있음). 상태를 바꾸지 않습니다.
+- `detail` 은 `resources` 만 받습니다. 다른 값은 400 입니다. 같은 경로에서 응답 모양이 둘인 것은 9/30 WR-06 답("그대로")과 웹 코드를 따른 것입니다.
+
+### 대상 한 줄
+
+| 필드 | 출처 | 비고 |
+|---|---|---|
+| `target_id` | `deployment_target.target_id` | |
+| `counts` | `plan_revision.summary.counts` | `{create, update, delete}`. 승환님 `PlanRevision` 이 저장 전에 모양을 검증함 |
+| `has_delete` | `summary.has_delete` | 교체(replace)로 생긴 삭제도 포함 |
+| `risks` | `summary.risks` | `[{level, rule, resource, message}]` 그대로 |
+| `summary` | 없음 | **null.** 한 줄 요약을 만드는 원천이 없음. 화면은 "위험 설정 n건" 으로 대신함 |
+| `plan_text` | 없음 | **null.** 서버는 원본 참조(`artifact_ref`)·digest 만 갖고 원문을 보관하지 않음 |
+
+- **현재 plan 이 있는 대상만** 나옵니다. 아직 plan 전이거나, 새 plan 으로 바뀌는 중이라 포인터가 비어 있는 대상은 빠집니다. 승인할 대상과 approval ID 는 A-04 `pending_approvals` 가 기준입니다.
+- 정렬은 `target_id` 순입니다.
+
+### `resources` (WR-06)
+
+`plan_revision.resources` 의 `{address, actions[]}` 를 웹 모양 `{address, action}` 으로 바꿉니다.
+
+| `actions` | `action` |
+|---|---|
+| `delete` 와 `create` 를 함께 가짐 (순서 무관) | `replace` |
+| `delete` 를 가짐 | `delete` |
+| `create` 를 가짐 | `create` |
+| `update` 를 가짐 | `update` |
+| `read`·`no-op` 만 | 목록에서 뺌 (바뀌는 것이 아님. `counts` 에도 안 들어감) |
+
+`monthly_cost_krw` 는 원천이 없어 넣지 않습니다.
+
+### `ai_usage` 합계
+
+이 배포에 속한 모든 대상·회차의 `ai_usage` 행을 더합니다. 설계 5.13 과 9/29 결정을 따릅니다.
+
+| 필드 | 규칙 |
+|---|---|
+| `calls` | 행 수 (LLM 호출 수). 상태 `succeeded`·`failed`·`unknown` 모두 셈 |
+| `tokens` | 입력·출력 토큰을 둘 다 아는 행의 합. 그런 행이 없으면 null |
+| `cost_krw` | `cost_usd` 를 아는 행의 USD 합 × 고정 환율, 원 단위 반올림(HALF_UP). 아는 행이 없거나 환율 설정이 없으면 null |
+| `exchange_rate` | 설정값 `daisy.ai.krw-per-usd` (환경변수 `DAISY_AI_KRW_PER_USD`). 없으면 null |
+| `estimated` | `cost_krw` 가 있으면 true (고정 환율 환산이라 늘 추정). 없으면 false |
+| `unknown_calls` | 토큰이나 비용을 모르는 행 수. 설계 5.13 "미확인 호출 수" — 계약에 없는 추가 |
+
+- **행이 없으면 `calls: 0`, `tokens`·`cost_krw` 는 null 입니다.** 지금 Jenkins `plan-summary.json` 은 합계만 주고 호출별 기록을 주지 않아서, 행이 없다는 것이 "AI 를 안 썼다" 는 뜻이 아닐 수 있습니다. 0원으로 보여주지 않습니다.
+- 환율 숫자는 아직 정하지 않았습니다 (`server/AGENTS.md` 남은 결정 "적용 환율 숫자"). 승환님께 여쭤봤고, 정해질 때까지 설정이 없으면 원화는 null 입니다. 0 이하·숫자가 아닌 값이면 기동하지 않습니다.
+
+### 다른 파트와 닿는 지점
+
+- 웹 `AiUsageSummary.exchange_rate` 가 `number` 입니다. 환율이 설정되지 않으면 null 이 갑니다.
+- 웹 `PlanDetail.resources[].action` 에 `replace` 가 있어서 그대로 맞췄습니다.
+
+### 검증 계획
+
+| | 검사 | 기대 |
+|---|---|---|
+| P1 | 토큰 없음 / 없는 배포 / viewer | 401 / 404 / 200 |
+| P2 | plan 없는 배포 | `targets: []`, `ai_usage.calls: 0`, `tokens`·`cost_krw` null |
+| P3 | 대상 2개 중 1개만 현재 plan | 그 1개만, `counts`·`has_delete`·`risks` 가 저장값 그대로, `summary`·`plan_text` null |
+| P4 | `detail=resources` | 배열. `["delete","create"]`→`replace`, `["no-op"]` 빠짐 / `detail=bogus` 400 |
+| P5 | 사용량 행 3개 (하나는 토큰·비용 미확인), 환율 설정 | `calls 3`, `unknown_calls 1`, 토큰·원화는 아는 행만, USD 합 후 한 번 반올림 |
+| P6 | 환율 설정 없음 | `cost_krw`·`exchange_rate` null, `estimated false` |
+| P7 | 다른 프로젝트 배포의 plan·사용량 | 섞이지 않음, 404 |
+| P8 | OpenAPI | 경로 노출, `principal` 노출 0건, 500 0건 |
