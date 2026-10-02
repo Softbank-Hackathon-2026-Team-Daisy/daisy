@@ -71,7 +71,9 @@ public class DeploymentDetailReader {
       Instant startedAt,
       Instant finishedAt,
       String step,
-      String stepState) {}
+      String stepState,
+      String approvalState,
+      String applyDispatch) {}
 
   /** 대상의 지금 단계예요. 가장 최근 {@code step.*} 이벤트로 정해요. */
   record StepRow(String step, String state) {}
@@ -160,11 +162,15 @@ public class DeploymentDetailReader {
     Map<String, List<TargetRow>> targets = new HashMap<>();
     jdbc.query(
         """
-        select id, deployment_id, target_id, target_snapshot::text, status, attempt, ai_reused,
-               error_summary, cancel_requested_at, started_at, finished_at
-        from deployment_target
-        where deployment_id in (:ids) and project_id = :project
-        order by deployment_id, target_id
+        select dt.id, dt.deployment_id, dt.target_id, dt.target_snapshot::text, dt.status,
+               dt.attempt, dt.ai_reused, dt.error_summary, dt.cancel_requested_at,
+               dt.started_at, dt.finished_at,
+               a.state as approval_state, je.operation, je.dispatch_status
+        from deployment_target dt
+        left join approval a on a.plan_id = dt.current_plan_id and a.deployment_target_id = dt.id
+        left join jenkins_execution je on je.id = dt.current_execution_id
+        where dt.deployment_id in (:ids) and dt.project_id = :project
+        order by dt.deployment_id, dt.target_id
         """,
         params,
         (ResultSet rs) -> {
@@ -182,7 +188,9 @@ public class DeploymentDetailReader {
                       instant(rs, "started_at"),
                       instant(rs, "finished_at"),
                       step(steps, rs.getString("id")).step(),
-                      step(steps, rs.getString("id")).state()));
+                      step(steps, rs.getString("id")).state(),
+                      rs.getString("approval_state"),
+                      applyDispatch(rs.getString("operation"), rs.getString("dispatch_status"))));
         });
     // 만료 시각이 지난 승인은 아직 pending 으로 남아 있어도 빼요. 보내 봐야 옛 승인이라 409 예요.
     Map<String, List<PendingApproval>> pending = new HashMap<>();
@@ -223,6 +231,23 @@ public class DeploymentDetailReader {
       case "step.started" -> "running";
       case "step.completed" -> "done";
       case "step.failed" -> "failed";
+      default -> null;
+    };
+  }
+
+  /**
+   * 대상의 현재 명령이 apply 일 때만 제출 상태를 화면 값으로 묶어요 (#42 승환님 제안).
+   *
+   * <p>제출 전·제출 중·접수됨은 queued, 제출 결과를 모르면 unknown, 거절되면 rejected 예요. apply 가 아니면 null 이에요.
+   */
+  public static String applyDispatch(String operation, String dispatchStatus) {
+    if (!"apply".equals(operation) || dispatchStatus == null) {
+      return null;
+    }
+    return switch (dispatchStatus) {
+      case "pending", "dispatching", "accepted" -> "queued";
+      case "unknown" -> "unknown";
+      case "rejected" -> "rejected";
       default -> null;
     };
   }

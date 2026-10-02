@@ -46,6 +46,9 @@ public record DeploymentDetailResponse(
    *
    * @param step 가장 최근 단계 이벤트의 단계. 이벤트가 없으면 null 이에요
    * @param stepState running·done·failed. 이벤트가 없으면 null 이고, waiting 은 근거가 없어 만들지 않아요
+   * @param approvalState 현재 plan 승인 행의 상태 그대로 (pending·approved·rejected·superseded·expired). 없으면
+   *     null 이에요. 승인 직후 apply 가 시작되기 전에는 대상 state 가 awaiting_approval 이어도 approved 예요
+   * @param applyDispatch 현재 명령이 apply 일 때만 queued·unknown·rejected. 아니면 null 이에요
    * @param attempt 첫 생성을 포함한 시도 횟수(1~3). 아직 생성 전이면 null 이에요
    */
   public record Target(
@@ -63,7 +66,9 @@ public record DeploymentDetailResponse(
       String errorSummary,
       Instant cancelRequestedAt,
       Instant startedAt,
-      Instant finishedAt) {}
+      Instant finishedAt,
+      String approvalState,
+      String applyDispatch) {}
 
   public record Approval(String targetId, String approvalId) {}
 
@@ -106,7 +111,9 @@ public record DeploymentDetailResponse(
         row.errorSummary(),
         row.cancelRequestedAt(),
         row.startedAt(),
-        row.finishedAt());
+        row.finishedAt(),
+        row.approvalState(),
+        row.applyDispatch());
   }
 
   private static Approval approval(PendingApproval pending) {

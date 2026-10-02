@@ -45,7 +45,19 @@ class DeploymentDetailResponseTest {
     ObjectNode snapshot =
         MAPPER.createObjectNode().put("environment_type", "aws").put("name", id + "-name");
     return new TargetRow(
-        id, snapshot, "awaiting_approval", attempt, false, null, null, AT, null, null, null);
+        id,
+        snapshot,
+        "awaiting_approval",
+        attempt,
+        false,
+        null,
+        null,
+        AT,
+        null,
+        null,
+        null,
+        null,
+        null);
   }
 
   private static ObjectNode image(ObjectNode into, String service) {
@@ -136,7 +148,8 @@ class DeploymentDetailResponseTest {
     ObjectNode snapshot = MAPPER.createObjectNode().put("environment_type", "aws");
     var row =
         new TargetRow(
-            "tgt_aws", snapshot, "running", 1, false, null, null, AT, null, "plan", "running");
+            "tgt_aws", snapshot, "running", 1, false, null, null, AT, null, "plan", "running", null,
+            null);
     var target = DeploymentDetailResponse.target(row);
 
     assertThat(target.step()).isEqualTo("plan");
@@ -145,5 +158,38 @@ class DeploymentDetailResponseTest {
     assertThat(DeploymentDetailReader.stepState("step.completed")).isEqualTo("done");
     assertThat(DeploymentDetailReader.stepState("step.failed")).isEqualTo("failed");
     assertThat(DeploymentDetailReader.stepState("log.batch")).isNull();
+  }
+
+  @Test
+  @DisplayName("승인 직후 표시: 승인 상태는 그대로, apply 제출 상태는 queued·unknown·rejected 로 묶어요")
+  void approvalAndApplyDispatch() {
+    ObjectNode snapshot = MAPPER.createObjectNode().put("environment_type", "aws");
+    var target =
+        DeploymentDetailResponse.target(
+            new TargetRow(
+                "tgt_aws",
+                snapshot,
+                "awaiting_approval",
+                1,
+                false,
+                null,
+                null,
+                AT,
+                null,
+                null,
+                null,
+                "approved",
+                "queued"));
+    assertThat(target.state()).isEqualTo("awaiting_approval");
+    assertThat(target.approvalState()).isEqualTo("approved");
+    assertThat(target.applyDispatch()).isEqualTo("queued");
+
+    assertThat(DeploymentDetailReader.applyDispatch("apply", "pending")).isEqualTo("queued");
+    assertThat(DeploymentDetailReader.applyDispatch("apply", "dispatching")).isEqualTo("queued");
+    assertThat(DeploymentDetailReader.applyDispatch("apply", "accepted")).isEqualTo("queued");
+    assertThat(DeploymentDetailReader.applyDispatch("apply", "unknown")).isEqualTo("unknown");
+    assertThat(DeploymentDetailReader.applyDispatch("apply", "rejected")).isEqualTo("rejected");
+    assertThat(DeploymentDetailReader.applyDispatch("prepare", "accepted")).isNull();
+    assertThat(DeploymentDetailReader.applyDispatch(null, null)).isNull();
   }
 }

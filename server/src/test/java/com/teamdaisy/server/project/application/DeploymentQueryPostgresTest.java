@@ -304,4 +304,67 @@ class DeploymentQueryPostgresTest {
     assertThat(other.get(0).step()).isNull();
     assertThat(other.get(0).stepState()).isNull();
   }
+
+  @Test
+  @DisplayName("A-04: 승인 직후면 approval_state approved, 현재 명령이 apply 면 제출 상태가 나와요")
+  void approvalStateAndApplyDispatch() {
+    seedLogs();
+    // dt_a: plan 승인 완료 + apply 명령 접수됨. dt_b: plan 승인 대기 + 현재 명령은 prepare
+    jdbc.update(
+        "insert into script(id,project_id,target_id,version,source,external_script_id,"
+            + "source_deployment_target_id,artifact_ref,content_digest,validated_at)"
+            + " values('scr_a','prj_1','tgt_a',1,'s','x1','dt_a','ref','sha256:x',now()),"
+            + " ('scr_b','prj_1','tgt_b',1,'s','x2','dt_b','ref','sha256:x',now())");
+    for (String[] p :
+        new String[][] {
+          {"plan_a", "dt_a", "tgt_a", "je_1", "scr_a"}, {"plan_b", "dt_b", "tgt_b", "je_2", "scr_b"}
+        }) {
+      jdbc.update(
+          "insert into plan_revision(id,deployment_target_id,execution_id,project_id,target_id,"
+              + "revision,source,source_plan_id,input_hash,script_id,artifact_ref,digest,summary,"
+              + "resources,expires_at) values(?,?,?,'prj_1',?,1,'s',?,'ih',?,'ref','dg',"
+              + "'{\"counts\":{\"create\":1,\"update\":0,\"delete\":0},\"has_delete\":false,"
+              + "\"risks\":[]}'::jsonb,'[]'::jsonb,now()+interval '1 hour')",
+          p[0],
+          p[1],
+          p[3],
+          p[2],
+          "sp-" + p[0],
+          p[4]);
+    }
+    jdbc.update(
+        "insert into approval(id,plan_id,deployment_target_id,state,decision,decided_by,decided_at,"
+            + "expires_at) values('apv_a','plan_a','dt_a','approved','approved','acct_1',now(),"
+            + "now()+interval '1 hour')");
+    jdbc.update(
+        "insert into approval(id,plan_id,deployment_target_id,state,expires_at)"
+            + " values('apv_b','plan_b','dt_b','pending',now()+interval '1 hour')");
+    jdbc.update(
+        "insert into jenkins_execution(id,deployment_id,request_id,operation,instance_id,"
+            + "job_full_name,request_payload,request_hash,dispatch_status)"
+            + " values('je_apply','dep_a','rq_apply','apply','inst','daisy-cd-apply','{}'::jsonb,'h',"
+            + "'accepted')");
+    jdbc.update(
+        "insert into execution_target(execution_id,deployment_target_id,deployment_id)"
+            + " values('je_apply','dt_a','dep_a')");
+    jdbc.update(
+        "update deployment_target set current_plan_id='plan_a', current_execution_id='je_apply',"
+            + " status='awaiting_approval' where id='dt_a'");
+    jdbc.update(
+        "update deployment_target set current_plan_id='plan_b', current_execution_id='je_2',"
+            + " status='awaiting_approval' where id='dt_b'");
+
+    var targets = reader.read("prj_1", "dep_a").targets();
+    assertThat(targets)
+        .extracting(
+            DeploymentDetailReader.TargetRow::targetId,
+            DeploymentDetailReader.TargetRow::approvalState,
+            DeploymentDetailReader.TargetRow::applyDispatch)
+        .containsExactly(
+            org.assertj.core.groups.Tuple.tuple("tgt_a", "approved", "queued"),
+            org.assertj.core.groups.Tuple.tuple("tgt_b", "pending", null));
+    var none = reader.read("prj_1", "dep_c").targets().get(0);
+    assertThat(none.approvalState()).isNull();
+    assertThat(none.applyDispatch()).isNull();
+  }
 }

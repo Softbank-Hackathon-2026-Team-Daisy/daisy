@@ -1113,3 +1113,16 @@ URL 인코딩 자체가 깨진 커서(`%%%bad`)는 Tomcat 이 파라미터를 �
 | G8 | 파라미터 `target_id`·`tail`, `principal` 0건, 서버 로그 ERROR 0건 |
 
 `./gradlew --no-daemon spotlessCheck check build` 성공.
+
+### A-04 승인 직후 표시 (10/2 낮, #42 승환님 제안)
+
+승인하면 apply 명령은 큐에 들어가지만, 실제 대상 상태 보고가 오기 전까지 대상 `state` 는 `awaiting_approval` 그대로입니다. 화면이 계속 "승인 대기" 로 보이지 않게 대상마다 두 필드를 더합니다. 기존 상태 값과 상태 전이는 바꾸지 않습니다.
+
+| 필드 | 출처 | 값 |
+|---|---|---|
+| `approval_state` | `deployment_target.current_plan_id` 에 연결된 `approval.state` | 저장값 그대로 `pending`·`approved`·`rejected`·`superseded`·`expired`. 현재 plan·승인이 없으면 null |
+| `apply_dispatch` | `current_execution_id` 의 `jenkins_execution` | 그 명령이 `apply` 일 때만. `pending`·`dispatching`·`accepted` → `queued`, `unknown` → `unknown`, `rejected` → `rejected`. 아니면 null |
+
+화면 문구 제안: `state=awaiting_approval` + `approval_state=approved` 면 "승인 완료 · 실행 대기", `apply_dispatch=unknown` 이면 "실행 여부 확인 중". `pending_approvals` 가 빈 것만으로는 승인 완료로 판단하지 않습니다 (만료·거절·plan 전도 빈 목록).
+
+확인: 단위 테스트(값 묶기·응답 매핑)와 실DB 테스트(승인 완료 + apply 접수 대상은 `approved`·`queued`, 승인 대기 + 현재 명령 prepare 대상은 `pending`·null, 승인 없는 배포는 둘 다 null). 실DB 포함 191개 통과.
