@@ -825,7 +825,7 @@ V9 의 실제 Jenkins 실행은 하지 않습니다. 기본 비활성 설정 그
 | `error_summary` | 같은 이름 | |
 | `cancel_requested_at` | 같은 이름 | 취소 요청이 접수됐지만 아직 끝나지 않은 상태를 보여 줄 수 있게 둠 |
 | `started_at`·`finished_at` | 같은 이름 | |
-| `step`·`step_state`·`url`·`image_digest`·`health_summary` | — | **null.** 근거 데이터가 아직 없음 (Jenkins 단계·apply 결과 수신이 #35 대기). 0·빈 값으로 채우지 않음 |
+| `step`·`step_state`·`url`·`image_digest`·`health_summary` | — | **null.** `url`·`image_digest`·`health_summary` 는 근거 데이터가 아직 없음 (apply 결과 수신 #35 대기). `step`·`step_state` 는 승환님 Jenkins 수신이 `deployment_log` 에 `step.started`·`completed`·`failed` 로 남기지만 아직 읽지 않음 — A-07 로그 조회와 함께 붙임 (10/2 점검에서 정정). 0·빈 값으로 채우지 않음 |
 
 내보내지 않는 것: `version`("v7")·`commit_message` 는 S8 후순위, 단건 `pending_approval` 은 `pending_approvals` 로 대체 (#40 승준 질문에 답한 대로).
 

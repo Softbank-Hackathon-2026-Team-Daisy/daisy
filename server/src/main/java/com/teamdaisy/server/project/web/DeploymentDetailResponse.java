@@ -12,8 +12,9 @@ import java.util.List;
 /**
  * 배포 상세예요 (A-04). 소비자 모델은 {@code ios/SPEC.md} 326행 {@code Deployment} 예요.
  *
- * <p><b>없는 값을 만들어 넣지 않아요.</b> 단계·접속 URL·실제 적용 이미지·헬스는 근거 데이터가 아직 없어서 null 이에요 (Jenkins 결과 수신 #35
- * 대기). 시도 횟수 0 은 null 로 보내요 (S2).
+ * <p><b>없는 값을 만들어 넣지 않아요.</b> 접속 URL·실제 적용 이미지·헬스는 근거 데이터가 아직 없어서 null 이에요 (apply 결과 수신 #35 대기).
+ * 단계는 승환의 Jenkins 수신이 {@code deployment_log} 에 {@code step.*} 이벤트로 남기지만 여기서는 아직 읽지 않아서 null 이에요 —
+ * 같은 테이블을 읽는 A-07 로그 조회와 함께 붙여요. 시도 횟수 0 은 null 로 보내요 (S2).
  *
  * @param kind 롤백이면 {@code "rollback"}, 아니면 null. 내부 값 {@code normal}·{@code retry} 는 내보내지 않아요
  * @param pendingApprovals 승인 요청 {@code items} 와 같은 모양이에요. 없으면 빈 목록이에요
@@ -43,7 +44,7 @@ public record DeploymentDetailResponse(
   /**
    * 대상 하나예요.
    *
-   * @param step 근거 데이터가 없어 지금은 null 이에요
+   * @param step 아직 {@code deployment_log} 의 단계 이벤트를 읽지 않아서 null 이에요
    * @param attempt 첫 생성을 포함한 시도 횟수(1~3). 아직 생성 전이면 null 이에요
    */
   public record Target(
