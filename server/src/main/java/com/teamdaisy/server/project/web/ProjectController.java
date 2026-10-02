@@ -11,6 +11,7 @@ import com.teamdaisy.server.project.domain.ProjectRepository;
 import com.teamdaisy.server.project.domain.SourceVersion;
 import com.teamdaisy.server.project.domain.SourceVersionRepository;
 import com.teamdaisy.server.project.domain.TargetRepository;
+import io.swagger.v3.oas.annotations.security.SecurityRequirement;
 import java.util.List;
 import org.springframework.data.domain.Limit;
 import org.springframework.transaction.annotation.Transactional;
@@ -23,6 +24,7 @@ import org.springframework.web.bind.annotation.RestController;
 /** 프로젝트 조회예요. 생성·연결은 저장소 연결 절차가 정해진 뒤에 넣어요. */
 @RestController
 @RequestMapping("/projects")
+@SecurityRequirement(name = "bearerAuth")
 @Transactional(readOnly = true)
 public class ProjectController {
   private static final int DEFAULT_LIMIT = 20;

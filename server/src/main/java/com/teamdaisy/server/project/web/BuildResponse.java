@@ -32,10 +32,10 @@ public record BuildResponse(
 
   public record ServiceImage(String service, String imageRef, String imageDigest) {}
 
-  /** `image_refs` 안에서 이 두 키를 찾아요. 모양이 확정되면 여기만 바뀌어요. */
+  /** 실행 도메인의 저장 키를 읽고 공개 응답에서는 image_digest로 내보내요. */
   private static final String KEY_REF = "image_ref";
 
-  private static final String KEY_DIGEST = "image_digest";
+  private static final String KEY_DIGEST = "digest";
 
   /**
    * DB 상태를 소비자 enum 으로 바꿔요.
