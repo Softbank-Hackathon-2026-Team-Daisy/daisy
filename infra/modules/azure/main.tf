@@ -36,6 +36,10 @@ locals {
     ManagedBy = "terraform"
   }
 
+  # 화면 표시용 실행 환경 이름. 샘플 앱(hellocalc)은 ECS · Cloud Run은 스스로 알아보지만 Container Apps는 몰라서 넣어요.
+  # deploy.yaml env에 같은 이름이 있으면 그 값을 써요
+  env = merge({ DEPLOY_PLATFORM = "Azure · Container Apps" }, var.env)
+
   # 공개 도메인을 넣으면 커스텀 도메인 + Azure 관리형 인증서 (variables.tf 맨 아래)
   custom   = var.domain != ""
   hostname = "${var.subdomain}.${var.domain}"
@@ -91,7 +95,7 @@ resource "azurerm_container_app" "app" {
       memory = "${var.cpu * 2}Gi" # Consumption 조합: vCPU 1당 메모리 2Gi
 
       dynamic "env" {
-        for_each = var.env
+        for_each = local.env
         content {
           name  = env.key
           value = env.value
@@ -120,7 +124,9 @@ resource "azurerm_container_app" "app" {
 
 # ---------------------------------------------------------------- 공개 도메인 (선택)
 # DNS에 <subdomain> CNAME → 앱 기본 주소, asuid.<subdomain> TXT → 환경의 도메인 확인 ID가 먼저 있어야 해요.
-# 인증서는 Azure가 발급해요 (처음 수 분~20분). 이미지만 바꾸는 재배포는 도메인 · 인증서를 그대로 써요
+# 여기서는 도메인만 앱에 등록해요 (인증서 연결 Disabled). 관리형 인증서 발급 · 연결은 처음 1번 CLI로 해요:
+#   az containerapp hostname bind --hostname <subdomain>.<domain> -g <resource_group> -n daisy-{name} --environment <environment_name> --validation-method CNAME
+# 인증서는 Container Apps 환경에 남아서, 이미지만 바꾸는 재배포는 도메인 · 인증서를 그대로 써요 (infra/SPEC.md §6-5)
 
 resource "azurerm_container_app_custom_domain" "app" {
   count = local.custom ? 1 : 0
