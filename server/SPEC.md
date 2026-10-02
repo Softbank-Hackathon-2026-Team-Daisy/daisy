@@ -755,7 +755,7 @@ V9 의 실제 Jenkins 실행은 하지 않습니다. 기본 비활성 설정 그
 - 권한은 A-02 와 같습니다. `ProjectAccessService.requireRead` — 없는 프로젝트·비멤버 404, viewer 도 조회는 됩니다.
 - 보관된 대상은 뺍니다. 정렬은 A-02 와 같은 `(environment_type, name)` 입니다.
 - 목록 봉투 `{ items, next_cursor }` 이고 `next_cursor` 는 항상 null 입니다 (프로젝트당 대상이 몇 개뿐).
-- 이번 범위가 아닌 것: W-10 의 선택 필드(`title`·`runtime`·`location`·`access_method`·`exposure`·`state_backend`·`current_commit`). 대상 설정 키가 정해지지 않았고 S8 에서 `title` 조립 주체도 미정입니다.
+- 이번 범위가 아닌 것: W-10 의 선택 필드(`title`·`runtime`·`location`·`access_method`·`exposure`·`state_backend`·`current_commit`). 대상 설정 키가 정해지지 않았고 S8 에서 `title` 조립 주체도 미정입니다. → 10/2 저녁 `runtime`·`location`·`location_label`·`access_method`·`exposure`·`state_backend` 를 붙였습니다 (「배포 결과 · 환경 정보 표시」). `title`·`current_commit` 은 그대로 없습니다.
 
 ### 응답 필드
 
@@ -848,7 +848,7 @@ V9 의 실제 Jenkins 실행은 하지 않습니다. 기본 비활성 설정 그
 | `error_summary` | 같은 이름 | |
 | `cancel_requested_at` | 같은 이름 | 취소 요청이 접수됐지만 아직 끝나지 않은 상태를 보여 줄 수 있게 둠 |
 | `started_at`·`finished_at` | 같은 이름 | |
-| `step`·`step_state`·`url`·`image_digest`·`health_summary` | — | **null.** `url`·`image_digest`·`health_summary` 는 근거 데이터가 아직 없음 (apply 결과 수신 #35 대기). `step`·`step_state` 는 승환님 Jenkins 수신이 `deployment_log` 에 `step.started`·`completed`·`failed` 로 남기지만 아직 읽지 않음 — A-07 로그 조회와 함께 붙임 (10/2 점검에서 정정). → 10/2 A-07 에서 붙였습니다 (「배포 로그 A-07 · A-04 단계」). 0·빈 값으로 채우지 않음 |
+| `step`·`step_state`·`url`·`image_digest`·`health_summary` | — | **null.** `url`·`image_digest`·`health_summary` 는 근거 데이터가 아직 없음 (apply 결과 수신 #35 대기). `step`·`step_state` 는 승환님 Jenkins 수신이 `deployment_log` 에 `step.started`·`completed`·`failed` 로 남기지만 아직 읽지 않음 — A-07 로그 조회와 함께 붙임 (10/2 점검에서 정정). → 10/2 A-07 에서 붙였습니다 (「배포 로그 A-07 · A-04 단계」). 0·빈 값으로 채우지 않음. → 10/2 저녁 `url`·`image_digest` 는 `deployment_target.result` 에서 붙였습니다 (「배포 결과 · 환경 정보 표시」). `health_summary` 는 근거가 없어 계속 null |
 
 내보내지 않는 것: `version`("v7")·`commit_message` 는 S8 후순위, 단건 `pending_approval` 은 `pending_approvals` 로 대체 (#40 승준 질문에 답한 대로).
 
@@ -1655,3 +1655,17 @@ Jenkins `daisy-ci` 가 끝나면 결과를 `POST /internal/jenkins/builds` 로 �
 | R4 | WR-04 데모 대상 세 개 | 표의 값 그대로 |
 | R5 | 표에 없는 대상 | 여섯 필드 null |
 | R6 | 실제 흐름: 채준님 `daisy_server.py` 로 plan → 승인 → apply 성공 콜백 (계약 검증 스크립트) | A-04 aws `url` 이 `applied` 로 보낸 주소 |
+
+### 검증 결과 (10/2 저녁)
+
+| | 결과 |
+|---|---|
+| R1 | 단위 테스트: 서비스 1개 결과 → `url` `https://aws.unibloom.cloud`, `image_digest` 그 값, `health_summary` null |
+| R2 | 단위 테스트: 결과 없음 · 서비스 2개 · digest 형식 틀림 · `public_urls` 가 문자열 · `image_refs` 가 배열 · URL 이 숫자 → 해당 필드만 null |
+| R3 | 실DB 테스트(`DeploymentQueryPostgresTest`): `result` 를 저장한 대상은 A-04 와 A-03 목록 모두 같은 `url`·`image_digest`, 저장 안 한 대상은 null |
+| R4 | 단위 테스트: 데모 대상 세 개가 위 표의 값 그대로 |
+| R5 | 단위 테스트: 표에 없는 대상은 여섯 필드 null |
+| R6 | 계약 검증 스크립트로 채준님 `daisy_server.py`(infra/feat-server-cd)가 plan → 승인 → apply 성공 콜백을 보내게 한 뒤 A-04 aws `url` 이 `https://aws.unibloom.cloud` 로 나옴 |
+
+- 실DB 포함 테스트 232개 통과. 변환을 일부러 지우면(`url` 을 null 로, 표를 안 읽게) 새 테스트가 각각 실패하는 것도 확인했습니다.
+- 같은 계약 검증에서 남은 두 가지는 이 절 범위가 아닙니다: A-02 `current` 는 성공 뒤에도 null(채준님 정리 1번, 승환님), 요청 ID 없는 AI 호출 기록 콜백은 `external_event_id` 의 `#` 때문에 400(인프라 `daisy_server.py` 대체 ID).

@@ -367,4 +367,47 @@ class DeploymentQueryPostgresTest {
     assertThat(none.approvalState()).isNull();
     assertThat(none.applyDispatch()).isNull();
   }
+
+  @Test
+  @DisplayName("A-04: 성공 콜백이 저장한 result 를 읽어 url·image_digest 로 내보내요 (R1·R3)")
+  void resultFromDeploymentTarget() {
+    seedLogs();
+    String digest = "sha256:" + "cd".repeat(32);
+    jdbc.update(
+        "update deployment_target set status='succeeded', result=cast(? as jsonb) where id='dt_a'",
+        "{\"plan_id\":\"plan_a\",\"public_urls\":{\"hellocalc\":\"https://aws.unibloom.cloud\"},"
+            + "\"image_refs\":{\"hellocalc\":{\"image_ref\":\"img:h\",\"digest\":\""
+            + digest
+            + "\",\"commit_sha\":\"c\"}}}");
+
+    var detail =
+        com.teamdaisy.server.project.web.DeploymentDetailResponse.of(reader.read("prj_1", "dep_a"));
+    var a =
+        detail.targets().stream()
+            .filter(t -> t.targetId().equals("tgt_a"))
+            .findFirst()
+            .orElseThrow();
+    var b =
+        detail.targets().stream()
+            .filter(t -> t.targetId().equals("tgt_b"))
+            .findFirst()
+            .orElseThrow();
+    assertThat(a.url()).isEqualTo("https://aws.unibloom.cloud");
+    assertThat(a.imageDigest()).isEqualTo(digest);
+    assertThat(b.url()).isNull();
+    assertThat(b.imageDigest()).isNull();
+
+    var listed =
+        reader.list("prj_1", null, null, null, 50).stream()
+            .filter(d -> d.deployment().id().equals("dep_a"))
+            .findFirst()
+            .orElseThrow();
+    var fromList =
+        com.teamdaisy.server.project.web.DeploymentDetailResponse.of(listed).targets().stream()
+            .filter(t -> t.targetId().equals("tgt_a"))
+            .findFirst()
+            .orElseThrow();
+    assertThat(fromList.url()).isEqualTo("https://aws.unibloom.cloud");
+    assertThat(fromList.imageDigest()).isEqualTo(digest);
+  }
 }
