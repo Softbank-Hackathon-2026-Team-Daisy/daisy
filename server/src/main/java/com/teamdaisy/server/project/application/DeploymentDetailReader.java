@@ -73,7 +73,8 @@ public class DeploymentDetailReader {
       String step,
       String stepState,
       String approvalState,
-      String applyDispatch) {}
+      String applyDispatch,
+      JsonNode result) {}
 
   /** 대상의 지금 단계예요. 가장 최근 {@code step.*} 이벤트로 정해요. */
   record StepRow(String step, String state) {}
@@ -164,7 +165,7 @@ public class DeploymentDetailReader {
         """
         select dt.id, dt.deployment_id, dt.target_id, dt.target_snapshot::text, dt.status,
                dt.attempt, dt.ai_reused, dt.error_summary, dt.cancel_requested_at,
-               dt.started_at, dt.finished_at,
+               dt.started_at, dt.finished_at, dt.result::text,
                a.state as approval_state, je.operation, je.dispatch_status
         from deployment_target dt
         left join approval a on a.plan_id = dt.current_plan_id and a.deployment_target_id = dt.id
@@ -190,7 +191,8 @@ public class DeploymentDetailReader {
                       step(steps, rs.getString("id")).step(),
                       step(steps, rs.getString("id")).state(),
                       rs.getString("approval_state"),
-                      applyDispatch(rs.getString("operation"), rs.getString("dispatch_status"))));
+                      applyDispatch(rs.getString("operation"), rs.getString("dispatch_status")),
+                      json(rs.getString("result"))));
         });
     // 만료 시각이 지난 승인은 아직 pending 으로 남아 있어도 빼요. 보내 봐야 옛 승인이라 409 예요.
     Map<String, List<PendingApproval>> pending = new HashMap<>();

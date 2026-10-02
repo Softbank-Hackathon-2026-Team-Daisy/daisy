@@ -4,6 +4,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ObjectNode;
+import com.teamdaisy.server.project.domain.Target;
 import java.time.Instant;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -61,5 +62,45 @@ class TargetResponseTest {
                     MAPPER.createObjectNode().put("available", false).put("assessed_at", "어제"))
                 .assessedAt())
         .isNull();
+  }
+
+  private static Target target(String id, String env) {
+    return Target.create(
+        id,
+        "prj_demo_monolith",
+        id + "-name",
+        env,
+        "prj/" + id,
+        MAPPER.createObjectNode(),
+        "unknown",
+        Instant.parse("2026-10-02T00:00:00Z"));
+  }
+
+  @Test
+  @DisplayName("데모 대상 세 개는 환경 화면 구성 값이 나오고, 표에 없는 대상은 여섯 필드 모두 null 이에요 (R4·R5)")
+  void profileFields() {
+    var aws = TargetResponse.of(target("tgt_demo_aws", "aws"));
+    assertThat(aws.runtime()).isEqualTo("ECS Fargate · ALB");
+    assertThat(aws.location()).isEqualTo("ap-northeast-2 서울");
+    assertThat(aws.locationLabel()).isEqualTo("리전");
+    assertThat(aws.accessMethod()).isEqualTo("Jenkins → AWS API");
+    assertThat(aws.exposure()).isEqualTo("https://aws.unibloom.cloud");
+    assertThat(aws.stateBackend()).isEqualTo("S3 (잠금)");
+
+    var gcp = TargetResponse.of(target("tgt_demo_gcp", "gcp"));
+    assertThat(gcp.location()).isEqualTo("asia-northeast1 도쿄");
+    assertThat(gcp.stateBackend()).isEqualTo("GCS (잠금)");
+
+    var onprem = TargetResponse.of(target("tgt_demo_onprem", "onprem"));
+    assertThat(onprem.locationLabel()).isEqualTo("위치");
+    assertThat(onprem.stateBackend()).isEqualTo("Jenkins 러너 로컬 (flock)");
+
+    var other = TargetResponse.of(target("tgt_other", "aws"));
+    assertThat(other.runtime()).isNull();
+    assertThat(other.location()).isNull();
+    assertThat(other.locationLabel()).isNull();
+    assertThat(other.accessMethod()).isNull();
+    assertThat(other.exposure()).isNull();
+    assertThat(other.stateBackend()).isNull();
   }
 }

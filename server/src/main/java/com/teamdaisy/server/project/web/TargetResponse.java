@@ -2,6 +2,7 @@ package com.teamdaisy.server.project.web;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.teamdaisy.server.project.domain.Target;
+import com.teamdaisy.server.project.domain.TargetProfile;
 import java.time.Instant;
 import java.time.format.DateTimeParseException;
 
@@ -12,9 +13,21 @@ import java.time.format.DateTimeParseException;
  *
  * @param reuse 인프라가 보고한 재사용 판정. 보고가 없으면 통째로 null 이에요 — {@code available: false} 로 꾸미면 "재사용 불가로 확인됨"
  *     처럼 읽혀요
+ * @param runtime 환경 화면 구성 줄이에요 ({@link TargetProfile}). 이 필드부터 {@code stateBackend} 까지 설명이 없는 대상은
+ *     null 이에요
  */
 public record TargetResponse(
-    String targetId, String type, String name, Reuse reuse, Connection connection) {
+    String targetId,
+    String type,
+    String name,
+    Reuse reuse,
+    Connection connection,
+    String runtime,
+    String location,
+    String locationLabel,
+    String accessMethod,
+    String exposure,
+    String stateBackend) {
 
   public record Reuse(Boolean available, String scriptId, String reason, Instant assessedAt) {}
 
@@ -25,12 +38,19 @@ public record TargetResponse(
   public record Connection(String state, Instant checkedAt) {}
 
   public static TargetResponse of(Target target) {
+    TargetProfile profile = TargetProfile.of(target.id());
     return new TargetResponse(
         target.id(),
         target.environmentType(),
         target.name(),
         reuse(target.reuseAssessment()),
-        new Connection(connectionState(target.connectionState()), target.connectionCheckedAt()));
+        new Connection(connectionState(target.connectionState()), target.connectionCheckedAt()),
+        profile == null ? null : profile.runtime(),
+        profile == null ? null : profile.location(),
+        profile == null ? null : profile.locationLabel(),
+        profile == null ? null : profile.accessMethod(),
+        profile == null ? null : profile.exposure(),
+        profile == null ? null : profile.stateBackend());
   }
 
   /**
