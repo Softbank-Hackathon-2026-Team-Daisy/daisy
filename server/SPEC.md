@@ -847,7 +847,7 @@ V9 의 실제 Jenkins 실행은 하지 않습니다. 기본 비활성 설정 그
 | `error_summary` | 같은 이름 | |
 | `cancel_requested_at` | 같은 이름 | 취소 요청이 접수됐지만 아직 끝나지 않은 상태를 보여 줄 수 있게 둠 |
 | `started_at`·`finished_at` | 같은 이름 | |
-| `step`·`step_state`·`url`·`image_digest`·`health_summary` | — | **null.** `url`·`image_digest`·`health_summary` 는 근거 데이터가 아직 없음 (apply 결과 수신 #35 대기). `step`·`step_state` 는 승환님 Jenkins 수신이 `deployment_log` 에 `step.started`·`completed`·`failed` 로 남기지만 아직 읽지 않음 — A-07 로그 조회와 함께 붙임 (10/2 점검에서 정정). 0·빈 값으로 채우지 않음 |
+| `step`·`step_state`·`url`·`image_digest`·`health_summary` | — | **null.** `url`·`image_digest`·`health_summary` 는 근거 데이터가 아직 없음 (apply 결과 수신 #35 대기). `step`·`step_state` 는 승환님 Jenkins 수신이 `deployment_log` 에 `step.started`·`completed`·`failed` 로 남기지만 아직 읽지 않음 — A-07 로그 조회와 함께 붙임 (10/2 점검에서 정정). → 10/2 A-07 에서 붙였습니다 (「배포 로그 A-07 · A-04 단계」). 0·빈 값으로 채우지 않음 |
 
 내보내지 않는 것: `version`("v7")·`commit_message` 는 S8 후순위, 단건 `pending_approval` 은 `pending_approvals` 로 대체 (#40 승준 질문에 답한 대로).
 
@@ -977,6 +977,8 @@ URL 인코딩 자체가 깨진 커서(`%%%bad`)는 Tomcat 이 파라미터를 �
 
 `monthly_cost_krw` 는 원천이 없어 넣지 않습니다.
 
+10/2 오후: 인프라 #35 초안은 리소스 한 줄을 `{address, type, action}`(문자열)로 보냅니다. 서버 저장 모양(`actions` 배열)과 어느 쪽으로 정해질지 몰라 둘 다 읽게 했습니다. 문자열은 `create`·`update`·`delete`·`replace` 만 그대로 쓰고, 그 밖의 값(`no-op` 등)은 뺍니다.
+
 ### `ai_usage` 합계
 
 이 배포에 속한 모든 대상·회차의 `ai_usage` 행을 더합니다. 설계 5.13 과 9/29 결정을 따릅니다.
@@ -1029,3 +1031,303 @@ URL 인코딩 자체가 깨진 커서(`%%%bad`)는 Tomcat 이 파라미터를 �
 단위 테스트 7개를 더했습니다 (환산·반올림·잘못된 환율 3개, 응답 변환 4개). `./gradlew --no-daemon spotlessCheck check build` 성공, 182개 통과.
 
 같은 경로의 두 핸들러가 OpenAPI 에서 한 operation 으로 합쳐지면서 처음에는 `detail` 이 필수로 표시됐습니다. 붙이지 않는 A-05 호출이 있으니 문서에서 선택으로 보이게 고쳤습니다.
+
+## A-12 `last_seq` — 프로젝트 채널 시작 지점 (10/2, 하은현)
+
+### 왜
+
+프로젝트 SSE(`GET /projects/{id}/events`)는 `Last-Event-ID` 가 없으면 그 프로젝트의 이벤트를 처음부터 다시 보냅니다 (1초에 100개씩). 웹 #61 은 처음 붙을 때 시작 지점을 알 값이 없어서, 이벤트가 쌓인 프로젝트를 열 때마다 몇 초 동안 화면을 계속 다시 불러옵니다 (#61 리뷰 2번). 배포 채널은 A-04 `last_seq` 가 이미 있습니다.
+
+### 무엇
+
+- A-12 `GET /projects/{id}` 에 `last_seq` 를 더합니다. 값은 `project.last_event_seq` 로, 프로젝트 채널 SSE 가 범위를 잴 때 쓰는 값과 같습니다.
+- A-01 목록에는 넣지 않고 null 로 둡니다. 상세 전용 필드는 목록에서 비우는 기존 방식과 같습니다.
+- 쓰는 순서: A-12 로 `last_seq` 를 먼저 읽고 → 스냅샷(A-02·A-03 등)을 읽고 → `Last-Event-ID: last_seq` 로 붙습니다. 그 사이에 생긴 이벤트는 SSE 로 다시 오므로 빠지지 않습니다. 계약에 필드를 더하는 것이라 기존 소비자는 그대로 동작합니다.
+## Jenkins 콜백 인증 (10/2, 하은현)
+
+### 범위
+
+인프라(#35, 10/2 채준님)가 Jenkins 결과를 `POST /internal/jenkins/callbacks` 로 보냅니다. 받는 코드는 승환님 `JenkinsCallbackService` 이고, 서비스 인증은 제가 `ExecutionCallbackAccess` 로 제공하기로 돼 있습니다 (`docs/jenkins-callbacks.md`). 이번에 두 가지를 합니다.
+
+1. `BearerAuthFilter` 공개 경로에 `/internal/jenkins/callbacks` 추가. 사용자 로그인(Bearer)을 요구하지 않고, 아래 서비스 토큰이 그 경로를 지킵니다.
+2. `ExecutionCallbackAccess` 구현 `JenkinsCallbackTokenAccess` (`identity/auth`).
+
+### 인증 규칙
+
+| 상황 | 결과 |
+|---|---|
+| 서버에 콜백 토큰 설정(`DAISY_JENKINS_CALLBACK_TOKEN`)이 없거나 빔 | 403. 콜백 전체를 막음 |
+| 요청에 `X-Daisy-Jenkins-Token` 헤더가 없음 | 401 |
+| 헤더 값이 다름 | 401 |
+| 같음 | 통과. `instanceId` = `daisy.jenkins.instance-id`(명령 서비스와 같은 값), 허용 Job = `daisy.jenkins.operation-jobs.prepare`·`replan`·`apply` 설정값(기본 `daisy-cd-plan`·`daisy-cd-apply`) |
+
+- 비교는 상수 시간입니다. 두 값을 SHA-256 으로 같은 길이로 만든 뒤 `MessageDigest.isEqual` 로 비교해서, 길이나 앞부분 일치 여부가 응답 시간에 드러나지 않게 합니다.
+- 토큰 값은 로그에 남기지 않습니다.
+- 콜백 경로는 `daisy.jenkins.callbacks-enabled=true` 일 때만 등록됩니다(승환님 설정). 꺼져 있으면 공개 경로여도 404 입니다.
+- CI 빌드 수신(`/internal/jenkins/builds`)은 승환님 답을 받은 뒤 같은 토큰으로 붙입니다. 이번 범위가 아닙니다.
+## AI 호출별 기록 WR-11 (10/2, 하은현)
+
+### 범위
+
+`GET /projects/{id}/ai-usage?deployment_id=` 로 배포 한 건의 AI 호출 기록을 줍니다 (W-12). 합계는 A-05 `ai_usage` 가 맡고, 여기는 호출 한 줄씩입니다 (#13, 승환님 `docs/sh/2026-10-01-pr19-feedback.md` S3).
+
+- 권한: `requireRead`. 비멤버·없는 프로젝트 404, viewer 200.
+- `deployment_id` 는 필수입니다. 없으면 400, 그 프로젝트의 배포가 아니면 404 입니다.
+- 데이터: `ai_usage` 를 읽기 전용 SQL 로 읽습니다 (`server/AGENTS.md` §3 예외). 대상 소속은 `deployment_target` 으로 확인합니다.
+- 봉투 `{ items, next_cursor }`. 한 배포의 호출은 대상당 많아야 몇 번이라 한 번에 주고 `next_cursor` 는 null 입니다. 넘칠 때를 대비해 1000 행까지만 줍니다.
+- 순서: 호출 시각(`occurred_at`), 같은 시각이면 ID 순.
+
+### 한 줄
+
+| 필드 | 출처 | 비고 |
+|---|---|---|
+| `at` | `occurred_at` | |
+| `deployment_id` | `deployment_target.deployment_id` | |
+| `target_id` | `deployment_target.target_id` | |
+| `step` | `step` | `generate`·`fix` 등 원천 값 그대로 |
+| `attempt` | `attempt` | 1~3 |
+| `tokens` | `input_tokens + output_tokens` | 둘 중 하나라도 모르면 null. 0 으로 만들지 않음 |
+| `cost_krw` | `cost_usd` × 고정 환율, 원 단위 반올림(HALF_UP) | 비용을 모르거나 환율 설정이 없으면 null |
+| `status` | `status` | LLM 호출 결과 `succeeded`·`failed`·`unknown` 그대로 (Terraform 검증 결과 아님) |
+| `note` | 없음 | null. 원본 설명이 오면 채움 |
+
+- 줄마다 원화로 반올림하므로, 줄의 `cost_krw` 를 더한 값은 A-05 합계(USD 를 먼저 더한 뒤 한 번 반올림)와 1~2원 다를 수 있습니다. 합계는 A-05 를 기준으로 봅니다.
+- 지금 Jenkins 는 호출별 기록을 주지 않아서 대부분 빈 목록입니다. 빈 목록을 "AI 를 안 썼다" 로 보여주지 않게 웹·앱에 알립니다.
+## 배포 로그 A-07 · A-04 단계 (10/2, 하은현)
+
+### 범위
+
+| 경로 | 무엇 | 소비자 |
+|---|---|---|
+| `GET /deployments/{id}/logs?target_id=&tail=` | 최근 로그 N개 | W-07 로그 채우기(앱 200·웹 100), W-08 "원인 보기"(앱 500). SSE 가 끊겼다 다시 붙을 때 채우기용 |
+| A-04 `targets[].step`·`step_state` | 대상의 지금 단계 | W-05·W-07 진행 표시. 지금까지 null 이던 것 |
+
+- 권한: A-04 와 같이 `projectIdOf`. 없는 배포·접근할 수 없는 배포 404, viewer 200.
+- 데이터: 승환님 Jenkins 수신이 쓰는 `deployment_log` 를 읽기 전용 SQL 로 읽습니다 (`server/AGENTS.md` §3 예외의 "로그 테이블"). 실제 Jenkins 에서 로그·단계가 들어오는 것은 #35 수신 대기이고, 여기서는 저장된 행을 읽는 것까지입니다.
+
+### A-07 응답
+
+봉투는 다른 목록과 같은 `{ items, next_cursor }` 입니다. 앱 `Page<LogLine>` 이 봉투이고, 웹은 WR-04 처럼 봉투로 맞춰 달라고 알립니다. `next_cursor` 는 늘 null 입니다 (최근 N개만 주고 더 옛날 로그 페이지는 두지 않음).
+
+| 필드 | 출처 | 비고 |
+|---|---|---|
+| `seq` | `deployment_log.seq` | 배포 안 순번. SSE `Last-Event-ID` 와 같은 값 |
+| `at` | `occurred_at` | |
+| `target_id` | `deployment_target.target_id` | 실행 전체 콘솔 로그면 null |
+| `step` | `step` | 없으면 null |
+| `level` | `level` | 저장값 그대로 소문자 `debug`·`info`·`warn`·`error` (SSE `log.batch` 와 같음) |
+| `message` | `message` | 콘솔 묶음이면 여러 줄일 수 있음. 비어 있으면 빈 문자열 |
+
+- 앱은 `at`·`message`, 웹은 `seq`·`at`·`message` 를 받으므로 그 이름을 씁니다. SSE `log.batch` 는 `ts`·`text` 라 이름이 다릅니다 — SSE 는 승환님 영역이라 바꾸지 않고 알립니다.
+- `event_type='log.batch'` 행만 줍니다. 상태·단계 이벤트는 A-04 와 SSE 가 맡습니다.
+- 메시지는 저장할 때 `EventJournal.validate` 가 비밀값 패턴을 막습니다. 읽을 때 따로 가리지 않습니다.
+- 순서는 `seq` 오름차순 (최근 N개를 고른 뒤 오래된 것부터).
+
+| 파라미터 | 규칙 |
+|---|---|
+| `tail` | 기본 200, 최대 1000. 넘으면 1000 으로 깎고, 0·음수는 400 |
+| `target_id` | 이 배포의 대상이 아니면 404. 주면 그 대상 행과, **그 대상을 포함한 실행의 대상 없는 콘솔 로그**를 함께 줍니다. Jenkins 콘솔은 실행 단위라 대상별로 나뉘지 않기 때문입니다 |
+
+### A-04 단계
+
+대상마다 가장 최근(`seq` 가 가장 큰) `step.started`·`step.completed`·`step.failed` 이벤트로 정합니다.
+
+| 이벤트 | `step` | `step_state` |
+|---|---|---|
+| `step.started` | 그 단계 | `running` |
+| `step.completed` | 그 단계 | `done` |
+| `step.failed` | 그 단계 | `failed` |
+| 없음 | null | null |
+
+`waiting` 은 근거 이벤트가 없어 만들지 않습니다. A-03 목록도 같은 코드라 함께 채워집니다.
+## 빌드 결과 저장 (10/2, 하은현)
+
+### 범위
+
+Jenkins CI 빌드 결과를 `source_version` 에 저장하는 서비스입니다. 공개 API 가 아니라 **승환님 Jenkins 수신부가 부르는 서비스 메서드**입니다 (#42 ④, 10/2 01:44 승환님 답). A-06 빌드 목록과 배포 생성의 빌드 선택이 이 행을 읽습니다.
+
+| 누가 | 무엇 |
+|---|---|
+| 승환님 수신부 | Jenkins 조회·검증, 그 실행이 등록된 프로젝트·저장소와 맞는지 확인, 같은 트랜잭션에서 저장 서비스 → `build.received` 이벤트 기록 |
+| 저장 서비스 (`project/application/BuildRegistry`) | 입력 모양 검사, 중복·충돌·상태 전이 판단, `source_version` 저장, `source_version_id` 와 실제 변경 여부 반환 |
+
+### 인터페이스
+
+```java
+Recorded record(BuildReport report)
+
+record BuildReport(String projectId, String source, String externalBuildId, String commitSha,
+                   String branch, String status, JsonNode imageRefs, String runUrl,
+                   Instant startedAt, Instant finishedAt, String errorSummary)
+record Recorded(String sourceVersionId, boolean changed)
+```
+
+- 트랜잭션은 따로 열지 않고 호출한 쪽 트랜잭션을 그대로 탑니다 (`REQUIRES_NEW` 없음). 저장과 이벤트 중 어느 쪽이 실패해도 같이 롤백됩니다.
+- `changed=false` 면 승환님 수신부는 이벤트를 다시 남기지 않습니다.
+
+### 입력 검사 (어기면 400 `VALIDATION_FAILED`)
+
+| 필드 | 규칙 |
+|---|---|
+| `project_id` | 있고 보관(`archived_at`)되지 않은 프로젝트. 아니면 404 |
+| `source`·`external_build_id` | 비지 않음, 255자 이하. 둘을 합쳐 Jenkins 인스턴스·Job·빌드를 구분해야 함 (예: 인스턴스 ID, 전체 Job 경로 + 빌드 번호 — 표현은 #35 에서 확정) |
+| `commit_sha` | 소문자 hex 40자 또는 64자 |
+| `status` | `pending`·`running`·`succeeded`·`failed` |
+| `image_refs` | `succeeded` 면 필수이고 A-06·배포 생성과 같은 모양 `{service: {image_ref, digest?, commit_sha}}`, 모든 서비스의 `commit_sha` 가 빌드 commit 과 같아야 함. 다른 상태면 없어야 함 |
+| `branch` | 255자 이하 또는 null |
+
+### 중복·충돌·상태 전이
+
+같은 `(source, external_build_id)` 가 이미 있으면 그 행을 기준으로 판단합니다. 행을 잠그고(`for update`) 판단해서 동시 수신도 한 행으로 모입니다.
+
+| 경우 | 결과 |
+|---|---|
+| 처음 받음 | 새 행 (`sv_` + UUID), `changed=true` |
+| 기존 행과 `project_id`·`commit_sha` 가 다름, 또는 `branch` 가 둘 다 있는데 다름 | 409 `STATE_CONFLICT`. 덮어쓰지 않음 |
+| 상태가 앞으로 감 (`pending` → `running` → `succeeded`/`failed`, 건너뛰기 허용) | 새 상태와 값으로 갱신, `changed=true` |
+| 상태가 뒤로 감 (예: `succeeded` 뒤에 `running`) | 무시, `changed=false`. 폴링이 늦게 본 옛 상태라 수신 전체를 실패시키지 않음 |
+| 종료 상태끼리 다름 (`succeeded` ↔ `failed`) | 409. 종료 결과는 바꾸지 않음 |
+| 같은 종료 상태인데 `image_refs`·`finished_at`·`error_summary` 가 다름 | 409 |
+| 같은 종료 상태, 같은 값 | 무변경, `changed=false` |
+| 같은 진행 상태 (`pending`·`running`) | 비어 있던 `run_url`·`started_at`·`branch` 만 채움. 채운 게 있으면 `changed=true` |
+
+- `received_at` 은 처음 받은 시각 그대로 둡니다. A-06 커서 기준이라 바꾸면 목록 순서가 흔들립니다.
+- `manifest_*` 컬럼은 이번 범위가 아닙니다. 빌드 결과에 `deploy.yaml` 이 실려 오는 계약이 정해지면 붙입니다.
+
+### 검증 계획
+
+| | 검사 | 기대 |
+|---|---|---|
+| Q1 | 새 프로젝트 A-12 | `last_seq: 0`, A-01 목록은 null |
+| Q2 | 배포를 하나 만든 뒤 A-12 | `last_seq` 가 늘어남 |
+| Q3 | 그 값으로 `Last-Event-ID` 를 주고 프로젝트 채널에 붙은 뒤 배포를 하나 더 만듦 | 그 뒤 이벤트만 오고, 처음부터 다시 오지 않음 |
+| Q4 | `Last-Event-ID` 없이 붙음 | 처음부터 다시 옴 (비교용) |
+
+### 검증 결과 (10/2 오후)
+
+단위 테스트 1개와, 빈 PostgreSQL 17 에 jar 로 띄워 실제로 SSE 를 열어 확인했습니다.
+
+| | 결과 |
+|---|---|
+| Q1 | 시드 프로젝트 A-12 `last_seq: 0`, A-01 목록은 null |
+| Q2 | 배포 하나 만든 뒤 `last_seq` 0 → 1, DB `project.last_event_seq` 와 같음 |
+| Q3 | `Last-Event-ID: 1` 로 붙은 뒤 배포를 하나 더 만듦 → 받은 이벤트 id `[2]` (`heartbeat`, `deployment.created`). 처음부터 다시 오지 않음 |
+| Q4 | `Last-Event-ID` 없이 붙음 → id `[1, 2]`, 처음부터 다시 옴 (비교용) |
+
+서버 로그 ERROR 0건. `./gradlew --no-daemon spotlessCheck check build` 성공.
+| K1 | 콜백 켜고 토큰 설정, 헤더 없음 / 틀린 토큰 | 401 / 401 (Bearer 필터가 아니라 콜백 인증이 낸 401) |
+| K2 | 맞는 토큰 + 형식이 틀린 본문 | 400 (인증 통과 후 본문 검사에서 막힘) |
+| K3 | 토큰 설정 없이 콜백 켬 | 맞는 헤더를 보내도 403 |
+| K4 | 콜백 끔 | 404 |
+| K5 | 다른 경로 | `/projects` 는 여전히 Bearer 없으면 401 |
+| K6 | 서버 로그 | 토큰 값 0회 출력, ERROR 0건 |
+
+### 검증 결과 (10/2 오후)
+
+단위 테스트 5개와, 빈 PostgreSQL 17 에 jar 를 설정만 바꿔 세 번 띄운 실서버로 확인했습니다. 토큰·인스턴스 ID 는 인프라가 쓸 환경변수 이름(`DAISY_JENKINS_CALLBACK_TOKEN`·`DAISY_JENKINS_INSTANCE_ID`) 그대로 넣었습니다.
+
+| | 결과 |
+|---|---|
+| K1 | 헤더 없음 401, 틀린 토큰 401 (`UNAUTHENTICATED`) |
+| K2 | 맞는 토큰 + `{}` 본문 400, 맞는 토큰 + JSON 아닌 본문 400. 인증을 통과해 본문 검사까지 갔다는 뜻이고, Bearer 필터가 더는 이 경로를 막지 않는다는 근거입니다 |
+| K3 | 토큰 설정 없이 콜백만 켬 → 맞는 헤더를 보내도 403 |
+| K4 | 콜백 끔 → 404 |
+| K5 | `/projects` 는 Bearer 없으면 401. 콜백 토큰을 보내도 401 (콜백 토큰이 다른 경로를 열지 않음) |
+| K6 | 세 번 띄운 서버 로그에 토큰 값 0회, ERROR 0건 |
+
+실DB 포함 테스트 190개 통과 (승환님 `ExecutionPostgresTest` 포함). 실제 Jenkins 가 보낸 콜백은 아직 받아 보지 못했습니다. plan 콜백은 #35 에 적은 `summary`·`resources` 모양 불일치가 정리돼야 통과합니다.
+| U1 | 토큰 없음 / 비멤버 프로젝트 / viewer | 401 / 404 / 200 |
+| U2 | `deployment_id` 없음 / 다른 프로젝트 배포 / 없는 배포 | 400 / 404 / 404 |
+| U3 | 호출 3행 (하나는 토큰·비용 모름, 하나는 출력 토큰만 모름) | 시각 순, `tokens`·`cost_krw` 는 아는 줄만, 나머지 null |
+| U4 | 환율 1400, 0.0003 USD | `cost_krw` 0 (0.42원 반올림) |
+| U5 | 같은 프로젝트 다른 배포의 호출 | 섞이지 않음 |
+| U6 | OpenAPI | 경로·`deployment_id` 노출, `principal` 0건, 서버 로그 ERROR 0건 |
+
+### 검증 결과 (10/2 낮)
+
+단위 테스트 2개(줄 변환·환율 없음)와, 빈 PostgreSQL 17 에 jar 로 띄운 실서버(`DAISY_AI_KRW_PER_USD=1400`)로 확인했습니다. API 로 만든 배포 2개에 호출 4행을 SQL 로 넣었습니다.
+
+| | 결과 |
+|---|---|
+| U1 | 토큰 없음 401 / 비멤버 프로젝트 404 / viewer 200 |
+| U2 | `deployment_id` 없음 400 / 다른 프로젝트 배포 404 / 없는 배포 404 |
+| U3 | 시각 순 3줄. 토큰·비용 모르는 줄은 둘 다 null, 출력 토큰만 모르는 줄은 `tokens: null`·`cost_krw: 48` |
+| U4 | 0.0003 USD → `cost_krw: 0`, 0.0343 USD → 48 |
+| U5 | 같은 프로젝트 다른 배포의 호출은 그 배포에서만 보임 |
+| U6 | 파라미터 `projectId`·`deployment_id`, `principal` 0건, 서버 로그 ERROR 0건 |
+
+`./gradlew --no-daemon spotlessCheck check build` 성공.
+| G1 | 토큰 없음 / 없는 배포 / viewer | 401 / 404 / 200 |
+| G2 | 로그 5행 (대상 2개 + 대상 없는 콘솔 1행) + 상태 이벤트 1행 | 로그 5행만, `seq` 오름차순, 봉투, `next_cursor: null` |
+| G3 | `tail=2` / `tail=0` / `tail=5000` | 마지막 2행 / 400 / 1000 으로 깎임 |
+| G4 | `target_id=tgt_a` | 그 대상 행 + 그 대상을 포함한 실행의 콘솔 행, 다른 대상 행 없음 / 이 배포에 없는 대상 404 |
+| G5 | 단계 이벤트 started → completed → (다른 단계) started | A-04 `step` 은 마지막 단계, `step_state: running`. 실패 이벤트면 `failed` |
+| G6 | 단계 이벤트가 없는 대상 | `step`·`step_state` null |
+| G7 | 다른 배포의 로그 | 섞이지 않음 |
+| G8 | OpenAPI | 경로·`target_id`·`tail` 노출, `principal` 0건, 서버 로그 ERROR 0건 |
+
+### 검증 결과 (10/2 낮)
+
+**실DB 테스트** — `DeploymentQueryPostgresTest` 에 3개를 더했습니다 (배포 2개, 대상 3개, 실행 3개, 로그·단계 이벤트 10행).
+
+- 로그 행만 오래된 것부터, `tail` 은 최근 것부터 자름, 다른 배포·다른 프로젝트 섞이지 않음
+- `target_id` 를 주면 그 대상 행 + 그 대상을 포함한 실행의 콘솔 행만 (다른 대상의 실행 콘솔은 빠짐)
+- A-04 단계: started → completed → 다른 단계 started 면 마지막 단계 `running`, 실패 이벤트면 `failed`, 이벤트 없는 대상 null
+- 단계 정렬을 오름차순으로 바꾸거나 `log.batch` 조건을 빼면 해당 테스트가 실패하는 것을 확인했습니다
+
+**실서버** — 빈 PostgreSQL 17 에 jar 로 띄우고 API 로 만든 배포에 로그·단계 행을 넣어 확인했습니다.
+
+| | 결과 |
+|---|---|
+| G1 | 401 / 404 / viewer 200 |
+| G2 | 봉투, `next_cursor: null`, 로그 3행만 `seq` 오름차순, 필드 `seq`·`at`·`target_id`·`step`·`level`·`message`, 콘솔 행 `target_id: null` |
+| G3 | `tail=2` 마지막 2행 / `tail=0` 400 / `tail=5000` 200 |
+| G4 | `target_id=tgt_demo_aws` 는 그 대상 행 + 콘솔 행, 없는 대상 404 |
+| G5·G6 | A-04 `tgt_demo_aws` 는 `apply`·`running`, 단계 이벤트 없는 대상은 null |
+| G7 | 실DB 테스트로 확인 |
+| G8 | 파라미터 `target_id`·`tail`, `principal` 0건, 서버 로그 ERROR 0건 |
+
+`./gradlew --no-daemon spotlessCheck check build` 성공.
+
+### A-04 승인 직후 표시 (10/2 낮, #42 승환님 제안)
+
+승인하면 apply 명령은 큐에 들어가지만, 실제 대상 상태 보고가 오기 전까지 대상 `state` 는 `awaiting_approval` 그대로입니다. 화면이 계속 "승인 대기" 로 보이지 않게 대상마다 두 필드를 더합니다. 기존 상태 값과 상태 전이는 바꾸지 않습니다.
+
+| 필드 | 출처 | 값 |
+|---|---|---|
+| `approval_state` | `deployment_target.current_plan_id` 에 연결된 `approval.state` | 저장값 그대로 `pending`·`approved`·`rejected`·`superseded`·`expired`. 현재 plan·승인이 없으면 null |
+| `apply_dispatch` | `current_execution_id` 의 `jenkins_execution` | 그 명령이 `apply` 일 때만. `pending`·`dispatching`·`accepted` → `queued`, `unknown` → `unknown`, `rejected` → `rejected`. 아니면 null |
+
+화면 문구 제안: `state=awaiting_approval` + `approval_state=approved` 면 "승인 완료 · 실행 대기", `apply_dispatch=unknown` 이면 "실행 여부 확인 중". `pending_approvals` 가 빈 것만으로는 승인 완료로 판단하지 않습니다 (만료·거절·plan 전도 빈 목록).
+
+확인: 단위 테스트(값 묶기·응답 매핑)와 실DB 테스트(승인 완료 + apply 접수 대상은 `approved`·`queued`, 승인 대기 + 현재 명령 prepare 대상은 `pending`·null, 승인 없는 배포는 둘 다 null). 실DB 포함 191개 통과.
+| R1 | 처음 받은 `running` → 같은 키 `succeeded` (이미지 포함) | 한 행, 두 번 다 `changed=true`, 같은 ID |
+| R2 | 같은 `succeeded` 재수신 | `changed=false`, 값 그대로 |
+| R3 | `succeeded` 뒤 `running` | `changed=false`, 상태 그대로 |
+| R4 | `succeeded` 뒤 `failed` / 다른 이미지 | 409 / 409 |
+| R5 | 같은 키 다른 프로젝트·다른 commit | 409 |
+| R6 | 모양 오류 (`succeeded` 인데 이미지 없음, commit 불일치 이미지, 실패인데 이미지, 짧은 sha, 모르는 상태) | 400 |
+| R7 | 없는 프로젝트 | 404 |
+| R8 | 저장한 빌드를 A-06 이 읽고, 배포 생성이 그 빌드를 고를 수 있음 | 목록에 보이고 생성 201 |
+| R9 | 같은 키 동시 2건 | 행 1개, 하나만 `changed=true` 이거나 둘 다 같은 ID |
+
+### 검증 결과 (10/2 낮)
+
+`BuildRegistryTest`(단위 7개)와 `BuildRegistryPostgresTest`(실DB 3개)로 확인했습니다. 실DB 테스트는 수신부처럼 트랜잭션 안에서 부릅니다.
+
+| | 결과 |
+|---|---|
+| R1 | `running` → `succeeded` 가 같은 ID 한 행, 둘 다 `changed=true` |
+| R2 | 같은 `succeeded` 재수신 `changed=false` |
+| R3 | `succeeded` 뒤 `running` 은 `changed=false`, 상태 그대로 |
+| R4 | `succeeded` 뒤 `failed` 409, 다른 이미지 409, 상태 그대로 |
+| R5 | 같은 키 다른 프로젝트·다른 commit·다른 브랜치 409 |
+| R6 | 성공인데 이미지 없음·실패인데 이미지·commit 다른 이미지·짧은 sha·모르는 상태·상태 없음(null) 모두 400 (단위). 상태 null 이 처음에는 내부 예외(NPE)였던 것을 승환님 리뷰로 고쳤고, 고치기 전 코드에서 그 테스트가 실패하는 것을 확인했습니다 |
+| R7 | 없는 프로젝트·보관된 프로젝트 404 |
+| R8 | 저장된 행이 배포 생성·A-06 이 쓰는 조건(성공 + `ImageRefs.valid`)을 만족하고, `received_at` 은 처음 받은 시각 그대로. HTTP 로 A-06·배포 생성까지 잇는 확인은 수신부가 붙은 뒤 합니다 |
+| R9 | 같은 키 동시 2건: 행 1개, 같은 ID, `changed` 는 true 하나·false 하나 |
+
+- 같은 보고를 다시 받았을 때 시각의 나노초 차이로 충돌하지 않게, 시각을 DB 정밀도(마이크로초)로 맞춥니다 (단위 테스트).
+- `on conflict` 를 빼면 실DB 테스트 3개가 모두 실패하는 것을 확인했습니다.
+- 이미지 모양 검사를 `project/domain/ImageRefs` 로 옮겨 배포 생성과 같이 씁니다. 승환님 `ExecutionPostgresTest` 19개도 같은 DB 에서 다시 돌려 통과했습니다.
+- `./gradlew --no-daemon spotlessCheck check build` 성공. 실DB 포함 181개 통과.

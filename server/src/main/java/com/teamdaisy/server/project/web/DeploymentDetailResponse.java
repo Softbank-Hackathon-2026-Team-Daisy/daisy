@@ -13,8 +13,8 @@ import java.util.List;
  * 배포 상세예요 (A-04). 소비자 모델은 {@code ios/SPEC.md} 326행 {@code Deployment} 예요.
  *
  * <p><b>없는 값을 만들어 넣지 않아요.</b> 접속 URL·실제 적용 이미지·헬스는 근거 데이터가 아직 없어서 null 이에요 (apply 결과 수신 #35 대기).
- * 단계는 승환의 Jenkins 수신이 {@code deployment_log} 에 {@code step.*} 이벤트로 남기지만 여기서는 아직 읽지 않아서 null 이에요 —
- * 같은 테이블을 읽는 A-07 로그 조회와 함께 붙여요. 시도 횟수 0 은 null 로 보내요 (S2).
+ * 단계는 승환의 Jenkins 수신이 {@code deployment_log} 에 남긴 가장 최근 {@code step.*} 이벤트로 정하고, 없으면 null 이에요 (A-07
+ * 과 함께 붙임). 시도 횟수 0 은 null 로 보내요 (S2).
  *
  * @param kind 롤백이면 {@code "rollback"}, 아니면 null. 내부 값 {@code normal}·{@code retry} 는 내보내지 않아요
  * @param pendingApprovals 승인 요청 {@code items} 와 같은 모양이에요. 없으면 빈 목록이에요
@@ -44,7 +44,11 @@ public record DeploymentDetailResponse(
   /**
    * 대상 하나예요.
    *
-   * @param step 아직 {@code deployment_log} 의 단계 이벤트를 읽지 않아서 null 이에요
+   * @param step 가장 최근 단계 이벤트의 단계. 이벤트가 없으면 null 이에요
+   * @param stepState running·done·failed. 이벤트가 없으면 null 이고, waiting 은 근거가 없어 만들지 않아요
+   * @param approvalState 현재 plan 승인 행의 상태 그대로 (pending·approved·rejected·superseded·expired). 없으면
+   *     null 이에요. 승인 직후 apply 가 시작되기 전에는 대상 state 가 awaiting_approval 이어도 approved 예요
+   * @param applyDispatch 현재 명령이 apply 일 때만 queued·unknown·rejected. 아니면 null 이에요
    * @param attempt 첫 생성을 포함한 시도 횟수(1~3). 아직 생성 전이면 null 이에요
    */
   public record Target(
@@ -62,7 +66,9 @@ public record DeploymentDetailResponse(
       String errorSummary,
       Instant cancelRequestedAt,
       Instant startedAt,
-      Instant finishedAt) {}
+      Instant finishedAt,
+      String approvalState,
+      String applyDispatch) {}
 
   public record Approval(String targetId, String approvalId) {}
 
@@ -95,8 +101,8 @@ public record DeploymentDetailResponse(
         text(row.snapshot(), "environment_type"),
         text(row.snapshot(), "name"),
         row.status(),
-        null,
-        null,
+        row.step(),
+        row.stepState(),
         row.attempt() == 0 ? null : row.attempt(),
         row.aiReused(),
         null,
@@ -105,7 +111,9 @@ public record DeploymentDetailResponse(
         row.errorSummary(),
         row.cancelRequestedAt(),
         row.startedAt(),
-        row.finishedAt());
+        row.finishedAt(),
+        row.approvalState(),
+        row.applyDispatch());
   }
 
   private static Approval approval(PendingApproval pending) {
