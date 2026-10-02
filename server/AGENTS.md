@@ -101,7 +101,7 @@ Redis 대신 Postgres 를 쓰는 이유는 **어차피 DB 에 다 적어야 하�
 - 로그는 **JSON 한 줄**. `X-Request-ID` 를 받으면 그대로 쓰고 없으면 만들어서 응답 헤더로 돌려줘요 (샘플 앱도 같은 방식이라 화면 → 서버 → 배포된 앱까지 한 줄로 추적돼요)
 - **비밀값·토큰·클라우드 키를 로그에 남기지 않아요.** `tfplan` 도 변수값이 들어가서 비밀값 취급해요
 - 시간은 ISO 8601 UTC, 금액은 원 단위 정수
-- 배포 생성·승인·롤백 `POST` 는 `Idempotency-Key` 필수
+- 배포 생성·승인·취소·재시도·롤백 `POST` 는 `Idempotency-Key` 필수
 
 ### 테스트 — 붙이는 곳만
 
@@ -114,7 +114,7 @@ Redis 대신 Postgres 를 쓰는 이유는 **어차피 DB 에 다 적어야 하�
 | 락 — **같은 `state_key`** 동시 2건 → 1건만 (**N-05 성공 기준**) | 외부 클라우드 실제 호출 |
 | 멱등성 — 같은 키 2번 → 배포 1건 | |
 
-통합 테스트는 `@SpringBootTest` + `docker compose` 의 Postgres 를 써요. Testcontainers 는 넣지 않아요.
+통합 테스트는 실제 Postgres 에 `SpringApplicationBuilder` 로 앱을 띄워요. `DAISY_TEST_DB_URL` 이 있을 때만 돌고(`@EnabledIfEnvironmentVariable`), 없으면 건너뛰어요. Testcontainers 는 넣지 않아요.
 
 ## 7. 다른 파트와의 약속
 

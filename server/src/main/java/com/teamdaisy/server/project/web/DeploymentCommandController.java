@@ -128,7 +128,7 @@ public class DeploymentCommandController {
                 projectId,
                 deploymentId,
                 request == null ? null : request.triggerDeploymentId(),
-                request == null ? null : request.targetIds(),
+                request == null ? null : TargetLimit.check(request.targetIds()),
                 request == null ? null : request.reason(),
                 key)),
         projectId);
@@ -153,6 +153,6 @@ public class DeploymentCommandController {
   }
 
   private static List<String> targets(TargetSelection request) {
-    return request == null ? null : request.targetIds();
+    return request == null ? null : TargetLimit.check(request.targetIds());
   }
 }

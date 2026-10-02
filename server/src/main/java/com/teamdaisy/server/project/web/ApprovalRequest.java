@@ -48,6 +48,7 @@ public record ApprovalRequest(
     if (items == null || items.isEmpty()) {
       throw invalid();
     }
+    TargetLimit.check(items);
     Set<String> seen = new HashSet<>();
     Map<String, Decision> decisions = new LinkedHashMap<>();
     for (Item item : items) {
