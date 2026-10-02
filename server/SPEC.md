@@ -20,7 +20,7 @@
 - 값마다 정상 제공, 저장됐으나 조회 미연결, 원본 미제공, 합의된 제외를 구분해요. 단계 소요 시간을 HTTP 응답 시간으로 바꾸거나 미확인을 성공으로 채우지 않아요.
 - 공통 `ModelResolver`에 HTTP 응답과 같은 `ObjectMapper`를 연결해요. 실제 JSON은 snake_case인데 Swagger가 camelCase였던 불일치를 고쳐요. URL·요청/응답 JSON 계약 자체는 바꾸지 않으며 로컬 HTTP 검사에서 생성 스키마와 실제 필드 이름을 대조해요.
 - Swagger에 이미 노출된 Jenkins 콜백은 `Envelope` 본문과 `X-Daisy-Jenkins-Token` 보안 헤더를 문서화해요. 실제 인증·본문 크기 제한·엄격 파싱은 기존 수신 서비스를 그대로 사용해요. CI 빌드 수신은 기존 `@Hidden` 정책을 유지하되 HTTP 검사에는 포함해요.
-- #13·#35는 필요한 후속이 남으면 닫지 않아요. 승환이 서버 전체 통합 보완을 맡되 기존 작성 기록은 유지하고, 추가 응답 필드는 머지 전에 웹·앱에 알려요. 사용자 검사 전 push·PR은 하지 않아요.
+- #13·#35는 필요한 후속이 남으면 닫지 않아요. 10/2 저녁 승환·은현 분담에 따라 승환이 서버 전체 통합 보완을 맡고 기존 작성 기록은 유지해요. 추가 응답 필드는 #85·#13에서 웹·앱에 안내했어요.
 
 ## 성공 결과의 현재 배포·연결 상태 반영 (2026-10-02)
 
@@ -310,10 +310,10 @@
 | `current.commit` | `deployment.commit_sha` | 제공 |
 | `current.deployed_at` | `deployment_target.finished_at` | 제공 |
 | `current.image` | `deployment.image_refs` 평탄화 | ~~미제공 (null)~~ → #42 부터 제공. 서비스가 둘 이상이면 `images[]` |
-| `url` | `deployment_target.result` 의 `service_url` | **미제공 (null)** — `apply-result.json` 이 아직 인프라에 없습니다 (#17) |
+| `url` | 확인된 현재 대상의 `result.public_urls` | #85에서 연결. 서비스가 정확히 하나이고 URL이 유효할 때 제공해요 |
 | `health` | 같은 곳 | **항상 `unknown`** — 헬스 결과가 지금 apply 로그에만 있습니다 (#17) |
-| `health_summary` | 같은 곳 | **미제공 (null)** |
-| `image_digest` | `source_version.image_refs` | **미제공 (null)** — WR-09 동일성 검증은 빌드 수신 뒤입니다 |
+| `health_summary` | 현재 apply 실행의 유효한 `health_check` 단계 | #85에서 배포 시점 검사 통과/실패로 연결. 관측이 없으면 null이에요 |
+| `image_digest` | 검증된 현재 배포의 이미지 | #85에서 연결. 단일 서비스일 때만 대표 digest를 제공해요 |
 
 `current` 는 그 대상에 한 번도 배포가 끝난 적이 없으면 통째로 null 입니다. **이번 PR 시점에는 항상 null** 이고, 이유가 둘입니다.
 
@@ -335,7 +335,7 @@
 
 ### 후속 범위
 
-- `url`·`health`·`health_summary`·`image_digest`·`current.image` 는 인프라 산출물이 생긴 뒤 채웁니다. 어느 것도 기본값으로 채우지 않습니다.
+- #85에서 `url`·`health`·`health_summary`·`image_digest`·`current.image`를 검증된 현재 포인터·저장 결과·헬스 단계에 연결했어요. 관측이 없는 값은 기본값으로 채우지 않아요. `health`는 배포 시점 검사 결과이며 지속적인 가용성을 뜻하지 않아요.
 - 커서 페이지네이션은 넣지 않습니다. 대상이 많아지면 `(environment_type, name)` 기준 커서를 붙입니다.
 - A-10 `POST /targets/{id}/test`(연결 테스트)와 A-11 `GET /targets/{id}/resources`(리소스 보기)는 이번 범위가 아닙니다. 둘 다 실제 대상·Terraform state 에 붙어야 해서 인프라 쪽 경로가 필요합니다 (이슈 #13).
 - 대상 생성·수정·삭제는 넣지 않습니다. `work.md` §2 가 삭제 지원 범위를 별도 합의 사항으로 두었습니다.
@@ -877,7 +877,8 @@ V9 의 실제 Jenkins 실행은 하지 않습니다. 기본 비활성 설정 그
 | `error_summary` | 같은 이름 | |
 | `cancel_requested_at` | 같은 이름 | 취소 요청이 접수됐지만 아직 끝나지 않은 상태를 보여 줄 수 있게 둠 |
 | `started_at`·`finished_at` | 같은 이름 | |
-| `step`·`step_state`·`url`·`image_digest`·`health_summary` | — | **null.** `url`·`image_digest`·`health_summary` 는 근거 데이터가 아직 없음 (apply 결과 수신 #35 대기). `step`·`step_state` 는 승환님 Jenkins 수신이 `deployment_log` 에 `step.started`·`completed`·`failed` 로 남기지만 아직 읽지 않음 — A-07 로그 조회와 함께 붙임 (10/2 점검에서 정정). → 10/2 A-07 에서 붙였습니다 (「배포 로그 A-07 · A-04 단계」). 0·빈 값으로 채우지 않음. → 10/2 저녁 `url`·`image_digest` 는 `deployment_target.result` 에서 붙였습니다 (「배포 결과 · 환경 정보 표시」). `health_summary` 는 근거가 없어 계속 null |
+| `step`·`step_state`·`url`·`image_digest`·`health_summary` | 대상 결과·유효한 단계 이벤트 | #56에서 현재 단계, #84에서 URL·digest, #85에서 배포 시점 헬스 요약과 단계별 최신 발생을 연결했어요. 근거가 없는 필드는 null이에요 |
+| `steps[]` | `deployment_log`의 유효한 단계별 최신 발생 | #85에서 `{name,state,duration_ms,started_at}`을 제공해요. 미관측 단계는 만들지 않으며 단계 시간은 HTTP 응답 시간이 아니에요 |
 
 내보내지 않는 것: `version`("v7")·`commit_message` 는 S8 후순위, 단건 `pending_approval` 은 `pending_approvals` 로 대체 (#40 승준 질문에 답한 대로).
 
@@ -1652,7 +1653,7 @@ Jenkins `daisy-ci` 가 끝나면 결과를 `POST /internal/jenkins/builds` 로 �
 |---|---|---|
 | `url` | `result.public_urls` | 서비스가 **정확히 하나**이고 값이 문자열이면 그 값. 둘 이상이면 null (대표 하나를 고르지 않음, S5 · A-06 과 같은 규칙) |
 | `image_digest` | `result.image_refs.<서비스>.digest` | 서비스가 정확히 하나이고 `digest` 가 `sha256:` + 64자리 hex 면 그 값. 아니면 null |
-| `health_summary` | — | **계속 null.** `result` 에 헬스 결과 키가 없습니다 (`validateResult` 허용 키 6개에 없음). 인프라가 헬스 결과를 보내는 형식이 정해지면 붙입니다 |
+| `health_summary` | 현재 apply 실행의 유효한 `health_check` 단계 | #85에서 배포 시점 검사 통과/실패로 연결했어요. result에 새 키를 추가한 것은 아니에요. 단계 관측이 없으면 null이고 HTTP 코드·응답 시간 원본은 미제공이에요 |
 
 - `result` 가 없거나(성공 전) 모양이 틀리면 그 필드만 null 입니다. 상세 화면 전체를 실패시키지 않습니다.
 - 대상 상태와 상관없이 저장된 `result` 를 그대로 읽습니다. `result` 는 성공 콜백에서만 저장됩니다.

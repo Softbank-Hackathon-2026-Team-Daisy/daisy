@@ -18,12 +18,12 @@
 
 ## 담당 경계
 
-승환 지시에 따라 성공 관측 필드의 갱신 주체를 실행부로 정했어요. `AGENTS.md`와 실행 서비스 계약에 기록했어요. 대상 설정 관리와 공개 DTO는 은현님 영역으로 유지했어요.
+10/2 저녁 승환·은현 분담에 따라 성공 관측 필드의 갱신 주체를 실행부로 정했어요. `AGENTS.md`와 실행 서비스 계약에 기록했어요. 초기 대상 설정 관리·공개 DTO는 은현님이 작성했고, #84 통합 뒤 조회·Swagger 후속 보완은 승환이 이어받았어요.
 
-은현님께는 PR에서 다음을 공유해요.
+초기 실행부 작업과 후속 조회 연결을 #85에서 함께 공유했어요.
 
 - `current_deployment_target_id`, `connection_state`, `connection_checked_at`, `updated_at`은 이번 실행부에서 함께 기록해요. 별도 갱신 서비스를 추가하지 않아도 돼요.
-- 인프라 요청 1번(현재 배포)·3번(연결 확인)에 해당해요. 2번 URL·digest·health 응답 연결과 4번 WR-04 정보 조회는 이 PR에서 건드리지 않았어요.
+- 초기 실행부 작업은 인프라 요청 1번(현재 배포)·3번(연결 확인)에 해당해요. 2번 URL·digest와 4번 WR-04 정보는 #84를 통합했고, 추가 조회·헬스 연결은 #85에 포함했어요.
 - `observed_state`·`observed_at`은 별도 실제 관측 필드라 추정값을 넣지 않았어요.
 
 ## 검증
@@ -49,7 +49,7 @@ Java 21 및 `DAISY_TEST_DB_*` 설정으로 실행했어요. 결과: **BUILD SUCC
 
 ## #84 통합과 최종 서버 연결 검증
 
-- #84 HEAD `988e7ef`를 직접 PostgreSQL 포함 빌드·테스트로 확인한 뒤 사용자 요청대로 코멘트·승인·Squash 머지했어요. `b5a0e62`를 현재 브랜치로 합쳤고 충돌은 없었어요.
+- #84 HEAD `988e7ef`를 PostgreSQL 포함 빌드·테스트로 확인한 뒤 코멘트·승인·Squash 머지했어요. `b5a0e62`를 현재 브랜치로 합쳤고 충돌은 없었어요.
 - `AiUsageService`의 `external_call_id`에만 `#`를 추가 허용했어요. `daisy-cd-plan#18/aws/ai-1`을 변형 없이 저장해요. provider·model·내부 ID 검증, 길이·제어 문자·비밀값 차단은 유지해요.
 - 통합 후 `spotlessApply check build --rerun-tasks --no-daemon --offline`: **241개, 실패·오류·건너뜀 0개**예요.
 - [반복 실행 가능한 검증 스크립트](../../scripts/verify-result-flow.py)를 남겼어요. Java 21, PostgreSQL 17, Python 표준 라이브러리와 `psql`만 사용해요. 매 실행마다 새 스키마·임의 포트·일회용 인증값을 쓰고 종료 시 검증 서버와 해당 스키마를 정리해요. 운영 DB는 건드리지 않아요.
