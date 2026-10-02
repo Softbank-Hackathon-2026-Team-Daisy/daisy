@@ -786,6 +786,8 @@ public class DeploymentExecutionService {
     deployment.markStarted(now);
     deployment.aggregate(all, now);
     store.flush();
+    if (result.status() == DeploymentTargetStatus.SUCCEEDED)
+      store.recordSuccessfulTarget(target.id(), now);
     if (result.status().terminal())
       commands.releaseOwnedLock(scope.id(), target.id(), result.source(), result.sourceEventId());
     stateEvent(deployment, now);

@@ -44,6 +44,7 @@ src/main/java/com/teamdaisy/server/
 - **폴더끼리는 서비스 메서드로만** 불러요. 남의 폴더 Repository·Entity 를 직접 쓰지 않아요
   - **예외 (10/2 승환·은현 합의, #42):** 은현의 공개 조회 API(A-03·A-04·A-05·A-07·WR-10·WR-11)는 `project/` 의 조회 계층에서 `deployment`·`deployment_target`·`approval`·`plan_revision`·로그·사용량·`script` 테이블을 **읽기 전용 SQL** 로 직접 읽어요. Entity·Repository 는 쓰지 않고 JdbcTemplate 로 필요한 컬럼만 읽어요. 상태·승인·명령 변경은 계속 실행 서비스로만 보내요. 테이블이 바뀌면 승환이 알려 주고, 은현 조회는 실DB 테스트로 막아요
 - Terraform CLI·AI 실행부는 **인프라 소유**예요. 서버는 실행·조회 서비스 계약으로 연결해요
+- **성공 관측 필드 쓰기 (10/2 승환 지시):** `deployment/` 실행부가 검증된 apply 성공과 같은 트랜잭션에서 `target.current_deployment_target_id`·`connection_state`·`connection_checked_at`·`updated_at`만 SQL로 갱신해요. 대상 설정·자격증명·Entity·Repository는 건드리지 않아요. 관리·공개 조회는 은현 담당이며 이 갱신 경계를 PR로 공유해요.
 
 | 실행 규칙·수신 (김승환) | 공개 API·관리·조회 (하은현) |
 |---|---|
@@ -188,6 +189,7 @@ docker compose up -d postgres    # Postgres 17
 | 2026-10-02 | **만료 pending 승인은 기존 워커에서 실행 종료 확인 후 정리** | 조회 API가 상태를 바꾸지 않고, 승인된 apply·종료 미확인은 보존해요. 김승환 실행부 결정 | 1 |
 | 2026-10-02 | **사용자 명령은 프로젝트 락 획득 후 보관 여부 재검사** | 권한 확인 후 연결 해제가 먼저 커밋되는 경합을 막아요. 기존 실행의 콜백 수신은 유지해요 | 1 |
 | 2026-10-02 | **명령 targets[].attempt에 현재 시도 횟수 전달** | #35 인프라에 알린 추가 필드예요. replan/apply에서 초기화하지 않으며, 인프라 적용·실제 연결은 검증 전이에요 | 2 |
+| 2026-10-02 | **검증된 apply 성공의 현재 포인터·연결 확인 기록은 실행부가 담당** | 승환 지시. 현재 state 락 소유·고정 입력 일치를 검사하고 결과·이벤트와 원자 반영해요. 공개 조회 매핑은 은현에게 PR로 공유해요 | 2 (서버 내부 소비자 은현) |
 
 ## 11. 아직 정하지 못한 것
 

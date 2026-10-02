@@ -5,6 +5,8 @@ import com.teamdaisy.server.common.error.ErrorCode;
 import com.teamdaisy.server.deployment.domain.*;
 import jakarta.persistence.EntityManager;
 import jakarta.persistence.LockModeType;
+import java.sql.Timestamp;
+import java.time.Instant;
 import java.util.List;
 import java.util.Map;
 import org.springframework.jdbc.core.namedparam.NamedParameterJdbcTemplate;
@@ -93,6 +95,28 @@ public class DeploymentStore {
 
   public void flush() {
     em.flush();
+  }
+
+  /**
+   * Called after success validation/flush, under the project lock and before state lock release.
+   */
+  public void recordSuccessfulTarget(String deploymentTargetId, Instant receivedAt) {
+    jdbc.update(
+        """
+        update target t set current_deployment_target_id=d.id, connection_state='connected',
+          connection_checked_at=:at, updated_at=:at
+        from deployment_target d
+        where d.id=:id and d.status='succeeded' and d.finished_at is not null
+          and t.id=d.target_id and t.project_id=d.project_id and t.archived_at is null
+          and t.state_identity=d.state_identity
+          and to_jsonb(t.config_revision)=d.target_snapshot->'config_revision'
+          and t.credential_ref is not distinct from d.target_snapshot->>'credential_ref'
+          and t.credential_version is not distinct from d.target_snapshot->>'credential_version'
+          and exists(select 1 from project p where p.id=t.project_id and p.archived_at is null)
+          and exists(select 1 from target_lock l where l.state_identity=d.state_identity
+            and l.execution_id=d.current_execution_id and l.deployment_target_id=d.id)
+        """,
+        Map.of("id", deploymentTargetId, "at", Timestamp.from(receivedAt)));
   }
 
   public record ExpiredApproval(String projectId, String deploymentId, String deploymentTargetId) {}
