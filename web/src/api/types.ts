@@ -36,6 +36,7 @@ export type Project = {
   repository_url?: string | null
   manifest_path?: string | null
   created_at?: string
+  last_seq?: number // A-12 — 프로젝트 채널(SSE)을 처음부터가 아니라 이 지점부터 붙으려고 (은현 님 제안, #61)
   // #13 요청 — 서버 미제공(10/1 #13 답). 목업에만 있어요
   build?: string
   registry?: string
