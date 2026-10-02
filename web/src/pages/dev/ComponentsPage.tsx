@@ -96,7 +96,7 @@ function ComponentsPage() {
           />
           <EnvSelectCard
             env="gcp"
-            title="Cloud Run · asia-northeast3"
+            title="Cloud Run · asia-northeast1"
             description="검증된 스크립트 재사용 · AI 호출 0회"
             selected={gcp}
             onChange={setGcp}
