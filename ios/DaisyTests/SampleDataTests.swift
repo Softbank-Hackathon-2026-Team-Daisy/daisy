@@ -58,6 +58,8 @@ struct SampleDataTests {
         // Jenkins 화면은 외부에 공개하지 않아서 링크 없이, 단계는 daisy-ci 이름 그대로 (10/1 임채준 답)
         #expect(builds.allSatisfy { $0.pipeline.runUrl == nil })
         #expect(builds.first?.steps?.map(\.name) == ["Checkout", "Test", "Build & Push", "Trigger CD"])
+        // Trigger CD는 운영에서 늘 건너뜀 (10/1 웹 #25) → "건너뜀"
+        #expect(builds.first?.steps?.last?.state == .skipped)
     }
 
     /// 커밋은 실제 GitHub sample 레포에서 가져와요 (40자 SHA)
@@ -108,5 +110,16 @@ struct SampleDataTests {
         #expect(app.client?.baseURL == SampleData.baseURL)
         app.signOut()
         #expect(!app.isSampleMode && !app.isSignedIn)
+    }
+
+    /// 서버 주소는 늘 Unibloom 서버(api.unibloom.cloud)예요. 예전에 저장된 주소는 무시해요 (10/2 결정)
+    @Test @MainActor func defaultServerAddress() {
+        let defaults = UserDefaults(suiteName: "SampleDataTests-\(UUID())")!
+        let first = AppModel(tokenStore: TokenStore(service: "SampleDataTests-\(UUID())"), defaults: defaults)
+        #expect(first.serverURL?.absoluteString == "https://api.unibloom.cloud")
+        // 예전 앱이 저장해 둔 주소(예: 웹 주소)가 남아 있어도 늘 Unibloom 서버예요
+        defaults.set("https://unibloom.cloud", forKey: "serverURL")
+        let again = AppModel(tokenStore: TokenStore(service: "SampleDataTests-\(UUID())"), defaults: defaults)
+        #expect(again.serverURL?.absoluteString == "https://api.unibloom.cloud")
     }
 }

@@ -13,7 +13,7 @@ struct ResultStage: View {
     private var targets: [Deployment.Target] { deployment.targets ?? [] }
 
     var body: some View {
-        FlowPage(step: 6, title: "배포 결과", description: FlowCopy.result(deployment, name: workspace.name(of:))) {
+        FlowPage(step: 6, title: .app("배포 결과"), description: FlowCopy.result(deployment, name: workspace.name(of:))) {
             HStack { deployment.badge; Spacer() }
             AdaptiveGrid(minimumWidth: 280) {
                 ForEach(targets) { card($0) }
@@ -42,7 +42,7 @@ struct ResultStage: View {
                 EnvTag(type: workspace.type(of: target.targetId))
                 Spacer()
                 // 웹: 환경별 상태 그대로 (성공 · 실패 · 취소됨 …)
-                target.state?.badge ?? (failed ? StatusBadge(text: "실패", color: .red) : StatusBadge(text: "성공", color: .green))
+                target.state?.badge ?? (failed ? StatusBadge(text: .app("실패"), color: .red) : StatusBadge(text: .app("성공"), color: .green))
             }
             HStack(alignment: .top, spacing: 12) {
                 if let url = target.url {
@@ -55,7 +55,7 @@ struct ResultStage: View {
                     if !failed {
                         Text(target.healthSummary ?? "—").font(.caption).foregroundStyle(.secondary)
                     } else {
-                        Button("\(target.step == .healthCheck ? "헬스체크" : "apply") 실패 · 원인 보기") {
+                        Button(target.step == .healthCheck ? "헬스체크 실패 · 원인 보기" : "apply 실패 · 원인 보기") {
                             router.push(.logs(deploymentID: deployment.id, targetID: target.targetId))
                         }
                         .buttonStyle(.plain)
@@ -77,7 +77,7 @@ struct ResultStage: View {
                 Button("URL 복사") {
                     if let url = target.url {
                         Clipboard.copy(url.absoluteString)
-                        toast = ToastMessage(kind: .success, title: "URL을 복사했어요")
+                        toast = ToastMessage(kind: .success, title: .app("URL을 복사했어요"))
                     }
                 }
                 .buttonStyle(.glassCapsule)
@@ -87,16 +87,15 @@ struct ResultStage: View {
         .cardStyle()
     }
 
-    /// 실패한 환경만 같은 커밋으로 새 배포를 만들어요 (WR-05)
+    /// 실패한 환경만 원본 배포에서 다시 시도해요 (`POST /deployments/{id}/retry`)
     private func retry(_ target: Deployment.Target) async {
         guard let client = app.client else { return }
         do {
-            let retry = RetryRequest.only(target.targetId, of: deployment)
-            let next = try await client.send(.startDeployment(projectID: retry.projectID, commit: retry.commit, targetIDs: retry.targetIDs))
+            let next = try await client.send(.retry(.only(target.targetId, of: deployment)))
             router.push(.started(next.id))
         } catch {
             app.handle(error)
-            toast = ToastMessage(kind: .danger, title: "다시 시도하지 못했어요", message: error.localizedDescription)
+            toast = ToastMessage(kind: .danger, title: .app("다시 시도하지 못했어요"), message: error.localizedDescription)
         }
     }
 }

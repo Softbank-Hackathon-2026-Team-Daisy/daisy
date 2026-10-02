@@ -10,10 +10,12 @@ import CodeBlock from '../../components/CodeBlock.tsx'
 import Dialog from '../../components/Dialog.tsx'
 import EmptyState from '../../components/EmptyState.tsx'
 import InfoRow from '../../components/InfoRow.tsx'
+import LanguageSelect from '../../components/LanguageSelect.tsx'
 import Input from '../../components/Input.tsx'
 import PageHeader from '../../components/PageHeader.tsx'
 import Panel from '../../components/Panel.tsx'
 import Toggle from '../../components/Toggle.tsx'
+import { t } from '../../i18n/index.ts'
 import { paths } from '../../paths.ts'
 import { clockTime } from '../../utils/format.ts'
 import { ErrorBlock, LoadingBlock } from '../Loading.tsx'
@@ -39,37 +41,47 @@ function SettingsPage() {
   const m = manifest.data
   return (
     <div className="page">
-      <PageHeader overline="Settings" title="설정" description="이 프로젝트의 저장소 연결, 배포 명세, 비밀값, 알림을 관리해요." />
+      <PageHeader overline="Settings" title={t('설정')} description={t('이 프로젝트의 저장소 연결, 배포 명세, 비밀값, 알림을 관리해요.')} />
 
       <div className="page__row page__row--2" style={{ alignItems: 'start' }}>
-        <Panel title="저장소">
+        <Panel title={t('저장소')}>
           <div>
-            <InfoRow label="GitHub">{p.repository}</InfoRow>
-            <InfoRow label="기준 브랜치">{p.branch ?? 'main'}</InfoRow>
-            <InfoRow label="빌드">{p.build ?? '—'}</InfoRow>
-            <InfoRow label="레지스트리">{`${p.registry ?? '—'} [미정]`}</InfoRow>
-            <InfoRow label="웹훅">{p.webhook_last_at ? `수신 중 · 마지막 ${clockTime(p.webhook_last_at)}` : '—'}</InfoRow>
+            <InfoRow label="GitHub">
+              {p.repository_url ? (
+                <a href={p.repository_url} target="_blank" rel="noopener noreferrer">
+                  {p.repository}
+                </a>
+              ) : (
+                p.repository
+              )}
+            </InfoRow>
+            <InfoRow label={t('기준 브랜치')}>{p.default_branch ?? '—'}</InfoRow>
+            <InfoRow label={t('배포 명세')}>{p.manifest_path ?? '—'}</InfoRow>
+            {/* 빌드 · 레지스트리 · 웹훅은 서버 미제공 (#13 10/1 답) — 오면 보여줘요 */}
+            <InfoRow label={t('빌드')}>{p.build ?? 'Jenkins daisy-ci'}</InfoRow>
+            <InfoRow label={t('레지스트리')}>{t('{registry} [미정]', { registry: p.registry ?? '—' })}</InfoRow>
+            <InfoRow label={t('웹훅')}>{p.webhook_last_at ? t('수신 중 · 마지막 {time}', { time: clockTime(p.webhook_last_at) }) : '—'}</InfoRow>
           </div>
           <ReconnectButton />
         </Panel>
 
-        <Panel title="배포 명세 (deploy.yaml)">
-          <p className="t-body-sm t-muted">저장소의 deploy.yaml이 기준이에요. 여기서는 읽기만 해요.</p>
+        <Panel title={t('배포 명세 (deploy.yaml)')}>
+          <p className="t-body-sm t-muted">{t('저장소의 deploy.yaml이 기준이에요. 여기서는 읽기만 해요.')}</p>
           <CodeBlock file={m.ref} code={m.raw ?? `port: ${m.port}\nhealthcheck: ${m.healthcheck}`} />
         </Panel>
       </div>
 
       <div className="page__row page__row--2" style={{ alignItems: 'start' }}>
-        <Panel title="비밀값">
-          <p className="t-body-sm t-muted">deploy.yaml의 secrets에 적힌 이름만 값을 넣어요. 값은 다시 볼 수 없어요.</p>
+        <Panel title={t('비밀값')}>
+          <p className="t-body-sm t-muted">{t('deploy.yaml의 secrets에 적힌 이름만 값을 넣어요. 값은 다시 볼 수 없어요.')}</p>
           {m.secrets.length === 0 ? (
             <EmptyState
               icon="lock"
-              title="이 앱은 비밀값이 없어요"
-              description="secrets: [] · 전달 방식(GitHub Secrets / 시크릿 매니저 / 서버 암호화 저장)은 [미정]"
+              title={t('이 앱은 비밀값이 없어요')}
+              description={t('secrets: [] · 전달 방식(GitHub Secrets / 시크릿 매니저 / 서버 암호화 저장)은 [미정]')}
               action={
                 <Button variant="outline" disabled>
-                  비밀값 추가
+                  {t('비밀값 추가')}
                 </Button>
               }
             />
@@ -77,16 +89,24 @@ function SettingsPage() {
             <div>
               {m.secrets.map((name) => (
                 <InfoRow key={name} label={name}>
-                  ●●●● (전달 방식 [미정])
+                  {t('●●●● (전달 방식 [미정])')}
                 </InfoRow>
               ))}
             </div>
           )}
         </Panel>
 
-        <Panel title="알림">
-          <Notifications />
-        </Panel>
+        <div style={{ display: 'grid', gap: 'var(--space-6)' }}>
+          <Panel title={t('알림')}>
+            <Notifications />
+          </Panel>
+
+          {/* 화면 언어는 프로젝트가 아니라 이 브라우저 설정이에요 (#75) */}
+          <Panel title={t('화면 언어')}>
+            <p className="t-body-sm t-muted">{t('이 브라우저에만 적용돼요. 서버가 보내는 메시지는 받은 그대로 보여줘요.')}</p>
+            <LanguageSelect />
+          </Panel>
+        </div>
       </div>
 
       <Disconnect projectId={projectId} name={p.name} />
@@ -99,7 +119,7 @@ function ReconnectButton() {
   return (
     <div>
       <Button variant="outline" onClick={() => navigate(paths.connect())}>
-        저장소 다시 연결
+        {t('저장소 다시 연결')}
       </Button>
     </div>
   )
@@ -108,7 +128,7 @@ function ReconnectButton() {
 function Notifications() {
   const [state, setState] = useState<Record<string, boolean>>(() => {
     try {
-      const saved = localStorage.getItem('daisy.notify')
+      const saved = localStorage.getItem('unibloom.notify')
       if (saved) return JSON.parse(saved) as Record<string, boolean>
     } catch {
       // 저장소를 못 쓰면 기본값으로
@@ -119,7 +139,7 @@ function Notifications() {
     const next = { ...state, [key]: on }
     setState(next)
     try {
-      localStorage.setItem('daisy.notify', JSON.stringify(next))
+      localStorage.setItem('unibloom.notify', JSON.stringify(next))
     } catch {
       // 무시해요
     }
@@ -129,9 +149,9 @@ function Notifications() {
       {NOTIFY.map((n) => (
         <div key={n.key} style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-3)', padding: '10px 0', borderBottom: 'var(--border)' }}>
           <span className="t-body-sm" style={{ flex: 1 }}>
-            {n.label}
+            {t(n.label)}
           </span>
-          <Toggle label={n.label} checked={!!state[n.key]} onChange={(on) => set(n.key, on)} />
+          <Toggle label={t(n.label)} checked={!!state[n.key]} onChange={(on) => set(n.key, on)} />
         </div>
       ))}
     </div>
@@ -149,15 +169,15 @@ function Disconnect({ projectId, name }: { projectId: string; name: string }) {
       await api.deleteProject(projectId)
       navigate(paths.connect())
     } catch (e) {
-      setError(e instanceof ApiError ? e.message : '연결을 해제하지 못했어요')
+      setError(e instanceof ApiError ? e.message : t('연결을 해제하지 못했어요'))
     }
   }
   return (
-    <Panel title="프로젝트 연결 해제">
-      <p className="t-body-sm t-muted">배포 서비스에서 이 프로젝트를 지워요. 이미 떠 있는 인프라는 지워지지 않아요 (terraform destroy는 따로 해요).</p>
+    <Panel title={t('프로젝트 연결 해제')}>
+      <p className="t-body-sm t-muted">{t('배포 서비스에서 이 프로젝트를 지워요. 이미 떠 있는 인프라는 지워지지 않아요 (terraform destroy는 따로 해요).')}</p>
       <div>
         <Button variant="destructive" disabled={role === 'viewer'} onClick={() => setOpen(true)}>
-          연결 해제
+          {t('연결 해제')}
         </Button>
       </div>
       {open && (
@@ -165,21 +185,21 @@ function Disconnect({ projectId, name }: { projectId: string; name: string }) {
           open
           onClose={() => setOpen(false)}
           icon="alert-triangle"
-          title={`${name} 연결을 해제할까요?`}
-          description="되돌릴 수 없어요. 떠 있는 인프라는 그대로 남아요. 확인을 위해 프로젝트 이름을 입력해 주세요."
+          title={t('{name} 연결을 해제할까요?', { name })}
+          description={t('되돌릴 수 없어요. 떠 있는 인프라는 그대로 남아요. 확인을 위해 프로젝트 이름을 입력해 주세요.')}
           actions={
             <>
               <Button variant="outline" onClick={() => setOpen(false)}>
-                취소
+                {t('취소')}
               </Button>
               <Button variant="destructive" disabled={confirm !== name} onClick={() => void run()}>
-                연결 해제
+                {t('연결 해제')}
               </Button>
             </>
           }
         >
           <Input value={confirm} onChange={(e) => setConfirm(e.target.value)} placeholder={name} />
-          {error && <Alert type="danger" title="연결을 해제하지 못했어요">{error}</Alert>}
+          {error && <Alert type="danger" title={t('연결을 해제하지 못했어요')}>{error}</Alert>}
         </Dialog>
       )}
     </Panel>

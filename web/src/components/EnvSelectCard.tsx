@@ -1,3 +1,4 @@
+import { t } from '../i18n/index.ts'
 import Checkbox from './Checkbox.tsx'
 import EnvTag from './EnvTag.tsx'
 import type { EnvType } from './env.ts'
@@ -24,7 +25,7 @@ function EnvSelectCard({ env, title, description, selected, recommended, disable
     >
       <span className="env-card__header">
         <EnvTag env={env} />
-        {recommended && <span className="env-card__recommend">추천</span>}
+        {recommended && <span className="env-card__recommend">{t('추천')}</span>}
       </span>
       <span className="env-card__title">{title}</span>
       {description && <span className="env-card__desc t-body-sm t-muted">{description}</span>}

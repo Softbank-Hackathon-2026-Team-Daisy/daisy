@@ -38,10 +38,10 @@ enum SampleData {
     /// 요청 하나에 대한 (상태 코드, 본문)
     static func respond(method: String, path: String, query: [URLQueryItem]) -> (Int, Data) {
         guard method == "GET" else {
-            return (403, error("SAMPLE_READ_ONLY", "예시 데이터라 바꿀 수 없어요. 서버에 연결해서 해 보세요."))
+            return (403, error("SAMPLE_READ_ONLY", .app("예시 데이터라 바꿀 수 없어요. 서버에 연결해서 해 보세요.")))
         }
         guard var body = responses[path] else {
-            return (404, error("NOT_FOUND", "예시 데이터에 없는 화면이에요."))
+            return (404, error("NOT_FOUND", .app("예시 데이터에 없는 화면이에요.")))
         }
         // 목록 필터: 배포 목록의 `state`(승인 대기 배지), AI 사용량의 `deployment_id`
         let filters = query.compactMap { item in

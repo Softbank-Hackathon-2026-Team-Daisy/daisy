@@ -24,20 +24,20 @@ export const IMAGE = `ghcr.io/team-daisy/sample-monolith:${COMMIT}`
 export const DIGEST = 'sha256:9f3c…e1a'
 
 export const projects: Project[] = [
-  { id: 'prj_monolith', name: 'sample-monolith', repository: 'Softbank-Hackathon-2026-Team-Daisy/sample-monolith', branch: 'main', build: 'Jenkins · daisy-build', registry: 'ghcr.io', webhook_last_at: ago(3) },
-  { id: 'prj_msa', name: 'sample-msa', repository: 'Softbank-Hackathon-2026-Team-Daisy/sample-msa', branch: 'main' },
+  { id: 'prj_monolith', name: 'sample-monolith', repository: 'Softbank-Hackathon-2026-Team-Daisy/sample-monolith', default_branch: 'main', repository_url: 'https://github.com/Softbank-Hackathon-2026-Team-Daisy/sample-monolith', manifest_path: 'deploy.yaml', build: 'Jenkins · daisy-build', registry: 'ghcr.io', webhook_last_at: ago(3) },
+  { id: 'prj_msa', name: 'sample-msa', repository: 'Softbank-Hackathon-2026-Team-Daisy/sample-msa', default_branch: 'main' },
 ]
 
 export const targetStatus: TargetStatus[] = [
-  { target_id: 'tgt_onprem', type: 'onprem', name: 'home-lab', current: { commit: COMMIT, image: IMAGE, deployment_id: 'dep_41', deployed_at: ago(12) }, image_digest: DIGEST, url: 'https://sample.home-lab.daisy.dev', health: 'healthy', health_summary: '200 OK', checked_at: ago(1) },
-  { target_id: 'tgt_aws', type: 'aws', name: 'aws-prod', current: { commit: COMMIT, image: IMAGE, deployment_id: 'dep_41', deployed_at: ago(12) }, image_digest: DIGEST, url: 'https://sample-monolith.aws.daisy.dev', health: 'healthy', health_summary: '200 OK', checked_at: ago(1) },
-  { target_id: 'tgt_gcp', type: 'gcp', name: 'gcp-prod', current: { commit: COMMIT, image: IMAGE, deployment_id: 'dep_41', deployed_at: ago(12) }, image_digest: DIGEST, url: 'https://sample-monolith-x7k.a.run.app', health: 'healthy', health_summary: '200 OK', checked_at: ago(1) },
+  { target_id: 'tgt_onprem', type: 'onprem', name: 'home-lab', current: { commit: COMMIT, image: IMAGE, deployment_id: 'dep_41', deployed_at: ago(12) }, image_digest: DIGEST, url: 'https://sample.home-lab.unibloom.cloud', connection_state: 'ok', health: 'healthy', health_summary: '200 OK', checked_at: ago(1) },
+  { target_id: 'tgt_aws', type: 'aws', name: 'aws-prod', current: { commit: COMMIT, image: IMAGE, deployment_id: 'dep_41', deployed_at: ago(12) }, image_digest: DIGEST, url: 'https://sample-monolith.aws.unibloom.cloud', connection_state: 'ok', health: 'healthy', health_summary: '200 OK', checked_at: ago(1) },
+  { target_id: 'tgt_gcp', type: 'gcp', name: 'gcp-prod', current: { commit: COMMIT, image: IMAGE, deployment_id: 'dep_41', deployed_at: ago(12) }, image_digest: DIGEST, url: 'https://sample-monolith-x7k.a.run.app', connection_state: 'ok', health: 'healthy', health_summary: '200 OK', checked_at: ago(1) },
 ]
 
 export const targets: Target[] = [
   { target_id: 'tgt_onprem', type: 'onprem', name: 'home-lab', title: '온프레미스 · Docker Compose', runtime: 'Proxmox VM · Docker Compose', location: 'home-lab', location_label: '위치', access_method: '사설망(VPN) + SSH', exposure: '팀 도메인 HTTPS', state_backend: null, current_commit: COMMIT, reuse: { available: true, script_id: 'scr_onprem_s3', reason: 'home-lab Proxmox VM · 사설망 · 검증된 스크립트 있음 → 태그만 교체' }, connection: { state: 'ok', checked_at: ago(1) } },
-  { target_id: 'tgt_aws', type: 'aws', name: 'aws-prod', title: 'AWS · ECS + ALB', runtime: 'ECS Fargate + ALB', location: 'ap-northeast-2', location_label: '리전', access_method: 'IAM 역할', exposure: 'ALB · 팀 도메인', state_backend: null, current_commit: COMMIT, reuse: { available: false, reason: 'ap-northeast-2 · 처음 배포 → AI가 Terraform 생성' }, connection: { state: 'ok', checked_at: ago(1) } },
-  { target_id: 'tgt_gcp', type: 'gcp', name: 'gcp-prod', title: 'GCP · Cloud Run', runtime: 'Cloud Run', location: 'asia-northeast3', location_label: '리전', access_method: '서비스 계정', exposure: 'run.app 자동 URL', state_backend: null, current_commit: COMMIT, reuse: { available: false, reason: 'asia-northeast3 · 처음 배포 → AI가 Terraform 생성' }, connection: { state: 'ok', checked_at: ago(1) } },
+  { target_id: 'tgt_aws', type: 'aws', name: 'aws-prod', title: 'AWS · ECS + ALB', runtime: 'ECS Fargate + ALB', location: 'ap-northeast-2', location_label: '리전', access_method: 'IAM 역할', exposure: 'ALB · 팀 도메인', state_backend: 'S3 (잠금)', current_commit: COMMIT, reuse: { available: false, reason: 'ap-northeast-2 · 처음 배포 → AI가 Terraform 생성' }, connection: { state: 'ok', checked_at: ago(1) } },
+  { target_id: 'tgt_gcp', type: 'gcp', name: 'gcp-prod', title: 'GCP · Cloud Run', runtime: 'Cloud Run', location: 'asia-northeast3', location_label: '리전', access_method: '서비스 계정', exposure: 'run.app 자동 URL', state_backend: 'GCS (잠금)', current_commit: COMMIT, reuse: { available: false, reason: 'asia-northeast3 · 처음 배포 → AI가 Terraform 생성' }, connection: { state: 'ok', checked_at: ago(1) } },
 ]
 
 export const manifest: Manifest = {
@@ -60,25 +60,27 @@ database: false`,
 
 export const builds: Build[] = [
   {
+    source_version_id: 'src_a1b2c3d',
     commit: COMMIT,
+    branch: 'main',
+    received_at: ago(2),
     message: 'feat: 결제 페이지 추가 (#42)',
     author: '도영',
     committed_at: ago(2),
     pipeline: {
       status: 'running',
-      run_url: '#',
       steps: [
-        { name: '이미지 빌드', state: 'done', duration_ms: 42000 },
-        { name: '이미지 테스트', state: 'done', duration_ms: 42000 },
-        { name: '커밋 해시로 태그', state: 'done', duration_ms: 42000 },
-        { name: '레지스트리 업로드', state: 'running', duration_ms: 18000 },
+        { name: 'Checkout', state: 'done', duration_ms: 4000 },
+        { name: 'Test', state: 'done', duration_ms: 42000 },
+        { name: 'Build & Push', state: 'running', duration_ms: 18000 },
+        { name: 'Trigger CD', state: 'skipped' },
       ],
     },
     image: IMAGE,
-    digest: 'sha256:9f3c…e21a',
+    image_digest: 'sha256:9f3c…e21a',
     deployed_to: [],
   },
-  { commit: 'f4e5d6c', message: 'fix: 헬스체크 경로 수정 (#41)', author: '도영', committed_at: ago(3), pipeline: { status: 'success', run_url: '#' }, image: 'ghcr.io/team-daisy/sample-monolith:f4e5d6c', deployed_to: [] },
+  { source_version_id: 'src_f4e5d6c', commit: 'f4e5d6c', branch: 'main', message: 'fix: 헬스체크 경로 수정 (#41)', author: '도영', committed_at: ago(3), pipeline: { status: 'success' }, image: 'ghcr.io/team-daisy/sample-monolith:f4e5d6c', deployed_to: [] },
 ]
 
 export const aiItems: AiUsageItem[] = [
@@ -97,6 +99,7 @@ function deployment(id: string, state: Deployment['state'], t: [TargetPatch, Tar
     { target_id: 'tgt_aws', type: 'aws', title: 'ap-northeast-2 · ECS Fargate', state: 'waiting', step: 'generate', attempt: 1, reused_script: false, url: null, error_summary: null },
     { target_id: 'tgt_gcp', type: 'gcp', title: 'asia-northeast3 · Cloud Run', state: 'waiting', step: 'generate', attempt: 1, reused_script: false, url: null, error_summary: null },
   ]
+  const targets = base.map((b, i) => ({ ...b, ...t[i] }))
   return {
     id,
     project_id: PROJECT_ID,
@@ -107,8 +110,9 @@ function deployment(id: string, state: Deployment['state'], t: [TargetPatch, Tar
     commit_message: 'feat: 결제 페이지 추가 (#42)',
     image: IMAGE,
     state,
-    targets: base.map((b, i) => ({ ...b, ...t[i] })),
-    pending_approval: state === 'awaiting_approval' ? { approval_id: 'apv_7', kind: 'plan' } : null,
+    targets,
+    pending_approvals: targets.filter((x) => x.state === 'awaiting_approval').map((x) => ({ target_id: x.target_id, approval_id: `apv_${id}_${x.target_id}` })),
+    source_version_id: 'src_a1b2c3d',
     created_by: '도영',
     created_at: ago(10),
     finished_at: null,
@@ -124,7 +128,7 @@ const st = (name: string, state: StepState, sec?: number) => ({ name, state, dur
 const VALIDATED = [st('스크립트 재사용', 'done', 2), st('terraform validate', 'done', 42), st('terraform plan', 'done', 42), st('위험 설정 검사', 'done', 42)]
 const AI_VALIDATED = [st('Terraform 생성 (AI)', 'done', 42), st('terraform validate', 'done', 42), st('terraform plan', 'done', 42), st('위험 설정 검사', 'done', 42)]
 const APPLIED = [st('이미지 pull', 'done', 42), st('terraform apply', 'done', 42), st('state 저장', 'done', 42), st('헬스체크', 'done', 42)]
-const HEALTHY = '200 OK · p95 120ms'
+const HEALTHY = '200 OK · 120ms'
 
 // 화면별로 고정된 상태 — 경로의 deploymentId로 골라 봐요 (/projects/prj_monolith/deployments/dep_generate/generate 등)
 export const deployments: Record<string, Deployment> = {

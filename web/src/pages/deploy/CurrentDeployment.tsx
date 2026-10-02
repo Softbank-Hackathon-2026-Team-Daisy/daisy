@@ -4,6 +4,7 @@ import type { Deployment } from '../../api/types.ts'
 import { useResource } from '../../api/useResource.ts'
 import EmptyState from '../../components/EmptyState.tsx'
 import PageHeader from '../../components/PageHeader.tsx'
+import { t } from '../../i18n/index.ts'
 import { paths } from '../../paths.ts'
 import { reachedApply } from '../flow.ts'
 import { ErrorBlock, LoadingBlock } from '../Loading.tsx'
@@ -27,8 +28,8 @@ function CurrentDeployment() {
   if (!latest) {
     return (
       <div className="page">
-        <PageHeader overline="Deploy" title="배포" />
-        <EmptyState icon="play" title="아직 배포가 없어요" description="사이드바의 새 배포로 시작해요" />
+        <PageHeader overline="Deploy" title={t('배포')} />
+        <EmptyState icon="play" title={t('아직 배포가 없어요')} description={t('사이드바의 새 배포로 시작해요')} />
       </div>
     )
   }

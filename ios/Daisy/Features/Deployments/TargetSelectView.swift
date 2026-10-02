@@ -22,17 +22,17 @@ struct TargetSelectView: View {
     private var image: String? { latestBuild?.image }
 
     var body: some View {
-        FlowPage(step: 3, title: "배포할 환경 선택",
-                 description: "여러 환경을 동시에 고를 수 있어요. 같은 이미지(\(commit.map { String($0.prefix(7)) } ?? "—"))가 모든 환경에 배포돼요.") {
+        FlowPage(step: 3, title: .app("배포할 환경 선택"),
+                 description: .app("여러 환경을 동시에 고를 수 있어요. 같은 이미지(\(commit.map { String($0.prefix(7)) } ?? "—"))가 모든 환경에 배포돼요.")) {
             LoadStateView(state: targets, retry: { await load() }) { targets in
                 VStack(alignment: .leading, spacing: 16) {
                     AdaptiveGrid(minimumWidth: 260) {
                         ForEach(targets) { card($0) }
                     }
                     summary(targets)
-                    if let errorMessage { InlineAlert(.danger, "배포를 시작하지 못했어요", errorMessage) }
+                    if let errorMessage { InlineAlert(.danger, .app("배포를 시작하지 못했어요"), errorMessage) }
                     if app.isViewer {
-                        InlineAlert(.info, "읽기 전용 계정이라 배포할 수 없어요.")
+                        InlineAlert(.info, .app("읽기 전용 계정이라 배포할 수 없어요."))
                     }
                     FlowButtons {
                         // 웹: 이전 → W-03 이미지 빌드
@@ -81,9 +81,9 @@ struct TargetSelectView: View {
     /// 웹: 서버가 준 `reuse.reason`을 그대로 ("home-lab Proxmox VM · 사설망 · 검증된 스크립트 있음 → 태그만 교체").
     /// 연결이 안 되는 환경은 고를 수 없어요.
     private func cardDescription(_ target: DeployTarget) -> String {
-        if target.isUnreachable { return "연결할 수 없어요 · 환경 화면에서 확인해 주세요" }
+        if target.isUnreachable { return .app("연결할 수 없어요 · 환경 화면에서 확인해 주세요") }
         return target.reuse?.reason
-            ?? (target.reuse?.available == true ? "검증된 스크립트 있음 → 태그만 교체" : "처음 배포 → AI가 Terraform 생성")
+            ?? (target.reuse?.available == true ? String.app("검증된 스크립트 있음 → 태그만 교체") : String.app("처음 배포 → AI가 Terraform 생성"))
     }
 
     // MARK: 선택 요약
@@ -93,13 +93,13 @@ struct TargetSelectView: View {
         let reused = chosen.filter { $0.reuse?.available == true }
         let fresh = chosen.filter { $0.reuse?.available != true }
         func names(_ list: [DeployTarget]) -> String {
-            list.isEmpty ? "없음" : "\(list.count)개 · " + list.map(\.type.displayName).joined(separator: ", ")
+            list.isEmpty ? String.app("없음") : String.app("\(list.count)개 · \(list.map(\.type.displayName).joined(separator: ", "))")
         }
-        return SectionCard("선택 요약") {
-            InfoRow("선택한 환경", "\(chosen.count)개")
-            InfoRow("스크립트 재사용", names(reused))
-            InfoRow("AI가 새로 생성", names(fresh))
-            InfoRow("배포할 이미지", image ?? "—", monospaced: true)
+        return SectionCard(.app("선택 요약")) {
+            InfoRow(.app("선택한 환경"), .app("\(chosen.count)개"))
+            InfoRow(.app("스크립트 재사용"), names(reused))
+            InfoRow(.app("AI가 새로 생성"), names(fresh))
+            InfoRow(.app("배포할 이미지"), image ?? "—", monospaced: true)
         }
     }
 
@@ -123,16 +123,23 @@ struct TargetSelectView: View {
         }
         let builds = try? await client.send(.builds(projectID: projectID)).items
         latestBuild = builds?.first { build in
-            fixedCommit.map { build.commit == $0 } ?? (build.pipeline.status == .success && build.image != nil)
+            // 같은 커밋을 다시 빌드했을 수 있어서, 커밋을 정해 들어와도 성공한 빌드만 골라요 (서버는 실패 · 진행 중 빌드 ID에 409)
+            build.pipeline.status == .success && build.sourceVersionId != nil && (fixedCommit.map { build.commit == $0 } ?? (build.image != nil))
         }
     }
 
     private func start(_ chosen: [DeployTarget]) async {
         guard let client = app.client, let projectID = app.selectedProjectID, let commit else { return }
+        // 고른 빌드 ID로 시작해요 (필수, #42). 빌드 목록에서 같은 커밋의 빌드를 찾았을 때만 시작할 수 있어요
+        guard latestBuild?.commit == commit, let build = latestBuild?.sourceVersionId else {
+            errorMessage = .app("빌드 정보를 아직 받지 못했어요. 이미지 빌드가 끝난 뒤 다시 시도해 주세요.")
+            return
+        }
         starting = true
         defer { starting = false }
         do {
-            let started = try await client.send(.startDeployment(projectID: projectID, commit: commit, targetIDs: chosen.map(\.id)))
+            let started = try await client.send(.startDeployment(projectID: projectID, commit: commit,
+                                                                 sourceVersionID: build, targetIDs: chosen.map(\.id)))
             errorMessage = nil
             router.replaceTop(with: .started(started.id))
             await workspace.refresh(using: app)

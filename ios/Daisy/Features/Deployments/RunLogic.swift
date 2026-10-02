@@ -32,20 +32,20 @@ enum RunStage: Equatable {
     }
 }
 
-/// "다시 시도"가 만드는 새 배포 요청 (WR-05). 같은 커밋으로 고른 환경만 다시 해요.
+/// "다시 시도" 요청: 원본 배포 ID + 다시 할 환경만 보내요 (`POST /deployments/{id}/retry`, 10/2 09:57 확정).
+/// 서버가 원본에서 빌드 · 연결을 그대로 이어받아 새 배포를 만들고, 성공한 환경은 건드리지 않아요.
 struct RetryRequest: Equatable {
-    let projectID: String
-    let commit: String
+    let deploymentID: String
     let targetIDs: [String]
 
-    /// W-05b "AWS만 다시 시도", W-08 실패 카드 "다시 시도"
+    /// W-08 실패 카드 "다시 시도"
     static func only(_ targetID: String, of deployment: Deployment) -> RetryRequest {
-        RetryRequest(projectID: deployment.projectId, commit: deployment.commit, targetIDs: [targetID])
+        RetryRequest(deploymentID: deployment.id, targetIDs: [targetID])
     }
 
-    /// W-05b "AWS만 다시 시도": 실패한 환경 전부를 한 번에 (웹과 같아요)
+    /// W-05b "○○만 다시 시도": 실패한 환경 전부를 한 번에 (웹과 같아요)
     static func failed(of deployment: Deployment) -> RetryRequest {
-        RetryRequest(projectID: deployment.projectId, commit: deployment.commit,
+        RetryRequest(deploymentID: deployment.id,
                      targetIDs: (deployment.targets ?? []).filter(\.isFailed).map(\.targetId))
     }
 }
@@ -69,13 +69,13 @@ enum FlowCopy {
         let failedNames = join(failed.map { name($0.targetId) })
         let attempts = failed.map(\.attempt).max() ?? 3
         if others.isEmpty {
-            return Stopped(title: "배포를 중단했어요",
-                           description: "모든 환경이 \(attempts)번 모두 실패해서 멈췄어요.",
-                           toastTitle: "\(failedNames) 검증 실패 · 배포 중단")
+            return Stopped(title: .app("배포를 중단했어요"),
+                           description: .app("모든 환경이 \(attempts)번 모두 실패해서 멈췄어요."),
+                           toastTitle: .app("\(failedNames) 검증 실패 · 배포 중단"))
         }
-        return Stopped(title: "\(failedNames)만 멈췄어요",
-                       description: "\(failedNames)는 \(attempts)번 모두 실패해서 멈췄어요. \(join(others.map { name($0.targetId) }))는 그대로 계속 진행해요.",
-                       toastTitle: "\(failedNames) 검증 실패 · 나머지 환경은 계속")
+        return Stopped(title: .app("\(failedNames)만 멈췄어요"),
+                       description: .app("\(failedNames)는 \(attempts)번 모두 실패해서 멈췄어요. \(join(others.map { name($0.targetId) }))는 그대로 계속 진행해요."),
+                       toastTitle: .app("\(failedNames) 검증 실패 · 나머지 환경은 계속"))
     }
 
     /// W-08 설명: 웹 "온프레미스 · AWS는 성공, GCP는 헬스체크에서 실패했어요. 성공한 환경끼리 같은 이미지인지 확인해요."
@@ -85,14 +85,18 @@ enum FlowCopy {
         let failed = targets.filter(\.isFailed)
         switch deployment.state {
         case .cancelled:
-            return "배포를 취소했어요. 이미 바뀐 환경은 이력에서 확인해요."
+            return .app("배포를 취소했어요. 이미 바뀐 환경은 이력에서 확인해요.")
         case .failed where succeeded.isEmpty:
-            return "모든 환경이 실패했어요. 원인을 확인하고 다시 시도해 주세요."
+            return .app("모든 환경이 실패했어요. 원인을 확인하고 다시 시도해 주세요.")
         default:
-            guard !failed.isEmpty else { return "모든 환경이 같은 이미지로 떠 있는지 확인해요." }
+            guard !failed.isEmpty else { return .app("모든 환경이 같은 이미지로 떠 있는지 확인해요.") }
             // 웹: 첫 실패 환경의 단계로 "헬스체크에서" · "apply에서"
-            let where_ = failed[0].step == .healthCheck ? "헬스체크에서 " : "apply에서 "
-            return "\(join(succeeded.map { name($0.targetId) }))는 성공, \(join(failed.map { name($0.targetId) }))는 \(where_)실패했어요. 성공한 환경끼리 같은 이미지인지 확인해요."
+            let ok = join(succeeded.map { name($0.targetId) })
+            let bad = join(failed.map { name($0.targetId) })
+            if failed[0].step == .healthCheck {
+                return .app("\(ok)는 성공, \(bad)는 헬스체크에서 실패했어요. 성공한 환경끼리 같은 이미지인지 확인해요.")
+            }
+            return .app("\(ok)는 성공, \(bad)는 apply에서 실패했어요. 성공한 환경끼리 같은 이미지인지 확인해요.")
         }
     }
 }

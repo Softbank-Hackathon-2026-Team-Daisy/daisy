@@ -1,8 +1,10 @@
 import type { StatusTone } from '../components/StatusBadge.tsx'
+import { t } from '../i18n/index.ts'
 import type { DeploymentState, Step, TargetState } from './types.ts'
 
 // 서버 상태 값 → Status Badge 톤 · 문구 (SPEC.md §2-5). 색은 와이어프레임 기준이에요
 // 모르는 값이 오면 회색(대기 중 톤)으로 보여주고 깨지지 않아요
+// 문구는 한국어 원문으로 두고, 꺼낼 때 t()로 바꿔요 (#75)
 export type StatusView = { tone: StatusTone; label: string }
 
 const DEPLOYMENT: Record<DeploymentState, StatusView> = {
@@ -27,7 +29,7 @@ const TARGET: Record<TargetState, StatusView> = {
   cancelled: { tone: 'queued', label: '취소됨' },
 }
 
-export const STEP_LABEL: Record<Step, string> = {
+const STEP: Record<Step, string> = {
   generate: '생성',
   validate: 'validate',
   plan: 'plan',
@@ -36,18 +38,23 @@ export const STEP_LABEL: Record<Step, string> = {
   health_check: '헬스체크',
 }
 
+export const stepLabel = (step: Step) => t(STEP[step] ?? step)
+
 const UNKNOWN: StatusView = { tone: 'queued', label: '알 수 없음' }
 
-export function deploymentStatus(state: string, kind?: 'deploy' | 'rollback'): StatusView {
-  if (kind === 'rollback' && state === 'succeeded') return { tone: 'rolledback', label: '롤백됨' }
-  return DEPLOYMENT[state as DeploymentState] ?? UNKNOWN
+const translated = (v: StatusView): StatusView => ({ tone: v.tone, label: t(v.label) })
+
+export function deploymentStatus(state: string, kind?: 'deploy' | 'rollback' | null): StatusView {
+  if (kind === 'rollback' && state === 'succeeded') return { tone: 'rolledback', label: t('롤백됨') }
+  return translated(DEPLOYMENT[state as DeploymentState] ?? UNKNOWN)
 }
 
 export function targetStatus(state: string): StatusView {
-  return TARGET[state as TargetState] ?? UNKNOWN
+  return translated(TARGET[state as TargetState] ?? UNKNOWN)
 }
 
 // "시도 n/3" — 첫 생성을 포함한 총 시도 횟수예요. "재시도"로 쓰지 않아요
-export function attemptLabel(attempt: number) {
-  return `시도 ${attempt}/3`
+// 생성 전이면 서버가 null을 줘요 (#46) → "시도 —"
+export function attemptLabel(attempt: number | null | undefined) {
+  return attempt == null ? t('시도 —') : t('시도 {n}/3', { n: attempt })
 }

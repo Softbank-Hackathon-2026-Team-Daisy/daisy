@@ -1,4 +1,5 @@
 import type { ReactNode } from 'react'
+import { t } from '../i18n/index.ts'
 import Icon from './Icon.tsx'
 import type { IconName } from './icons.ts'
 import './Toast.css'
@@ -30,7 +31,7 @@ function Toast({ type, title, children, onClose }: ToastProps) {
         {children && <div className="toast__desc">{children}</div>}
       </div>
       {onClose && (
-        <button type="button" className="toast__close" aria-label="닫기" onClick={onClose}>
+        <button type="button" className="toast__close" aria-label={t('닫기')} onClick={onClose}>
           <Icon name="x" size={16} />
         </button>
       )}

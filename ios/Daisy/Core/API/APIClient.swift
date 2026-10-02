@@ -1,15 +1,19 @@
 import Foundation
 
-/// Daisy 서버 REST 클라이언트. 모든 요청에 Bearer 토큰을 붙여요 (SPEC R-01).
+/// Unibloom 서버 REST 클라이언트. 모든 요청에 Bearer 토큰을 붙여요 (SPEC R-01).
 struct APIClient: Sendable {
     let baseURL: URL
     let token: String?
     var session: URLSession = .shared
+    /// 설정 › 언어에서 고른 언어. 서버가 메시지를 그 언어로 줄 수 있게 `Accept-Language`로 보내요 (10/2, SPEC R-10)
+    var language: AppLanguage = .current
 
-    func send<Response: Decodable & Sendable>(_ endpoint: Endpoint<Response>) async throws -> Response {
+    /// 요청 하나의 URLRequest: 경로 · 헤더(Bearer, Accept-Language, Idempotency-Key) · 본문
+    func request<Response>(for endpoint: Endpoint<Response>) throws -> URLRequest {
         var request = URLRequest(url: try url(for: endpoint))
         request.httpMethod = endpoint.method
         request.setValue("application/json", forHTTPHeaderField: "Accept")
+        request.setValue(language.rawValue, forHTTPHeaderField: "Accept-Language")
         if let token {
             request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
         }
@@ -20,7 +24,11 @@ struct APIClient: Sendable {
         if let key = endpoint.idempotencyKey {
             request.setValue(key, forHTTPHeaderField: "Idempotency-Key")
         }
+        return request
+    }
 
+    func send<Response: Decodable & Sendable>(_ endpoint: Endpoint<Response>) async throws -> Response {
+        let request = try request(for: endpoint)
         let data: Data
         let response: URLResponse
         do {
@@ -30,6 +38,10 @@ struct APIClient: Sendable {
         }
         guard let http = response as? HTTPURLResponse else { throw APIError.invalidResponse }
 
+        // API가 아니라 웹 페이지(HTML)가 오면 JSON으로 읽지 않고 "응답이 올바르지 않아요"로 보여줘요 (주소 오류 · 터널 오류 페이지)
+        if data.first(where: { ![0x20, 0x0A, 0x0D, 0x09].contains($0) }) == UInt8(ascii: "<") {
+            throw APIError.invalidResponse
+        }
         guard (200..<300).contains(http.statusCode) else {
             if let envelope = try? JSONDecoder.daisy.decode(ErrorEnvelope.self, from: data) {
                 throw APIError.server(
@@ -47,6 +59,11 @@ struct APIClient: Sendable {
             )
         }
 
+        // 승인 · 취소는 본문 없이 202 · 204를 줄 수 있어요 (서버 #42 SPEC ③). 빈 본문은 빈 객체로 읽어요 (EmptyResponse만 성공)
+        if data.allSatisfy({ $0 == 0x20 || $0 == 0x0A || $0 == 0x0D || $0 == 0x09 }),
+           let empty = try? JSONDecoder.daisy.decode(Response.self, from: Data("{}".utf8)) {
+            return empty
+        }
         do {
             return try JSONDecoder.daisy.decode(Response.self, from: data)
         } catch {

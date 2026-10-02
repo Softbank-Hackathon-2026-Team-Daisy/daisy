@@ -8,7 +8,7 @@ struct OverviewView: View {
     @State private var store = OverviewStore()
 
     var body: some View {
-        PageScaffold("개요", subtitle: subtitle) {
+        PageScaffold(.app("개요"), subtitle: subtitle) {
             projectMenu
             Button { Task { await refresh() } } label: {
                 Label("새로 고침", systemImage: "arrow.clockwise")
@@ -44,7 +44,8 @@ struct OverviewView: View {
 
     /// 웹: "sample-monolith가 지금 어느 환경에 어떤 버전으로 떠 있는지, 다음에 할 일이 뭔지 봐요."
     private var subtitle: String {
-        (workspace.project.map { "\($0.name)가 " } ?? "") + "지금 어느 환경에 어떤 버전으로 떠 있는지, 다음에 할 일이 뭔지 봐요."
+        guard let name = workspace.project?.name else { return .app("지금 어느 환경에 어떤 버전으로 떠 있는지, 다음에 할 일이 뭔지 봐요.") }
+        return .app("\(name)가 지금 어느 환경에 어떤 버전으로 떠 있는지, 다음에 할 일이 뭔지 봐요.")
     }
 
     private func refresh() async {
@@ -55,7 +56,7 @@ struct OverviewView: View {
     // MARK: 환경별 현재 버전
 
     private var currentVersions: some View {
-        SectionCard("환경별 현재 버전") {
+        SectionCard(.app("환경별 현재 버전")) {
             if let image = workspace.statuses.compactMap({ $0.current?.image }).first {
                 Text(image).font(.caption.monospaced()).foregroundStyle(.secondary).lineLimit(1).truncationMode(.middle)
             }
@@ -72,7 +73,7 @@ struct OverviewView: View {
                 }
                 let matching = workspace.statuses.parityMatching
                 HStack(spacing: 8) {
-                    StatusBadge(text: "\(matching)/\(workspace.statuses.count) 일치",
+                    StatusBadge(text: .app("\(matching)/\(workspace.statuses.count) 일치"),
                                 color: matching == workspace.statuses.count ? .green : .orange)
                     Text(matching == workspace.statuses.count
                          ? "\(koreanCount(workspace.statuses.count)) 환경 모두 같은 이미지 digest예요"
@@ -86,7 +87,7 @@ struct OverviewView: View {
     // MARK: 지금 할 일
 
     private var todo: some View {
-        SectionCard("지금 할 일") {
+        SectionCard(.app("지금 할 일")) {
             if let waiting = workspace.awaitingApproval.first {
                 VStack(alignment: .leading, spacing: 12) {
                     Button {
@@ -95,13 +96,15 @@ struct OverviewView: View {
                         RunListItem(deployment: waiting)
                     }
                     .buttonStyle(.plain)
-                    InlineAlert(.info, "검증 통과 · 승인만 남았어요", reuseNote(waiting))
+                    InlineAlert(.info, .app("검증 통과 · 승인만 남았어요"), reuseNote(waiting))
                     Button("plan 보고 승인하기") { router.push(.plan(waiting.id)) }
                         .buttonStyle(.glassCapsule(fullWidth: true))
                 }
             } else {
+                // 카드 폭이 넓어도(한 열 배치) 안내는 늘 카드 가운데에 와요 (10/2 담당자 요청)
                 ContentUnavailableView("지금 할 일이 없어요", systemImage: "checkmark",
                                        description: Text("승인을 기다리는 배포가 없어요"))
+                    .frame(maxWidth: .infinity)
             }
         }
     }
@@ -109,17 +112,17 @@ struct OverviewView: View {
     /// "온프레미스는 검증된 스크립트 재사용이라 AI 호출 0회예요."
     private func reuseNote(_ deployment: Deployment) -> String? {
         let reused = (deployment.targets ?? []).filter { $0.reusedScript == true }
-        guard !reused.isEmpty else { return "모든 환경의 validate · plan · 위험 설정 검사를 통과했어요." }
+        guard !reused.isEmpty else { return .app("모든 환경의 validate · plan · 위험 설정 검사를 통과했어요.") }
         let names = reused.map { target in
             workspace.statuses.first { $0.targetId == target.targetId }?.type.displayName ?? target.targetId
         }
-        return "\(names.joined(separator: " · "))는 검증된 스크립트 재사용이라 AI 호출 0회예요."
+        return .app("\(names.joined(separator: " · "))는 검증된 스크립트 재사용이라 AI 호출 0회예요.")
     }
 
     // MARK: 최근 실행
 
     private var recentRuns: some View {
-        SectionCard("최근 실행") {
+        SectionCard(.app("최근 실행")) {
             Button("이력 전체 보기") { router.tab = .history }
                 .buttonStyle(.glassCapsule)
         } content: {
@@ -142,8 +145,8 @@ struct OverviewView: View {
     /// 웹 최근 실행: 성공은 "배포 완료", 실패는 "중단", 나머지는 상태 그대로
     private func recentBadge(_ deployment: Deployment) -> StatusBadge {
         switch deployment.state {
-        case .succeeded where !deployment.isRollback: StatusBadge(text: "배포 완료", color: .green)
-        case .failed: StatusBadge(text: "중단", color: .red)
+        case .succeeded where !deployment.isRollback: StatusBadge(text: .app("배포 완료"), color: .green)
+        case .failed: StatusBadge(text: .app("중단"), color: .red)
         default: deployment.badge
         }
     }
@@ -167,7 +170,7 @@ struct OverviewView: View {
             } label: {
                 HStack(spacing: 6) {
                     Image(systemName: "folder")
-                    Text(workspace.project?.name ?? "프로젝트")
+                    Text(workspace.project?.name ?? String.app("프로젝트"))
                     Image(systemName: "chevron.down").font(.caption2.weight(.semibold))
                 }
             }
@@ -220,7 +223,9 @@ private struct VersionRow: View {
                     RelativeTime(date: deployedAt).font(.caption).foregroundStyle(.secondary)
                 }
             } else {
-                Text("아직 배포되지 않았어요").font(.caption).foregroundStyle(.secondary)
+                // null은 "배포 없음"이 아니라 "확인된 현재 배포 없음"이에요 (10/2 01:10 서버 #42 요청)
+                Text(status.currentStatus == .unverified ? "현재 배포를 확인하지 못했어요" : "확인된 배포 없음")
+                    .font(.caption).foregroundStyle(.secondary)
             }
             if let url = status.url {
                 Link(url.absoluteString, destination: url).font(.caption).lineLimit(1).truncationMode(.middle)

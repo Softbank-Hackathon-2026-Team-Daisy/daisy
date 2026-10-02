@@ -1,7 +1,6 @@
 import { useState } from 'react'
 import { useParams } from 'react-router'
-import { attemptLabel } from '../../api/status.ts'
-import { api } from '../../api/endpoints.ts'
+import { api, isMocked } from '../../api/endpoints.ts'
 import type { AiUsageItem, AiUsageSummary, Deployment } from '../../api/types.ts'
 import { useResource } from '../../api/useResource.ts'
 import Alert from '../../components/Alert.tsx'
@@ -14,6 +13,7 @@ import Panel from '../../components/Panel.tsx'
 import Select from '../../components/Select.tsx'
 import StatTile from '../../components/StatTile.tsx'
 import StatusBadge from '../../components/StatusBadge.tsx'
+import { t } from '../../i18n/index.ts'
 import { clockTime, count, shortCommit, won } from '../../utils/format.ts'
 import { names } from '../flow.ts'
 import { ErrorBlock, LoadingBlock } from '../Loading.tsx'
@@ -39,8 +39,8 @@ function AiUsagePage() {
   if (runs.data.items.length === 0) {
     return (
       <div className="page">
-        <PageHeader overline="AI usage" title="AI 사용량" />
-        <EmptyState icon="signal" title="아직 배포가 없어요" description="배포하면 AI를 몇 번, 얼마나 썼는지 여기서 봐요" />
+        <PageHeader mock={isMocked('listDeployments', 'getDeployment', 'listAiUsage', 'getPlan')} overline="AI usage" title={t('AI 사용량')} />
+        <EmptyState icon="signal" title={t('아직 배포가 없어요')} description={t('배포하면 AI를 몇 번, 얼마나 썼는지 여기서 봐요')} />
       </div>
     )
   }
@@ -48,28 +48,30 @@ function AiUsagePage() {
   const d = deployment.data
   const items = calls.data?.items
   const summary = plan.data?.ai_usage ?? (items ? summarize(items) : null)
-  const reused = d?.targets.filter((t) => t.reused_script) ?? []
+  const reused = d?.targets.filter((tg) => tg.reused_script) ?? []
   const typeOf = (targetId: string) => d?.targets.find((t) => t.target_id === targetId)?.type ?? 'onprem'
+  // Jenkins가 아직 호출별 기록을 안 보내서 빈 목록일 수 있어요 — "AI를 안 썼다"로 보이지 않게 "기록 없음"으로 (#60)
+  const noRecord = (items?.length ?? 0) === 0 && (summary?.calls ?? 0) === 0
   const rows: Row[] = [
     ...(items ?? []).map((item, i) => ({ key: `${i}`, item, type: typeOf(item.target_id) })),
-    ...reused.map((t) => ({ key: `reuse-${t.target_id}`, item: null, type: t.type })),
+    ...reused.map((tg) => ({ key: `reuse-${tg.target_id}`, item: null, type: tg.type })),
   ]
 
   return (
     <div className="page">
-      <PageHeader
+      <PageHeader mock={isMocked('listDeployments', 'getDeployment', 'listAiUsage', 'getPlan')}
         overline="AI usage"
-        title="AI 사용량"
-        description="배포마다 AI를 몇 번, 얼마나 썼는지 봐요. 판단이 필요한 생성 · 수정에만 AI를 쓰고, 검증된 스크립트는 재사용해요."
+        title={t('AI 사용량')}
+        description={t('배포마다 AI를 몇 번, 얼마나 썼는지 봐요. 판단이 필요한 생성 · 수정에만 AI를 쓰고, 검증된 스크립트는 재사용해요.')}
       />
 
       <div style={{ width: 340 }}>
         <Select
-          label="배포 고르기"
+          label={t('배포 고르기')}
           value={id}
           onChange={setPicked}
           leading={<Icon name="git-branch" size={16} />}
-          options={runs.data.items.map((r) => ({ value: r.id, label: `${r.version} · ${shortCommit(r.commit)} · ${clockTime(r.created_at)} 배포` }))}
+          options={runs.data.items.map((r) => ({ value: r.id, label: t('{ver}{commit} · {time} 배포', { ver: r.version ? `${r.version} · ` : '', commit: shortCommit(r.commit), time: clockTime(r.created_at) }) }))}
         />
       </div>
 
@@ -80,43 +82,49 @@ function AiUsagePage() {
       ) : (
         <>
           <div className="page__row" style={{ gridTemplateColumns: 'repeat(4, minmax(0, 1fr))' }}>
-            <StatTile label="AI 호출" value={`${summary.calls}회`} hint="이번 배포" />
-            <StatTile label="토큰" value={count(summary.tokens)} hint="입력 + 출력" />
-            <StatTile label="비용" value={won(summary.cost_krw)} hint={`추정 · ${summary.exchange_rate ? `환율 ${count(summary.exchange_rate)}원 · ` : ''}Claude`} />
-            <StatTile label="재사용한 환경" value={`${reused.length}곳`} hint={reused.length ? `${names(reused)} · AI 호출 0회` : '없음'} />
+            <StatTile label={t('AI 호출')} value={noRecord ? '—' : t('{n}회', { n: summary.calls })} hint={noRecord ? t('기록 없음') : t('이번 배포')} />
+            <StatTile label={t('토큰')} value={count(summary.tokens)} hint={t('입력 + 출력')} />
+            <StatTile label={t('비용')} value={won(summary.cost_krw)} hint={summary.exchange_rate ? t('추정 · 환율 {rate}원 · Claude', { rate: count(summary.exchange_rate) }) : t('추정 · Claude')} />
+            <StatTile label={t('재사용한 환경')} value={t('{n}곳', { n: reused.length })} hint={reused.length ? t('{names} · AI 호출 0회', { names: names(reused) }) : t('없음')} />
           </div>
 
-          <Panel title="이 배포의 호출 기록">
+          {noRecord && (
+            <Alert type="info" title={t('호출 기록을 아직 받지 않았어요')}>
+              {t('AI를 안 썼다는 뜻이 아니에요. 생성 · 수정 호출 기록은 Jenkins 연동 뒤에 들어와요.')}
+            </Alert>
+          )}
+
+          <Panel title={t('이 배포의 호출 기록')}>
             <DataTable
-              label="이 배포의 호출 기록"
+              label={t('이 배포의 호출 기록')}
               rows={rows}
               rowKey={(r) => r.key}
               columns={[
-                { key: 'at', label: '시각', width: 100, render: (r) => <span className="t-mono-sm">{r.item ? clockTime(r.item.at) : clockTime(d.created_at)}</span> },
-                { key: 'env', label: '환경', width: 120, render: (r) => <EnvTag env={r.type} /> },
-                { key: 'job', label: '작업', render: (r) => (r.item ? (r.item.title ?? STEP_LABEL[r.item.step]) : '— 검증된 스크립트 재사용') },
-                { key: 'att', label: '시도', width: 80, render: (r) => <span className="t-mono-sm">{r.item ? attemptLabel(r.item.attempt).replace('시도 ', '') : '—'}</span> },
-                { key: 'tok', label: '토큰', width: 90, render: (r) => <span className="t-mono-sm">{r.item ? count(r.item.tokens) : '0'}</span> },
-                { key: 'cost', label: '비용', width: 80, render: (r) => <span className="t-mono-sm">{r.item ? won(r.item.cost_krw) : '₩0'}</span> },
+                { key: 'at', label: t('시각'), width: 100, render: (r) => <span className="t-mono-sm">{r.item ? clockTime(r.item.at) : clockTime(d.created_at)}</span> },
+                { key: 'env', label: t('환경'), width: 120, render: (r) => <EnvTag env={r.type} /> },
+                { key: 'job', label: t('작업'), render: (r) => (r.item ? (r.item.title ?? r.item.note ?? t(STEP_LABEL[r.item.step])) : t('— 검증된 스크립트 재사용')) },
+                { key: 'att', label: t('시도'), width: 80, render: (r) => <span className="t-mono-sm">{r.item?.attempt != null ? `${r.item.attempt}/3` : '—'}</span> },
+                { key: 'tok', label: t('토큰'), width: 90, render: (r) => <span className="t-mono-sm">{r.item ? count(r.item.tokens) : '0'}</span> },
+                { key: 'cost', label: t('비용'), width: 80, render: (r) => <span className="t-mono-sm">{r.item ? won(r.item.cost_krw) : '₩0'}</span> },
                 {
                   key: 'res',
-                  label: '결과',
+                  label: t('결과'),
                   width: 120,
                   render: (r) =>
                     !r.item ? (
-                      <StatusBadge tone="queued">AI 호출 없음</StatusBadge>
+                      <StatusBadge tone="queued">{t('AI 호출 없음')}</StatusBadge>
                     ) : r.item.status === 'succeeded' ? (
-                      <StatusBadge tone="success">호출 성공</StatusBadge>
+                      <StatusBadge tone="success">{t('호출 성공')}</StatusBadge>
                     ) : (
-                      <StatusBadge tone="failed">호출 실패</StatusBadge>
+                      <StatusBadge tone="failed">{t('호출 실패')}</StatusBadge>
                     ),
                 },
               ]}
             />
           </Panel>
 
-          <Alert type="info" title="PoC N-09 (선택)">
-            비용 표시는 N-09 결과에 따라 달라져요. 서버가 확인하지 못한 토큰 · 비용은 0 대신 "—"로 보여줘요.
+          <Alert type="info" title={t('PoC N-09 (선택)')}>
+            {t('비용 표시는 N-09 결과에 따라 달라져요. 서버가 확인하지 못한 토큰 · 비용은 0 대신 "—"로 보여줘요.')}
           </Alert>
         </>
       )}

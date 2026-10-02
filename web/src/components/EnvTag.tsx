@@ -1,3 +1,4 @@
+import { t } from '../i18n/index.ts'
 import { ENV_LABEL, type EnvType } from './env.ts'
 import './EnvTag.css'
 
@@ -6,7 +7,7 @@ function EnvTag({ env }: { env: EnvType }) {
   return (
     <span className="env-tag">
       <span className="env-tag__color" style={{ background: `var(--color-env-${env})` }} aria-hidden="true" />
-      {ENV_LABEL[env]}
+      {t(ENV_LABEL[env])}
     </span>
   )
 }

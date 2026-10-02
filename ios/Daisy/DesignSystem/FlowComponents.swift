@@ -90,7 +90,7 @@ struct Avatar: View {
             .font(.caption2.weight(.semibold))
             .frame(width: 22, height: 22)
             .background(.fill.secondary, in: .circle)
-            .accessibilityLabel(name ?? "알 수 없음")
+            .accessibilityLabel(name ?? String.app("알 수 없음"))
     }
 }
 
@@ -98,7 +98,10 @@ struct Avatar: View {
 
 /// 웹 Stepper: 저장소 연결 · 이미지 빌드 · 대상 환경 · 생성 · 검증 · 승인 · 배포 · 결과. 표시 전용이에요.
 struct FlowStepper: View {
-    static let labels = ["저장소 연결", "이미지 빌드", "대상 환경", "생성 · 검증", "승인 · 배포", "결과"]
+    /// 고른 언어로 그때그때 만들어요 (설정에서 언어를 바꾸면 바로 바뀌게)
+    static var labels: [String] {
+        [.app("저장소 연결"), .app("이미지 빌드"), .app("대상 환경"), .app("생성 · 검증"), .app("승인 · 배포"), .app("결과")]
+    }
     /// 1부터 6
     let current: Int
 
@@ -136,6 +139,8 @@ struct FlowStepper: View {
             }
             .padding(.vertical, 2)
         }
+        // 가로 스크롤은 iPhone 탭 바용 아래 여백(contentMargins)을 받지 않아요
+        .contentMargins(.vertical, 0, for: .scrollContent)
         .onAppear { proxy.scrollTo(current, anchor: .center) }
         }
         .accessibilityElement(children: .ignore)
@@ -181,6 +186,7 @@ struct StepItemRow: View {
         case .failed: Image(systemName: "xmark.circle.fill").foregroundStyle(.red)
         case .running: ProgressView().controlSize(.small)
         case .waiting, .unknown: Image(systemName: "clock").foregroundStyle(.secondary)
+        case .skipped: Image(systemName: "minus.circle").foregroundStyle(.secondary)
         }
     }
 
@@ -197,6 +203,8 @@ struct StepItemRow: View {
             }
         case .waiting, .unknown:
             Text("—")
+        case .skipped:
+            Text("건너뜀")
         case .done, .failed:
             Text(durationMs.map { Duration.milliseconds($0).daisyText } ?? "—")
         }
@@ -370,6 +378,9 @@ struct CodeBlock: View {
                     .textSelection(.enabled)
                     .padding(12)
             }
+            .contentMargins(.vertical, 0, for: .scrollContent)
+            // 가로 ScrollView는 세로로 늘어나요. 그리드 안에서 화면보다 길게 늘어나 빈 공간이 생겨서 코드 높이로 고정해요 (W-05)
+            .fixedSize(horizontal: false, vertical: true)
         }
         .background(.fill.quaternary, in: .rect(cornerRadius: 10))
         .task(id: copied) {
@@ -391,7 +402,7 @@ struct ResourceDiffRow: View {
             Text(resource.address).font(.subheadline.monospaced()).lineLimit(1)
             Spacer(minLength: 8)
             if let cost = resource.monthlyCostKrw {
-                Text(cost == 0 ? "₩0" : "\(cost > 0 ? "+" : "\u{2212}")₩\(abs(cost).formatted())/월")
+                Text(cost == 0 ? "₩0" : "\(cost > 0 ? "+" : "\u{2212}")₩\(abs(cost).appFormatted)/월")
                     .font(.caption.monospacedDigit()).foregroundStyle(.secondary)
             }
         }
@@ -427,16 +438,16 @@ struct ParityTable: View {
 
     static func label(_ key: String) -> String {
         switch key {
-        case "digest": "이미지 digest"
-        case "commit": "커밋"
-        case "version": "앱 버전"
-        case "health": "헬스체크"
+        case "digest": .app("이미지 digest")
+        case "commit": .app("커밋")
+        case "version": .app("앱 버전")
+        case "health": .app("헬스체크")
         default: key
         }
     }
 
     var body: some View {
-        SectionCard("동일성 검증", subtitle: "모든 환경이 같은 상태인지 비교해요") {
+        SectionCard(.app("동일성 검증"), subtitle: .app("모든 환경이 같은 상태인지 비교해요")) {
             Label("\(parity.matching)/\(parity.total) 일치",
                   systemImage: parity.matching == parity.total ? "checkmark.circle" : "exclamationmark.circle")
                 .font(.caption.weight(.semibold))
@@ -528,8 +539,9 @@ struct RelativeTime: View {
 
 // MARK: - 연결 표시 (Connection Indicator)
 
+/// `polling`: 실시간(SSE) 전, 5초 폴링 중이에요 (웹과 같아요. 실시간 연결로 보이지 않게)
 enum ConnectionState: Equatable {
-    case connected, reconnecting, disconnected
+    case connected, polling, reconnecting, disconnected
 }
 
 struct ConnectionIndicator: View {
@@ -540,6 +552,8 @@ struct ConnectionIndicator: View {
         switch state {
         case .connected:
             Label("실시간 연결됨", systemImage: "cellularbars").foregroundStyle(.green).font(.caption.weight(.medium))
+        case .polling:
+            Label("5초마다 새로고침", systemImage: "arrow.clockwise").foregroundStyle(.secondary).font(.caption.weight(.medium))
         case .reconnecting:
             Label("재연결 중…", systemImage: "cellularbars").foregroundStyle(.orange).font(.caption.weight(.medium))
         case .disconnected:

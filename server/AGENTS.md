@@ -1,16 +1,17 @@
-# AGENTS.md — server/ (배포 서비스 API · AI · 검증)
+# AGENTS.md — server/ (배포 요청 · 승인 · 실행 추적 · API)
 
-담당: 하은현 (`gkdmsgus`), 김승환 (`7SH7`). 상태: v1 (2026-09-29).
+담당: 하은현 (`gkdmsgus`), 김승환 (`7SH7`). 상태: 2026-10-01 Jenkins 분담 반영.
 
-루트 `AGENTS.md` 를 먼저 따라요. 이 파일은 `server/` 에만 해당하는 규칙을 더하고, 루트 하드 규칙(§4)을 느슨하게 하지 않아요.
-§10 결정 기록은 두 담당자가 합의한 내용이에요. 아직 안 정한 것은 §11 에 모아 뒀어요.
+루트 `CLAUDE.md`와 `CONTRIBUTING.md`를 먼저 따라요(현재 루트 `AGENTS.md` 없음). 이 파일은 `server/`에만 해당하는 규칙을 더해요.
+§10의 과거 결정 중 superseded 표시는 이후 합의로 대체된 기록이에요. 아직 안 정한 것은 §11에 모아 뒀어요. 상세 데이터 의미는 [DB 설계](docs/database-design.md), 구현 범위는 [SPEC](SPEC.md)을 봐요.
 
 ## 1. 이 폴더가 하는 일
 
 | 누가 | 무엇 |
 |---|---|
-| **하은현** | API 서버, GitHub Actions webhook 수신, 배포 상태 기계·승인·이력, `terraform apply` 실행, SSE, 환경별 락 |
-| **김승환** | `deploy.yaml` 파싱·검증, 환경별 Terraform 생성(N-02), 검증·수정 루프(N-05), 스크립트 재사용(N-08), AI 비용 기록(N-09), 공통 Terraform CLI 실행부 |
+| **하은현** | 인증·인가, 프로젝트·저장소·대상·버전 관리, 공개 REST·조회·OpenAPI, 사용량 합산·원화 응답 |
+| **김승환** | 배포 상태·승인·제어 규칙, state 락·멱등성·복구, Jenkins 요청·결과 수신, 로그·사용량 원본 연결, 공통 오류·SSE 기반 |
+| **인프라팀** | Jenkins CI/CD, 이미지 빌드·게시, AI·Terraform 생성·검증·실행·재사용, 원본 산출물·state 운영 |
 
 ## 2. 기술 스택
 
@@ -21,43 +22,45 @@
 | 빌드 | **Gradle 8.14 (Kotlin DSL), 단일 모듈** | 이틀짜리에서 모듈 경계를 잘못 그으면 되돌리기 비쌈 |
 | DB | **PostgreSQL 17 + JPA + Flyway** | |
 | API 문서 | **springdoc-openapi 2.9.1** | Boot 3.5.16 기준으로 빌드된 판 (2.8.17 은 3.5.13 기준) |
-| 작업 큐 | **Postgres 작업 테이블 (`FOR UPDATE SKIP LOCKED`)** | 3장 참고 |
+| 명령·조회 예정 | **Postgres `jenkins_execution`** | durable 제출·폴링·장애 복구 설계, 구현 완료 아님 |
 | 진행 전달 | **SSE (`SseEmitter`)** + `deployment_log.seq` 로 재연결 | |
-| IaC 실행 | **Terraform CLI 프로세스 호출** | ADR-003 |
+| IaC 실행 | **인프라 Jenkins의 plan/apply Job** | 서버가 Terraform CLI를 다시 구현하지 않음 |
 | 포맷 | **Spotless + google-java-format** | 정적 분석은 예선 동안 이것만 |
 
 ## 3. 폴더 구조와 경계
 
 ```
-server/
-├─ manifest/   deploy.yaml 파싱·검증                    ← 김승환
-├─ ai/         Terraform 생성 · 검증·수정 루프 · 비용 기록 ← 김승환
-├─ job/        배포 상태 기계 · 워커 · 환경별 락          ← 하은현
-├─ history/    배포 이력 · 로그 · 롤백                   ← 하은현
-├─ target/     대상 환경 등록 · 자격증명 참조             ← 하은현
-├─ api/        컨트롤러 · DTO · SSE · 전역 예외           ← 하은현
-└─ common/     ID 생성 · 시간 · 공통 응답                 ← 공용
+src/main/java/com/teamdaisy/server/
+├─ identity/             인증·인가                      ← 하은현
+├─ project/              프로젝트·대상·빌드              ← 하은현
+├─ deployment/           배포·대상·plan·승인             ← 김승환
+├─ jenkins/              명령·수신·state 락              ← 김승환
+├─ script/ · ai/          산출물·AI 사용량 원본            ← 승환 수신, 은현 조회
+├─ history/ · idempotency/ 이벤트·재생·멱등성             ← 김승환
+└─ common/               공통 오류·요청 추적             ← 공용
 ```
 
 - `controller/` `service/` `repository/` 로 **최상위를 나누지 않아요.** 기능 폴더 안에서 나눠요
 - **폴더끼리는 서비스 메서드로만** 불러요. 남의 폴더 Repository·Entity 를 직접 쓰지 않아요
-- 공통 Terraform CLI 실행부는 **김승환 소유**. 하은현은 호출만 해요
+  - **예외 (10/2 승환·은현 합의, #42):** 은현의 공개 조회 API(A-03·A-04·A-05·A-07·WR-10·WR-11)는 `project/` 의 조회 계층에서 `deployment`·`deployment_target`·`approval`·`plan_revision`·로그·사용량·`script` 테이블을 **읽기 전용 SQL** 로 직접 읽어요. Entity·Repository 는 쓰지 않고 JdbcTemplate 로 필요한 컬럼만 읽어요. 상태·승인·명령 변경은 계속 실행 서비스로만 보내요. 테이블이 바뀌면 승환이 알려 주고, 은현 조회는 실DB 테스트로 막아요
+- Terraform CLI·AI 실행부는 **인프라 소유**예요. 서버는 실행·조회 서비스 계약으로 연결해요
 
-| 공통 실행부 (김승환) | server (하은현) |
+| 실행 규칙·수신 (김승환) | 공개 API·관리·조회 (하은현) |
 |---|---|
-| 프로세스 실행 · 출력 전달 · 타임아웃 · 중단 요청 | 상태 · 로그 저장 · SSE · 락 |
+| 상태·승인·명령·결과·로그·SSE·락·멱등성 | 인증·인가 서비스 제공, DTO·입력 검증·OpenAPI·조회·집계 |
 
 ### 파트 사이 호출 지점
 
 | 방향 | 무엇 |
 |---|---|
-| ai → job | `recordAttempt(deploymentId, target, attempt, errorSummary)` — 호출되면 **하은현이 `step.failed` + `attempt` 를 SSE 로 발행**해요. 김승환 쪽에서 따로 이벤트를 보내지 않아요 |
-| ai → job | 검증 끝난 **tfplan 경로**와 `PlanSummary` 전달 |
-| job → ai | **stale 감지 시 재 plan 요청.** 기존 Terraform 코드로 재 plan → 위험 검사 → 새 결과로 재승인. **단순 stale 재 plan 은 `attempt` 에 포함하지 않아요** |
+| 은현 API → 승환 실행 서비스 | 인증된 actor·프로젝트·대상·source_version/plan을 전달. 실행 서비스도 제공받은 인가 서비스를 사용 |
+| 승환 → 인프라 Jenkins | `daisy-cd-plan` 준비 → 사용자 승인 → `daisy-cd-apply`. 승인된 plan만 적용 |
+| 인프라 → 승환 수신 | 서버가 상태·로그·산출물을 폴링. request_id 검색·구조화된 plan/대상 결과는 추가 연동 확인 필요 |
+| stale → 재plan | 이전 승인 무효화, 새 plan·재승인. **단순 stale 재plan은 attempt를 올리지 않음** |
 
-## 4. 작업 큐 — Postgres
+## 4. 명령·상태·복구 — Postgres
 
-`terraform apply` 가 수 분 걸려서 요청을 붙잡을 수 없어요. 워커는 반드시 필요해요.
+실제 apply는 Jenkins가 실행해요. 서버는 HTTP 요청을 붙잡지 않고 저장된 명령과 실제 실행을 추적하는 작업이 필요해요.
 
 Redis 대신 Postgres 를 쓰는 이유는 **어차피 DB 에 다 적어야 하기 때문**이에요.
 
@@ -67,50 +70,26 @@ Redis 대신 Postgres 를 쓰는 이유는 **어차피 DB 에 다 적어야 하�
 | 롤백 | Q&A 평가 대상 | 배포 이력이 DB 에 있어야 함 |
 | SSE 재생 (`Last-Event-ID`) | API 계약 4-5 | `deployment_log.seq` → `WHERE seq > ?` |
 | 동시 배포 락 | 공식 요구사항 · N-05 | **같은 Terraform state 를 공유하는 배포 대상** 기준 유니크. 승인 접수 시점부터 잡아요 |
-| 워커 | | `FOR UPDATE SKIP LOCKED` |
+| 제출·폴링 | | 명령 전달 상태, `next_check_at`, `log_cursor`; 외부 요청은 트랜잭션 밖 |
 
 노션 **N-05 성공 기준이 이미 "Postgres 기반 상태 전이 / 동시 요청 2건 → 중복 배포 0건 / 재시작 후 이어서 진행"** 이에요.
 
-> **조건**: 백엔드 인스턴스를 2대 이상 띄우기로 정해지면 그때 Redis Streams 로 올려요.
+> 인스턴스 수만으로 Redis를 추가하지 않아요. 기존 DB 동시성·복구 경로가 실제 요구를 충족하지 못할 때 검토해요.
 
 ## 5. 테이블
 
-```
-deployment(id, project_id, image_tag, commit, status, strategy,
-           requested_by, started_at, finished_at)
+17개 테이블·전체 컬럼·FK·CHECK·부분 UNIQUE는 [DB 설계 §5](docs/database-design.md#5-전체-테이블-사전)를 단일 사전으로 사용해요. 이곳에 오래된 축약 스키마를 중복하지 않아요. JPA 매핑 초안은 생성 동작·DB 기본값 적용을 보장하지 않으며, Flyway·PostgreSQL 검증은 별도예요.
 
-deployment_target(deployment_id, target, status, attempt, error_summary,
-                  plan_path, plan_summary JSONB, ai_reused, public_url, ...)
-    attempt       최초 생성 포함 총 시도 횟수 (1/3 부터 시작)
-                  AI 수정 횟수만 세요. **stale 로 인한 재 plan 은 올리지 않아요**
-    ai_reused     검증된 스크립트를 재사용해 AI 호출이 0회였는지 (N-08)
-                  "AI 호출 0회" 수치를 여기서 뽑아요
-    plan_path     {작업루트}/{deployment_id}/{target}/tfplan
-                  작업루트는 레포 밖. apply 에 필요한 작업 디렉터리를 함께 유지해요
-                  재 plan 하면 이전 승인을 무효화하고 새 plan 에 승인을 연결해요
-                  성공·거절·취소·만료 모두 실행 종료를 확인한 뒤 정리해요
-    plan_summary  김승환 PlanSummary 를 그대로 담아 API 로 내보냄
+- `source_version`은 같은 commit 재빌드를 별도 ID로 보존해요. 선택한 빌드의 `source_version_id`로 배포를 연결하고 성공 `image_refs`를 덮어쓰지 않아요.
+- `image_refs`는 서비스별 map을 유지해요. API의 scalar `image_digest`는 단일 서비스일 때 해당 값, MSA 대표 선택은 소비자와 협의가 필요해요.
+- `kind=normal/retry/rollback`은 내부 값이에요. retry·rollback은 새 배포이며 API enum·필드에 그대로 노출한다고 가정하지 않아요.
+- `attempt`는 미생성·AI 미호출에서 0, 실제 최초 생성부터 1..3이에요. 재사용 여부·AI 호출 실패와 별도로 기록하고 API의 0 표시 방식은 미결이에요.
+- 승인 행은 대상의 특정 plan에 연결해요. 다중 대상 승인 ID·삭제 `confirm_text`는 은현·소비자와 확인해요.
+- `ai_usage`는 실제 호출당 1행, 재사용으로 호출이 없으면 0행이에요. LLM 결과와 Terraform 검증 결과를 구분하고 미확인은 NULL이에요. Jenkins 토큰 합계로 가짜 호출 행을 만들지 않아요.
+- #32의 V1을 합쳤고 계정 역할은 은현이 확정한 `owner/viewer`예요. 후속 DB 변경은 기존 V1 수정 대신 새 마이그레이션으로 해요. API 매핑은 [#19 처리표](docs/sh/2026-10-01-pr19-feedback.md#통합-후-피드백-처리표)에서 서버끼리 먼저 맞추며, 실제 인프라 연동만 #35로 분리해요.
+- `target_lock.state_identity`는 실제 같은 state 충돌 범위예요. unknown에서는 유지하며 실제 실행 종료·해제 근거를 기록한 뒤 소유 ID로 해제해요.
 
-deployment_log(id, deployment_id, target, seq, level, step, message, at)
-    seq           채널 안에서 단조 증가. SSE id 로도 같은 값
-
-deployment_artifact(deployment_id, target, image_ref, revision, public_url)
-
-target_lock(state_key UNIQUE, deployment_id, acquired_at)
-    state_key  같은 Terraform state 를 공유하는 배포 대상 단위
-               (한 state 에 여러 target 이 묶일 수 있어 target 기준으로는 틈이 생겨요)
-               승인 접수 시점부터 잡아요
-
-ai_usage(id, deployment_id, target, step, attempt, provider, model,
-         input_tokens, output_tokens, usage_details JSONB,
-         cost_usd, status, created_at)
-    AI 호출 1건당 1행. 검증된 스크립트 재사용으로 호출이 없으면 행을 만들지 않아요
-    status   호출 종료 후 성공·실패와 사용량을 한 번에 기록해요
-             실패해서 토큰·비용을 확인하지 못하면 0 이 아니라 NULL 로 남겨요
-    재사용 여부는 배포 기록에 따로 남겨 "AI 호출 0회" 수치와 연결해요
-```
-
-`id` 접두사는 API 계약 그대로: `prj_` `src_` `ir_` `tgt_` `dep_` `apv_` `pat_` `job_`
+기존 API ID 접두사는 유지해요. 새 내부 ID 접두사를 소비자 계약으로 확정하지 않아요.
 
 ## 6. 컨벤션
 
@@ -118,11 +97,11 @@ ai_usage(id, deployment_id, target, step, attempt, provider, model,
 - DTO 는 `record`, 엔티티는 컨트롤러 밖으로 내보내지 않아요
 - JSON 은 **`snake_case` 전역 설정** (`spring.jackson.property-naming-strategy`). 필드마다 `@JsonProperty` 를 붙이면 빠뜨려요
 - 에러는 `DaisyException(ErrorCode, ...)` 만 던지고 **HTTP 변환은 `@RestControllerAdvice` 한 곳**에서. 컨트롤러에서 `try/catch` 하지 않아요
-- 트랜잭션은 기본 `readOnly`. **외부 호출(terraform · LLM · 클라우드)은 트랜잭션 밖에서** 해요. 수 분 걸려서 커넥션 풀이 말라요
+- 트랜잭션은 기본 `readOnly`. **외부 호출(Jenkins · 산출물 조회)은 트랜잭션 밖에서** 해요
 - 로그는 **JSON 한 줄**. `X-Request-ID` 를 받으면 그대로 쓰고 없으면 만들어서 응답 헤더로 돌려줘요 (샘플 앱도 같은 방식이라 화면 → 서버 → 배포된 앱까지 한 줄로 추적돼요)
 - **비밀값·토큰·클라우드 키를 로그에 남기지 않아요.** `tfplan` 도 변수값이 들어가서 비밀값 취급해요
 - 시간은 ISO 8601 UTC, 금액은 원 단위 정수
-- 배포 생성·승인·롤백 `POST` 는 `Idempotency-Key` 필수
+- 배포 생성·승인·취소·재시도·롤백 `POST` 는 `Idempotency-Key` 필수
 
 ### 테스트 — 붙이는 곳만
 
@@ -135,12 +114,12 @@ ai_usage(id, deployment_id, target, step, attempt, provider, model,
 | 락 — **같은 `state_key`** 동시 2건 → 1건만 (**N-05 성공 기준**) | 외부 클라우드 실제 호출 |
 | 멱등성 — 같은 키 2번 → 배포 1건 | |
 
-통합 테스트는 `@SpringBootTest` + `docker compose` 의 Postgres 를 써요. Testcontainers 는 넣지 않아요.
+통합 테스트는 실제 Postgres 에 `SpringApplicationBuilder` 로 앱을 띄워요. `DAISY_TEST_DB_URL` 이 있을 때만 돌고(`@EnabledIfEnvironmentVariable`), 없으면 건너뛰어요. Testcontainers 는 넣지 않아요.
 
 ## 7. 다른 파트와의 약속
 
 - **OpenAPI 명세 제공** (web, ios) — springdoc 이 코드에서 생성. **단일 원천은 OpenAPI 문서**, 노션 「Backend API Endpoint」는 합의 기록·변경 알림용
-- 계약을 바꿀 때는 루트 §5-2 대로 **소비자에게 이슈로 먼저 알리고** 머지
+- 계약을 바꿀 때는 **소비자에게 이슈로 먼저 알리고** `CONTRIBUTING.md`의 인터페이스 리뷰 규칙을 따라요
 - 인증은 **Bearer 단일** (REST·SSE 둘 다). 웹 `EventSource` 가 헤더를 못 붙이는 문제는 web 파트와 별도로 풀어요
 - `deploy.yaml` 스키마는 **팀 결정** — 회의 확정 후 반영
 
@@ -158,9 +137,9 @@ docker compose up -d postgres    # Postgres 17
 
 ## 9. AI 에이전트에게
 
-- 이 폴더 밖은 건드리지 않아요. 필요하면 이슈로 (루트 §9)
+- 이 폴더 밖은 건드리지 않아요. 필요하면 담당자에게 제안해요
 - `deploy.yaml` 스키마 · API 계약 · Terraform 모듈 입력 변수는 **임의로 바꾸지 않아요**
-- `terraform apply` / `destroy` / 클라우드 삭제 명령은 **사람 확인 없이 실행하지 않아요** (루트 §4-2)
+- `terraform apply` / `destroy` / 클라우드 삭제 명령은 **사람 확인 없이 실행하지 않아요**
 - 목업은 `// MOCK:` 주석을 남겨요
 - 작업 전에 아래 **결정 기록**을 읽어요
 
@@ -172,20 +151,43 @@ docker compose up -d postgres    # Postgres 17
 | 2026-09-29 | **Boot 3.5 계열 유지 (4.x 아님)** | 4.0.0 이 2025-11 릴리스라 코딩 모델 학습 데이터에 적음. `spring-boot-starter-web` → `-webmvc` 로 이름이 바뀌어 3.x 예제와 안 맞음 | 1 |
 | 2026-09-29 | **Java 21 (25 아님)** | Gradle 8.14 가 JDK 25 미지원(9.1.0+ 필요). Boot 4 baseline 도 17 이라 25 가 필수 아님 | 1 |
 | 2026-09-29 | **단일 모듈 + 패키지 분리** | 이틀짜리에서 모듈 경계를 잘못 그으면 옮기는 데 반나절 | 1 |
-| 2026-09-29 | **작업 큐를 Postgres 로** (`FOR UPDATE SKIP LOCKED`) | 배포 로깅·롤백·SSE 재생이 어차피 DB 필요. `seq` 하나로 큐·재생·락이 한 테이블. N-05 성공 기준도 Postgres 기반. **인스턴스 2대 이상이면 Redis 로 전환** | 1 |
+| 2026-09-29 | **작업 큐를 Postgres로** — 실행 소유·Redis 전환 조건은 superseded | 현재는 Jenkins 명령·폴링·복구 저장. 인스턴스 수만으로 Redis 전환하지 않음 | 1 |
 | 2026-09-29 | **`attempt` = 최초 생성 포함 총 시도 횟수** | AI 호출을 아끼려고. `1/3` 부터 시작하고 AI 수정은 최대 2번 | 1 |
 | 2026-09-29 | **`attempt` 는 환경별 행. 한 환경이 3회 실패해도 나머지는 계속 진행** | AWS 는 IAM, GCP 는 API 활성화처럼 실패 원인이 다름. 전체로 묶으면 한쪽에서 막히는 순간 다른 쪽은 시도도 못 함 | 1 |
-| 2026-09-29 | **`terraform apply` 실행은 server(하은현), 생성·검증은 ai(김승환)** | 실행이 상태 기계·락·SSE·취소와 붙어 있음. 김승환이 검증한 tfplan 경로를 넘기면 그 파일로 apply | 1 |
+| 2026-09-29 | **server apply·ai 생성/검증 분담 — superseded** | 9/30 이후 인프라 Jenkins가 CI/CD·AI·Terraform 전부, 서버는 요청·승인·추적·수신 | 1 |
 | 2026-09-29 | **인증은 Bearer 단일** (v0.1 의 httpOnly 쿠키안 대신) | 두 방식을 같이 받으면 필터를 두 벌 만들어야 함. 웹 `EventSource` 문제는 web 파트와 별도로 | 2 |
 | 2026-09-29 | **JSON `snake_case` 전역 설정** | API 계약이 `next_cursor` 형식. 필드마다 `@JsonProperty` 를 붙이면 빠뜨림 | 1 |
 | 2026-09-29 | **정적 분석은 예선 동안 Spotless 만** | 규칙 맞추다 CI 게이트에 막히면 그 시간이 기능에서 빠짐. 기간 때문이지 도구가 나빠서가 아님 | 1 |
 | 2026-09-29 | **`tfplan` stale 시 재 plan → 재승인.** 단순 stale 재 plan 은 `attempt` 에 포함하지 않음 | `attempt` 는 AI 수정 횟수를 세는 값이라, 시간이 흘러서 생긴 재 plan 까지 세면 의미가 흐려짐 | 1 |
 | 2026-09-29 | **락 기준은 같은 Terraform state 를 공유하는 배포 대상.** 승인 접수 시점부터 | 그 전에 이미 stale 된 plan 은 락으로 못 막아서 stale 처리를 따로 둠 | 1 |
-| 2026-09-29 | **작업 디렉터리는 레포 밖.** 재 plan 시 이전 승인 무효화, 성공·거절·취소·만료 모두 실행 종료 확인 후 정리 | tfplan 만으로는 apply 가 안 되고 작업 디렉터리가 함께 필요. 승인은 특정 plan 에 묶여야 의미가 있음 | 1 |
+| 2026-09-29 | **작업 디렉터리는 레포 밖.** 서버 로컬 보관·정리 주체는 superseded | 현재 인프라가 원본 보관·정리, 서버는 참조·digest·승인 연결 유지. 실제 종료 확인 후 정리 원칙은 유지 | 1 |
 | 2026-09-29 | **취소는 apply 전까지, 이후는 중단 요청.** 중단 요청은 즉시 종료·롤백을 보장하지 않고 실제 프로세스 종료 결과로 최종 상태를 기록 | `terraform apply` 를 중간에 죽이면 state 가 깨짐 | 1 |
-| 2026-09-29 | **공통 Terraform CLI 실행부는 김승환 소유** — 프로세스 실행·출력 전달·타임아웃·중단 요청까지. 상태·로그·SSE·락은 server | 실행은 검증 루프와 붙고, 상태 관리는 상태 기계와 붙음 | 1 |
+| 2026-09-29 | **공통 Terraform CLI 김승환 소유 — superseded** | 인프라 소유로 변경. 승환은 실행 규칙·Jenkins 수신·SSE, 은현은 인증·관리·API·조회 | 1 |
 | 2026-09-29 | **AI 비용은 고정 환율 + 응답에 적용 환율과 "추정" 표기.** USD 를 배포 단위로 합산한 뒤 원화로 환산·반올림 | 실시간 환율 API 는 발표 중 실패하면 승인 화면이 안 뜸. 건별 환산 후 합산하면 반올림 오차가 쌓임 | 1 |
 | 2026-09-29 | **`ai_usage.status` 추가.** 실패해서 토큰·비용을 확인 못 하면 0 이 아니라 NULL | 실패한 호출도 입력 토큰은 과금됨. 0 으로 두면 "비용 없음"과 구분이 안 됨 | 1 |
+| 2026-09-30 | **kind normal/retry/rollback·attempt 0·image_refs map** | 입력·재빌드·MSA를 보존하는 내부 ERD 표현. API 매핑은 DB와 구분 | 1 |
+| 2026-10-01 | **결과는 폴링, prepare/apply 분리** | 인프라 #19·#17 답변. 5초는 제안, request_id 검색·상세 산출물은 연동 확인 대기 | 1 |
+| 2026-10-01 | **#32 V1 통합, owner/viewer, prepare 유지** | 인증 담당 역할 확정. prepare는 daisy-cd-plan에 매핑. apply 중 stop 없이 요청을 기록하고 실제 결과를 기다리는 방향으로 #32 답변 | 1 |
+| 2026-10-01 | **#38 통합 경계 보완** | 저장 `digest` → 조회 `image_digest` 매핑, 인증 이전 CORS·OpenAPI Bearer 명시. 경로·인가·V1 유지, 사용자 승인. [통합 일지](docs/sh/2026-10-01-auth-merge.md) | 1 |
+| 2026-10-01 | **내부 배포 조회는 현재 포인터와 성공 이력을 분리** | current는 관리가 읽은 명시 포인터, deployed_to는 정확한 빌드·대상별 마지막 성공. 최근 성공을 현재 관측으로 추정하지 않음. 공개 DTO는 은현 연결 후속, [계약](docs/execution-service-contract.md) | 1 |
+| 2026-10-02 | **공개 배포 API 코드는 `project/` 에 둠** | §3 에서 `deployment/` 는 승환 폴더. 은현의 공개 API·어댑터는 `project/{access,execution,application,web}` | 1 |
+| 2026-10-02 | **승인 공개 요청은 `approve`/`reject` + `items[{target_id, approval_id}]`, 빈 `items`·중복 `target_id` 는 400** | 사용자가 본 대상만 승인(S4). 서버가 대상을 채우면 화면에 없던 대상까지 승인될 수 있음. 승인 ID 는 A-04 `pending_approvals` 로 제공 | 1 |
+| 2026-10-02 | **A-02 `current_status`(none·confirmed·unverified)** | `current: null` 은 "배포 없음"이 아니라 "확인된 참조 없음". 대상별 결과는 승환 `currentByTarget()` 이 줌 | 1 |
+| 2026-10-02 | **~~A-02 만 트랜잭션 `NOT_SUPPORTED`~~ → 같은 읽기 트랜잭션** | 예외를 잡던 방식은 롤백 전용으로 500 이었음(실측). `currentByTarget()` 은 예외를 던지지 않아 `NOT_SUPPORTED` 를 뺌. 실측 200 | 1 |
+| 2026-10-02 | **배포 입력 `strategy` 는 `recreate` 만, `hash_format_version` 은 서버가 1 로 고정** | 계약상 recreate 만 지원. 사용자가 해시 형식 번호를 바꾸지 못하게 함 | 1 |
+| 2026-10-02 | **재시도·롤백 때 대상 설정 revision·자격증명 버전이 바뀌면 409, `disconnected` 대상 생성 409 (`unknown` 은 허용하되 연결 성공으로 표시하지 않음)** | 은현 제안, #42 에서 승환 동의. 바뀐 설정으로 진행하려면 새 배포 | 1 |
+| 2026-10-02 | **배포 생성 응답은 소비자 `Deployment` 이름(`id`·`project_id`·`state`)** | 웹이 응답 `id` 로 다음 화면 이동. #42 리뷰 | 1 |
+| 2026-10-02 | **재시도 공개 경로 `POST /deployments/{id}/retry` `{ target_ids }`** | 원본 배포의 빌드·연결을 서버가 이어받아 소비자는 원본 ID 와 대상만 보냄. 승환·승준(#42)·도영(Slack) 동의 | 2 |
+| 2026-10-02 | **조회 API 는 배포 테이블을 읽기 전용 SQL 로 직접 읽음 (§3 예외)** | 조회 서비스를 기능마다 승환이 먼저 만들고 기다리는 구조를 피함. 쓰기는 실행 서비스로만. #42 승환 제안·은현 수락 | 1 |
+| 2026-10-02 | **#42 조회 연결: 권한 확인 후 프로젝트 반환·대상별 current 결과** | `projectIdOf`는 requireRead 후 반환, 명령 requireWrite는 유지. `currentByTarget`은 포인터 실패만 none/confirmed/unverified로 구분하고 권한·DB 오류는 전파. 기존 current는 호환 유지, [계약](docs/execution-service-contract.md) | 2 (서버 내부 소비자 은현) |
+| 2026-10-02 | **A-05 AI 사용량: 모르는 값은 합계에서 빼고 `unknown_calls` 로 따로, 행이 없으면 토큰·원화 null** | 지금 Jenkins 는 호출별 기록을 주지 않아 행이 없다고 "안 썼다" 가 아님. 0원으로 보이면 틀린 정보. 설계 5.13 "미확인 호출 수" | 1 |
+| 2026-10-02 | **환율은 설정값 `DAISY_AI_KRW_PER_USD`, 없으면 원화 null, 잘못된 값이면 기동 실패. 반올림 HALF_UP** | 숫자는 아직 미정이라 코드에 넣지 않음. 틀린 금액을 보여주는 것보다 기동 실패가 나음 | 1 |
+| 2026-10-02 | **WR-06 `action`: delete+create → replace, read·no-op 만이면 목록에서 뺌** | 웹 `PlanDetail` 값에 맞춤. 바뀌지 않는 리소스는 승인 판단에 쓰지 않음 | 1 |
+| 2026-10-02 | **빌드 저장: 역행 보고는 무시(무변경), 종료 결과가 다르면 409** | 폴링이 늦게 본 옛 상태로 수신 전체를 실패시키지 않음. 종료 결과끼리 다르면 어느 쪽도 믿을 수 없어 덮어쓰지 않음 (#42 승환님 답 01:44) | 1 |
+
+| 2026-10-02 | **만료 pending 승인은 기존 워커에서 실행 종료 확인 후 정리** | 조회 API가 상태를 바꾸지 않고, 승인된 apply·종료 미확인은 보존해요. 김승환 실행부 결정 | 1 |
+| 2026-10-02 | **사용자 명령은 프로젝트 락 획득 후 보관 여부 재검사** | 권한 확인 후 연결 해제가 먼저 커밋되는 경합을 막아요. 기존 실행의 콜백 수신은 유지해요 | 1 |
+| 2026-10-02 | **명령 targets[].attempt에 현재 시도 횟수 전달** | #35 인프라에 알린 추가 필드예요. replan/apply에서 초기화하지 않으며, 인프라 적용·실제 연결은 검증 전이에요 | 2 |
 
 ## 11. 아직 정하지 못한 것
 
@@ -194,3 +196,6 @@ docker compose up -d postgres    # Postgres 17
 | **적용 환율 숫자** | 방식은 확정(고정 상수 + 응답에 표기). **숫자만 남음** | server 둘 |
 | `deploy.yaml` 스키마 | 레포 §12-5(평면)와 노션 IR(`services:` 맵)이 갈려 있음 | **팀 회의** |
 | 외부 공개 방식 (HTTPS) | Cloudflare Tunnel 제안. **웹훅 수신 · iOS TestFlight 심사 · 온프레미스 데모** 세 군데가 같은 걸 기다림 | **팀 회의** |
+| 다중 대상 승인·삭제 확인 | API 단일 approval_id/confirm_text와 대상별 행의 매핑, 프로젝트명 확인 요청 | 은현·승환·web/ios |
+| Jenkins 안전한 제출·복구 | request_id 검색·중복 실행 방지, input hash·plan 기한·부분 대상 apply | 인프라·승환 |
+| 조회 projection·선택 필드 | image_digest 대표 선택, attempt 0 표시, step·빌드/사용량 DTO | 은현·승환·web/ios |

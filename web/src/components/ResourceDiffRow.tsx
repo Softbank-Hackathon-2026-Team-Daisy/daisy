@@ -1,3 +1,5 @@
+import { t } from '../i18n/index.ts'
+
 // Figma 「05 · Resource Diff Row」. plan 리소스 한 줄 — 생성(+) · 변경(~) · 삭제(−). 교체(replace)는 삭제로 봐요
 type Action = 'create' | 'update' | 'delete' | 'replace'
 
@@ -21,7 +23,7 @@ function ResourceDiffRow({ action, address, cost }: { action: Action; address: s
         background: 'var(--color-status-bg)',
       }}
     >
-      <span className="t-mono" style={{ width: 12, color: `var(--color-status-${look.tone})` }} aria-label={look.label}>
+      <span className="t-mono" style={{ width: 12, color: `var(--color-status-${look.tone})` }} aria-label={t(look.label)}>
         {look.symbol}
       </span>
       <span className="t-mono-sm" style={{ flex: 1, minWidth: 0, overflowWrap: 'anywhere' }}>

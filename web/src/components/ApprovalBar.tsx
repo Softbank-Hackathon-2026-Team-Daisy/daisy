@@ -1,5 +1,6 @@
 import type { ReactNode } from 'react'
 import Button from './Button.tsx'
+import { t } from '../i18n/index.ts'
 
 // Figma 「05 · Approval Bar」. W-06 맨 아래 — 노란 48px "승인하고 배포"가 화면에서 가장 큰 요소예요
 type ApprovalBarProps = {
@@ -15,7 +16,7 @@ type ApprovalBarProps = {
 function ApprovalBar({ title, meta, onApprove, onReject, disabled, pending, note }: ApprovalBarProps) {
   return (
     <section
-      aria-label="승인"
+      aria-label={t('승인')}
       style={{
         display: 'flex',
         alignItems: 'center',
@@ -32,10 +33,10 @@ function ApprovalBar({ title, meta, onApprove, onReject, disabled, pending, note
         {note}
       </div>
       <Button variant="outline" size="lg" disabled={disabled || pending} onClick={onReject}>
-        거절
+        {t('거절')}
       </Button>
       <Button variant="primary" size="lg" disabled={disabled || pending} onClick={onApprove}>
-        {pending ? '승인하는 중…' : '승인하고 배포'}
+        {pending ? t('승인하는 중…') : t('승인하고 배포')}
       </Button>
     </section>
   )

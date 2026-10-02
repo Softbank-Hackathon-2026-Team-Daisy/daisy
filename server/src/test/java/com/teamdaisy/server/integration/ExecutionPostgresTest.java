@@ -1,0 +1,1621 @@
+package com.teamdaisy.server.integration;
+
+import static org.junit.jupiter.api.Assertions.*;
+
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.teamdaisy.server.ai.application.AiUsageService;
+import com.teamdaisy.server.common.error.DaisyException;
+import com.teamdaisy.server.common.error.ErrorCode;
+import com.teamdaisy.server.common.json.CanonicalJson;
+import com.teamdaisy.server.deployment.application.*;
+import com.teamdaisy.server.deployment.domain.Deployment;
+import com.teamdaisy.server.deployment.domain.DeploymentTargetStatus;
+import com.teamdaisy.server.deployment.infrastructure.DeploymentStore;
+import com.teamdaisy.server.history.application.*;
+import com.teamdaisy.server.idempotency.application.IdempotencyService;
+import com.teamdaisy.server.jenkins.application.JenkinsCommandService;
+import com.teamdaisy.server.jenkins.application.JenkinsConsoleService;
+import com.teamdaisy.server.jenkins.infrastructure.JenkinsClient.LogChunk;
+import com.teamdaisy.server.script.application.ScriptService;
+import java.nio.charset.StandardCharsets;
+import java.sql.Connection;
+import java.sql.SQLException;
+import java.time.Instant;
+import java.util.List;
+import java.util.Map;
+import java.util.Objects;
+import java.util.UUID;
+import java.util.concurrent.Callable;
+import java.util.concurrent.CyclicBarrier;
+import java.util.concurrent.Executors;
+import java.util.concurrent.TimeUnit;
+import javax.sql.DataSource;
+import org.flywaydb.core.Flyway;
+import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.condition.EnabledIfEnvironmentVariable;
+import org.springframework.boot.WebApplicationType;
+import org.springframework.boot.autoconfigure.EnableAutoConfiguration;
+import org.springframework.boot.autoconfigure.domain.EntityScan;
+import org.springframework.boot.builder.SpringApplicationBuilder;
+import org.springframework.context.ConfigurableApplicationContext;
+import org.springframework.context.annotation.Bean;
+import org.springframework.context.annotation.Configuration;
+import org.springframework.context.annotation.Import;
+import org.springframework.jdbc.core.JdbcTemplate;
+import org.springframework.jdbc.datasource.AbstractDataSource;
+import org.springframework.jdbc.datasource.DriverManagerDataSource;
+import org.springframework.transaction.PlatformTransactionManager;
+import org.springframework.transaction.support.TransactionTemplate;
+
+/** PostgreSQL only. Each test owns one new schema; no external worker/client is registered. */
+@EnabledIfEnvironmentVariable(named = "DAISY_TEST_DB_URL", matches = ".+")
+class ExecutionPostgresTest {
+  private static final String COMMIT = "a".repeat(40), DIGEST = "sha256:" + "b".repeat(64);
+  private final String schema = "daisy_it_" + UUID.randomUUID().toString().replace("-", "");
+  private DataSource base;
+  private ConfigurableApplicationContext context;
+  private JdbcTemplate jdbc;
+  private DeploymentExecutionService execution;
+  private ObjectMapper mapper;
+
+  @BeforeEach
+  void setup() throws Exception {
+    assertTrue(schema.matches("daisy_it_[a-f0-9]{32}"));
+    base =
+        new DriverManagerDataSource(
+            required("DAISY_TEST_DB_URL"),
+            required("DAISY_TEST_DB_USER"),
+            required("DAISY_TEST_DB_PASSWORD"));
+    new JdbcTemplate(base).execute("CREATE SCHEMA " + schema);
+    DataSource scoped =
+        new AbstractDataSource() {
+          @Override
+          public Connection getConnection() throws SQLException {
+            return scope(base.getConnection());
+          }
+
+          @Override
+          public Connection getConnection(String user, String password) throws SQLException {
+            return scope(base.getConnection(user, password));
+          }
+
+          private Connection scope(Connection connection) throws SQLException {
+            connection.setSchema(schema);
+            try (var statement = connection.createStatement()) {
+              statement.execute("SET statement_timeout='15s'");
+              statement.execute("SET lock_timeout='10s'");
+            }
+            return connection;
+          }
+        };
+    Flyway.configure()
+        .dataSource(scoped)
+        .defaultSchema(schema)
+        .locations("classpath:db/migration")
+        .load()
+        .migrate();
+    context =
+        new SpringApplicationBuilder(TestConfig.class)
+            .web(WebApplicationType.NONE)
+            .initializers(
+                application -> application.getBeanFactory().registerSingleton("dataSource", scoped))
+            .properties(
+                Map.of(
+                    "spring.flyway.enabled",
+                    "false",
+                    "spring.jpa.hibernate.ddl-auto",
+                    "validate",
+                    "spring.jpa.open-in-view",
+                    "false",
+                    "spring.jackson.property-naming-strategy",
+                    "SNAKE_CASE",
+                    "spring.jmx.enabled",
+                    "false",
+                    "daisy.jenkins.instance-id",
+                    "test-instance",
+                    "daisy.jenkins.console-enabled",
+                    "true",
+                    "daisy.jenkins.console-sanitized-utf8-confirmed",
+                    "true"))
+            .run();
+    jdbc = context.getBean(JdbcTemplate.class);
+    execution = context.getBean(DeploymentExecutionService.class);
+    mapper = context.getBean(ObjectMapper.class);
+    jdbc.update(
+        "insert into account(id,username,password_hash,display_name,role) values('acct_1','fixture','TEST-ONLY-HASH','Fixture','owner')");
+    jdbc.update(
+        "insert into project(id,name,repository_id,repository_url,default_branch,created_by) values('prj_1','Fixture','repo-1','https://example.test/repo','main','acct_1')");
+    jdbc.update(
+        "insert into project_member(project_id,account_id,granted_by) values('prj_1','acct_1','acct_1')");
+    jdbc.update(
+        "insert into target(id,project_id,name,environment_type,state_identity,config) values('tgt_1','prj_1','Fixture target','onprem','test:shared-state','{}')");
+    var images = mapper.createObjectNode();
+    images
+        .putObject("app")
+        .put("image_ref", "registry.test/app:" + COMMIT)
+        .put("commit_sha", COMMIT)
+        .put("digest", DIGEST);
+    jdbc.update(
+        "insert into source_version(id,project_id,source,external_build_id,commit_sha,status,image_refs) values('src_1','prj_1','fixture','build-1',?,'succeeded',cast(? as jsonb))",
+        COMMIT,
+        images.toString());
+  }
+
+  @AfterEach
+  void cleanup() {
+    if (context != null) context.close();
+    if (base != null && schema.matches("daisy_it_[a-f0-9]{32}"))
+      new JdbcTemplate(base).execute("DROP SCHEMA IF EXISTS " + schema + " CASCADE");
+  }
+
+  private static String required(String name) {
+    return Objects.requireNonNull(System.getenv(name), name + " must be set for this test");
+  }
+
+  private TransactionTemplate transaction() {
+    return new TransactionTemplate(context.getBean(PlatformTransactionManager.class));
+  }
+
+  private DeploymentExecutionService.CreateRequest createRequest(String key) {
+    return new DeploymentExecutionService.CreateRequest(
+        "acct_1",
+        "prj_1",
+        "src_1",
+        List.of("tgt_1"),
+        mapper.createObjectNode().put("hash_format_version", 1),
+        key);
+  }
+
+  private long count(String table) {
+    return Objects.requireNonNull(jdbc.queryForObject("select count(*) from " + table, Long.class));
+  }
+
+  private String value(String column, String table, String id) {
+    return jdbc.queryForObject(
+        "select " + column + " from " + table + " where id=?", String.class, id);
+  }
+
+  @Test
+  void currentQueryFollowsExplicitPointerInsteadOfLatestAttempt() {
+    var query = context.getBean(DeploymentQueryService.class);
+    var at = Instant.parse("2026-10-01T10:00:00Z");
+    readFixture("prj_1", "dep_old", "dt_old", "src_1", "tgt_1", "succeeded", at);
+    readFixture("prj_1", "dep_new", "dt_new", "src_1", "tgt_1", "succeeded", at.plusSeconds(10));
+    readFixture("prj_1", "dep_failed", "dt_failed", "src_1", "tgt_1", "failed", at.plusSeconds(20));
+    // MOCK: management-owned confirmed pointer; the query must never replace it.
+    jdbc.update("update target set current_deployment_target_id='dt_old' where id='tgt_1'");
+    var images = mapper.createObjectNode();
+    images.putObject("web").put("image_ref", "registry.test/web:" + COMMIT).put("digest", DIGEST);
+    images.putObject("api").put("image_ref", "registry.test/api:" + COMMIT).put("digest", DIGEST);
+    jdbc.update(
+        "update deployment set image_refs=cast(? as jsonb) where id='dep_old'", images.toString());
+    var current =
+        query.current(
+            "acct_1",
+            "prj_1",
+            List.of(new DeploymentQueryService.CurrentPointer("tgt_1", "dt_old")));
+    assertEquals("dep_old", current.get("tgt_1").deploymentId());
+    assertEquals("src_1", current.get("tgt_1").sourceVersionId());
+    assertEquals(COMMIT, current.get("tgt_1").commitSha());
+    assertEquals(at, current.get("tgt_1").deployedAt());
+    assertEquals(
+        List.of("api", "web"),
+        current.get("tgt_1").images().stream()
+            .map(DeploymentQueryService.ServiceImage::service)
+            .toList());
+    assertEquals(DIGEST, current.get("tgt_1").images().getFirst().imageDigest());
+    assertTrue(
+        query
+            .current(
+                "acct_1",
+                "prj_1",
+                List.of(new DeploymentQueryService.CurrentPointer("tgt_1", null)))
+            .isEmpty());
+    assertEquals("dt_old", value("current_deployment_target_id", "target", "tgt_1"));
+    assertEquals(0, count("deployment_log"));
+    assertEquals(0, count("jenkins_execution"));
+    assertEquals(
+        ErrorCode.STATE_CONFLICT,
+        assertThrows(
+                DaisyException.class,
+                () ->
+                    query.current(
+                        "acct_1",
+                        "prj_1",
+                        List.of(new DeploymentQueryService.CurrentPointer("tgt_1", "dt_failed"))))
+            .errorCode());
+  }
+
+  @Test
+  void currentByTargetIsolatesPointerFailuresWithoutRollingBackTheReadTransaction() {
+    var query = context.getBean(DeploymentQueryService.class);
+    var at = Instant.parse("2026-10-02T00:00:00Z");
+    for (String suffix : List.of("failed", "unfinished", "malformed")) {
+      jdbc.update(
+          "insert into target(id,project_id,name,environment_type,state_identity,config) values(?,'prj_1',?,'aws',?,'{}')",
+          "tgt_" + suffix,
+          suffix,
+          "test:" + suffix);
+    }
+    readFixture("prj_1", "dep_ok", "dt_ok", "src_1", "tgt_1", "succeeded", at);
+    readFixture("prj_1", "dep_failed", "dt_failed", "src_1", "tgt_failed", "failed", at);
+    readFixture(
+        "prj_1", "dep_unfinished", "dt_unfinished", "src_1", "tgt_unfinished", "succeeded", null);
+    readFixture(
+        "prj_1", "dep_malformed", "dt_malformed", "src_1", "tgt_malformed", "succeeded", at);
+    jdbc.update("update deployment set image_refs='[]'::jsonb where id='dep_malformed'");
+    var pointers =
+        List.of(
+            new DeploymentQueryService.CurrentPointer("tgt_1", "dt_ok"),
+            new DeploymentQueryService.CurrentPointer("tgt_none", null),
+            new DeploymentQueryService.CurrentPointer("tgt_missing", "dt_missing"),
+            new DeploymentQueryService.CurrentPointer("tgt_wrong", "dt_ok"),
+            new DeploymentQueryService.CurrentPointer("tgt_failed", "dt_failed"),
+            new DeploymentQueryService.CurrentPointer("tgt_unfinished", "dt_unfinished"),
+            new DeploymentQueryService.CurrentPointer("tgt_malformed", "dt_malformed"));
+    var read = transaction();
+    read.setReadOnly(true);
+    // Through the Spring proxy, joined to the caller's transaction, including commit.
+    assertDoesNotThrow(
+        () ->
+            read.executeWithoutResult(
+                status -> {
+                  var result = query.currentByTarget("acct_1", "prj_1", pointers);
+                  assertEquals(7, result.size());
+                  assertEquals("confirmed", result.get("tgt_1").status());
+                  assertEquals("dep_ok", result.get("tgt_1").deployment().deploymentId());
+                  assertEquals("none", result.get("tgt_none").status());
+                  assertNull(result.get("tgt_none").deployment());
+                  for (String suffix :
+                      List.of("missing", "wrong", "failed", "unfinished", "malformed")) {
+                    assertEquals("unverified", result.get("tgt_" + suffix).status());
+                    assertNull(result.get("tgt_" + suffix).deployment());
+                  }
+                  assertThrows(UnsupportedOperationException.class, result::clear);
+                  assertFalse(status.isRollbackOnly());
+                  assertEquals(1, jdbc.queryForObject("select 1", Integer.class));
+                }));
+    assertEquals(0, count("deployment_log"));
+    assertEquals(0, count("jenkins_execution"));
+  }
+
+  @Test
+  void projectResolutionChecksMembershipAndMissingDeployment() {
+    var query = context.getBean(DeploymentQueryService.class);
+    readFixture("prj_1", "dep_one", "dt_one", "src_1", "tgt_1", "succeeded", Instant.now());
+    assertEquals("prj_1", query.projectIdOf("acct_1", "dep_one"));
+    assertEquals(
+        ErrorCode.NOT_FOUND,
+        assertThrows(DaisyException.class, () -> query.projectIdOf("acct_1", "dep_missing"))
+            .errorCode());
+    jdbc.update("update project_member set revoked_at=now() where project_id='prj_1'");
+    // MOCK policy uses 403; production policy's 404 is separately covered by the unit test.
+    assertEquals(
+        ErrorCode.FORBIDDEN,
+        assertThrows(DaisyException.class, () -> query.projectIdOf("acct_1", "dep_one"))
+            .errorCode());
+    assertEquals(
+        ErrorCode.FORBIDDEN,
+        assertThrows(
+                DaisyException.class, () -> query.currentByTarget("acct_1", "prj_1", List.of()))
+            .errorCode());
+  }
+
+  @Test
+  void buildHistoryUsesExactBuildAndLatestSuccessfulTargetIncludingPartialSuccess() {
+    var query = context.getBean(DeploymentQueryService.class);
+    var at = Instant.parse("2026-10-01T10:00:00Z");
+    jdbc.update(
+        """
+        insert into source_version(id,project_id,source,external_build_id,commit_sha,status,image_refs)
+        select 'src_2',project_id,source,'build-2',commit_sha,status,image_refs from source_version where id='src_1'
+        """);
+    jdbc.update(
+        "insert into target(id,project_id,name,environment_type,state_identity,config) values('tgt_2','prj_1','Second','aws','test:second-state','{}')");
+    readFixture("prj_1", "dep_a", "dt_a", "src_1", "tgt_1", "succeeded", at);
+    readFixture("prj_1", "dep_b", "dt_b", "src_1", "tgt_1", "succeeded", at);
+    jdbc.update("update deployment set status='partially_succeeded' where id='dep_b'");
+    readFixture("prj_1", "dep_c", "dt_c", "src_1", "tgt_1", "failed", at.plusSeconds(10));
+    readFixture("prj_1", "dep_d", "dt_d", "src_2", "tgt_1", "succeeded", at.plusSeconds(20));
+    readFixture("prj_1", "dep_e", "dt_e", "src_1", "tgt_2", "succeeded", at.plusSeconds(30));
+    readFixture("prj_1", "dep_f", "dt_f", "src_1", "tgt_2", "applying", null);
+    var result = query.deployedTo("acct_1", "prj_1", List.of("src_1", "src_2", "src_missing"));
+    assertEquals(
+        List.of("dep_b", "dep_e"),
+        result.get("src_1").stream()
+            .map(DeploymentQueryService.SuccessfulDeployment::deploymentId)
+            .toList());
+    assertEquals("dep_d", result.get("src_2").getFirst().deploymentId());
+    assertTrue(result.get("src_missing").isEmpty());
+    assertThrows(UnsupportedOperationException.class, () -> result.get("src_1").clear());
+  }
+
+  @Test
+  void deploymentQueriesRejectWrongScopeAndRevokedAccess() {
+    var query = context.getBean(DeploymentQueryService.class);
+    jdbc.update(
+        "insert into project(id,name,repository_id,repository_url,default_branch,created_by) values('prj_other','Other','repo-other','https://example.test/other','main','acct_1')");
+    jdbc.update(
+        "insert into target(id,project_id,name,environment_type,state_identity,config) values('tgt_other','prj_other','Other','aws','test:other-state','{}')");
+    jdbc.update(
+        """
+        insert into source_version(id,project_id,source,external_build_id,commit_sha,status,image_refs)
+        select 'src_other','prj_other',source,'other-build',commit_sha,status,image_refs from source_version where id='src_1'
+        """);
+    readFixture(
+        "prj_other", "dep_other", "dt_other", "src_other", "tgt_other", "succeeded", Instant.now());
+    assertEquals(
+        ErrorCode.NOT_FOUND,
+        assertThrows(
+                DaisyException.class,
+                () ->
+                    query.current(
+                        "acct_1",
+                        "prj_1",
+                        List.of(new DeploymentQueryService.CurrentPointer("tgt_1", "dt_other"))))
+            .errorCode());
+    assertTrue(
+        query.deployedTo("acct_1", "prj_1", List.of("src_other")).get("src_other").isEmpty());
+    assertEquals(
+        "unverified",
+        query
+            .currentByTarget(
+                "acct_1",
+                "prj_1",
+                List.of(new DeploymentQueryService.CurrentPointer("tgt_1", "dt_other")))
+            .get("tgt_1")
+            .status());
+    readFixture("prj_1", "dep_one", "dt_one", "src_1", "tgt_1", "succeeded", Instant.now());
+    assertEquals(
+        ErrorCode.NOT_FOUND,
+        assertThrows(
+                DaisyException.class,
+                () ->
+                    query.current(
+                        "acct_1",
+                        "prj_1",
+                        List.of(new DeploymentQueryService.CurrentPointer("tgt_wrong", "dt_one"))))
+            .errorCode());
+    jdbc.update("update project_member set revoked_at=now() where project_id='prj_1'");
+    assertEquals(
+        ErrorCode.FORBIDDEN,
+        assertThrows(DaisyException.class, () -> query.deployedTo("acct_1", "prj_1", List.of()))
+            .errorCode());
+    assertEquals(
+        ErrorCode.FORBIDDEN,
+        assertThrows(DaisyException.class, () -> query.current("acct_1", "prj_1", List.of()))
+            .errorCode());
+  }
+
+  // MOCK: historical read fixtures, not evidence that Jenkins applied real infrastructure.
+  private void readFixture(
+      String project,
+      String deployment,
+      String dt,
+      String source,
+      String target,
+      String status,
+      Instant finished) {
+    jdbc.update(
+        """
+        insert into deployment(id,project_id,source_version_id,requested_by,commit_sha,
+          repository_snapshot,input_snapshot,request_hash,image_refs)
+        select ?,?,id,'acct_1',commit_sha,'{}','{}',?,image_refs from source_version where id=?
+        """,
+        deployment,
+        project,
+        DIGEST,
+        source);
+    jdbc.update(
+        """
+        insert into deployment_target(id,deployment_id,project_id,target_id,target_snapshot,state_identity,status,finished_at)
+        select ?,?,?,id,'{}',state_identity,?,? from target where id=?
+        """,
+        dt,
+        deployment,
+        project,
+        status,
+        finished == null ? null : java.sql.Timestamp.from(finished),
+        target);
+  }
+
+  @Test
+  void concurrentIdempotencyCreatesExactlyOneDeploymentAndConflictsRollback() throws Exception {
+    var responses =
+        concurrent(
+            () -> execution.create(createRequest("same-key")),
+            () -> execution.create(createRequest("same-key")));
+    assertEquals(responses.get(0), responses.get(1));
+    assertEquals(1, count("deployment"));
+    assertEquals(1, count("idempotency"));
+    assertEquals(1, count("jenkins_execution"));
+    var different =
+        new DeploymentExecutionService.CreateRequest(
+            "acct_1",
+            "prj_1",
+            "c".repeat(40),
+            List.of("tgt_1"),
+            mapper.createObjectNode().put("hash_format_version", 1),
+            "same-key");
+    assertEquals(
+        ErrorCode.STATE_CONFLICT,
+        assertThrows(DaisyException.class, () -> execution.create(different)).errorCode());
+    assertEquals(1, count("deployment"));
+    assertEquals(1, count("idempotency"));
+  }
+
+  @Test
+  void rebuildSelectionUsesExactSourceIdAndIncludesItInIdempotency() throws Exception {
+    var images =
+        mapper.readTree(
+            jdbc.queryForObject(
+                "select image_refs::text from source_version where id='src_1'", String.class));
+    ((com.fasterxml.jackson.databind.node.ObjectNode) images.get("app"))
+        .put("digest", "sha256:" + "c".repeat(64));
+    jdbc.update(
+        "insert into source_version(id,project_id,source,external_build_id,commit_sha,status,image_refs) values('src_2','prj_1','fixture','build-2',?,'succeeded',cast(? as jsonb))",
+        COMMIT,
+        images.toString());
+    String first =
+        execution.create(createRequest("first-build")).body().path("deployment_id").asText();
+    var selected =
+        new DeploymentExecutionService.CreateRequest(
+            "acct_1",
+            "prj_1",
+            "src_2",
+            List.of("tgt_1"),
+            mapper.createObjectNode().put("hash_format_version", 1),
+            "second-build");
+    String second = execution.create(selected).body().path("deployment_id").asText();
+    assertEquals("src_1", value("source_version_id", "deployment", first));
+    assertEquals("src_2", value("source_version_id", "deployment", second));
+    assertEquals(
+        value("commit_sha", "deployment", first), value("commit_sha", "deployment", second));
+    assertNotEquals(
+        value("request_hash", "deployment", first), value("request_hash", "deployment", second));
+    assertNotEquals(
+        value("resolved_input_hash", "deployment", first),
+        value("resolved_input_hash", "deployment", second));
+    assertEquals(
+        ErrorCode.STATE_CONFLICT,
+        assertThrows(
+                DaisyException.class,
+                () ->
+                    execution.create(
+                        new DeploymentExecutionService.CreateRequest(
+                            "acct_1",
+                            "prj_1",
+                            "src_2",
+                            List.of("tgt_1"),
+                            selected.input(),
+                            "first-build")))
+            .errorCode());
+    String command =
+        jdbc.queryForObject(
+            "select id from jenkins_execution where deployment_id=?", String.class, second);
+    assertEquals(
+        ErrorCode.STATE_CONFLICT,
+        assertThrows(
+                DaisyException.class,
+                () ->
+                    execution.bindBuildResult(
+                        new DeploymentExecutionService.BuildResult(
+                            "prj_1",
+                            second,
+                            command,
+                            "fixture",
+                            "late-other-build",
+                            "src_1",
+                            COMMIT,
+                            images,
+                            Instant.now())))
+            .errorCode());
+    assertEquals("src_2", value("source_version_id", "deployment", second));
+  }
+
+  @Test
+  void multiTargetApprovalIsAtomicAndPartialApplyCancelOnlyRecordsIntentThenRollbackSelectsTargets()
+      throws Exception {
+    jdbc.update(
+        "insert into target(id,project_id,name,environment_type,state_identity,config) values('tgt_2','prj_1','Second target','aws','test:second-state','{}')");
+    String deployment =
+        execution
+            .create(
+                new DeploymentExecutionService.CreateRequest(
+                    "acct_1",
+                    "prj_1",
+                    "src_1",
+                    List.of("tgt_1", "tgt_2"),
+                    mapper.createObjectNode().put("hash_format_version", 1),
+                    "multi-target"))
+            .body()
+            .path("deployment_id")
+            .asText();
+    String t1 =
+        jdbc.queryForObject(
+            "select id from deployment_target where deployment_id=? and target_id='tgt_1'",
+            String.class,
+            deployment);
+    String t2 =
+        jdbc.queryForObject(
+            "select id from deployment_target where deployment_id=? and target_id='tgt_2'",
+            String.class,
+            deployment);
+    Prepared first = prepareTarget(deployment, t1, "multi-first");
+    Prepared second = prepareTarget(deployment, t2, "multi-second");
+    assertEquals("Fixture", value("confirmation_text", "approval", first.approval()));
+    jdbc.update("update project set name='Renamed project' where id='prj_1'");
+    // Existing plans keep the name shown at plan creation; missing or stale selections change
+    // nothing.
+    assertEquals(
+        ErrorCode.STATE_CONFLICT,
+        assertThrows(DaisyException.class, () -> execution.decide(decision(first, "incomplete")))
+            .errorCode());
+    var decisions = new java.util.HashMap<String, DeploymentExecutionService.Decision>();
+    decisions.put(
+        "tgt_1", new DeploymentExecutionService.Decision(first.approval(), true, "Fixture"));
+    decisions.put("tgt_2", new DeploymentExecutionService.Decision("apv_stale", true, "Fixture"));
+    assertEquals(
+        ErrorCode.STATE_CONFLICT,
+        assertThrows(
+                DaisyException.class,
+                () ->
+                    execution.decide(
+                        new DeploymentExecutionService.DecisionRequest(
+                            "acct_1", "prj_1", deployment, decisions, "stale-selection")))
+            .errorCode());
+    assertEquals(
+        0, jdbc.queryForObject("select count(*) from approval where state='approved'", Long.class));
+    assertEquals(0, count("target_lock"));
+    decisions.put(
+        "tgt_2", new DeploymentExecutionService.Decision(second.approval(), true, "Fixture"));
+    execution.decide(
+        new DeploymentExecutionService.DecisionRequest(
+            "acct_1", "prj_1", deployment, decisions, "approve-all"));
+    assertEquals(2, count("target_lock"));
+    assertEquals(
+        ErrorCode.STATE_CONFLICT,
+        assertThrows(
+                DaisyException.class,
+                () ->
+                    execution.cancel(
+                        new DeploymentExecutionService.ControlRequest(
+                            "acct_1",
+                            "prj_1",
+                            deployment,
+                            List.of("tgt_1"),
+                            "partial-before-submit")))
+            .errorCode());
+    assertNull(value("cancel_requested_by", "deployment_target", t1));
+    var commands = context.getBean(JenkinsCommandService.class);
+    jdbc.update(
+        "update jenkins_execution set dispatch_status='accepted',run_status='succeeded' where operation='prepare'");
+    String apply = value("current_execution_id", "deployment_target", t1);
+    assertEquals(
+        apply,
+        commands.claimPending().id()); // Dispatch-time check also uses the stored project name.
+    commands.dispatched(apply, 21L, 8L, "running");
+    execution.cancel(
+        new DeploymentExecutionService.ControlRequest(
+            "acct_1", "prj_1", deployment, List.of("tgt_1"), "cancel-one"));
+    assertEquals("acct_1", value("cancel_requested_by", "deployment_target", t1));
+    assertNull(value("cancel_requested_by", "deployment_target", t2));
+    assertEquals(
+        0,
+        jdbc.queryForObject(
+            "select count(*) from jenkins_execution where operation='stop'", Long.class));
+    assertEquals(2, count("target_lock"));
+    for (Prepared p : List.of(first, second)) {
+      var result =
+          mapper
+              .createObjectNode()
+              .put("plan_id", p.plan())
+              .put("plan_digest", DIGEST)
+              .put("input_hash", p.inputHash());
+      result.set("image_refs", p.images());
+      execution.acceptState(
+          state(p, apply, "success-" + p.target(), 1, DeploymentTargetStatus.SUCCEEDED, result));
+    }
+    var rollbackRequest =
+        new DeploymentExecutionService.RollbackRequest(
+            "acct_1",
+            "prj_1",
+            deployment,
+            null,
+            List.of("tgt_1"),
+            "Restore stable version",
+            "rollback-selected");
+    String rollback = execution.rollback(rollbackRequest).body().path("deployment_id").asText();
+    assertEquals(
+        List.of("tgt_1"),
+        jdbc.queryForList(
+            "select target_id from deployment_target where deployment_id=?",
+            String.class,
+            rollback));
+    assertEquals(
+        jdbc.queryForObject(
+            "select input_snapshot::text from deployment where id=?", String.class, deployment),
+        jdbc.queryForObject(
+            "select input_snapshot::text from deployment where id=?", String.class, rollback));
+    JsonNode event =
+        mapper.readTree(
+            jdbc.queryForObject(
+                "select payload::text from deployment_log where deployment_id=? and event_type='deployment.created'",
+                String.class,
+                rollback));
+    assertEquals("Restore stable version", event.path("reason").asText());
+    assertEquals(
+        first.target(),
+        jdbc.queryForObject(
+            "select restored_from_deployment_target_id from deployment_target where deployment_id=?",
+            String.class,
+            rollback));
+    assertEquals(
+        ErrorCode.STATE_CONFLICT,
+        assertThrows(
+                DaisyException.class,
+                () ->
+                    execution.rollback(
+                        new DeploymentExecutionService.RollbackRequest(
+                            "acct_1",
+                            "prj_1",
+                            deployment,
+                            null,
+                            List.of("tgt_2"),
+                            "Restore stable version",
+                            "rollback-selected")))
+            .errorCode());
+    assertEquals(
+        ErrorCode.STATE_CONFLICT,
+        assertThrows(
+                DaisyException.class,
+                () ->
+                    execution.rollback(
+                        new DeploymentExecutionService.RollbackRequest(
+                            "acct_1",
+                            "prj_1",
+                            deployment,
+                            null,
+                            List.of("tgt_1"),
+                            "Different reason",
+                            "rollback-selected")))
+            .errorCode());
+    assertEquals("succeeded", value("status", "deployment", deployment));
+  }
+
+  @Test
+  void realCreateBuildPlanApproveSuccessAndTerminalReplayAreAtomic() {
+    Prepared prepared = prepare("flow");
+    execution.decide(decision(prepared, "approval-key"));
+    assertEquals(1, count("target_lock"));
+    String apply = value("current_execution_id", "deployment_target", prepared.target());
+    assertEquals(
+        1,
+        context
+            .getBean(JenkinsCommandService.class)
+            .lookup(apply)
+            .payload()
+            .path("targets")
+            .get(0)
+            .path("attempt")
+            .asInt(-1));
+    long approvedSeq =
+        jdbc.queryForObject(
+            "select last_event_seq from deployment where id=?", Long.class, prepared.deployment());
+    execution.acceptPlan(
+        prepared.planReceipt()); // The original receipt is now stale under the new APPLY owner.
+    assertEquals(
+        approvedSeq,
+        jdbc.queryForObject(
+            "select last_event_seq from deployment where id=?", Long.class, prepared.deployment()));
+    assertEquals(apply, value("current_execution_id", "deployment_target", prepared.target()));
+    assertEquals("approved", value("state", "approval", prepared.approval()));
+    execution.acceptState(
+        state(prepared, apply, "applying", 1, DeploymentTargetStatus.APPLYING, null));
+    var result =
+        mapper
+            .createObjectNode()
+            .put("plan_id", prepared.plan())
+            .put("plan_digest", DIGEST)
+            .put("input_hash", prepared.inputHash());
+    result.set("image_refs", prepared.images());
+    var success = state(prepared, apply, "success", 2, DeploymentTargetStatus.SUCCEEDED, result);
+    execution.acceptState(success);
+    assertEquals("succeeded", value("status", "deployment", prepared.deployment()));
+    assertEquals(0, count("target_lock"));
+    long seq =
+        jdbc.queryForObject(
+            "select last_event_seq from deployment where id=?", Long.class, prepared.deployment());
+    execution.acceptState(success);
+    assertEquals(
+        seq,
+        jdbc.queryForObject(
+            "select last_event_seq from deployment where id=?", Long.class, prepared.deployment()));
+    assertEquals(
+        ErrorCode.STATE_CONFLICT,
+        assertThrows(
+                DaisyException.class,
+                () ->
+                    execution.acceptState(
+                        state(prepared, apply, "success", 2, DeploymentTargetStatus.FAILED, null)))
+            .errorCode());
+    assertEquals("succeeded", value("status", "deployment", prepared.deployment()));
+    long journalSeq =
+        jdbc.queryForObject(
+            "select max(seq) from deployment_log where deployment_id=?",
+            Long.class,
+            prepared.deployment());
+    assertEquals(seq, journalSeq); // JPA dirty flushes must not overwrite JDBC-assigned counters.
+    var usage =
+        context
+            .getBean(AiUsageService.class)
+            .receive(
+                prepared.prepare(),
+                prepared.deployment(),
+                prepared.target(),
+                new AiUsageService.UsageInput(
+                    "test:" + prepared.prepare(),
+                    "late-call",
+                    "test",
+                    "test-model",
+                    "generate",
+                    1,
+                    "unknown",
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    Instant.now()));
+    assertFalse(usage.duplicate());
+    assertNull(
+        jdbc.queryForObject(
+            "select cost_usd from ai_usage where id=?", java.math.BigDecimal.class, usage.id()));
+    assertEquals("succeeded", value("status", "deployment", prepared.deployment()));
+  }
+
+  @Test
+  void cancelledQueueRemainsClaimableUntilTargetsAndLockAreFinished() {
+    Prepared prepared = prepare("queue-cancel");
+    jdbc.update(
+        "update jenkins_execution set dispatch_status='accepted',run_status='succeeded' where id=?",
+        prepared.prepare());
+    execution.decide(decision(prepared, "queue-approval"));
+    String apply = value("current_execution_id", "deployment_target", prepared.target());
+    var commands = context.getBean(JenkinsCommandService.class);
+    assertEquals(apply, commands.claimPending().id());
+    commands.dispatched(apply, 17L, null, "queued");
+    commands.observed(apply, null, "cancelled");
+    assertEquals(1, count("target_lock"));
+    assertEquals(apply, commands.claimCheck().id());
+    execution.onQueueCancelled(apply);
+    execution.onQueueCancelled(apply);
+    assertEquals("cancelled", value("status", "deployment_target", prepared.target()));
+    assertEquals(
+        "cancelled",
+        jdbc.queryForObject(
+            "select status from execution_target where execution_id=? and deployment_target_id=?",
+            String.class,
+            apply,
+            prepared.target()));
+    assertEquals(0, count("target_lock"));
+    assertNull(commands.claimCheck());
+  }
+
+  @Test
+  void simultaneousApprovalOfSameStateAllowsOneAndRollsBackOtherDecision() throws Exception {
+    Prepared first = prepare("first"), second = prepare("second");
+    var outcomes = concurrent(() -> approveOutcome(first), () -> approveOutcome(second));
+    assertEquals(1, outcomes.stream().filter("accepted"::equals).count());
+    assertEquals(1, outcomes.stream().filter("TARGET_LOCKED"::equals).count());
+    assertEquals(1, count("target_lock"));
+    assertEquals(
+        1, jdbc.queryForObject("select count(*) from approval where state='approved'", Long.class));
+    assertEquals(
+        1, jdbc.queryForObject("select count(*) from approval where state='pending'", Long.class));
+    assertEquals(
+        1,
+        jdbc.queryForObject(
+            "select count(*) from jenkins_execution where operation='apply'", Long.class));
+  }
+
+  @Test
+  void pendingApplyCancellationRecordsTerminalEvidenceAndReleasesOnlyItsLock() {
+    Prepared prepared = prepare("cancel-pending");
+    execution.decide(decision(prepared, "approve-before-cancel"));
+    String apply = value("current_execution_id", "deployment_target", prepared.target());
+    assertEquals("pending", value("dispatch_status", "jenkins_execution", apply));
+    assertEquals(1, count("target_lock"));
+    execution.cancel(
+        new DeploymentExecutionService.ControlRequest(
+            "acct_1", "prj_1", prepared.deployment(), List.of("tgt_1"), "cancel-key"));
+    assertEquals("cancelled", value("status", "deployment", prepared.deployment()));
+    assertEquals("cancelled", value("status", "deployment_target", prepared.target()));
+    assertEquals("rejected", value("dispatch_status", "jenkins_execution", apply));
+    assertEquals(
+        "cancelled",
+        jdbc.queryForObject(
+            "select status from execution_target where execution_id=? and deployment_target_id=?",
+            String.class,
+            apply,
+            prepared.target()));
+    assertNotNull(
+        jdbc.queryForObject(
+            "select finished_at from execution_target where execution_id=? and deployment_target_id=?",
+            java.sql.Timestamp.class,
+            apply,
+            prepared.target()));
+    assertEquals(0, count("target_lock"));
+    assertEquals(
+        0,
+        jdbc.queryForObject(
+            "select count(*) from jenkins_execution where operation='stop'", Long.class));
+    assertEquals(
+        1,
+        jdbc.queryForObject(
+            "select count(*) from deployment_log where execution_id=? and payload->>'reason'='confirmed_not_submitted'",
+            Long.class,
+            apply));
+  }
+
+  @Test
+  void confirmedStaleReplansWithoutIncreasingAttemptAndReplaysWithoutAnotherCommand() {
+    Prepared prepared = prepare("stale");
+    execution.decide(decision(prepared, "approve-before-stale"));
+    String apply = value("current_execution_id", "deployment_target", prepared.target());
+    jdbc.update(
+        "update jenkins_execution set dispatch_status='accepted',run_status='succeeded',build_number=1,finished_at=now() where id=?",
+        apply);
+    int attempt =
+        jdbc.queryForObject(
+            "select attempt from deployment_target where id=?", Integer.class, prepared.target());
+    var stale =
+        new DeploymentExecutionService.StaleResult(
+            "prj_1",
+            prepared.deployment(),
+            apply,
+            prepared.target(),
+            "test:" + apply,
+            "stale-proof",
+            1,
+            prepared.plan(),
+            DIGEST,
+            prepared.inputHash(),
+            true,
+            true,
+            Instant.now());
+    execution.acceptStale(stale);
+    assertEquals(0, count("target_lock"));
+    assertEquals("validating", value("status", "deployment_target", prepared.target()));
+    assertNull(value("current_plan_id", "deployment_target", prepared.target()));
+    assertEquals(
+        attempt,
+        jdbc.queryForObject(
+            "select attempt from deployment_target where id=?", Integer.class, prepared.target()));
+    assertEquals("superseded", value("state", "plan_revision", prepared.plan()));
+    assertEquals("superseded", value("state", "approval", prepared.approval()));
+    assertEquals("approved", value("decision", "approval", prepared.approval()));
+    String replan = value("current_execution_id", "deployment_target", prepared.target());
+    assertEquals(
+        attempt,
+        context
+            .getBean(JenkinsCommandService.class)
+            .lookup(replan)
+            .payload()
+            .path("targets")
+            .get(0)
+            .path("attempt")
+            .asInt(-1));
+    assertNotEquals(apply, replan);
+    assertEquals("replan", value("operation", "jenkins_execution", replan));
+    assertEquals(apply, value("parent_execution_id", "jenkins_execution", replan));
+    assertEquals(
+        "stale",
+        jdbc.queryForObject(
+            "select status from execution_target where execution_id=? and deployment_target_id=?",
+            String.class,
+            apply,
+            prepared.target()));
+    long commands = count("jenkins_execution");
+    long seq =
+        jdbc.queryForObject(
+            "select last_event_seq from deployment where id=?", Long.class, prepared.deployment());
+    execution.acceptStale(stale);
+    assertEquals(commands, count("jenkins_execution"));
+    assertEquals(
+        seq,
+        jdbc.queryForObject(
+            "select last_event_seq from deployment where id=?", Long.class, prepared.deployment()));
+  }
+
+  @Test
+  void retryKeepsFailedTargetLineageAndFrozenInput() {
+    Prepared prepared = prepare("retry-source");
+    execution.decide(decision(prepared, "retry-approval"));
+    String apply = value("current_execution_id", "deployment_target", prepared.target());
+    execution.acceptState(state(prepared, apply, "failed", 1, DeploymentTargetStatus.FAILED, null));
+    assertEquals("failed", value("status", "deployment", prepared.deployment()));
+    String retry =
+        execution
+            .retry(
+                new DeploymentExecutionService.ControlRequest(
+                    "acct_1", "prj_1", prepared.deployment(), List.of("tgt_1"), "retry-key"))
+            .body()
+            .path("deployment_id")
+            .asText();
+    String target =
+        jdbc.queryForObject(
+            "select id from deployment_target where deployment_id=?", String.class, retry);
+    assertEquals("retry", value("kind", "deployment", retry));
+    assertEquals(prepared.deployment(), value("retry_of_deployment_id", "deployment", retry));
+    assertEquals(
+        prepared.target(), value("retry_of_deployment_target_id", "deployment_target", target));
+    assertEquals(prepared.inputHash(), value("input_hash", "deployment_target", target));
+    assertEquals(
+        jdbc.queryForObject(
+            "select input_snapshot::text from deployment where id=?",
+            String.class,
+            prepared.deployment()),
+        jdbc.queryForObject(
+            "select input_snapshot::text from deployment where id=?", String.class, retry));
+    assertEquals(
+        jdbc.queryForObject(
+            "select target_snapshot::text from deployment_target where id=?",
+            String.class,
+            prepared.target()),
+        jdbc.queryForObject(
+            "select target_snapshot::text from deployment_target where id=?",
+            String.class,
+            target));
+    assertEquals("failed", value("status", "deployment_target", prepared.target()));
+  }
+
+  @Test
+  void rollbackRestoresSuccessfulSourceImageAndScriptWithoutAiAutofix() throws Exception {
+    Prepared prepared = prepare("rollback-source");
+    execution.decide(decision(prepared, "rollback-approval"));
+    String apply = value("current_execution_id", "deployment_target", prepared.target());
+    var result =
+        mapper
+            .createObjectNode()
+            .put("plan_id", prepared.plan())
+            .put("plan_digest", DIGEST)
+            .put("input_hash", prepared.inputHash());
+    result.set("image_refs", prepared.images());
+    execution.acceptState(
+        state(prepared, apply, "success", 1, DeploymentTargetStatus.SUCCEEDED, result));
+    String rollback =
+        execution
+            .rollback(
+                new DeploymentExecutionService.RollbackRequest(
+                    "acct_1",
+                    "prj_1",
+                    prepared.deployment(),
+                    null,
+                    List.of("tgt_1"),
+                    "Restore stable version",
+                    "rollback-key"))
+            .body()
+            .path("deployment_id")
+            .asText();
+    String target =
+        jdbc.queryForObject(
+            "select id from deployment_target where deployment_id=?", String.class, rollback);
+    String command = value("current_execution_id", "deployment_target", target);
+    assertEquals(prepared.deployment(), value("rollback_of_deployment_id", "deployment", rollback));
+    assertEquals(
+        value("source_version_id", "deployment", prepared.deployment()),
+        value("source_version_id", "deployment", rollback));
+    assertEquals(
+        jdbc.queryForObject(
+            "select image_refs::text from deployment where id=?",
+            String.class,
+            prepared.deployment()),
+        jdbc.queryForObject(
+            "select image_refs::text from deployment where id=?", String.class, rollback));
+    assertEquals(
+        prepared.target(),
+        value("restored_from_deployment_target_id", "deployment_target", target));
+    String script = value("script_id", "deployment_target", prepared.target());
+    assertEquals(script, value("script_id", "deployment_target", target));
+    JsonNode payload =
+        mapper.readTree(
+            jdbc.queryForObject(
+                "select request_payload::text from jenkins_execution where id=?",
+                String.class,
+                command));
+    assertFalse(payload.path("allow_ai_autofix").asBoolean(true));
+    assertEquals(script, payload.path("restore_scripts").get(0).path("script_id").asText());
+    assertEquals(
+        prepared.target(),
+        payload.path("restore_scripts").get(0).path("restored_from_deployment_target_id").asText());
+  }
+
+  @Test
+  void interruptedDispatchBecomesUnknownWithoutAnotherCommand() {
+    String deployment =
+        execution.create(createRequest("dispatch-recovery")).body().path("deployment_id").asText();
+    var commands = context.getBean(JenkinsCommandService.class);
+    String command = commands.claimPending().id();
+    assertEquals("dispatching", value("dispatch_status", "jenkins_execution", command));
+    long before = count("jenkins_execution");
+    commands.recoverDispatching();
+    commands.recoverDispatching();
+    assertEquals("unknown", value("dispatch_status", "jenkins_execution", command));
+    assertEquals("dispatch_interrupted", value("last_error", "jenkins_execution", command));
+    assertNull(commands.claimPending());
+    assertEquals(command, commands.claimCheck().id());
+    assertEquals(before, count("jenkins_execution"));
+    assertEquals(deployment, value("deployment_id", "jenkins_execution", command));
+  }
+
+  @Test
+  void rollbackRemovesEventAndCounterAlongWithManagedState() {
+    String id =
+        execution.create(createRequest("rollback-check")).body().path("deployment_id").asText();
+    long before =
+        jdbc.queryForObject("select last_event_seq from deployment where id=?", Long.class, id);
+    long rows = count("deployment_log");
+    assertThrows(
+        DaisyException.class,
+        () ->
+            transaction()
+                .execute(
+                    status -> {
+                      Deployment deployment =
+                          context.getBean(DeploymentStore.class).lock("prj_1", id);
+                      deployment.markStarted(Instant.now());
+                      context.getBean(DeploymentStore.class).flush();
+                      context
+                          .getBean(EventJournal.class)
+                          .appendDeployment(
+                              "prj_1",
+                              id,
+                              new DeploymentEvent(
+                                  "test",
+                                  "rolled-back",
+                                  null,
+                                  null,
+                                  null,
+                                  "deployment.state_changed",
+                                  null,
+                                  null,
+                                  "info",
+                                  null,
+                                  mapper.createObjectNode().put("status", "running"),
+                                  "applied",
+                                  null,
+                                  null,
+                                  null,
+                                  Instant.now()),
+                              false);
+                      throw new DaisyException(ErrorCode.STATE_CONFLICT);
+                    }));
+    assertEquals("queued", value("status", "deployment", id));
+    assertEquals(rows, count("deployment_log"));
+    assertEquals(
+        before,
+        jdbc.queryForObject("select last_event_seq from deployment where id=?", Long.class, id));
+  }
+
+  @Test
+  void consoleOwnerUtf8EofRollbackAndReplayUseAtomicPersistedCursor() {
+    String deployment =
+        execution.create(createRequest("console")).body().path("deployment_id").asText();
+    String target =
+        jdbc.queryForObject(
+            "select id from deployment_target where deployment_id=?", String.class, deployment);
+    String command = value("current_execution_id", "deployment_target", target);
+    jdbc.update(
+        "update jenkins_execution set dispatch_status='accepted',run_status='running',build_number=7 where id=?",
+        command);
+    var consoles = context.getBean(JenkinsConsoleService.class);
+    var owner = consoles.owner(command);
+    assertEquals(command, owner.id());
+    assertEquals(command, value("log_owner_execution_id", "jenkins_execution", command));
+    String follower =
+        transaction()
+            .execute(
+                status ->
+                    context
+                        .getBean(JenkinsCommandService.class)
+                        .enqueue(
+                            deployment, "prepare", command, List.of(), mapper.createObjectNode())
+                        .id());
+    jdbc.update(
+        "update jenkins_execution set dispatch_status='accepted',run_status='running',build_number=7 where id=?",
+        follower);
+    assertEquals(command, consoles.owner(follower).id());
+    assertEquals(command, value("log_owner_execution_id", "jenkins_execution", follower));
+    assertEquals(
+        1,
+        jdbc.queryForObject(
+            "select count(*) from jenkins_execution where build_number=7 and log_owner_execution_id=id",
+            Long.class));
+
+    long rows = count("deployment_log");
+    long seq =
+        jdbc.queryForObject(
+            "select last_event_seq from deployment where id=?", Long.class, deployment);
+    byte[] secret = "token=\nsensitive-value\n".getBytes(StandardCharsets.UTF_8);
+    assertThrows(
+        DaisyException.class,
+        () -> consoles.commit(owner, new LogChunk(secret, secret.length, false)));
+    assertEquals(
+        0L,
+        jdbc.queryForObject(
+            "select log_cursor from jenkins_execution where id=?", Long.class, command));
+    assertEquals(rows, count("deployment_log"));
+
+    byte[] text = "가\n끝".getBytes(StandardCharsets.UTF_8);
+    var eof = new LogChunk(text, text.length, false);
+    // Force failure after the public event insert: the REQUIRES_NEW transaction must roll both
+    // back.
+    jdbc.execute(
+        """
+        create function reject_console_cursor() returns trigger language plpgsql as $$
+        begin
+          if NEW.log_cursor>OLD.log_cursor then raise exception 'TEST console cursor rollback'; end if;
+          return NEW;
+        end $$
+        """);
+    jdbc.execute(
+        "create trigger console_cursor_failure before update of log_cursor on jenkins_execution for each row execute function reject_console_cursor()");
+    assertThrows(
+        org.springframework.dao.DataAccessException.class, () -> consoles.commit(owner, eof));
+    assertEquals(rows, count("deployment_log"));
+    assertEquals(
+        seq,
+        jdbc.queryForObject(
+            "select last_event_seq from deployment where id=?", Long.class, deployment));
+    assertEquals(
+        0L,
+        jdbc.queryForObject(
+            "select log_cursor from jenkins_execution where id=?", Long.class, command));
+    assertFalse(
+        jdbc.queryForObject(
+            "select log_complete from jenkins_execution where id=?", Boolean.class, command));
+    jdbc.execute("drop trigger console_cursor_failure on jenkins_execution");
+    jdbc.execute("drop function reject_console_cursor()");
+
+    assertTrue(consoles.commit(owner, eof));
+    assertEquals(
+        (long) text.length,
+        jdbc.queryForObject(
+            "select log_cursor from jenkins_execution where id=?", Long.class, command));
+    assertTrue(
+        jdbc.queryForObject(
+            "select log_complete from jenkins_execution where id=?", Boolean.class, command));
+    assertEquals(
+        "가\n끝",
+        jdbc.queryForObject(
+            "select message from deployment_log where source_stream=?",
+            String.class,
+            owner.stream()));
+    assertEquals(
+        (long) text.length,
+        jdbc.queryForObject(
+            "select source_end_offset from deployment_log where source_stream=?",
+            Long.class,
+            owner.stream()));
+    assertEquals(rows + 1, count("deployment_log"));
+    assertEquals(
+        seq + 1,
+        jdbc.queryForObject(
+            "select last_event_seq from deployment where id=?", Long.class, deployment));
+    assertFalse(consoles.commit(owner, eof));
+    assertEquals(rows + 1, count("deployment_log"));
+    assertEquals(
+        seq + 1,
+        jdbc.queryForObject(
+            "select last_event_seq from deployment where id=?", Long.class, deployment));
+    assertEquals("waiting", value("status", "deployment_target", target));
+    assertEquals("queued", value("status", "deployment", deployment));
+    assertEquals("running", value("run_status", "jenkins_execution", command));
+  }
+
+  @Test
+  void compositeForeignKeysRejectTargetFromAnotherProject() {
+    String deployment =
+        execution.create(createRequest("scope-check")).body().path("deployment_id").asText();
+    jdbc.update(
+        "insert into project(id,name,repository_id,repository_url,default_branch,created_by) values('prj_other','Other','repo-other','https://example.test/other','main','acct_1')");
+    jdbc.update(
+        "insert into target(id,project_id,name,environment_type,state_identity,config) values('tgt_other','prj_other','Other','aws','test:other-state','{}')");
+    assertThrows(
+        org.springframework.dao.DataIntegrityViolationException.class,
+        () ->
+            jdbc.update(
+                "insert into deployment_target(id,deployment_id,project_id,target_id,target_snapshot,state_identity) values('dt_wrong',?,'prj_1','tgt_other','{}','test:other-state')",
+                deployment));
+    assertEquals(1, count("deployment_target"));
+  }
+
+  @Test
+  void expiredApprovalWaitsForExecutionEndThenClearsAndEmitsOnce() {
+    Prepared p = prepare("expiry");
+    ageApproval(p);
+    assertTrue(execution.expiredApprovals().isEmpty());
+    assertEquals(
+        ErrorCode.STATE_CONFLICT,
+        assertThrows(
+                DaisyException.class, () -> execution.expire("prj_1", p.deployment(), p.target()))
+            .errorCode());
+    assertEquals("pending", value("state", "approval", p.approval()));
+    jdbc.update(
+        "update jenkins_execution set run_status='succeeded',finished_at=now() where id=?",
+        p.prepare());
+    assertEquals(1, execution.expiredApprovals().size());
+    execution.expire("prj_1", p.deployment(), p.target());
+    assertEquals("expired", value("state", "approval", p.approval()));
+    assertEquals("expired", value("state", "plan_revision", p.plan()));
+    assertNull(value("current_plan_id", "deployment_target", p.target()));
+    assertEquals("cancelled", value("status", "deployment", p.deployment()));
+    long events = count("deployment_log");
+    assertTrue(execution.expiredApprovals().isEmpty());
+    assertThrows(DaisyException.class, () -> execution.expire("prj_1", p.deployment(), p.target()));
+    assertEquals(events, count("deployment_log"));
+    assertEquals(0, count("target_lock"));
+  }
+
+  @Test
+  void partialExpiryLeavesOnlyLiveTargetForApprovalAndNeverCancelsApprovedApply() {
+    jdbc.update(
+        "insert into target(id,project_id,name,environment_type,state_identity,config) values('tgt_2','prj_1','Second','aws','test:second','{}')");
+    String deployment =
+        execution
+            .create(
+                new DeploymentExecutionService.CreateRequest(
+                    "acct_1",
+                    "prj_1",
+                    "src_1",
+                    List.of("tgt_1", "tgt_2"),
+                    mapper.createObjectNode().put("hash_format_version", 1),
+                    "mixed-expiry"))
+            .body()
+            .path("deployment_id")
+            .asText();
+    String t1 =
+        jdbc.queryForObject(
+            "select id from deployment_target where deployment_id=? and target_id='tgt_1'",
+            String.class,
+            deployment);
+    String t2 =
+        jdbc.queryForObject(
+            "select id from deployment_target where deployment_id=? and target_id='tgt_2'",
+            String.class,
+            deployment);
+    Prepared first = prepareTarget(deployment, t1, "first");
+    Prepared second = prepareTarget(deployment, t2, "second");
+    ageApproval(first);
+    jdbc.update(
+        "update jenkins_execution set run_status='succeeded',finished_at=now() where id=?",
+        first.prepare());
+    assertEquals(1, execution.expiredApprovals().size());
+    execution.expire("prj_1", deployment, first.target());
+    assertEquals("awaiting_approval", value("status", "deployment", deployment));
+    var reader =
+        new com.teamdaisy.server.project.application.DeploymentDetailReader(
+            new org.springframework.jdbc.core.namedparam.NamedParameterJdbcTemplate(jdbc),
+            org.mockito.Mockito.mock(com.teamdaisy.server.identity.domain.AccountRepository.class),
+            mapper);
+    // The public reader and execution service must agree on the remaining approval IDs.
+    var pending = reader.read("prj_1", deployment).pendingApprovals();
+    assertEquals(1, pending.size());
+    assertEquals(second.approval(), pending.getFirst().approvalId());
+    execution.decide(
+        new DeploymentExecutionService.DecisionRequest(
+            "acct_1",
+            "prj_1",
+            deployment,
+            Map.of(
+                "tgt_2",
+                new DeploymentExecutionService.Decision(second.approval(), true, "Fixture")),
+            "approve-live"));
+    ageApproval(second);
+    assertTrue(execution.expiredApprovals().isEmpty());
+    assertThrows(
+        DaisyException.class, () -> execution.expire("prj_1", deployment, second.target()));
+    assertEquals("approved", value("state", "approval", second.approval()));
+    assertEquals(1, count("target_lock"));
+  }
+
+  private void ageApproval(Prepared p) {
+    jdbc.update(
+        "update approval set created_at=now()-interval '2 hours', expires_at=now()-interval '1 hour' where id=?",
+        p.approval());
+  }
+
+  @Test
+  void archiveCommittedBeforeCommandGetsProjectLockPreventsAction() throws Exception {
+    var locked = new java.util.concurrent.CountDownLatch(1);
+    var attempted = new java.util.concurrent.CountDownLatch(1);
+    try (var pool = Executors.newFixedThreadPool(2)) {
+      var archive =
+          pool.submit(
+              () ->
+                  transaction()
+                      .execute(
+                          status -> {
+                            jdbc.update("update project set archived_at=now() where id='prj_1'");
+                            locked.countDown();
+                            try {
+                              assertTrue(attempted.await(5, TimeUnit.SECONDS));
+                            } catch (InterruptedException e) {
+                              throw new IllegalStateException(e);
+                            }
+                            return true;
+                          }));
+      var command =
+          pool.submit(
+              () -> {
+                assertTrue(locked.await(5, TimeUnit.SECONDS));
+                attempted.countDown();
+                return assertThrows(
+                        DaisyException.class,
+                        () -> execution.create(createRequest("after-archive")))
+                    .errorCode();
+              });
+      assertTrue(archive.get(15, TimeUnit.SECONDS));
+      assertEquals(ErrorCode.NOT_FOUND, command.get(15, TimeUnit.SECONDS));
+    }
+    assertEquals(0, count("deployment"));
+    assertEquals(0, count("jenkins_execution"));
+    assertEquals(0, count("idempotency"));
+  }
+
+  private record Prepared(
+      String deployment,
+      String target,
+      String prepare,
+      String plan,
+      String approval,
+      String inputHash,
+      JsonNode images,
+      DeploymentExecutionService.PlanResult planReceipt) {}
+
+  private Prepared prepare(String key) {
+    String deployment = execution.create(createRequest(key)).body().path("deployment_id").asText();
+    String target =
+        jdbc.queryForObject(
+            "select id from deployment_target where deployment_id=?", String.class, deployment);
+    return prepareTarget(deployment, target, key);
+  }
+
+  private Prepared prepareTarget(String deployment, String target, String key) {
+    String command = value("current_execution_id", "deployment_target", target);
+    String source = "test:" + command;
+    var images = mapper.createObjectNode();
+    images
+        .putObject("app")
+        .put("image_ref", "registry.test/app:" + COMMIT)
+        .put("commit_sha", COMMIT)
+        .put("digest", DIGEST);
+    var script =
+        context
+            .getBean(ScriptService.class)
+            .receive(
+                command,
+                deployment,
+                target,
+                new ScriptService.ScriptInput(
+                    source,
+                    "code-" + target,
+                    "artifact:code-" + key,
+                    DIGEST,
+                    null,
+                    null,
+                    Instant.now(),
+                    null));
+    Prepared initial =
+        new Prepared(
+            deployment,
+            target,
+            command,
+            null,
+            null,
+            value("input_hash", "deployment_target", target),
+            images,
+            null);
+    execution.acceptState(
+        state(
+            initial, command, "generating-" + target, 1, DeploymentTargetStatus.GENERATING, null));
+    var summary = mapper.createObjectNode().put("has_delete", true);
+    summary.putObject("counts").put("create", 1).put("update", 0).put("delete", 1);
+    summary.putArray("risks");
+    var receipt =
+        new DeploymentExecutionService.PlanResult(
+            "prj_1",
+            deployment,
+            command,
+            target,
+            source,
+            "plan-" + target,
+            2,
+            "plan-" + target,
+            initial.inputHash(),
+            script.id(),
+            false,
+            1,
+            "artifact:plan-" + key,
+            DIGEST,
+            summary,
+            mapper.createArrayNode(),
+            Instant.now().plusSeconds(3600),
+            null,
+            Instant.now());
+    execution.acceptPlan(receipt);
+    String plan = value("current_plan_id", "deployment_target", target);
+    String approval =
+        jdbc.queryForObject("select id from approval where plan_id=?", String.class, plan);
+    return new Prepared(
+        deployment, target, command, plan, approval, initial.inputHash(), images, receipt);
+  }
+
+  private DeploymentExecutionService.DecisionRequest decision(Prepared p, String key) {
+    return new DeploymentExecutionService.DecisionRequest(
+        "acct_1",
+        "prj_1",
+        p.deployment(),
+        Map.of("tgt_1", new DeploymentExecutionService.Decision(p.approval(), true, "Fixture")),
+        key);
+  }
+
+  private String approveOutcome(Prepared p) {
+    try {
+      execution.decide(decision(p, "approve-" + p.deployment()));
+      return "accepted";
+    } catch (DaisyException error) {
+      return error.errorCode().name();
+    }
+  }
+
+  private DeploymentExecutionService.StateResult state(
+      Prepared p,
+      String command,
+      String event,
+      long sequence,
+      DeploymentTargetStatus state,
+      JsonNode result) {
+    return new DeploymentExecutionService.StateResult(
+        "prj_1",
+        p.deployment(),
+        command,
+        p.target(),
+        "test:" + command,
+        event,
+        sequence,
+        state,
+        1,
+        null,
+        result,
+        Instant.now());
+  }
+
+  private static <T> List<T> concurrent(Callable<T> first, Callable<T> second) throws Exception {
+    try (var pool = Executors.newFixedThreadPool(2)) {
+      var barrier = new CyclicBarrier(2);
+      var a =
+          pool.submit(
+              () -> {
+                barrier.await(5, TimeUnit.SECONDS);
+                return first.call();
+              });
+      var b =
+          pool.submit(
+              () -> {
+                barrier.await(5, TimeUnit.SECONDS);
+                return second.call();
+              });
+      return List.of(a.get(15, TimeUnit.SECONDS), b.get(15, TimeUnit.SECONDS));
+    }
+  }
+
+  @Configuration(proxyBeanMethods = false)
+  @EnableAutoConfiguration
+  @EntityScan("com.teamdaisy.server")
+  @Import({
+    DeploymentStore.class,
+    DeploymentExecutionService.class,
+    DeploymentQueryService.class,
+    JenkinsCommandService.class,
+    ScriptService.class,
+    AiUsageService.class,
+    EventJournal.class,
+    IdempotencyService.class,
+    CanonicalJson.class,
+    JenkinsConsoleService.class
+  })
+  static class TestConfig {
+    // MOCK: fixture-only identity/project adapters; production EH policies are not implemented
+    // here.
+    @Bean
+    ExecutionAccess access(JdbcTemplate jdbc) {
+      return new ExecutionAccess() {
+        @Override
+        public void requireRead(String actor, String project) {
+          requireWrite(actor, project);
+        }
+
+        @Override
+        public void requireWrite(String actor, String project) {
+          Long count =
+              jdbc.queryForObject(
+                  "select count(*) from account a join project_member m on m.account_id=a.id where a.id=? and m.project_id=? and a.disabled_at is null and m.revoked_at is null",
+                  Long.class,
+                  actor,
+                  project);
+          if (count == null || count != 1) throw new DaisyException(ErrorCode.FORBIDDEN);
+        }
+      };
+    }
+
+    @Bean
+    ExecutionInputs inputs(JdbcTemplate jdbc, ObjectMapper mapper) {
+      return new ExecutionInputs() {
+        @Override
+        public Captured capture(
+            String actor,
+            String project,
+            String sourceVersion,
+            List<String> targets,
+            JsonNode input) {
+          var selected =
+              targets.stream()
+                  .map(
+                      id -> {
+                        var row =
+                            jdbc.queryForMap(
+                                "select name,state_identity from target where id=? and project_id=?",
+                                id,
+                                project);
+                        return new TargetInput(
+                            id,
+                            mapper
+                                .createObjectNode()
+                                .put("name", (String) row.get("name"))
+                                .put("config_revision", 1),
+                            (String) row.get("state_identity"));
+                      })
+                  .toList();
+          return new Captured(
+              mapper.createObjectNode().put("repository_id", "repo-1"),
+              input,
+              selected,
+              readBuild(project, sourceVersion));
+        }
+
+        @Override
+        public String projectName(String project) {
+          return jdbc.queryForObject("select name from project where id=?", String.class, project);
+        }
+
+        private BuildInput readBuild(String project, String sourceVersion) {
+          return jdbc.queryForObject(
+              "select id,commit_sha,image_refs::text from source_version where id=? and project_id=? and status='succeeded'",
+              (row, index) -> {
+                try {
+                  return new BuildInput(
+                      row.getString(1), row.getString(2), mapper.readTree(row.getString(3)));
+                } catch (java.io.IOException e) {
+                  throw new IllegalStateException(e);
+                }
+              },
+              sourceVersion,
+              project);
+        }
+
+        @Override
+        public void verifyFrozen(String actor, String project, FrozenInput input) {}
+
+        @Override
+        public BuildInput recordBuild(DeploymentExecutionService.BuildResult result) {
+          return readBuild(result.projectId(), result.sourceVersionId());
+        }
+      };
+    }
+  }
+}

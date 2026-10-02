@@ -1,6 +1,6 @@
-import { Navigate, Route, Routes } from 'react-router'
-import { MOCK_PROJECTS } from './mocks/workspace.ts'
+import { Route, Routes } from 'react-router'
 import AppLayout from './pages/AppLayout.tsx'
+import FirstProject from './pages/FirstProject.tsx'
 import BuildPage from './pages/image-build/BuildPage.tsx'
 import AiUsagePage from './pages/ai-usage/AiUsagePage.tsx'
 import ApprovePage from './pages/approve/ApprovePage.tsx'
@@ -19,12 +19,14 @@ import TargetsPage from './pages/targets/TargetsPage.tsx'
 import ComponentsPage from './pages/dev/ComponentsPage.tsx'
 import PrimitivesPage from './pages/dev/PrimitivesPage.tsx'
 import TokensPage from './pages/dev/TokensPage.tsx'
-import { paths } from './paths.ts'
+import { useLang } from './i18n/index.ts'
 
 // 화면 경로 (SPEC.md §2, 경로 함수는 paths.ts)
 function App() {
+  // 언어를 바꾸면 화면 전체를 새 언어로 다시 그려요. 로그인(AuthProvider)은 바깥이라 그대로 남아요 (#75)
+  const lang = useLang()
   return (
-    <Routes>
+    <Routes key={lang}>
       <Route path="/login" element={<LoginPage />} />
 
       <Route element={<AppLayout />}>
@@ -53,8 +55,10 @@ function App() {
       <Route path="/dev/components" element={<ComponentsPage />} />
       <Route path="/dev/primitives" element={<PrimitivesPage />} />
 
-      {/* MOCK: 로그인 · 프로젝트 목록(A-01) 연결 전까지 첫 목업 프로젝트로 보내요 */}
-      <Route path="*" element={<Navigate to={paths.overview(MOCK_PROJECTS[0].id)} replace />} />
+      {/* 프로젝트를 정하지 않은 주소는 프로젝트 목록(A-01)의 첫 프로젝트로 */}
+      <Route element={<AppLayout />}>
+        <Route path="*" element={<FirstProject />} />
+      </Route>
     </Routes>
   )
 }

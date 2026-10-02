@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { useParams } from 'react-router'
-import { ApiError } from '../../api/client.ts'
-import { api } from '../../api/endpoints.ts'
+import { ApiError, USE_MOCK } from '../../api/client.ts'
+import { api, isMocked } from '../../api/endpoints.ts'
 import type { Target } from '../../api/types.ts'
 import { useResource } from '../../api/useResource.ts'
 import Button from '../../components/Button.tsx'
@@ -12,6 +12,7 @@ import PageHeader from '../../components/PageHeader.tsx'
 import Panel from '../../components/Panel.tsx'
 import StatusBadge from '../../components/StatusBadge.tsx'
 import Toast from '../../components/Toast.tsx'
+import { t } from '../../i18n/index.ts'
 import { shortCommit } from '../../utils/format.ts'
 import { ErrorBlock, LoadingBlock } from '../Loading.tsx'
 import '../page.css'
@@ -24,55 +25,58 @@ function EnvironmentsPage() {
   const [toast, setToast] = useState<{ ok: boolean; text: string } | null>(null)
   const [resourcesOf, setResourcesOf] = useState<Target | null>(null)
 
+  const probeReady = USE_MOCK || !isMocked('testTarget', 'listTargetResources')
+
   if (targets.error) return <ErrorBlock error={targets.error} />
   if (!targets.data) return <LoadingBlock />
 
-  const test = async (t: Target) => {
+  const test = async (tg: Target) => {
     try {
-      const r = await api.testTarget(t.target_id)
+      const r = await api.testTarget(tg.target_id)
       setToast({ ok: r.connected, text: r.message })
     } catch (e) {
-      setToast({ ok: false, text: e instanceof ApiError ? e.message : '연결 테스트를 하지 못했어요' })
+      setToast({ ok: false, text: e instanceof ApiError ? e.message : t('연결 테스트를 하지 못했어요') })
     }
   }
 
   return (
     <div className="page">
-      <PageHeader overline="Environments" title="환경" description="배포 대상 환경의 연결 상태와 인프라 구성을 봐요. 환경을 고르는 건 배포할 때 해요." />
+      <PageHeader mock={isMocked('listTargets')} overline="Environments" title={t('환경')} description={t('배포 대상 환경의 연결 상태와 인프라 구성을 봐요. 환경을 고르는 건 배포할 때 해요.')} />
 
       <div className="page__row page__row--3">
-        {targets.data.map((t) => (
-          <Panel key={t.target_id} title={<EnvTag env={t.type} />} aside={<ConnectionBadge state={t.connection.state} />}>
+        {targets.data.items.map((tg) => (
+          <Panel key={tg.target_id} title={<EnvTag env={tg.type} />} aside={<ConnectionBadge state={tg.connection.state} />}>
             <div>
-              <InfoRow label="유형">{t.runtime ?? t.title ?? '—'}</InfoRow>
-              <InfoRow label={t.location_label ?? '위치'}>{t.location ?? '—'}</InfoRow>
-              <InfoRow label="연결">{t.access_method ?? '—'}</InfoRow>
-              <InfoRow label="공개">{t.exposure ?? '—'}</InfoRow>
-              <InfoRow label="state">{t.state_backend ?? '[미정]'}</InfoRow>
-              <InfoRow label="현재 버전">{t.current_commit ? shortCommit(t.current_commit) : '—'}</InfoRow>
+              <InfoRow label={t('유형')}>{tg.runtime ?? tg.title ?? '—'}</InfoRow>
+              <InfoRow label={t(tg.location_label ?? '위치')}>{tg.location ?? '—'}</InfoRow>
+              <InfoRow label={t('연결')}>{tg.access_method ?? '—'}</InfoRow>
+              <InfoRow label={t('공개')}>{tg.exposure ?? '—'}</InfoRow>
+              <InfoRow label="state">{tg.state_backend ?? t('[미정]')}</InfoRow>
+              <InfoRow label={t('현재 버전')}>{tg.current_commit ? shortCommit(tg.current_commit) : '—'}</InfoRow>
             </div>
             <div className="page__actions">
-              <Button variant="outline" onClick={() => void test(t)}>
-                연결 테스트
+              {/* 실서버 모드에서 A-10 · A-11이 아직 없으면 목업 결과를 실제 환경처럼 보이지 않게 꺼요 (#13 후순위) */}
+              <Button variant="outline" disabled={!probeReady} onClick={() => void test(tg)}>
+                {t('연결 테스트')}
               </Button>
-              <Button variant="ghost" onClick={() => setResourcesOf(t)}>
-                리소스 보기
+              <Button variant="ghost" disabled={!probeReady} onClick={() => setResourcesOf(tg)}>
+                {t('리소스 보기')}
               </Button>
             </div>
           </Panel>
         ))}
       </div>
 
-      <Panel title="환경 추가">
+      <Panel title={t('환경 추가')}>
         <p className="t-body-sm t-muted">
-          퍼블릭 클라우드(소규모 사업자 포함)나 다른 온프레미스 서버를 대상 환경으로 추가해요. 준비된 기준 모듈이 없어도 AI가 deploy.yaml로 Terraform을 처음부터 만들어요.
+          {t('퍼블릭 클라우드(소규모 사업자 포함)나 다른 온프레미스 서버를 대상 환경으로 추가해요. 준비된 기준 모듈이 없어도 AI가 deploy.yaml로 Terraform을 처음부터 만들어요.')}
         </p>
         <div className="page__actions" style={{ alignItems: 'center' }}>
-          <Button variant="outline" disabled title="예선 범위 결정 전이에요">
-            + 환경 추가
+          <Button variant="outline" disabled title={t('예선 범위 결정 전이에요')}>
+            {t('+ 환경 추가')}
           </Button>
           <EnvTag env="azure" />
-          <span className="t-body-sm t-muted">예선 범위 결정 전이에요</span>
+          <span className="t-body-sm t-muted">{t('예선 범위 결정 전이에요')}</span>
         </div>
       </Panel>
 
@@ -85,9 +89,9 @@ function EnvironmentsPage() {
 }
 
 function ConnectionBadge({ state }: { state: Target['connection']['state'] }) {
-  if (state === 'ok') return <StatusBadge tone="success">연결됨</StatusBadge>
-  if (state === 'failed') return <StatusBadge tone="failed">연결 안 됨</StatusBadge>
-  return <StatusBadge tone="queued">확인 전</StatusBadge>
+  if (state === 'ok') return <StatusBadge tone="success">{t('연결됨')}</StatusBadge>
+  if (state === 'failed') return <StatusBadge tone="failed">{t('연결 안 됨')}</StatusBadge>
+  return <StatusBadge tone="queued">{t('확인 전')}</StatusBadge>
 }
 
 function ResourcesDialog({ target, onClose }: { target: Target; onClose: () => void }) {
@@ -97,11 +101,11 @@ function ResourcesDialog({ target, onClose }: { target: Target; onClose: () => v
       open
       onClose={onClose}
       icon="database"
-      title={`${target.title ?? target.name} 리소스`}
-      description="Terraform state에 기록된 리소스예요."
+      title={t('{name} 리소스', { name: target.title ?? target.name })}
+      description={t('Terraform state에 기록된 리소스예요.')}
       actions={
         <Button variant="outline" onClick={onClose}>
-          닫기
+          {t('닫기')}
         </Button>
       }
     >

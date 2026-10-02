@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import InfraBlock from '../../components/InfraBlock.tsx'
+import { t } from '../../i18n/index.ts'
 import { CAPTION_MS, CAPTIONS, FIRST_CAPTION, type TransitionKind } from './captions.ts'
 import './TransitionLoader.css'
 
@@ -47,7 +48,7 @@ function useCaption(kind: TransitionKind) {
     const timer = window.setInterval(() => setIndex((i) => (i + 1) % CAPTIONS.length), CAPTION_MS)
     return () => clearInterval(timer)
   }, [])
-  return index < 0 ? FIRST_CAPTION[kind] : CAPTIONS[index]
+  return t(index < 0 ? FIRST_CAPTION[kind] : CAPTIONS[index])
 }
 
 type TransitionLoaderProps = {
@@ -66,7 +67,7 @@ function TransitionLoader({ kind, meta }: TransitionLoaderProps) {
       <div className="transition-loader__text">
         {/* 단계 변화만 스크린리더에 알려요. 돌아가는 문구는 읽지 않아요 (aria-live 끔) */}
         <h2 className="t-h2" role="status">
-          잠시만 기다려주세요
+          {t('잠시만 기다려주세요')}
         </h2>
         <p className="transition-loader__caption t-body-sm t-muted" aria-hidden="true" key={caption}>
           {caption}

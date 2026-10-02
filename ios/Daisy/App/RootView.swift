@@ -44,21 +44,75 @@ private struct TabStack: View {
     }
 }
 
-/// 좁은 화면: 시스템 탭. 다섯 개가 넘는 메뉴는 시스템이 "더 보기"로 묶어요.
+/// 좁은 화면: 아래에 얇은 글래스 캡슐 탭 바. 글씨 없이 SF Symbols만 보여줘요 (10/1 담당자 결정).
+/// 아이콘만이라 일곱 메뉴가 한 줄에 다 들어가서 시스템 "더 보기"가 없어요. 이름은 VoiceOver로 읽어요.
 private struct TabLayout: View {
     @Environment(Router.self) private var router
-    @Environment(Workspace.self) private var workspace
 
     var body: some View {
-        @Bindable var router = router
-        TabView(selection: $router.tab) {
+        TabStack(tab: router.tab)
+            .id(router.tab)
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
+            // 모든 화면의 스크롤 끝에 조금 여백을 둬요. 탭 바(safeAreaInset) 위로 마지막 줄까지 보여요 (10/1)
+            .contentMargins(.bottom, 40, for: .scrollContent)
+            // 화면 아래 고정 줄(W-06 승인 바)은 이 높이만큼 올라가서 탭 바 위에 놓여요
+            .environment(\.tabBarClearance, SlimTabBar.height + 8)
+            .safeAreaInset(edge: .bottom, spacing: 0) {
+                SlimTabBar()
+                    .padding(.horizontal, 20)
+                    .padding(.bottom, 4)
+            }
+    }
+}
+
+/// 아이콘 탭 한 줄. 선택 표시는 사이드바와 같은 `.fill.tertiary` 알약이 스프링으로 미끄러져요.
+private struct SlimTabBar: View {
+    static let height: CGFloat = 44
+    @Environment(Router.self) private var router
+    @Environment(Workspace.self) private var workspace
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @Namespace private var tint
+
+    var body: some View {
+        HStack(spacing: 0) {
             ForEach(AppTab.allCases) { tab in
-                Tab(tab.title, systemImage: tab.systemImage, value: tab) {
-                    TabStack(tab: tab)
-                }
-                .badge(tab == .deployments ? workspace.awaitingApproval.count : 0)
+                item(tab)
             }
         }
+        .padding(4)
+        .frame(height: Self.height)
+        .glassSurface(in: .capsule)
+    }
+
+    private func item(_ tab: AppTab) -> some View {
+        let selected = router.tab == tab
+        let badge = tab == .deployments ? workspace.awaitingApproval.count : 0
+        return Button {
+            withAnimation(reduceMotion ? nil : .spring(response: 0.32, dampingFraction: 0.86)) { router.tab = tab }
+        } label: {
+            // 선택한 메뉴만 채운 아이콘(cloud.fill · play.fill …). 채운 버전이 없는 심볼은 그대로예요
+            Image(systemName: tab.systemImage)
+                .symbolVariant(selected ? .fill : .none)
+                .font(.system(size: 16, weight: selected ? .semibold : .regular))
+                .foregroundStyle(selected ? AnyShapeStyle(.primary) : AnyShapeStyle(.secondary))
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+                .background {
+                    if selected {
+                        Capsule().fill(.fill.tertiary)
+                            .matchedGeometryEffect(id: "tab", in: tint)
+                    }
+                }
+                // 승인 대기가 있으면 "배포" 아이콘에 점 하나 (숫자는 VoiceOver로)
+                .overlay(alignment: .topTrailing) {
+                    if badge > 0 {
+                        Circle().fill(.red).frame(width: 6, height: 6).offset(x: -12, y: 7)
+                    }
+                }
+                .contentShape(.capsule)
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel(badge > 0 ? String.app("\(tab.title), 승인 대기 \(badge)건") : tab.title)
+        .accessibilityAddTraits(selected ? .isSelected : [])
     }
 }
 
@@ -132,5 +186,5 @@ private struct SidebarResizer: View {
 }
 
 #Preview {
-    RootView().environment(AppModel())
+    RootView().environment(AppModel()).environment(LanguageStore.shared)
 }

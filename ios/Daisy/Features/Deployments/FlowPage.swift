@@ -8,6 +8,7 @@ struct FlowPage<Content: View, Bottom: View>: View {
     let description: String
     @ViewBuilder var content: Content
     @ViewBuilder var bottom: Bottom
+    @Environment(\.tabBarClearance) private var tabBarClearance
 
     init(step: Int, title: String, description: String,
          @ViewBuilder content: () -> Content,
@@ -19,23 +20,47 @@ struct FlowPage<Content: View, Bottom: View>: View {
         self.bottom = bottom()
     }
 
+    /// 단계 표시 · 제목 · 설명은 위쪽 머리줄(`pinnedHeader`, 루트 화면과 같아요: iOS 반투명 · macOS 재질 없음)에 두고, 본문만 스크롤돼요 (10/1)
     var body: some View {
-        ScrollView {
+        scroll
+            .pinnedHeader { header }
+            .flowNavigationTitle(title)
+    }
+
+    /// 아래 고정 줄(W-06 승인 바)이 있을 때만 아래 inset을 둬요.
+    /// 빈 `EmptyView`를 inset에 넣으면 남은 높이를 다 차지해서 스크롤 끝에 화면만큼 빈 공간이 생겼어요 (W-05, 10/1)
+    @ViewBuilder
+    private var scroll: some View {
+        let page = ScrollView {
             VStack(alignment: .leading, spacing: 16) {
-                FlowStepper(current: step)
-                VStack(alignment: .leading, spacing: 4) {
-                    HStack(spacing: 8) {
-                        Text(title).font(.title2.weight(.semibold))
-                        SampleBadge()
-                    }
-                    Text(description).font(.callout).foregroundStyle(.secondary)
-                }
                 content
             }
             .padding(20)
         }
-        .safeAreaInset(edge: .bottom, spacing: 0) { bottom }
-        .flowNavigationTitle(title)
+        if Bottom.self == EmptyView.self {
+            page
+        } else {
+            page.safeAreaInset(edge: .bottom, spacing: 0) { bottom.padding(.bottom, tabBarClearance) }
+        }
+    }
+
+    private var header: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            FlowStepper(current: step)
+            VStack(alignment: .leading, spacing: 4) {
+                HStack(spacing: 8) {
+                    Text(title).font(.title2.weight(.semibold))
+                    SampleBadge()
+                }
+                if !description.isEmpty {
+                    Text(description).font(.callout).foregroundStyle(.secondary)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+            }
+        }
+        .padding(.horizontal, 20)
+        .padding(.top, 10)
+        .padding(.bottom, 10)
     }
 }
 

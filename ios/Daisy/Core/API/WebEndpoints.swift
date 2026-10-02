@@ -8,13 +8,9 @@ private func jsonBody(_ value: some Encodable) -> Data? {
 }
 
 extension Endpoint {
-    /// R-09 (가칭) · W-00 "데모 계정으로 둘러보기 (읽기 전용)". 인증 범위는 9/30 회의 안건
-    static func demoToken() -> Endpoint<AuthToken> {
-        .init(method: "POST", path: "auth/demo")
-    }
-
     /// WR-02 · W-02 연결하기. 응답에 deploy.yaml 검증 결과가 같이 와요
-    static func connectProject(repository: String, branch: String) -> Endpoint<Project> {
+    /// 응답은 `{ project, manifest }`예요 (서버 #59, 웹과 같아요). `manifest`는 서버가 아직 검증하지 않아 null일 수 있어요
+    static func connectProject(repository: String, branch: String) -> Endpoint<ConnectResult> {
         .init(method: "POST", path: "projects",
               body: jsonBody(ConnectProjectBody(repository: repository, branch: branch)),
               idempotencyKey: UUID().uuidString)
@@ -35,10 +31,12 @@ extension Endpoint {
         .init(path: "projects/\(projectID)/targets")
     }
 
-    /// WR-05 · W-04 "인프라 코드 생성 · 검증 시작". W-05b "처음부터 다시 시도", W-08 "다시 시도"도 같은 커밋으로 새 배포를 만들어요
-    static func startDeployment(projectID: String, commit: String, targetIDs: [String]) -> Endpoint<Deployment> {
+    /// WR-05 · W-04 "인프라 코드 생성 · 검증 시작". W-05b "○○만 다시 시도", W-08 "다시 시도"도 같은 커밋으로 새 배포를 만들어요
+    /// 빌드는 `source_version_id`로 골라요 (필수, 서버 #36 · #42: 같은 커밋을 다시 빌드해도 고른 빌드로, 커밋으로 추정하지 않아요). `commit`은 확인용으로 같이 보내요
+    /// 응답은 생성 결과 `{ id, project_id, state }`만 와요 (10/2 01:07 #42) → 화면은 `id`로 진행 화면을 다시 불러와요
+    static func startDeployment(projectID: String, commit: String, sourceVersionID: String, targetIDs: [String]) -> Endpoint<CreatedDeployment> {
         .init(method: "POST", path: "projects/\(projectID)/deployments",
-              body: jsonBody(StartDeploymentBody(commit: commit, targetIds: targetIDs)),
+              body: jsonBody(StartDeploymentBody(sourceVersionId: sourceVersionID, commit: commit, targetIds: targetIDs)),
               idempotencyKey: UUID().uuidString)
     }
 
@@ -47,8 +45,14 @@ extension Endpoint {
         .init(path: "deployments/\(deploymentID)/targets/\(targetID)/script")
     }
 
+    /// W-05b · W-08 다시 시도: 원본 배포에서 고른 환경만 새 배포로 (10/2 09:57 서버 확정, #42). 응답은 생성과 같은 `{ id, project_id, state }`
+    static func retry(_ request: RetryRequest) -> Endpoint<CreatedDeployment> {
+        .init(method: "POST", path: "deployments/\(request.deploymentID)/retry",
+              body: jsonBody(RetryBody(targetIds: request.targetIDs)), idempotencyKey: UUID().uuidString)
+    }
+
     /// WR-14 · W-09 롤백. 이전 성공 배포의 커밋 + 그때 검증된 스크립트로 새 배포가 생기고, plan 승인을 거쳐요
-    static func rollback(deploymentID: String, targetIDs: [String], reason: String) -> Endpoint<Deployment> {
+    static func rollback(deploymentID: String, targetIDs: [String], reason: String) -> Endpoint<CreatedDeployment> {
         .init(method: "POST", path: "deployments/\(deploymentID)/rollback",
               body: jsonBody(RollbackBody(targetIds: targetIDs, reason: reason)), idempotencyKey: UUID().uuidString)
     }
@@ -78,12 +82,13 @@ extension Endpoint {
         .init(method: "DELETE", path: "projects/\(projectID)")
     }
 
-    /// A-07 · W-05b "오류 로그 보기", W-07 로그, W-08 "원인 보기"
+    /// A-07 · W-07 로그, W-08 "원인 보기" (W-05b "오류 로그 보기"는 웹과 같이 스크립트 화면으로 가요)
     static func logs(deploymentID: String, targetID: String? = nil, tail: Int = 200) -> Endpoint<Page<LogLine>> {
         .init(path: "deployments/\(deploymentID)/logs", query: [("target_id", targetID), ("tail", String(tail))])
     }
 }
 
 private struct ConnectProjectBody: Encodable, Sendable { let repository: String; let branch: String }
-private struct StartDeploymentBody: Encodable, Sendable { let commit: String; let targetIds: [String] }
+private struct StartDeploymentBody: Encodable, Sendable { let sourceVersionId: String; let commit: String; let targetIds: [String] }
+private struct RetryBody: Encodable, Sendable { let targetIds: [String] }
 private struct RollbackBody: Encodable, Sendable { let targetIds: [String]; let reason: String }

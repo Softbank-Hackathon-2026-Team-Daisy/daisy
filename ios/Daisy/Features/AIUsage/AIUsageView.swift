@@ -19,8 +19,8 @@ struct AIUsageView: View {
     }
 
     var body: some View {
-        PageScaffold("AI 사용량",
-                     subtitle: "배포마다 AI를 몇 번, 얼마나 썼는지 봐요. 판단이 필요한 생성 · 수정에만 AI를 쓰고, 검증된 스크립트는 재사용해요.") {
+        PageScaffold(.app("AI 사용량"),
+                     subtitle: .app("배포마다 AI를 몇 번, 얼마나 썼는지 봐요. 판단이 필요한 생성 · 수정에만 AI를 쓰고, 검증된 스크립트는 재사용해요.")) {
             deploymentPicker
             Button { Task { await loadList(); await loadDetail() } } label: { Label("새로 고침", systemImage: "arrow.clockwise") }
                 .buttonStyle(.glassCircle)
@@ -29,7 +29,7 @@ struct AIUsageView: View {
             if app.selectedProjectID == nil {
                 NoProjectView()
             } else if deployments.isEmpty && detail.value == nil {
-                ContentUnavailableView("아직 배포가 없어요", systemImage: "cellularbars",
+                ContentUnavailableView("아직 배포가 없어요", systemImage: "chart.bar",
                                        description: Text("배포하면 AI를 몇 번, 얼마나 썼는지 여기서 봐요"))
             } else {
                 LoadStateView(state: detail, retry: { await loadDetail() }) { detail in
@@ -52,7 +52,7 @@ struct AIUsageView: View {
                 Button(AIUsageSummary.pickerTitle(deployment)) { selectedID = deployment.id }
             }
         } label: {
-            Label(deployments.first { $0.id == selectedID }.map { AIUsageSummary.pickerTitle($0) } ?? "배포 선택",
+            Label(deployments.first { $0.id == selectedID }.map { AIUsageSummary.pickerTitle($0) } ?? String.app("배포 선택"),
                   systemImage: "arrow.triangle.branch")
         }
         .menuStyle(.button)
@@ -68,14 +68,15 @@ struct AIUsageView: View {
             VStack(alignment: .leading, spacing: 16) {
                 // iPhone 폭에서도 2×2로 보이게 최소 폭을 150으로
                 AdaptiveGrid(minimumWidth: 150) {
-                    tile("AI 호출", "\(summary.calls)회", "이번 배포")
-                    tile("토큰", summary.tokens.map { $0.formatted() } ?? "—", "입력 + 출력")
-                    tile("비용", summary.costKrw.map { "₩\($0.formatted())" } ?? "—", costNote(summary))
-                    tile("재사용한 환경", "\(summary.reusedTargetIDs.count)곳", reuseNote(summary))
+                    tile(.app("AI 호출"), .app("\(summary.calls)회"), .app("이번 배포"))
+                    tile(.app("토큰"), summary.tokens.map { $0.appFormatted } ?? "—", .app("입력 + 출력"))
+                    tile(.app("비용"), summary.costKrw.map { "₩\($0.appFormatted)" } ?? "—", costNote(summary))
+                    tile(.app("재사용한 환경"), .app("\(summary.reusedTargetIDs.count)곳"), reuseNote(summary))
                 }
-                SectionCard("이 배포의 호출 기록") {
+                SectionCard(.app("이 배포의 호출 기록")) {
                     if summary.rows.isEmpty {
-                        Text("이 배포는 AI를 부르지 않았어요").foregroundStyle(.secondary)
+                        // 빈 목록은 "AI를 안 썼다"는 뜻이 아니에요 (서버 #60): 기록이 아직 안 왔을 수 있어요
+                        Text("호출 기록을 아직 받지 않았어요 — AI를 안 썼다는 뜻은 아니에요").foregroundStyle(.secondary)
                     } else {
                         ViewThatFits(in: .horizontal) {
                             table(summary.rows).frame(minWidth: 720)
@@ -83,7 +84,7 @@ struct AIUsageView: View {
                         }
                     }
                 }
-                InlineAlert(.info, "PoC N-09 (선택)", "비용 표시는 N-09 결과에 따라 달라져요. 범위에서 빠지면 호출 수 · 토큰만 보여줘요.")
+                InlineAlert(.info, .app("PoC N-09 (선택)"), .app("비용 표시는 N-09 결과에 따라 달라져요. 범위에서 빠지면 호출 수 · 토큰만 보여줘요."))
             }
             .padding(20)
         }
@@ -93,13 +94,13 @@ struct AIUsageView: View {
     /// 비용은 추정치예요. 서버가 적용한 환율을 같이 보여줘요. 웹: "추정 · 환율 1,380원 · LLM Claude"
     private func costNote(_ summary: AIUsageSummary) -> String {
         // LLM은 Claude로 확정 (9/30 김승환 담당 결정)
-        (["추정"] + [summary.exchangeRate.map { "환율 \(Int($0).formatted())원" }, "LLM Claude"].compactMap { $0 }).joined(separator: " · ")
+        ([String.app("추정")] + [summary.exchangeRate.map { String.app("환율 \(Int($0).appFormatted)원") }, "LLM Claude"].compactMap { $0 }).joined(separator: " · ")
     }
 
     /// 웹: "온프레미스 · AI 호출 0회"
     private func reuseNote(_ summary: AIUsageSummary) -> String {
-        guard !summary.reusedTargetIDs.isEmpty else { return "없음" }
-        return FlowCopy.join(summary.reusedTargetIDs.map { workspace.name(of: $0) }) + " · AI 호출 0회"
+        guard !summary.reusedTargetIDs.isEmpty else { return .app("없음") }
+        return .app("\(FlowCopy.join(summary.reusedTargetIDs.map { workspace.name(of: $0) })) · AI 호출 0회")
     }
 
     private func tile(_ label: String, _ value: String, _ note: String) -> some View {
@@ -123,8 +124,8 @@ struct AIUsageView: View {
                     EnvTag(type: workspace.type(of: row.targetID))
                     Text(row.task).font(.subheadline)
                     Text(row.attempt).font(.subheadline.monospacedDigit())
-                    Text(row.tokens.map { $0.formatted() } ?? "—").font(.subheadline.monospacedDigit())
-                    Text(row.costKrw.map { "₩\($0.formatted())" } ?? "—").font(.subheadline.monospacedDigit())
+                    Text(row.tokens.map { $0.appFormatted } ?? "—").font(.subheadline.monospacedDigit())
+                    Text(row.costKrw.map { "₩\($0.appFormatted)" } ?? "—").font(.subheadline.monospacedDigit())
                     badge(row.result)
                 }
             }
@@ -137,7 +138,7 @@ struct AIUsageView: View {
                 VStack(alignment: .leading, spacing: 4) {
                     HStack { EnvTag(type: workspace.type(of: row.targetID)); time(row).font(.caption).foregroundStyle(.secondary); Spacer(); badge(row.result) }
                     Text(row.task).font(.subheadline)
-                    Text(["시도 \(row.attempt)", row.tokens.map { "토큰 \($0.formatted())" }, row.costKrw.map { "₩\($0.formatted())" }]
+                    Text([String.app("시도 \(row.attempt)"), row.tokens.map { String.app("토큰 \($0.appFormatted)") }, row.costKrw.map { "₩\($0.appFormatted)" }]
                         .compactMap { $0 }.joined(separator: " · "))
                         .font(.caption).foregroundStyle(.secondary)
                 }
@@ -157,7 +158,7 @@ struct AIUsageView: View {
         switch result {
         case .passed: StatusBadge(text: result.text, color: .green)
         case .failed: StatusBadge(text: result.text, color: .red)
-        case .noCall: StatusBadge(text: result.text, color: .gray)
+        case .noCall, .unknown: StatusBadge(text: result.text, color: .gray)
         }
     }
 

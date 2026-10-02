@@ -12,8 +12,18 @@ struct Project: Decodable, Identifiable, Hashable, Sendable {
     let id: String
     let name: String
     let repository: String?
-    /// 배포 기준 브랜치 (가칭)
+    /// 배포 기준 브랜치. 서버(#38)는 `default_branch`로 줘요. 예전 이름 `branch`도 받아요
     let branch: String?
+
+    private enum CodingKeys: String, CodingKey { case id, name, repository, branch, defaultBranch }
+
+    init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        id = try c.decode(String.self, forKey: .id)
+        name = try c.decode(String.self, forKey: .name)
+        repository = try c.decodeIfPresent(String.self, forKey: .repository)
+        branch = try c.decodeIfPresent(String.self, forKey: .defaultBranch) ?? c.decodeIfPresent(String.self, forKey: .branch)
+    }
 }
 
 // MARK: - 현황 (A-02)
@@ -28,6 +38,12 @@ enum Health: String, ServerEnum {
     static let unknownCase = Health.unknown
 }
 
+/// A-02 현재 배포 확인 결과. `none` = 확인된 참조 없음(배포가 없다는 뜻은 아니에요), `unverified` = 참조는 있지만 확인 실패
+enum CurrentStatus: String, ServerEnum {
+    case none, confirmed, unverified, unknown
+    static let unknownCase = CurrentStatus.unknown
+}
+
 struct TargetStatus: Decodable, Identifiable, Hashable, Sendable {
     struct Release: Decodable, Hashable, Sendable {
         let commit: String
@@ -39,6 +55,8 @@ struct TargetStatus: Decodable, Identifiable, Hashable, Sendable {
     let targetId: String
     let type: TargetType
     let name: String
+    /// `current`를 확인했는지 (10/2 01:10 서버 #42): `confirmed`일 때만 `current`가 와요
+    let currentStatus: CurrentStatus?
     let current: Release?
     let url: URL?
     let health: Health
@@ -86,7 +104,8 @@ enum DeploymentStep: String, ServerEnum {
 }
 
 enum StepState: String, ServerEnum {
-    case running, done, failed, waiting, unknown
+    /// `skipped`: Jenkins가 실행하지 않은 단계(NOT_EXECUTED, 예: daisy-ci의 Trigger CD) → "건너뜀". 값 이름은 서버와 확인 중 (가칭, 웹 #25와 같아요)
+    case running, done, failed, waiting, skipped, unknown
     static let unknownCase = StepState.unknown
 }
 
@@ -106,12 +125,55 @@ struct Deployment: Decodable, Identifiable, Hashable, Sendable {
         let title: String?
         /// 단계 줄 (가칭): W-05 검증 단계, W-07 배포 단계
         let steps: [StepItem]?
-        /// W-08 헬스 요약 (가칭): "200 OK · p95 120ms"
+        /// W-08 헬스 요약 (가칭): "200 OK · 120ms" (헬스체크 1회 측정)
         let healthSummary: String?
         /// W-08 동일성 검증: 이 환경에 올라간 이미지 digest (웹 A-04 `image_digest`)
         let imageDigest: String?
+        /// 이 환경 plan의 승인 상태 (서버 #56). `awaiting_approval`인데 `approved`면 "승인 완료 · 실행 대기"예요
+        let approvalState: ApprovalState?
+        /// apply 명령을 Jenkins에 넘긴 상태 (서버 #56): `queued` · `unknown` · `rejected`
+        let applyDispatch: String?
+
+        enum ApprovalState: String, ServerEnum {
+            case pending, approved, rejected, superseded, expired, unknown
+            static let unknownCase = ApprovalState.unknown
+        }
 
         var id: String { targetId }
+
+        /// 이미 승인했고 apply가 아직 시작 전이에요. 다시 승인하지 않아요 (웹 #64와 같아요)
+        var isApprovedWaiting: Bool { resolvedState == .awaitingApproval && approvalState == .approved }
+
+        private enum CodingKeys: String, CodingKey {
+            case targetId, state, step, stepState, attempt, reusedScript, url, errorSummary, title, steps, healthSummary, imageDigest
+            case approvalState, applyDispatch
+        }
+
+        /// A-04 모양은 서버가 아직 확정 전이라 단계 · 시도는 없을 수 있어요 (서버 안: 확인 전이면 null · 생략).
+        /// 하나가 없다고 배포 화면 전체가 안 뜨지 않게, 없으면 모름(`unknown`) · 시도 0(생성 전)으로 읽어요
+        init(from decoder: Decoder) throws {
+            let c = try decoder.container(keyedBy: CodingKeys.self)
+            targetId = try c.decode(String.self, forKey: .targetId)
+            state = try c.decodeIfPresent(TargetState.self, forKey: .state)
+            step = try c.decodeIfPresent(DeploymentStep.self, forKey: .step) ?? .unknown
+            stepState = try c.decodeIfPresent(StepState.self, forKey: .stepState) ?? .unknown
+            attempt = try c.decodeIfPresent(Int.self, forKey: .attempt) ?? 0
+            reusedScript = try c.decodeIfPresent(Bool.self, forKey: .reusedScript)
+            url = try c.decodeIfPresent(URL.self, forKey: .url)
+            errorSummary = try c.decodeIfPresent(String.self, forKey: .errorSummary)
+            title = try c.decodeIfPresent(String.self, forKey: .title)
+            steps = try c.decodeIfPresent([StepItem].self, forKey: .steps)
+            healthSummary = try c.decodeIfPresent(String.self, forKey: .healthSummary)
+            imageDigest = try c.decodeIfPresent(String.self, forKey: .imageDigest)
+            approvalState = try c.decodeIfPresent(ApprovalState.self, forKey: .approvalState)
+            applyDispatch = try c.decodeIfPresent(String.self, forKey: .applyDispatch)
+        }
+    }
+
+    /// 승인 요청 한 항목: 사용자가 화면에서 본 승인 대기 환경 (10/1 22:39 서버 확정, #36 · #40)
+    struct ApprovalItem: Codable, Hashable, Sendable {
+        let targetId: String
+        let approvalId: String
     }
 
     struct PendingApproval: Decodable, Hashable, Sendable {
@@ -122,6 +184,8 @@ struct Deployment: Decodable, Identifiable, Hashable, Sendable {
     let id: String
     let projectId: String
     let commit: String
+    /// 이 배포가 쓴 빌드 (서버 #36). "다시 시도"가 같은 빌드로 새 배포를 만들 때 써요
+    let sourceVersionId: String?
     let image: String?
     /// 웹 W-09 "버전" 열 (가칭): "v7"
     let version: String?
@@ -130,13 +194,15 @@ struct Deployment: Decodable, Identifiable, Hashable, Sendable {
     let state: DeploymentState
     let targets: [Target]?
     let pendingApproval: PendingApproval?
+    /// 환경별 승인 대기 ID `[{ target_id, approval_id }]` (10/2 00:40 서버 확정, A-04). 승인 요청 `items`에 그대로 담아요
+    let pendingApprovals: [ApprovalItem]?
     let createdBy: String?
     let createdAt: Date?
     let finishedAt: Date?
     /// 롤백도 배포 한 건이에요: `kind: "rollback"`, `rolled_back_from` (WR-14)
     let kind: String?
     let rolledBackFrom: String?
-    /// W-12: 이 배포의 AI 사용량 (9/30 서버: GET /deployments/{id}의 ai_usage)
+    /// 이 배포의 AI 사용량 합계 (예비). 10/1 서버 결정으로 W-12 합계는 plan(A-05), 호출 기록은 ai-usage 목록이 기준이고, 이 값은 그게 없을 때만 써요
     let aiUsage: AIUsage?
 
     /// 롤백도 배포 한 건이에요. 목록 · 알림에서는 일반 배포처럼 보여줘요 (9/30 도영 님).
@@ -187,6 +253,23 @@ struct Plan: Decodable, Sendable {
     let aiUsage: AIUsage?
 
     var hasDelete: Bool { targets.contains { $0.hasDelete } }
+
+    /// 요약(A-05)에 상세(WR-06)의 리소스 행 · plan 원문을 환경별로 붙여요. 상세에 없는 값은 요약 것을 그대로 둬요
+    func merging(_ details: [PlanDetail]) -> Plan {
+        Plan(deploymentId: deploymentId, targets: targets.map { target in
+            guard let detail = details.first(where: { $0.targetId == target.targetId }) else { return target }
+            return Target(targetId: target.targetId, counts: target.counts, hasDelete: target.hasDelete, risks: target.risks,
+                          reusedScript: target.reusedScript, resources: detail.resources ?? target.resources,
+                          summary: target.summary, planText: detail.planText ?? target.planText)
+        }, aiUsage: aiUsage)
+    }
+}
+
+/// WR-06 plan 상세 한 환경: `GET /deployments/{id}/plan?detail=resources` 배열의 원소 (서버 #51)
+struct PlanDetail: Decodable, Sendable {
+    let targetId: String
+    let resources: [PlanResource]?
+    let planText: String?
 }
 
 /// AI 사용량 합계. 원화는 고정 환율로 환산한 추정치예요.
@@ -237,8 +320,9 @@ enum ApprovalDecision: String, Encodable, Sendable {
 
 // MARK: - 커밋 · 파이프라인 (A-06)
 
+/// `queued`: 빌드가 접수됐지만 아직 시작 전 (서버 #38, 웹 W-03 "대기 중")
 enum PipelineStatus: String, ServerEnum {
-    case running, success, failed, unknown
+    case queued, running, success, failed, unknown
     static let unknownCase = PipelineStatus.unknown
 }
 
@@ -246,6 +330,15 @@ struct Build: Decodable, Identifiable, Hashable, Sendable {
     struct Pipeline: Decodable, Hashable, Sendable {
         let status: PipelineStatus
         let runUrl: URL?
+
+        private enum CodingKeys: String, CodingKey { case status, runUrl }
+
+        /// 서버는 상태를 모르면 null을 줘요 (#38) → 알 수 없음
+        init(from decoder: Decoder) throws {
+            let c = try decoder.container(keyedBy: CodingKeys.self)
+            status = try c.decodeIfPresent(PipelineStatus.self, forKey: .status) ?? .unknown
+            runUrl = try c.decodeIfPresent(URL.self, forKey: .runUrl)
+        }
     }
 
     struct DeployedTarget: Decodable, Hashable, Sendable {
@@ -254,19 +347,23 @@ struct Build: Decodable, Identifiable, Hashable, Sendable {
         let deployedAt: Date?
     }
 
+    /// 빌드 한 건의 ID (#38). 같은 커밋을 다시 빌드하면 ID가 달라요. 배포 시작은 이 ID로 골라요 (#36)
+    let sourceVersionId: String?
     let commit: String
-    let message: String
-    let author: String
+    /// 커밋 메시지 · 작성자 · 시각은 서버가 아직 주지 않아요 (#38 "미제공") → 화면은 "—"
+    let message: String?
+    let author: String?
     let committedAt: Date?
     let pipeline: Pipeline
     let image: String?
-    let deployedTo: [DeployedTarget]
+    let deployedTo: [DeployedTarget]?
     /// W-03 이미지 카드 · 단계 (가칭)
     let branch: String?
-    let digest: String?
+    /// 서비스가 하나면 이미지 digest, 둘 이상이면 null (#38)
+    let imageDigest: String?
     let steps: [StepItem]?
 
-    var id: String { commit }
+    var id: String { sourceVersionId ?? commit }
 }
 
 // MARK: - 인증 (R-02)
@@ -278,4 +375,19 @@ struct AuthToken: Decodable, Sendable {
 
     /// 데모 읽기 전용 계정 (R-03). 승인하면 403이 와요.
     var isViewer: Bool { role == "viewer" }
+}
+
+extension Deployment {
+    /// 승인 요청에 실을 항목: 화면에서 승인 대기로 보여준 환경마다 `approval_id`.
+    /// 서버는 A-04 `pending_approvals`로만 줘요 (10/2 00:40 #40 답). 못 찾은 환경은 빼고, 비면 화면이 요청을 막아요 (빈 `items`는 400)
+    func approvalItems(for targetIDs: [String]) -> [ApprovalItem] {
+        targetIDs.compactMap { id in pendingApprovals?.first { $0.targetId == id } }
+    }
+}
+
+/// 배포를 만든 응답 (배포 시작 · 다시 시도 · 롤백): `{ id, project_id, state }` (10/2 01:07 서버 #42). 나머지는 A-04로 다시 읽어요
+struct CreatedDeployment: Decodable, Sendable {
+    let id: String
+    let projectId: String?
+    let state: DeploymentState?
 }

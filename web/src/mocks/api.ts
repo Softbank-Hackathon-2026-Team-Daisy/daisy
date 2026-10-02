@@ -1,4 +1,4 @@
-import type { AiUsageItem, AuthToken, Deployment, DeploymentTarget, ListResponse, Script } from '../api/types.ts'
+import type { AiUsageItem, AuthToken, Deployment, DeploymentTarget, ListResponse, Me, Script, Target, TargetStatus } from '../api/types.ts'
 import * as s from './scenario.ts'
 
 // MOCK: 서버 대신 응답하는 목업 API. 모양은 SPEC.md §6과 같아요. 서버가 열리면 VITE_USE_MOCK=false로 꺼요
@@ -21,6 +21,7 @@ class MockError extends Error {
 let live: { startedAt: number; approvedAt: number | null } | null = null
 let buildStartedAt: number | null = null
 let connectedAt: number | null = null
+let mockRole: 'owner' | 'viewer' = 'owner'
 
 function liveDeployment(): Deployment {
   if (!live) throw new MockError(404, 'NOT_FOUND', '배포를 찾을 수 없어요')
@@ -28,7 +29,6 @@ function liveDeployment(): Deployment {
   const base = clone(s.deployments.dep_generate)
   const set = (i: number, patch: Partial<DeploymentTarget>) => Object.assign(base.targets[i], patch)
   base.id = 'dep_live'
-  base.pending_approval = null
 
   if (live.approvedAt === null) {
     if (t < 3) {
@@ -44,7 +44,6 @@ function liveDeployment(): Deployment {
       // W-05와 같은 모습: AWS 시도 2/3
     } else {
       base.state = 'awaiting_approval'
-      base.pending_approval = { approval_id: 'apv_live', kind: 'plan' }
       const done = clone(s.deployments.dep_approve).targets
       base.targets.forEach((_, i) => set(i, { ...done[i] }))
     }
@@ -59,7 +58,6 @@ function liveDeployment(): Deployment {
     const preparing = clone(s.deployments.dep_approve)
     preparing.id = 'dep_live'
     preparing.state = 'running'
-    preparing.pending_approval = null
     return preparing
   }
   if (a < 9) {
@@ -70,8 +68,14 @@ function liveDeployment(): Deployment {
   return result
 }
 
+// 승인 대기 환경마다 승인 ID (A-04 pending_approvals, #46)
+function withApprovals(d: Deployment): Deployment {
+  d.pending_approvals = d.targets.filter((t) => t.state === 'awaiting_approval').map((t) => ({ target_id: t.target_id, approval_id: `apv_${d.id}_${t.target_id}` }))
+  return d
+}
+
 function findDeployment(id: string): Deployment {
-  if (id === 'dep_live') return liveDeployment()
+  if (id === 'dep_live') return withApprovals(liveDeployment())
   const d = s.deployments[id] ?? s.history.find((h) => h.id === id)
   if (!d) throw new MockError(404, 'NOT_FOUND', '배포를 찾을 수 없어요')
   return clone(d)
@@ -80,21 +84,27 @@ function findDeployment(id: string): Deployment {
 export const mockApi = {
   async login(username: string, password: string): Promise<AuthToken> {
     await wait(400)
+    if (username === 'demo') mockRole = 'viewer'
     if (username === 'demo') return { access_token: 'mock-viewer', expires_at: new Date(Date.now() + 3_600_000).toISOString(), role: 'viewer' }
     if (!username || password !== 'daisy') throw new MockError(401, 'UNAUTHENTICATED', '아이디나 비밀번호가 맞지 않아요')
-    return { access_token: 'mock-admin', expires_at: new Date(Date.now() + 3_600_000).toISOString(), role: 'admin' }
+    mockRole = 'owner'
+    return { access_token: 'mock-owner', expires_at: new Date(Date.now() + 3_600_000).toISOString(), role: 'owner' }
+  },
+  async me(): Promise<Me> {
+    await wait(100)
+    return mockRole === 'viewer' ? { account_id: 'acc_viewer', username: 'demo', role: 'viewer' } : { account_id: 'acc_owner', username: '김도영', role: 'owner' }
   },
   async listProjects() {
     await wait()
     return { items: clone(s.projects), next_cursor: null }
   },
-  async getTargetsStatus(_projectId: string) {
+  async getTargetsStatus(_projectId: string): Promise<ListResponse<TargetStatus>> {
     await wait()
-    return clone(s.targetStatus)
+    return { items: clone(s.targetStatus), next_cursor: null }
   },
-  async listTargets(_projectId: string) {
+  async listTargets(_projectId: string): Promise<ListResponse<Target>> {
     await wait()
-    return clone(s.targets)
+    return { items: clone(s.targets), next_cursor: null }
   },
   async listDeployments(_projectId: string, state?: string): Promise<ListResponse<Deployment>> {
     await wait()
@@ -106,6 +116,11 @@ export const mockApi = {
     return findDeployment(id)
   },
   async createDeployment(_projectId: string, _commit: string, _targetIds: string[]) {
+    await wait(400)
+    live = { startedAt: Date.now(), approvedAt: null }
+    return liveDeployment()
+  },
+  async retry(_id: string, _targetIds: string[]) {
     await wait(400)
     live = { startedAt: Date.now(), approvedAt: null }
     return liveDeployment()
@@ -148,7 +163,7 @@ export const mockApi = {
     const items = clone(s.builds)
     if (Date.now() - buildStartedAt > 6000) {
       items[0].pipeline.status = 'success'
-      items[0].pipeline.steps = items[0].pipeline.steps?.map((st) => ({ ...st, state: 'done' }))
+      items[0].pipeline.steps = items[0].pipeline.steps?.map((st) => (st.state === 'skipped' ? st : { ...st, state: 'done' }))
     }
     return { items, next_cursor: null }
   },

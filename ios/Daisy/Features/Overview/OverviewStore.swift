@@ -23,9 +23,10 @@ extension [TargetStatus] {
     }
 }
 
-/// "세 환경", "두 환경" 같은 우리말 수
+/// "세 환경", "두 환경" 같은 우리말 수. 한국어가 아니면 숫자 그대로예요 ("3 environments")
 func koreanCount(_ n: Int) -> String {
-    switch n {
+    guard AppLanguage.current == .korean else { return n.appFormatted }
+    return switch n {
     case 1: "한"
     case 2: "두"
     case 3: "세"

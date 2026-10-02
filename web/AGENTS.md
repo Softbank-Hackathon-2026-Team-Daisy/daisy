@@ -9,7 +9,7 @@
 배포 흐름 **전체**를 돌리는 웹 대시보드예요 (ADR-007): 저장소 연결, 환경 선택, plan 확인 · 승인, 병렬 배포 진행, 결과 · 이력.
 
 - 화면: W-00 ~ W-14 (W-02b는 범위 제외), 전환 로딩 L-01 ~ L-03 (`SPEC.md` §2)
-- 웹은 GitHub, 클라우드 API, Terraform에 직접 붙지 않아요. 모든 데이터는 Daisy 서버 API를 거쳐요
+- 웹은 GitHub, 클라우드 API, Terraform에 직접 붙지 않아요. 모든 데이터는 Unibloom 서버 API를 거쳐요
 - 화면은 Figma [와이어프레임 v1.0](https://www.figma.com/design/5nqU4xotMh5jcsaDqOcTST/Team-Daisy-%EC%98%88%EC%84%A0?node-id=0-1), 모양은 [디자인 시스템](https://www.figma.com/design/5nqU4xotMh5jcsaDqOcTST/Team-Daisy-%EC%98%88%EC%84%A0?node-id=2-4)을 따라요 (둘 다 9/30 확정)
 
 ## 2. 이 파트가 의존하는 계약
@@ -171,6 +171,7 @@ web/
    ├─ pages/               화면 단위 폴더 (SPEC.md §3-1), loading/captions.ts, flow.ts, dev/(확인 페이지)
    ├─ api/                 types · client · realtime(SSE) · endpoints · status · useResource · auth
    ├─ mocks/               MOCK 데이터만 (§4): scenario · api · workspace
+   ├─ i18n/                화면 언어 (index: t() · 언어 설정, messages: 영어 · 일본어 사전)
    ├─ utils/format.ts      시간 · 커밋 · 소요 시간 · 원화 표시
    └─ paths.ts             화면 경로 (SPEC.md §2-6)
 ```
@@ -185,7 +186,11 @@ web/
 - `attempt`는 "시도 n/3"으로 보여줘요. 첫 생성을 포함한 총 시도 횟수라 1부터 시작하고, AI 수정은 최대 2번이에요. "재시도 횟수"로 쓰지 않아요
 - AI 비용은 "추정"과 적용 환율을 같이 보여줘요
 - 이미지 태그는 커밋 해시예요. `mono`로 보여주고 `latest`를 쓰지 않아요
-- 사용자에게 보이는 문구는 한국어 해요체
+- 사용자에게 보이는 문구는 한국어 해요체로 쓰고 `t('원문')`으로 감싸요 (#75). 한국어 원문이 키이고, 영어 · 일본어는 `src/i18n/messages.ts`에 넣어요. 앱 번역(`ios/Daisy/Resources/Localizable.xcstrings`)에 같은 원문이 있으면 같은 번역을 써요
+  - 변수가 들어가면 문장 하나로: `t('{name} 연결을 해제할까요?', { name })`. 조각을 이어 붙이지 않아요
+  - 모듈 상수에 문구를 둘 때는 한국어로 두고, 그릴 때 `t(item.label)`로 바꿔요 (언어를 바꾸면 화면을 다시 그려서)
+  - 서버가 보내는 문장(`error.message`, plan 위험 설명, 헬스 · 재사용 문구 등)은 번역하지 않고 받은 그대로 보여줘요 (#74 안 A)
+  - 번역이 빠지면 원문(한국어)이 나오고, 개발 모드 콘솔에 `[i18n] 번역 없음`이 떠요
 
 ## 8. 실행 방법
 
@@ -199,7 +204,7 @@ pnpm build    # tsc -b + vite build
 pnpm lint     # oxlint — 경고 0으로 유지
 ```
 
-- 환경 변수는 `.env.example`을 `.env.local`로 복사해서 써요: `VITE_API_BASE_URL`(서버 주소), `VITE_USE_MOCK`(기본 `true`, 실서버면 `false`)
+- 환경 변수는 `.env.example`을 `.env.local`로 복사해서 써요: `VITE_API_BASE_URL`(서버 주소), `VITE_USE_MOCK`(기본 `true`. `false`면 서버에 열린 API만 실서버, 나머지는 목업 + 배지 — `src/api/endpoints.ts`의 `SERVER_READY`에 서버가 연 API 이름을 더해요)
 - 목업 로그인: 비밀번호 `daisy` (아이디 `demo`는 읽기 전용). 토큰은 메모리에만 있어서 새로고침하면 다시 로그인해요
 - 화면별 고정 상태: `/projects/prj_monolith/deployments/{dep_generate · dep_stuck · dep_approve · dep_apply · dep_result}/…` — W-05 · W-05b · W-06 · W-07 · W-08을 바로 볼 수 있어요. `dep_live`는 시간이 흐르며 W-04 → W-08을 끝까지 진행해요
 - 개발용 확인 페이지: `/dev/tokens` · `/dev/components` · `/dev/primitives` — Figma와 라이트 · 다크로 비교해요
@@ -236,7 +241,16 @@ pnpm lint     # oxlint — 경고 0으로 유지
 | 9/30 | 목업 시나리오는 와이어프레임 예시 값, 화면별 고정 배포 ID + 시간이 흐르는 `dep_live` | 서버 없이 모든 화면과 전체 흐름을 확인 · 시연하려고 | 1 |
 | 9/30 | 토큰은 메모리에만, 역할만 context로 (새로고침 시 재로그인) | 브라우저 저장소에 토큰을 두지 않아요 (SPEC §3-2) | 1 |
 | 9/30 | 롤백 · 연결 해제 확인 문구는 프로젝트 이름 | 환경이 여러 개라 환경 이름으로는 하나를 고를 수 없어서 | 1 |
-| 9/30 | W-14: Mac은 GitHub Releases 고정 주소 `mac-latest/Daisy.dmg`, iPhone은 TestFlight. 값은 `MacAppDialog.tsx` 상수 한 곳 | 승준 님 결정 (PR #9, 9/30 20:32 고정 주소로 바뀜). 새 빌드가 나와도 웹은 안 바꿔요 | 3 (앱 확정) |
+| 9/30 | W-14: Mac은 GitHub Releases 고정 주소 `mac-latest/Unibloom.dmg`(10/1 파일 이름 변경), iPhone은 TestFlight. 값은 `MacAppDialog.tsx` 상수 한 곳 | 승준 님 결정 (PR #9, 9/30 20:32 고정 주소로 바뀜). 새 빌드가 나와도 웹은 안 바꿔요 | 3 (앱 확정) |
+| 10/1 | W-03에 Jenkins 로그 링크를 두지 않아요. 단계는 서버가 넘겨준 것만 | Jenkins 화면은 배포 키가 있어 외부 비공개 (#17 인프라 답) | 1 |
 | 10/1 | 상태를 바꾸는 요청은 `useAction`으로 — 버튼 한 번에 요청 · `Idempotency-Key` 하나, 누르는 동안 비활성 | 두 번 누르면 배포가 두 개 생기던 문제 (#18 리뷰) | 1 |
 | 10/1 | 폴링 간격은 `POLL_MS`(5초) 한 곳, 끝난 빌드 · 배포는 멈춰요 | 서버와 합의한 5초 (9/29), 끝난 걸 계속 부르지 않으려고 | 1 |
+| 10/2 | 삭제 · 롤백 확인 단어는 A-12 프로젝트 이름, 못 불러오면 통과시키지 않아요 | 서버가 승인 대기를 만들 때 고정한 이름과 비교해요 (#49 리뷰) | 1 |
+| 10/2 | SSE는 "다시 읽어" 신호로만 써요 — 이벤트 내용으로 화면 상태를 쌓지 않고 스냅샷 API를 다시 불러요. 로그(`log.batch`)만 이벤트 내용을 그대로 써요 | 서버 스냅샷이 단일 진실이고, 재생 · resync가 와도 화면이 어긋나지 않게 | 1 |
+| 10/2 | 프로젝트 채널은 AppLayout에서 하나만 붙이고(`ProjectLiveContext`), 배포 채널은 배포 화면마다 하나 | 서버가 계정당 SSE 연결을 4개로 제한해요 | 1 |
+| 10/2 | 다시 시도는 `POST /deployments/{id}/retry { target_ids }` (새 배포를 만드는 경로 대신) | 서버가 원래 배포와 같은 빌드를 고정해 줘서 (은현 · 승준 · 웹 합의, #42) | 2 |
+| 10/2 | 서버가 아직 안 주는 `version` · 단계(`step`) · 시도(`attempt`)는 짧은 커밋 · 상태 추정 · "—"로 대신 | 없는 값을 만들지 않는 서버 원칙(#46)과 맞추려고 | 1 |
+| 10/2 | 실서버 연결은 API 단위로 켜요 (`SERVER_READY`). 아직 없는 API는 목업으로 답하고 그 화면에 MOCK 배지 | 서버 API가 나눠서 열려서, 열린 것부터 바로 붙이고 데모도 이어서 할 수 있게 | 1 |
+| 10/2 | 실서버 모드의 데모 버튼은 안내만 하고 viewer 비밀번호를 웹에 넣지 않아요 | 서버가 `/auth/demo`를 안 만들고 계정을 따로 전달하기로 해서 (#13) | 1 |
+| 10/2 | 화면 언어 한국어 · English · 日本語 (기본값 브라우저 언어), `t()` + 원문 키 사전, 라이브러리 없음. 요청에 `Accept-Language` | 앱(#73)과 같은 방식 · 같은 번역으로 맞추려고. 서버 문장은 그대로 (#74 안 A, #75) | 1 |
 | 10/1 | 403은 `errorMessage()` 공통 문구, viewer는 시작 · 다시 시도 · 승인 · 롤백 버튼 비활성 | 화면마다 따로 처리하던 것을 한 곳으로 (#18 리뷰) | 1 |

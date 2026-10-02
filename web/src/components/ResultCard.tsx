@@ -1,4 +1,5 @@
 import type { ReactNode } from 'react'
+import { t } from '../i18n/index.ts'
 import type { EnvType } from './env.ts'
 import EnvTag from './EnvTag.tsx'
 import Icon from './Icon.tsx'
@@ -17,7 +18,7 @@ type ResultCardProps = {
 function ResultCard({ env, tone, label, url, health, actions }: ResultCardProps) {
   return (
     <section
-      aria-label="배포 결과"
+      aria-label={t('배포 결과')}
       style={{
         display: 'flex',
         flexDirection: 'column',

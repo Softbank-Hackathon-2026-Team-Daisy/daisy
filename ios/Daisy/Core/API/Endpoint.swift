@@ -52,8 +52,13 @@ extension Endpoint {
     }
 
     /// A-05 · D3. `detail`이면 환경별 리소스 전체 목록까지 (WR-06, W-06 리소스 행)
-    static func plan(deploymentID: String, detail: Bool = false) -> Endpoint<Plan> {
-        .init(path: "deployments/\(deploymentID)/plan", query: [("detail", detail ? "resources" : nil)])
+    static func plan(deploymentID: String) -> Endpoint<Plan> {
+        .init(path: "deployments/\(deploymentID)/plan")
+    }
+
+    /// WR-06 · W-06 리소스 행: 요약과 따로, 환경별 배열 `[{ target_id, resources[], plan_text }]`로 와요 (서버 #51)
+    static func planDetail(deploymentID: String) -> Endpoint<[PlanDetail]> {
+        .init(path: "deployments/\(deploymentID)/plan", query: [("detail", "resources")])
     }
 
     /// A-06 · D3
@@ -66,12 +71,13 @@ extension Endpoint {
         deploymentID: String,
         decision: ApprovalDecision,
         confirmText: String? = nil,
+        items: [Deployment.ApprovalItem] = [],
         idempotencyKey: String = UUID().uuidString
     ) -> Endpoint<EmptyResponse> {
         .init(
             method: "POST",
             path: "deployments/\(deploymentID)/approvals",
-            body: try? JSONEncoder.daisy.encode(ApprovalRequest(decision: decision, confirmText: confirmText)),
+            body: try? JSONEncoder.daisy.encode(ApprovalRequest(decision: decision, confirmText: confirmText, items: items.isEmpty ? nil : items)),
             idempotencyKey: idempotencyKey
         )
     }
@@ -82,4 +88,6 @@ struct ApprovalRequest: Encodable, Sendable {
     var kind = "plan"
     let decision: ApprovalDecision
     let confirmText: String?
+    /// 사용자가 본 승인 대기 환경 전부 `[{ target_id, approval_id }]` (10/1 22:39 서버 확정). 비면 400이라 화면이 보내기 전에 막아요
+    let items: [Deployment.ApprovalItem]?
 }

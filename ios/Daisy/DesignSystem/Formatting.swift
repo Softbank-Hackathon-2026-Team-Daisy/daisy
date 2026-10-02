@@ -3,10 +3,10 @@ import SwiftUI
 extension TargetType {
     var displayName: String {
         switch self {
-        case .onprem: "온프레미스"
+        case .onprem: .app("온프레미스")
         case .aws: "AWS"
         case .gcp: "GCP"
-        case .unknown: "알 수 없는 환경"
+        case .unknown: .app("알 수 없는 환경")
         }
     }
 }
@@ -14,9 +14,9 @@ extension TargetType {
 extension Health {
     var badge: StatusBadge {
         switch self {
-        case .healthy: StatusBadge(text: "정상", color: .green)
-        case .unhealthy: StatusBadge(text: "이상", color: .red)
-        case .unknown: StatusBadge(text: "확인 전", color: .gray)
+        case .healthy: StatusBadge(text: .app("정상"), color: .green)
+        case .unhealthy: StatusBadge(text: .app("이상"), color: .red)
+        case .unknown: StatusBadge(text: .app("확인 전"), color: .gray)
         }
     }
 }
@@ -25,14 +25,14 @@ extension DeploymentState {
     var badge: StatusBadge {
         switch self {
         // 문구는 웹 Status Badge와 같아요. 색은 앱 패턴.
-        case .queued: StatusBadge(text: "대기 중", color: .gray)
-        case .running: StatusBadge(text: "진행 중", color: .blue)
-        case .awaitingApproval: StatusBadge(text: "승인 대기", color: .orange)
-        case .succeeded: StatusBadge(text: "성공", color: .green)
-        case .partiallySucceeded: StatusBadge(text: "일부 성공", color: .orange)
-        case .failed: StatusBadge(text: "실패", color: .red)
-        case .cancelled: StatusBadge(text: "취소됨", color: .gray)
-        case .unknown: StatusBadge(text: "알 수 없음", color: .gray)
+        case .queued: StatusBadge(text: .app("대기 중"), color: .gray)
+        case .running: StatusBadge(text: .app("진행 중"), color: .blue)
+        case .awaitingApproval: StatusBadge(text: .app("승인 대기"), color: .orange)
+        case .succeeded: StatusBadge(text: .app("성공"), color: .green)
+        case .partiallySucceeded: StatusBadge(text: .app("일부 성공"), color: .orange)
+        case .failed: StatusBadge(text: .app("실패"), color: .red)
+        case .cancelled: StatusBadge(text: .app("취소됨"), color: .gray)
+        case .unknown: StatusBadge(text: .app("알 수 없음"), color: .gray)
         }
     }
 }
@@ -40,7 +40,7 @@ extension DeploymentState {
 extension Deployment {
     /// 웹 `deploymentStatus`: 롤백 배포가 성공하면 "롤백됨"(보라), 나머지는 전체 상태 그대로.
     var badge: StatusBadge {
-        if isRollback && state == .succeeded { return StatusBadge(text: "롤백됨", color: .purple) }
+        if isRollback && state == .succeeded { return StatusBadge(text: .app("롤백됨"), color: .purple) }
         return state.badge
     }
 }
@@ -48,16 +48,16 @@ extension Deployment {
 extension TargetState {
     var badge: StatusBadge {
         switch self {
-        case .waiting: StatusBadge(text: "대기 중", color: .gray)
-        case .generating: StatusBadge(text: "생성 중", color: .blue)
-        case .validating: StatusBadge(text: "검증 중", color: .blue)
-        case .awaitingApproval: StatusBadge(text: "승인 대기", color: .orange)
-        case .applying: StatusBadge(text: "배포 중", color: .blue)
-        case .verifying: StatusBadge(text: "확인 중", color: .blue)
-        case .succeeded: StatusBadge(text: "성공", color: .green)
-        case .failed: StatusBadge(text: "실패", color: .red)
-        case .cancelled: StatusBadge(text: "취소됨", color: .gray)
-        case .unknown: StatusBadge(text: "알 수 없음", color: .gray)
+        case .waiting: StatusBadge(text: .app("대기 중"), color: .gray)
+        case .generating: StatusBadge(text: .app("생성 중"), color: .blue)
+        case .validating: StatusBadge(text: .app("검증 중"), color: .blue)
+        case .awaitingApproval: StatusBadge(text: .app("승인 대기"), color: .orange)
+        case .applying: StatusBadge(text: .app("배포 중"), color: .blue)
+        case .verifying: StatusBadge(text: .app("확인 중"), color: .blue)
+        case .succeeded: StatusBadge(text: .app("성공"), color: .green)
+        case .failed: StatusBadge(text: .app("실패"), color: .red)
+        case .cancelled: StatusBadge(text: .app("취소됨"), color: .gray)
+        case .unknown: StatusBadge(text: .app("알 수 없음"), color: .gray)
         }
     }
 }
@@ -79,13 +79,13 @@ extension Deployment.Target {
 extension DeploymentStep {
     var displayName: String {
         switch self {
-        case .generate: "생성"
+        case .generate: .app("생성")
         case .validate: "validate"
         case .plan: "plan"
-        case .riskCheck: "위험 설정 검사"
+        case .riskCheck: .app("위험 설정 검사")
         case .apply: "apply"
-        case .healthCheck: "헬스체크"
-        case .unknown: "알 수 없는 단계"
+        case .healthCheck: .app("헬스체크")
+        case .unknown: .app("알 수 없는 단계")
         }
     }
 }
@@ -96,7 +96,7 @@ extension StepState {
         case .running: .blue
         case .done: .green
         case .failed: .red
-        case .waiting, .unknown: .gray
+        case .waiting, .skipped, .unknown: .gray
         }
     }
 }
@@ -104,10 +104,11 @@ extension StepState {
 extension PipelineStatus {
     var badge: StatusBadge {
         switch self {
-        case .running: StatusBadge(text: "빌드 중", color: .blue)
-        case .success: StatusBadge(text: "성공", color: .green)
-        case .failed: StatusBadge(text: "실패", color: .red)
-        case .unknown: StatusBadge(text: "알 수 없음", color: .gray)
+        case .queued: StatusBadge(text: .app("대기 중"), color: .gray)
+        case .running: StatusBadge(text: .app("빌드 중"), color: .blue)
+        case .success: StatusBadge(text: .app("성공"), color: .green)
+        case .failed: StatusBadge(text: .app("실패"), color: .red)
+        case .unknown: StatusBadge(text: .app("알 수 없음"), color: .gray)
         }
     }
 }
@@ -125,7 +126,7 @@ extension RiskLevel {
 
 extension Deployment.Target {
     /// 최초 생성을 포함한 총 시도 횟수. 재시도 횟수가 아니에요.
-    var attemptText: String { "시도 \(attempt)/3" }
+    var attemptText: String { String.app("시도 \(attempt)/3") }
 
     /// 환경별 상태. 서버가 `state`를 안 주면 단계 · 단계 상태로 추정해요.
     var resolvedState: TargetState {
@@ -143,23 +144,25 @@ extension Deployment.Target {
     /// W-05 · W-05b 환경별 한 줄과 배지 (웹 `flow.ts` generateRow와 같은 규칙):
     /// "AI 생성 · validate 실행 중 · 시도 1/3", "재사용 · 이미지 태그만 교체 · 시도 1/3 통과", "3회 실패 · 중단"
     var generateRow: (note: String, badge: StatusBadge) {
-        let how = reusedScript == true ? "재사용 · 이미지 태그만 교체" : "AI 생성"
+        let how: String = reusedScript == true ? String.app("재사용 · 이미지 태그만 교체") : String.app("AI 생성")
+        // 웹 #64: 승인했고 apply 시작 전이면 "승인 완료 · 실행 대기" · 승인됨
+        if isApprovedWaiting { return (.app("승인 완료 · 실행 대기"), StatusBadge(text: .app("승인됨"), color: .green)) }
         switch resolvedState {
         case .failed:
-            return ("\(attempt)회 실패 · 중단", StatusBadge(text: "실패", color: .red))
+            return (.app("\(attempt)회 실패 · 중단"), StatusBadge(text: .app("실패"), color: .red))
         case .awaitingApproval, .applying, .verifying, .succeeded:
-            return ("\(how) · \(attemptText) 통과", StatusBadge(text: "검증 통과", color: .green))
+            return (.app("\(how) · \(attemptText) 통과"), StatusBadge(text: .app("검증 통과"), color: .green))
         case .waiting:
-            return ("대기 중", TargetState.waiting.badge)
+            return (.app("대기 중"), TargetState.waiting.badge)
         case .generating:
             return ("\(how) · \(attemptText)", TargetState.generating.badge)
         case .cancelled:
-            return ("취소됨", TargetState.cancelled.badge)
+            return (.app("취소됨"), TargetState.cancelled.badge)
         case .validating, .unknown:
             if errorSummary != nil {
-                return ("\(how) · 위험 설정 발견 → AI 수정 중 · \(attemptText)", StatusBadge(text: "검증 중", color: .blue))
+                return (.app("\(how) · 위험 설정 발견 → AI 수정 중 · \(attemptText)"), StatusBadge(text: .app("검증 중"), color: .blue))
             }
-            return ("\(how) · \(step.displayName) 실행 중 · \(attemptText)", StatusBadge(text: "검증 중", color: .blue))
+            return (.app("\(how) · \(step.displayName) 실행 중 · \(attemptText)"), StatusBadge(text: .app("검증 중"), color: .blue))
         }
     }
 
@@ -171,9 +174,9 @@ extension Deployment.Target {
         let done = [.awaitingApproval, .applying, .verifying, .succeeded].contains(state)
         let current = order.firstIndex(of: step) ?? -1
         return order.enumerated().map { index, step in
-            let label = switch step {
-            case .generate: reusedScript == true ? "스크립트 재사용" : "Terraform 생성 (AI)"
-            case .riskCheck: "위험 설정 검사"
+            let label: String = switch step {
+            case .generate: reusedScript == true ? String.app("스크립트 재사용") : .app("Terraform 생성 (AI)")
+            case .riskCheck: .app("위험 설정 검사")
             default: "terraform \(step.displayName)"
             }
             let itemState: StepState = done || index < current ? .done
@@ -194,7 +197,7 @@ extension Deployment.Target {
         case .failed: step == .healthCheck ? 3 : 1
         default: 0
         }
-        return ["이미지 pull", "terraform apply", "state 저장", "헬스체크"].enumerated().map { index, label in
+        return [String.app("이미지 pull"), "terraform apply", .app("state 저장"), .app("헬스체크")].enumerated().map { index, label in
             let itemState: StepState = index < current ? .done
                 : index == current ? (state == .failed ? .failed : state == .succeeded ? .done : .running)
                 : .waiting
@@ -205,15 +208,15 @@ extension Deployment.Target {
 
 extension Plan.Target.Counts {
     /// 웹과 같은 표기: "리소스 +6 ~0 −0" (빼기는 U+2212).
-    var summaryText: String { "리소스 +\(create) ~\(update) \u{2212}\(delete)" }
+    var summaryText: String { String.app("리소스 +\(create) ~\(update) \u{2212}\(delete)") }
 }
 
 extension AIUsage {
     /// 고정 환율로 환산한 추정치라 "추정"과 환율을 같이 보여줘요. 웹 승인 바: "₩206 (추정, 환율 1,380원)"
     var costText: String? {
         guard let costKrw else { return nil }
-        let rate = exchangeRate.map { ", 환율 \(Int($0).formatted())원" } ?? ""
-        return "₩\(costKrw.formatted()) (추정\(rate))"
+        guard let rate = exchangeRate else { return .app("₩\(costKrw.appFormatted) (추정)") }
+        return .app("₩\(costKrw.appFormatted) (추정, 환율 \(Int(rate).appFormatted)원)")
     }
 }
 
@@ -242,10 +245,10 @@ enum TimeText {
     /// 웹 relativeTime: 방금 · n분 전 · n시간 전(오늘) · 어제 · M/D
     static func relative(_ date: Date, now: Date = .now, calendar: Calendar = .current) -> String {
         let minutes = Int(max(0, now.timeIntervalSince(date)) / 60)
-        if minutes < 1 { return "방금" }
-        if minutes < 60 { return "\(minutes)분 전" }
-        if calendar.isDate(date, inSameDayAs: now) { return "\(minutes / 60)시간 전" }
-        if let yesterday = calendar.date(byAdding: .day, value: -1, to: now), calendar.isDate(date, inSameDayAs: yesterday) { return "어제" }
+        if minutes < 1 { return .app("방금") }
+        if minutes < 60 { return .app("\(minutes)분 전") }
+        if calendar.isDate(date, inSameDayAs: now) { return .app("\(minutes / 60)시간 전") }
+        if let yesterday = calendar.date(byAdding: .day, value: -1, to: now), calendar.isDate(date, inSameDayAs: yesterday) { return .app("어제") }
         let parts = calendar.dateComponents([.month, .day], from: date)
         return "\(parts.month ?? 0)/\(parts.day ?? 0)"
     }

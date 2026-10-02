@@ -48,6 +48,9 @@ struct AIUsageSummaryTests {
     @Test func resultMeansLLMCallStatus() {
         #expect(AIUsageSummary.Result.passed.text == "호출 성공")
         #expect(AIUsageSummary.Result.failed.text == "호출 실패")
+        // 서버가 모르는 값을 보내면 성공으로 보이지 않게 "—" (10/1 스펙 대조)
+        #expect(AIUsageSummary.Result(.unknown).text == "—")
+        #expect(AIUsageSummary.Result(.succeeded) == .passed)
     }
 
     /// 합계는 plan에서, 호출 기록은 ai-usage 목록에서 받아요. 확인 못 한 토큰 · 비용은 0이 아니라 비워 둬요

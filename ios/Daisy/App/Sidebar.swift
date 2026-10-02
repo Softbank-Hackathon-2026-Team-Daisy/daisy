@@ -64,7 +64,8 @@ struct Sidebar: View {
                 .frame(width: 26, height: 26)
                 .clipShape(.rect(cornerRadius: 7))
                 .accessibilityHidden(true)
-            Text("daisy").font(.system(size: 17, weight: .semibold, design: .monospaced))
+            // 워드마크는 서비스 이름 "unibloom" 소문자 (10/1 이름 변경, 웹 Logo와 같아요)
+            Text("unibloom").font(.system(size: 17, weight: .semibold, design: .monospaced))
         }
         .padding(.horizontal, 10)
         .padding(.top, 4)
@@ -101,7 +102,7 @@ struct Sidebar: View {
                     .frame(width: 28, height: 28)
                     .background(.fill.secondary, in: .rect(cornerRadius: 7))
                 VStack(alignment: .leading, spacing: 1) {
-                    Text(workspace.project?.name ?? "프로젝트 없음").font(.subheadline.weight(.medium)).lineLimit(1)
+                    Text(workspace.project?.name ?? String.app("프로젝트 없음")).font(.subheadline.weight(.medium)).lineLimit(1)
                     Text(projectDetail).font(.caption.monospaced()).foregroundStyle(.secondary).lineLimit(1)
                 }
                 Spacer(minLength: 0)
@@ -207,9 +208,9 @@ struct Sidebar: View {
 
     private func text(_ health: Health) -> String {
         switch health {
-        case .healthy: "정상"
-        case .unhealthy: "이상"
-        case .unknown: "확인 전"
+        case .healthy: .app("정상")
+        case .unhealthy: .app("이상")
+        case .unknown: .app("확인 전")
         }
     }
 
@@ -224,9 +225,9 @@ struct Sidebar: View {
     /// 웹 사용자 줄: 아바타 · 이름 · 역할
     private var user: some View {
         HStack(spacing: 10) {
-            Avatar(name: app.username)
+            Avatar(name: app.displayName)
             VStack(alignment: .leading, spacing: 1) {
-                Text(app.username ?? "로그인됨").font(.subheadline.weight(.medium)).lineLimit(1)
+                Text(app.displayName ?? String.app("로그인됨")).font(.subheadline.weight(.medium)).lineLimit(1)
                 Text(app.isSampleMode ? "예시 데이터 · 읽기 전용" : app.isViewer ? "읽기 전용" : "팀 계정").font(.caption).foregroundStyle(.secondary)
             }
             Spacer(minLength: 0)

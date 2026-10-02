@@ -11,12 +11,12 @@ struct BuildStage: View {
     @State private var build: Build?
 
     var body: some View {
-        FlowPage(step: 2, title: "이미지 빌드",
-                 description: "main merge를 감지했어요. Jenkins가 이미지를 만들고 있어요.") {
+        FlowPage(step: 2, title: .app("이미지 빌드"),
+                 description: .app("main merge를 감지했어요. Jenkins가 이미지를 만들고 있어요.")) {
             HStack(spacing: 10) {
                 pipelineBadge
                 if let current { CommitLabel(commit: current) }
-                Text(build?.message ?? "").font(.subheadline).lineLimit(1)
+                Text(build.map { $0.message ?? "—" } ?? "").font(.subheadline).lineLimit(1)
                 Spacer(minLength: 8)
                 if let author = build?.author { Avatar(name: author) }
             }
@@ -30,16 +30,16 @@ struct BuildStage: View {
                     // Jenkins 화면은 배포 키가 있어서 외부에 공개하지 않아요 → 로그 열기 버튼 없음 (10/1 임채준 답, PR #17)
                     ForEach(steps, id: \.self) { StepItemRow($0) }
                 }
-                SectionCard("이미지") {
-                    InfoRow("커밋", current.map { String($0.prefix(7)) }, monospaced: true)
-                    InfoRow("브랜치", build?.branch ?? workspace.project?.branch, monospaced: true)
-                    InfoRow("이미지", build?.image, monospaced: true)
-                    InfoRow("digest", build?.digest, monospaced: true)
+                SectionCard(.app("이미지")) {
+                    InfoRow(.app("커밋"), current.map { String($0.prefix(7)) }, monospaced: true)
+                    InfoRow(.app("브랜치"), build?.branch ?? workspace.project?.branch, monospaced: true)
+                    InfoRow(.app("이미지"), build?.image, monospaced: true)
+                    InfoRow("digest", build?.imageDigest, monospaced: true)
                     ConnectionIndicator(state: workspace.connection)
                 }
             }
             if build?.pipeline.status == .failed {
-                InlineAlert(.danger, "빌드 · 테스트가 실패했어요", "빌드 단계에서 원인을 확인해 주세요. 실패한 이미지는 배포하지 않아요.")
+                InlineAlert(.danger, .app("빌드 · 테스트가 실패했어요"), .app("빌드 단계에서 원인을 확인해 주세요. 실패한 이미지는 배포하지 않아요."))
             }
         }
         // 빌드가 끝나면(성공 · 실패) 멈춰요
@@ -51,9 +51,10 @@ struct BuildStage: View {
 
     private var pipelineBadge: StatusBadge {
         switch build?.pipeline.status {
-        case .success: StatusBadge(text: "빌드 완료", color: .green)
-        case .failed: StatusBadge(text: "빌드 실패", color: .red)
-        default: StatusBadge(text: "빌드 중", color: .blue)
+        case .success: StatusBadge(text: .app("빌드 완료"), color: .green)
+        case .failed: StatusBadge(text: .app("빌드 실패"), color: .red)
+        case .queued: StatusBadge(text: .app("대기 중"), color: .gray)
+        default: StatusBadge(text: .app("빌드 중"), color: .blue)
         }
     }
 
