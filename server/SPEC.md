@@ -1540,3 +1540,64 @@ Jenkins `daisy-ci` 가 끝나면 결과를 `POST /internal/jenkins/builds` 로 �
 
 - 회귀 테스트 `BuildRegistryPostgresTest.concurrentReceiptsSameProject`: 실제 `BuildReceipt` · `EventJournal` 로, 같은 프로젝트의 다른 빌드(`daisy-ci#1` · `#2`) 2건이 저장 직후 서로를 기다리게 만들어요. 잠금이 없으면 `deadlock detected` 로 실패하고, 잠금 후에는 둘 다 저장되고 `build.received` 2건이 남아요.
 - PostgreSQL 17 실DB로 `./gradlew spotlessApply check build --rerun-tasks --no-daemon`: 219개 통과, 건너뜀 0.
+
+## 스크립트 목록 WR-10 (10/2, 하은현)
+
+### 범위
+
+`GET /projects/{id}/scripts?target_id=` 로 검증된 Terraform 스크립트 목록을 줍니다 (W-11). 설계 5.12 가 "script — 승환 수집, 은현 조회" 라 조회는 제 몫입니다. 파일 내용(WR-07)은 서버가 원본 참조(`artifact_ref`)만 갖고 있어 이번 범위가 아닙니다.
+
+- 권한: `requireRead`. 비멤버·없는 프로젝트 404, viewer 200. `target_id` 를 주면 그 대상만, 그 프로젝트 대상이 아니면 404.
+- 데이터: `script`·`deployment_target`·`plan_revision`·`target` 을 읽기 전용 SQL 로 읽습니다. `server/AGENTS.md` §3 예외 목록에 `script` 를 더합니다.
+- 봉투 `{ items, next_cursor }`. 대상당 버전이 몇 개라 한 번에 주고 `next_cursor` 는 null 입니다 (500 행 상한). 앱 `Page<Script>` 와 같고, 웹은 배열로 받고 있어 봉투로 맞춰 달라고 알립니다.
+- 순서: `target_id`, 버전 내림차순.
+
+### 한 줄
+
+| 필드 | 출처 | 비고 |
+|---|---|---|
+| `script_id` | `script.id` | |
+| `target_id` · `type` | `script.target_id`, `target.environment_type` | |
+| `version` | `"s" + script.version` | 앱·웹이 문자열 `"s2"` 로 받음 |
+| `origin` | 처음 검증한 대상(`source_deployment_target_id`)의 `ai_reused`·`attempt` | 재사용이면 `reused`, 재사용이 아니고 시도가 1 이상이면 `ai_generated`, 그 밖(AI 없이 기준 모듈을 쓴 경로 `USE_AI=false`, 출처 미확인)은 null. 재사용이 아니라는 것만으로 AI 생성이라고 하지 않음 (#68 승환님 리뷰) |
+| `attempt` | 처음 검증한 대상의 `attempt` | 통과한 시도 (1~3). 0 이면 A-04 와 같이 null (S2) |
+| `validation` | `{ validate, plan, risks }` | `validate` 는 늘 true (`validated_at` 이 있어야 저장됨). `plan` 은 이 스크립트로 만든 plan 이 있으면 true. `risks` 는 가장 최근 plan 의 `summary.risks` 개수, plan 이 없으면 null |
+| `status` | `unavailable_at`·`artifact_expires_at` | 원본을 쓸 수 없거나 보관 기한이 지났으면 `discarded`, 아니면 `verified` |
+| `reuse_count` | 이 스크립트를 쓴 대상 중 `ai_reused = true` 이고 `status = 'succeeded'` 인 수 | 성공한 재사용만 셈. 실패·취소·진행 중인 재사용은 빼요 (#68 승준님 제안) |
+| `last_used_at` | 이 스크립트를 쓴 대상의 `finished_at`(없으면 `started_at`) 중 가장 늦은 것 | 쓴 적 없으면 null |
+| `created_at` | `script.validated_at` | 원천 검증 완료 시각 |
+| `files` | 없음 | 넣지 않음 (WR-07) |
+
+`note`·`base_commit`·`input`·`ai_tokens`·`storage` 는 원천이 없어 넣지 않습니다.
+
+### 검증 계획
+
+| | 검사 | 기대 |
+|---|---|---|
+| S1 | 토큰 없음 / 비멤버 / viewer | 401 / 404 / 200 |
+| S2 | 스크립트 3개 (대상 둘, 한 대상은 버전 2개) | 대상 순, 버전 내림차순, `version: "s2"` 형식 |
+| S3 | 재사용 2번 쓴 스크립트 | `reuse_count: 2`, `last_used_at` 이 가장 늦은 사용 |
+| S4 | plan 이 있는 스크립트 / 없는 스크립트 | `plan: true`, `risks` 개수 / `plan: false`, `risks: null` |
+| S5 | `unavailable_at` 있음 | `discarded` |
+| S6 | `target_id` 필터 / 다른 프로젝트 대상 | 그 대상만 / 404 |
+| S7 | 다른 프로젝트 스크립트 | 섞이지 않음 |
+
+### 검증 결과 (10/2 오후)
+
+단위 테스트 3개, 실DB 테스트 2개(`ScriptReaderPostgresTest`, 프로젝트 2개·대상 3개·배포 대상 5개·스크립트 4개·plan 1개), 빈 PostgreSQL 17 에 jar 로 띄운 실서버로 확인했습니다.
+
+| | 결과 |
+|---|---|
+| S1 | 토큰 없음 401 / 비멤버 프로젝트 404 / viewer 200 |
+| S2 | 봉투, `next_cursor: null`, 대상 순·버전 내림차순, `version: "s2"`, `type` 대상 환경, 필드 11개 |
+| S3 | 재사용 2번 쓴 스크립트 `reuse_count: 2`, `last_used_at` 이 가장 늦게 끝난 사용 (실DB) |
+| S4 | plan 이 있는 스크립트 `plan` 1개·`risks: 2`, 없는 스크립트 0개·null (실DB) |
+| S5 | `unavailable_at` 있음·보관 기한 지남 → `discarded`, 기한 전 → `verified` (단위) |
+| S6 | `target_id` 필터는 그 대상만, 다른 프로젝트 대상 404 |
+| S7 | 다른 프로젝트 스크립트 섞이지 않음 (실DB) |
+| S8 | OpenAPI 파라미터 `projectId`·`target_id`, `principal` 0건, 서버 로그 ERROR 0건 |
+
+- 재사용 수에서 `ai_reused` 조건을 빼면 실DB 테스트가 실패하는 것을 확인했습니다.
+- #68 승준님 제안으로 `reuse_count` 는 성공한 재사용(`status = 'succeeded'`)만 셉니다. 실DB 테스트에 실패한 재사용 대상을 하나 더 넣어 빠지는 것을 확인했고, 이 조건을 빼면 테스트가 실패합니다 (3 ≠ 2).
+- 실서버에서 처음 검증한 대상의 `attempt` 가 0 인 경우가 `attempt: 0` 으로 나와, A-04 와 같이 null 로 바꿨습니다 (S2). 실제로는 AI 생성 뒤에만 스크립트가 생겨 1 이상입니다.
+- #68 승환님 리뷰로 `origin` 판정을 고쳤습니다. 재사용이 아니라는 것만으로 `ai_generated` 라고 하지 않고, 생성 시도(1 이상)가 있을 때만 그렇게 봅니다. AI 없이 기준 모듈을 쓴 경로는 null 입니다. 단위 테스트를 더했고, 실서버에서 시도 0 픽스처가 `origin: null` 로 나오는 것을 다시 확인했습니다.
