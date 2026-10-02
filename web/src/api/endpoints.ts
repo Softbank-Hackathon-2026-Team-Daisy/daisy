@@ -43,6 +43,9 @@ const SERVER_READY = new Set<string>([
   // #51: A-05 plan 요약 · WR-06 리소스 목록 (W-06)
   'getPlan',
   'getPlanDetail',
+  // #42: SSE 채널 (useRealtime)
+  'projectEvents',
+  'deploymentEvents',
 ])
 
 /** 이 API를 목업으로 답하는지 — 화면이 MOCK 배지를 붙일지 정할 때 써요 */
@@ -198,3 +201,9 @@ export const api = {
 
 /** 목업으로 답하는 API가 하나라도 있으면 true — 화면 MOCK 배지 기본값 */
 export const SOME_MOCKED = USE_MOCK || Object.keys(api).some((n) => !SERVER_READY.has(n))
+
+// SSE 채널 경로 (WR-01, #42) — 연결은 useRealtime이 해요
+export const events = {
+  project: (projectId: string) => `/projects/${projectId}/events`,
+  deployment: (deploymentId: string) => `/deployments/${deploymentId}/events`,
+}

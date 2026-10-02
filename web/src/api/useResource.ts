@@ -2,6 +2,8 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 
 // 서버 SSE 전 폴링 간격 (합의 5초)
 export const POLL_MS = 5000
+// SSE가 붙어 있을 때 놓친 이벤트를 메우는 안전망 간격
+export const POLL_MS_LIVE = 30_000
 
 // 데이터를 불러오는 공통 훅. pollMs를 주면 서버 SSE 전까지 그 간격으로 다시 불러와요 (D2 5초 폴링)
 // done(data)가 true면 폴링을 멈춰요 — 끝난 배포 · 빌드는 더 부르지 않아요

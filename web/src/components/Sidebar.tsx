@@ -150,8 +150,8 @@ function Sidebar({ projectId, collapsed, canToggle, onToggle, onOpenMacApp }: Si
       </div>
 
       <hr className="sidebar__divider" />
-      {/* SSE를 붙이기 전까지는 5초 폴링이라 "실시간 연결됨"으로 보이지 않게 해요. api/realtime을 붙이면 실제 값으로 */}
-      <ConnectionIndicator state="polling" compact={collapsed} />
+      {/* 프로젝트 채널(SSE) 상태 — 목업 · 서버 채널이 없으면 "5초마다 새로고침" */}
+      <ConnectionIndicator state={ws.live} compact={collapsed} />
 
       <div className="sidebar__user">
         {/* 한글 이름은 Figma처럼 성을 뺀 첫 글자 */}
