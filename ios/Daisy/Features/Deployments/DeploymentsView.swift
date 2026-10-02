@@ -17,12 +17,11 @@ struct DeploymentsView: View {
             } else {
                 LoadStateView(state: store.list, retry: { await store.refresh(using: app) }) { all in
                     if let latest = all.first {
+                        // iPhone: "새 배포"는 머리줄 제목 "배포"와 같은 줄 오른쪽 위에 둬요 (10/3). 시스템 내비게이션 바는 숨겨요
                         RunView(deploymentID: latest.id).id(latest.id)
-                            .toolbar {
-                                if tabBarClearance > 0 {
-                                    ToolbarItem(placement: .primaryAction) { newDeploymentButton }
-                                }
-                            }
+                            .environment(\.flowHeaderAccessory, tabBarClearance > 0
+                                         ? AnyView(newDeploymentButton.buttonStyle(.glassCircle).help("새 배포")) : nil)
+                            .hidesSystemTitleBar()
                     } else {
                         empty {
                             ContentUnavailableView("아직 배포가 없어요", systemImage: "play",

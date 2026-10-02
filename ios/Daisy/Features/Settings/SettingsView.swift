@@ -2,6 +2,7 @@ import SwiftUI
 
 /// W-13 설정: 이 프로젝트의 저장소 연결(프로젝트 상세), 배포 명세(WR-03), 비밀값, 알림. 맨 아래에 앱 설정(언어 · 서버 · 계정 · 버전).
 struct SettingsView: View {
+    @Environment(\.tabBarClearance) private var tabBarClearance
     @Environment(AppModel.self) private var app
     @Environment(Router.self) private var router
     @Environment(Workspace.self) private var workspace
@@ -114,8 +115,11 @@ struct SettingsView: View {
             InfoRow(.app("계정"), app.displayName)
             InfoRow(String.app("권한"), app.isViewer ? String.app("읽기 전용") : String.app("승인 가능"))
             InfoRow(.app("버전"), Bundle.main.versionText)
-            Button("로그아웃", role: .destructive) { app.signOut() }
-                .buttonStyle(.glassCapsule)
+            // 사이드바가 있는 화면(Mac · iPad)은 사이드바 계정 줄에서 로그아웃해요. 아래 탭 바(iPhone)에서만 여기 둬요 (10/3)
+            if tabBarClearance > 0 {
+                Button("로그아웃", role: .destructive) { app.signOut() }
+                    .buttonStyle(.glassCapsule)
+            }
         }
     }
 

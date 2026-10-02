@@ -1,6 +1,6 @@
 import SwiftUI
 
-/// 배포 흐름 화면(W-02 ~ W-08) 공통 틀: 스텝퍼 → 제목 → 설명 → 내용.
+/// 배포 흐름 화면(W-02 ~ W-08) 공통 틀: 제목 "배포" · 단계 표시 → 내용. 지금 단계 이름과 설명은 제목 말풍선에 있어요 (10/3).
 /// 웹은 화면 ID overline(`W-06 · STEP 5`)을 두지만 와이어프레임 표식이라 앱에는 넣지 않아요.
 struct FlowPage<Content: View, Bottom: View>: View {
     let step: Int
@@ -9,6 +9,7 @@ struct FlowPage<Content: View, Bottom: View>: View {
     @ViewBuilder var content: Content
     @ViewBuilder var bottom: Bottom
     @Environment(\.tabBarClearance) private var tabBarClearance
+    @Environment(\.flowHeaderAccessory) private var flowHeaderAccessory
 
     init(step: Int, title: String, description: String,
          @ViewBuilder content: () -> Content,
@@ -44,24 +45,25 @@ struct FlowPage<Content: View, Bottom: View>: View {
         }
     }
 
+    /// 머리줄: 제목 "배포"(누르면 지금 단계 이름 · 설명 말풍선)와 오른쪽 위 버튼(iPhone "새 배포") 한 줄, 그 아래 단계 표시 (10/3)
     private var header: some View {
         VStack(alignment: .leading, spacing: 10) {
-            FlowStepper(current: step)
-            VStack(alignment: .leading, spacing: 4) {
-                HStack(spacing: 8) {
-                    Text(title).font(.title2.weight(.semibold))
-                    SampleBadge()  // SAMPLE-MODE
-                }
-                if !description.isEmpty {
-                    Text(description).font(.callout).foregroundStyle(.secondary)
-                        .fixedSize(horizontal: false, vertical: true)
-                }
+            HStack(alignment: .center, spacing: 10) {
+                HeaderTitle(.app(LocalizedStringResource("flow.title", defaultValue: "배포")), info: description, infoTitle: title)
+                Spacer(minLength: 8)
+                if let flowHeaderAccessory { flowHeaderAccessory }
             }
+            FlowStepper(current: step)
         }
         .padding(.horizontal, 20)
-        .padding(.top, 10)
+        .padding(.top, 14)
         .padding(.bottom, 10)
     }
+}
+
+extension EnvironmentValues {
+    /// 배포 흐름 머리줄 오른쪽 위에 둘 버튼 (iPhone 배포 탭의 "새 배포")
+    @Entry var flowHeaderAccessory: AnyView? = nil
 }
 
 /// 흐름 화면 아래쪽 버튼 줄 (웹: 왼쪽 정렬 버튼 줄)

@@ -1016,6 +1016,38 @@
         }
       }
     },
+    "AI 호출 %lld회" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%lld AI calls"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "AI呼び出し %lld回"
+          }
+        }
+      }
+    },
+    "AI 호출 0회" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "0 AI calls"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "AI呼び出し 0回"
+          }
+        }
+      }
+    },
     "AI 호출 없음" : {
       "localizations" : {
         "en" : {
@@ -1405,6 +1437,29 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "deploy.yaml の secrets に書かれた名前にだけ値を設定します。値は後から表示できません。"
+          }
+        }
+      }
+    },
+    "flow.title" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "배포"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Deploy"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "デプロイ"
           }
         }
       }
@@ -2728,6 +2783,22 @@
         }
       }
     },
+    "배포 %lld건 중 %lld건" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%2$lld of %1$lld deployments"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%1$lld件中 %2$lld件のデプロイ"
+          }
+        }
+      }
+    },
     "배포 결과" : {
       "localizations" : {
         "en" : {
@@ -2872,22 +2943,6 @@
         }
       }
     },
-    "배포 이력" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Deployment history"
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "デプロイ履歴"
-          }
-        }
-      }
-    },
     "배포 중" : {
       "localizations" : {
         "en" : {
@@ -2952,6 +3007,22 @@
         }
       }
     },
+    "배포를 누르면 호출 기록을 봐요" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Tap a deployment to see its call log"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "デプロイをタップすると呼び出し履歴を表示します"
+          }
+        }
+      }
+    },
     "배포를 시작하지 못했어요" : {
       "localizations" : {
         "en" : {
@@ -3012,6 +3083,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "デプロイごとに AI を何回、どれだけ使ったかを確認します。判断が必要な生成・修正にだけ AI を使い、検証済みスクリプトは再利用します。"
+          }
+        }
+      }
+    },
+    "배포별 사용량" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Usage by deployment"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "デプロイ別の使用量"
           }
         }
       }
@@ -3800,6 +3887,22 @@
         }
       }
     },
+    "서버에 아직 없는 기능이에요" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Not available on the server yet"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "サーバーにはまだない機能です"
+          }
+        }
+      }
+    },
     "서버에 연결되지 않았어요" : {
       "localizations" : {
         "en" : {
@@ -3896,18 +3999,18 @@
         }
       }
     },
-    "서버에 아직 없는 기능이에요" : {
+    "설명 보기" : {
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Not available on the server yet"
+            "value" : "Show description"
           }
         },
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "サーバーにはまだない機能です"
+            "value" : "説明を表示"
           }
         }
       }
@@ -5636,6 +5739,22 @@
         }
       }
     },
+    "일부 확인 못 함" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Partly unconfirmed"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "一部未確認"
+          }
+        }
+      }
+    },
     "읽기 전용" : {
       "localizations" : {
         "en" : {
@@ -5844,6 +5963,22 @@
         }
       }
     },
+    "재사용 %lld곳" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%lld reused"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "再利用 %lld件"
+          }
+        }
+      }
+    },
     "재사용 %lld회" : {
       "localizations" : {
         "en" : {
@@ -6044,6 +6179,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "リポジトリの deploy.yaml が基準です。ここでは読み取りのみです。"
+          }
+        }
+      }
+    },
+    "전체 사용량" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "All usage"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "全体の使用量"
           }
         }
       }
@@ -6716,6 +6867,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "確認のためプロジェクト名（%@）を入力してください。"
+          }
+        }
+      }
+    },
+    "확인한 호출만 더했어요" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Only confirmed calls are summed"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "確認できた呼び出しのみ合計しています"
           }
         }
       }

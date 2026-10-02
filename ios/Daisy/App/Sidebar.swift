@@ -3,6 +3,7 @@ import SwiftUI
 /// 넓은 화면의 길잡이. 구성과 문구는 웹 사이드바, 재질 · 행 · 움직임은 AfterPlan 사이드바를 따라요.
 /// 위→아래: 로고 · 프로젝트 전환 · 새 배포 · PROJECT 메뉴 · ENVIRONMENTS · (여백) · AI 사용량 · 설정 · 연결 상태 · 사용자
 struct Sidebar: View {
+    @State private var userHovered = false
     @Environment(AppModel.self) private var app
     @Environment(Router.self) private var router
     @Environment(Workspace.self) private var workspace
@@ -43,11 +44,14 @@ struct Sidebar: View {
             VStack(alignment: .leading, spacing: 2) {
                 ForEach(AppTab.bottomMenu) { row($0) }
                 Divider().padding(.vertical, 6)
-                ConnectionIndicator(state: workspace.connection) {
-                    Task { await workspace.refresh(using: app) }
+                // 계정 줄 오른쪽 끝에 새로고침 상태 심볼 (10/3: 글자 없이 아바타와 같은 높이)
+                HStack(spacing: 6) {
+                    user
+                    ConnectionIndicator(state: workspace.connection, retry: {
+                        Task { await workspace.refresh(using: app) }
+                    }, iconOnly: true)
+                    .padding(.trailing, 10)
                 }
-                .padding(.horizontal, 10)
-                user
             }
             .padding(.horizontal, 10)
             .padding(.bottom, 12)
@@ -222,18 +226,28 @@ struct Sidebar: View {
         }
     }
 
-    /// 웹 사용자 줄: 아바타 · 이름 · 역할
+    /// 웹 사용자 줄: 아바타 · 이름 · 역할. 누르면 로그아웃 (10/3: 사이드바가 있는 화면은 설정 대신 여기서 로그아웃해요)
     private var user: some View {
-        HStack(spacing: 10) {
-            Avatar(name: app.displayName)
-            VStack(alignment: .leading, spacing: 1) {
-                Text(app.displayName ?? String.app("로그인됨")).font(.subheadline.weight(.medium)).lineLimit(1)
-                Text(app.isViewer ? "읽기 전용" : "팀 계정").font(.caption).foregroundStyle(.secondary)
+        Menu {
+            Button("로그아웃", systemImage: "rectangle.portrait.and.arrow.right", role: .destructive) { app.signOut() }
+        } label: {
+            HStack(spacing: 10) {
+                Avatar(name: app.displayName)
+                VStack(alignment: .leading, spacing: 1) {
+                    Text(app.displayName ?? String.app("로그인됨")).font(.subheadline.weight(.medium)).lineLimit(1)
+                    Text(app.isViewer ? "읽기 전용" : "팀 계정").font(.caption).foregroundStyle(.secondary)
+                }
+                Spacer(minLength: 0)
             }
-            Spacer(minLength: 0)
+            .padding(.horizontal, 10)
+            .padding(.vertical, 6)
+            .background(userHovered ? AnyShapeStyle(.fill.quinary) : AnyShapeStyle(.clear), in: .rect(cornerRadius: 8))
+            .contentShape(.rect)
         }
-        .padding(.horizontal, 10)
-        .padding(.top, 6)
+        .menuStyle(.button)
+        .menuIndicator(.hidden)
+        .buttonStyle(.plain)
+        .onHover { userHovered = $0 }
         .accessibilityElement(children: .combine)
     }
 }

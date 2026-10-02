@@ -6,6 +6,7 @@ struct OverviewView: View {
     @Environment(Router.self) private var router
     @Environment(Workspace.self) private var workspace
     @State private var store = OverviewStore()
+    @State private var projectPickerExpanded = false
 
     var body: some View {
         PageScaffold(.app("개요"), subtitle: subtitle) {
@@ -153,31 +154,19 @@ struct OverviewView: View {
 
     // MARK: 프로젝트 · 빈 상태
 
-    /// 좁은 화면에는 사이드바가 없어서 여기서 프로젝트를 바꿔요.
+    /// 좁은 화면에는 사이드바가 없어서 여기서 프로젝트를 바꿔요. 평소엔 폴더 원 버튼, 누르면 이름이 펼쳐지고, 한 번 더 누르면 목록 (10/3)
     @ViewBuilder
     private var projectMenu: some View {
         if !workspace.projects.isEmpty {
-            Menu {
-                Picker("프로젝트", selection: Binding(
-                    get: { app.selectedProjectID ?? "" },
-                    set: { app.selectedProjectID = $0; Task { await refresh() } }
-                )) {
-                    ForEach(workspace.projects) { Text($0.name).tag($0.id) }
-                }
-                Divider()
-                Button { router.open(.connectProject) } label: { Label("새 프로젝트 연결", systemImage: "plus") }
-                    .disabled(app.isViewer)
-            } label: {
-                HStack(spacing: 6) {
-                    Image(systemName: "folder")
-                    Text(workspace.project?.name ?? String.app("프로젝트"))
-                    Image(systemName: "chevron.down").font(.caption2.weight(.semibold))
-                }
-            }
-            .menuStyle(.button)
-            .menuIndicator(.hidden)
-            .buttonStyle(.glassCapsule)
-            .fixedSize()
+            ExpandingMenuButton(systemImage: "folder", title: workspace.project?.name ?? String.app("프로젝트"),
+                                isExpanded: $projectPickerExpanded,
+                                options: workspace.projects.map { project in
+                                    ExpandingMenuOption(id: project.id, title: project.name, isSelected: project.id == app.selectedProjectID) {
+                                        app.selectedProjectID = project.id
+                                        Task { await refresh() }
+                                    }
+                                } + [ExpandingMenuOption(id: "connect", title: .app("새 프로젝트 연결"), systemImage: "plus",
+                                                         isDisabled: app.isViewer, separated: true) { router.open(.connectProject) }])
         }
     }
 

@@ -11,7 +11,7 @@ struct HistoryView: View {
     @State private var toast: ToastMessage?
 
     var body: some View {
-        PageScaffold(.app("배포 이력"), subtitle: .app("버전마다 어떤 이미지와 스크립트로 어느 환경에 배포했는지 남겨요.")) {
+        PageScaffold(.app("이력"), subtitle: .app("버전마다 어떤 이미지와 스크립트로 어느 환경에 배포했는지 남겨요.")) {
             Button { Task { await store.refresh(using: app) } } label: {
                 Label("새로 고침", systemImage: "arrow.clockwise")
             }
