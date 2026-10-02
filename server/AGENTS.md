@@ -176,6 +176,7 @@ docker compose up -d postgres    # Postgres 17
 | 2026-10-02 | **배포 입력 `strategy` 는 `recreate` 만, `hash_format_version` 은 서버가 1 로 고정** | 계약상 recreate 만 지원. 사용자가 해시 형식 번호를 바꾸지 못하게 함 | 1 |
 | 2026-10-02 | **재시도·롤백 때 대상 설정 revision·자격증명 버전이 바뀌면 409, `disconnected` 대상 생성 409 (`unknown` 은 허용하되 연결 성공으로 표시하지 않음)** | 은현 제안, #42 에서 승환 동의. 바뀐 설정으로 진행하려면 새 배포 | 1 |
 | 2026-10-02 | **배포 생성 응답은 소비자 `Deployment` 이름(`id`·`project_id`·`state`)** | 웹이 응답 `id` 로 다음 화면 이동. #42 리뷰 | 1 |
+| 2026-10-02 | **재시도 공개 경로 `POST /deployments/{id}/retry` `{ target_ids }`** | 원본 배포의 빌드·연결을 서버가 이어받아 소비자는 원본 ID 와 대상만 보냄. 승환·승준(#42)·도영(Slack) 동의 | 2 |
 | 2026-10-02 | **#42 조회 연결: 권한 확인 후 프로젝트 반환·대상별 current 결과** | `projectIdOf`는 requireRead 후 반환, 명령 requireWrite는 유지. `currentByTarget`은 포인터 실패만 none/confirmed/unverified로 구분하고 권한·DB 오류는 전파. 기존 current는 호환 유지, [계약](docs/execution-service-contract.md) | 2 (서버 내부 소비자 은현) |
 
 ## 11. 아직 정하지 못한 것

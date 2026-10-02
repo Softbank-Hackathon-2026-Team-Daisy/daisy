@@ -533,7 +533,7 @@ V10 이 핵심이었습니다. 나머지가 다 맞아도 여기서 새면 다�
 | WR-05 | `POST /projects/{id}/deployments` | `{ source_version_id, target_ids[], commit?, strategy? }` | `create` | 201 |
 | W-01 | `POST /deployments/{id}/approvals` | ④ 참고 | `decide` | 202 |
 | WR-08 | `POST /deployments/{id}/cancel` | `{ target_ids[] }` | `cancel` | 202 |
-| (가칭) | `POST /deployments/{id}/retry` | `{ target_ids[] }` | `retry` | 201 |
+| W-05b·W-08 | `POST /deployments/{id}/retry` | `{ target_ids[] }` | `retry` | 201 |
 | WR-14 | `POST /deployments/{id}/rollback` | `{ target_ids[], reason, trigger_deployment_id? }` — `reason` 필수·1000자 이하 (웹은 자동으로 채움) | `rollback` | 201 |
 | E-01 | `GET /deployments/{id}/events` | `Last-Event-ID` 헤더, `?event_type=` | `openDeployment` | SSE |
 | E-02 | `GET /projects/{id}/events` | `Last-Event-ID` 헤더, `?event_type=` | `openProject` | SSE |
@@ -541,7 +541,7 @@ V10 이 핵심이었습니다. 나머지가 다 맞아도 여기서 새면 다�
 - **모든 POST 는 `Idempotency-Key` 헤더가 필수**입니다 (R-05). 없으면 400.
 - **`/deployments/{id}/...` 경로는 `DeploymentQueryService.projectIdOf(actorId, deploymentId)` 로 프로젝트를 찾습니다** (044a436). 없는 배포와 접근할 수 없는 배포는 404 입니다. 조회 권한만 확인하는 메서드라, 변경 권한(viewer 403)은 실행 서비스의 `requireWrite` 가 그대로 봅니다.
 - 다섯 명령의 성공 응답은 생성과 같은 `{ id, project_id, state }` 입니다. 재시도·롤백의 `id` 는 새로 만든 배포입니다.
-- 재시도 경로는 `(가칭)` 입니다. 승환이 찬성했고(#42) 웹·앱 의견을 기다립니다. 내부는 새 배포를 만드는 `retry` 에 연결합니다.
+- 재시도 경로는 확정입니다. 승환(#42)·승준(#42, 10/2 02:50)·도영(Slack, 10/2 09:57)이 동의했습니다. 내부는 새 배포를 만드는 `retry` 에 연결합니다.
 - `actorId` 는 `@CurrentAccount` 에서만 꺼냅니다.
 - 입력 검증은 컨트롤러에서 길이·형식만 보고, 업무 규칙은 실행 서비스와 ② 에 맡깁니다. 같은 검사를 두 곳에 두지 않습니다.
 - `DaisyException` 은 기존 전역 처리기로 보냅니다. 상태 코드는 실행 서비스가 정한 것(생성·재시도·롤백 201, 승인·취소 202)을 그대로 씁니다.
@@ -612,7 +612,7 @@ Idempotency-Key: <키>
 | ③ `recordBuild` | 동의. 기존 빌드를 확인하고 저장값 반환, 새 빌드 등록과 별개 | 확정 |
 | ④ 빌드 결과 저장 | 승환 제안: Jenkins 결과 수신·검증은 승환, `source_version` 등록은 은현 관리 서비스 | **은현 답 대기** |
 | ⑤ `disconnected` 409 | 동의. `unknown` 은 허용하되 연결 성공으로 표시하지 않음 | 확정 |
-| ⑥ 재시도 경로 | 승환 찬성, 웹·앱 의견 묻는 중 | 소비자 답 대기 |
+| ⑥ 재시도 경로 | 승환·승준·도영 동의 | 확정 `POST /deployments/{id}/retry` |
 
 - **A-02 대상별 처리에서 권한 404 를 구분합니다.** 리뷰 지적대로 예전 재조회 방식은 권한 재검사의 404 를 대상 문제로 숨길 수 있었습니다. 승환의 `currentByTarget()`(044a436)으로 바꾸고 재조회 처리를 지웠습니다. 권한 오류는 조회 서비스가 그대로 올립니다.
 - **생성 응답 이름을 소비자 모델에 맞췄습니다.** `deployment_id`·`status` → `id`·`state`, `project_id` 추가.
@@ -624,7 +624,7 @@ Idempotency-Key: <키>
 | ① | `ExecutionAccess` 어댑터 | `project/access/ExecutionAccessAdapter` | 완료 |
 | ② | `ExecutionInputs` 어댑터 | `project/execution/ExecutionInputsAdapter` | 완료. 확인 ②·⑤ 는 제안대로 넣고 메서드 하나씩으로 분리 |
 | ③ | `POST /projects/{id}/deployments`·`GET /projects/{id}/events` | `project/web/DeploymentRequestController` | 완료 |
-| ③ | `/deployments/{id}/...` 경로 (승인·취소·재시도·롤백·배포 SSE) | `project/web/DeploymentCommandController` | 완료 (`projectIdOf` 사용, 재시도 경로는 (가칭)) |
+| ③ | `/deployments/{id}/...` 경로 (승인·취소·재시도·롤백·배포 SSE) | `project/web/DeploymentCommandController` | 완료 (`projectIdOf` 사용) |
 | ④ | 승인 요청 변환 | `project/web/ApprovalRequest` | 완료 (컨트롤러는 ③ 대기) |
 | ⑤ | A-02 `current`·A-06 `deployed_to` | `project/application/DeploymentHistoryReader` | 완료 |
 
