@@ -69,7 +69,7 @@ function TargetsPage() {
         description={t('여러 환경을 동시에 고를 수 있어요. 같은 이미지({commit})가 모든 환경에 배포돼요.', { commit: shortCommit(commit) })}
       />
 
-      <div className="page__row page__row--3">
+      <div className="page__row page__row--envs">
         {list.map((tg) => (
           <EnvSelectCard
             key={tg.target_id}

@@ -17,7 +17,7 @@ import Stepper from '../../components/Stepper.tsx'
 import Toast from '../../components/Toast.tsx'
 import { t } from '../../i18n/index.ts'
 import { paths } from '../../paths.ts'
-import { shortCommit } from '../../utils/format.ts'
+import { shortCommit, shortDigest } from '../../utils/format.ts'
 import { failedStep, names, versionLabel } from '../flow.ts'
 import { ErrorBlock, LoadingBlock } from '../Loading.tsx'
 import ReadOnlyNote from '../ReadOnlyNote.tsx'
@@ -58,7 +58,7 @@ function ResultView({ d }: { d: Deployment }) {
 
   const values = (pick: (tg: DeploymentTarget) => string | null) => Object.fromEntries(d.targets.map((tg) => [tg.target_id, pick(tg)]))
   const rows: ParityRow[] = [
-    { label: t('이미지 digest'), values: values((tg) => tg.image_digest ?? null), failed: d.targets.filter((tg) => base && tg.image_digest && tg.image_digest !== base.image_digest).map((tg) => tg.target_id) },
+    { label: t('이미지 digest'), values: values((tg) => tg.image_digest ?? null), failed: d.targets.filter((tg) => base && tg.image_digest && tg.image_digest !== base.image_digest).map((tg) => tg.target_id), format: shortDigest },
     { label: t('커밋'), values: values(() => shortCommit(d.commit)) },
     { label: t('배포 버전'), values: values(() => versionLabel(d)) },
     { label: t('헬스체크'), values: values((tg) => (tg.state === 'succeeded' ? (tg.health_summary ?? '—') : tg.state === 'failed' ? (tg.health_summary ?? t('실패')) : null)), failed: bad.map((tg) => tg.target_id) },
@@ -78,7 +78,7 @@ function ResultView({ d }: { d: Deployment }) {
       <Stepper current={6} />
       <PageHeader mock={isMocked('getDeployment', 'retry')} overline="Step 6" title={t('배포 결과')} badge={<StatusBadge tone={status.tone}>{status.label}</StatusBadge>} description={description} />
 
-      <div className="page__row page__row--3">
+      <div className="page__row page__row--envs">
         {d.targets.map((tg) => {
           const s = targetStatus(tg.state)
           const failed = tg.state === 'failed'

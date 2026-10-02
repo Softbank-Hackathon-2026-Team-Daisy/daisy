@@ -43,7 +43,7 @@ function EnvironmentsPage() {
     <div className="page">
       <PageHeader mock={isMocked('listTargets')} overline="Environments" title={t('환경')} description={t('배포 대상 환경의 연결 상태와 인프라 구성을 봐요. 환경을 고르는 건 배포할 때 해요.')} />
 
-      <div className="page__row page__row--3">
+      <div className="page__row page__row--envs">
         {targets.data.items.map((tg) => (
           <Panel key={tg.target_id} title={<EnvTag env={tg.type} />} aside={<ConnectionBadge state={tg.connection.state} />}>
             <div>
@@ -75,8 +75,7 @@ function EnvironmentsPage() {
           <Button variant="outline" disabled title={t('예선 범위 결정 전이에요')}>
             {t('+ 환경 추가')}
           </Button>
-          <EnvTag env="azure" />
-          <span className="t-body-sm t-muted">{t('예선 범위 결정 전이에요')}</span>
+          <span className="t-body-sm t-muted">{t('예선에서는 온프레미스 · AWS · GCP · Azure 4개 환경을 써요')}</span>
         </div>
       </Panel>
 

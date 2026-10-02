@@ -19,7 +19,7 @@ import TransitionGate from '../loading/TransitionGate.tsx'
 import { ErrorBlock, LoadingBlock } from '../Loading.tsx'
 import '../page.css'
 
-// W-07 배포 중 (STEP 5) — 환경별 terraform apply를 레인 3개로. 로그는 배포 채널(SSE) log.batch로 받고,
+// W-07 배포 중 (STEP 5) — 환경별 terraform apply를 환경 수만큼 레인으로. 로그는 배포 채널(SSE) log.batch로 받고,
 // 채널이 없으면(목업) A-07을 5초 폴링해요. 배포가 끝나면 멈춰요
 const APPLY_STARTED = new Set(['applying', 'verifying', 'succeeded', 'failed'])
 const FINISHED = new Set(['succeeded', 'partially_succeeded', 'failed', 'cancelled'])
@@ -79,7 +79,7 @@ function ProgressView({ d, sseLines }: { d: Deployment; sseLines: LiveLogLine[] 
         description={t('{n}개 환경에 terraform apply를 동시에 실행하고 있어요. 환경마다 state는 따로 저장해요.', { n: d.targets.length })}
       />
 
-      <div className="page__row page__row--3">
+      <div className="page__row page__row--envs">
         {d.targets.map((tg) => {
           const s = targetStatus(tg.state)
           return <DeployLane key={tg.target_id} env={tg.type} region={tg.title ?? tg.target_id} tone={s.tone} label={s.label} steps={applySteps(tg)} />

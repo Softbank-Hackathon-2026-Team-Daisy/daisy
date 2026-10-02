@@ -40,6 +40,7 @@ function liveDeployment(): Deployment {
       set(0, { state: 'validating', step: 'plan', error_summary: null, steps: undefined })
       set(1, { state: 'generating', step: 'generate', attempt: 1, error_summary: null, steps: undefined })
       set(2, { state: 'generating', step: 'generate', steps: undefined })
+      set(3, { state: 'generating', step: 'generate', steps: undefined })
     } else if (t < 13) {
       // W-05와 같은 모습: AWS 시도 2/3
     } else {

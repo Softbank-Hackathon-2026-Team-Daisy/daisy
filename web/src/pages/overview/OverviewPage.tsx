@@ -15,7 +15,8 @@ import RunListItem from '../../components/RunListItem.tsx'
 import StatusBadge from '../../components/StatusBadge.tsx'
 import { paths } from '../../paths.ts'
 import { t } from '../../i18n/index.ts'
-import { relativeTime, shortCommit } from '../../utils/format.ts'
+import { relativeTime, shortCommit, shortDigest } from '../../utils/format.ts'
+import { envName } from '../flow.ts'
 import { ErrorBlock, LoadingBlock } from '../Loading.tsx'
 import '../page.css'
 import './OverviewPage.css'
@@ -147,7 +148,7 @@ function Parity({ targets, compact }: { targets: TargetStatus[]; compact?: boole
   const differs = (pick: (tg: TargetStatus) => string | null) =>
     targets.filter((tg) => base && pick(tg) !== null && pick(tg) !== pick(base)).map((tg) => tg.target_id)
   const rows: ParityRow[] = [
-    { label: t('이미지 digest'), values: values((tg) => tg.image_digest ?? null), failed: differs((tg) => tg.image_digest ?? null) },
+    { label: t('이미지 digest'), values: values((tg) => tg.image_digest ?? null), failed: differs((tg) => tg.image_digest ?? null), format: shortDigest },
     { label: t('커밋'), values: values((tg) => (tg.current ? shortCommit(tg.current.commit) : null)), failed: differs((tg) => tg.current?.commit ?? null) },
     { label: t('헬스체크'), values: values((tg) => tg.health_summary ?? (tg.health === 'healthy' ? t('정상') : tg.health === 'unhealthy' ? t('실패') : null)), failed: targets.filter((tg) => tg.health === 'unhealthy').map((tg) => tg.target_id) },
   ]
@@ -157,7 +158,7 @@ function Parity({ targets, compact }: { targets: TargetStatus[]; compact?: boole
 function reuseNote(d: Deployment) {
   const reused = d.targets.filter((tg) => tg.reused_script)
   if (reused.length === 0) return t('모든 환경의 validate · plan · 위험 설정 검사를 통과했어요.')
-  const names = reused.map((tg) => ({ onprem: t('온프레미스'), aws: 'AWS', gcp: 'GCP' })[tg.type]).join(' · ')
+  const names = reused.map(envName).join(' · ')
   return t('{names}는 검증된 스크립트 재사용이라 AI 호출 0회예요.', { names })
 }
 

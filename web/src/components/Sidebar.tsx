@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 import { useNavigate } from 'react-router'
 import { initials, ROLE_LABEL, useWorkspace } from '../api/useWorkspace.ts'
 import { t } from '../i18n/index.ts'
+import CloudLogo from './CloudLogo.tsx'
 import { paths } from '../paths.ts'
 import Avatar from './Avatar.tsx'
 import Button from './Button.tsx'
@@ -133,7 +134,7 @@ function Sidebar({ projectId, collapsed, canToggle, onToggle, onOpenMacApp }: Si
             </span>
           ) : (
             <button key={env.targetId} type="button" className="sidebar__env" onClick={() => navigate(paths.environments(p))}>
-              <span className="sidebar__env-color" style={{ background: `var(--color-env-${env.type})` }} />
+              {env.type === 'onprem' ? <span className="sidebar__env-color" style={{ background: `var(--color-env-${env.type})` }} /> : <CloudLogo env={env.type} size={14} />}
               <span className="sidebar__env-name">{t(ENV_LABEL[env.type])}</span>
               <span className="sidebar__status-dot" style={{ background: `var(--color-status-${env.tone})` }} />
               <span className="t-mono-sm t-muted">{env.label}</span>

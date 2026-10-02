@@ -1,11 +1,13 @@
 import type { EnvType } from './env.ts'
 import { ENV_LABEL } from './env.ts'
 import { t } from '../i18n/index.ts'
+import CloudLogo from './CloudLogo.tsx'
 import Icon from './Icon.tsx'
 import './ParityTable.css'
 
 // Figma 「06 · Parity Table」 동일성 검증 — "이식성" 데모 포인트. 값이 기준(첫 성공 환경)과 같으면 ✓, 다르면 ✕
-export type ParityRow = { label: string; values: Record<string, string | null>; failed?: string[] }
+// format: 칸에 보여줄 모양(예: 긴 digest 줄이기). 전체 값은 마우스를 올리면 title로 보여요
+export type ParityRow = { label: string; values: Record<string, string | null>; failed?: string[]; format?: (value: string) => string }
 
 type ParityTableProps = {
   envs: { id: string; type: EnvType }[]
@@ -39,7 +41,7 @@ function ParityTable({ envs, rows, matched, mismatch, unknown }: ParityTableProp
             <th scope="col">{t('항목')}</th>
             {envs.map((e) => (
               <th scope="col" key={e.id}>
-                <span className="parity__env" style={{ background: `var(--color-env-${e.type})` }} />
+                {e.type === 'onprem' ? <span className="parity__env" style={{ background: `var(--color-env-${e.type})` }} /> : <CloudLogo env={e.type} size={14} />}
                 {t(ENV_LABEL[e.type])}
               </th>
             ))}
@@ -59,7 +61,9 @@ function ParityTable({ envs, rows, matched, mismatch, unknown }: ParityTableProp
                     ) : (
                       <>
                         <Icon name={bad ? 'x' : 'check'} size={14} label={bad ? t('다름') : t('같음')} />
-                        <span className="t-mono-sm">{value}</span>
+                        <span className="t-mono-sm parity__value" title={value}>
+                          {row.format ? row.format(value) : value}
+                        </span>
                       </>
                     )}
                   </td>
