@@ -548,8 +548,28 @@ enum ConnectionState: Equatable {
 struct ConnectionIndicator: View {
     let state: ConnectionState
     var retry: (() -> Void)?
+    /// 글자 없이 심볼만 (사이드바 계정 줄 오른쪽 끝, 10/3). 글자는 도움말 · 손쉬운 사용으로 남아요
+    var iconOnly = false
 
     var body: some View {
+        if iconOnly {
+            indicator.labelStyle(.iconOnly).help(helpText)
+        } else {
+            indicator
+        }
+    }
+
+    private var helpText: String {
+        switch state {
+        case .connected: .app("실시간 연결됨")
+        case .polling: .app("5초마다 새로고침")
+        case .reconnecting: .app("재연결 중…")
+        case .disconnected: .app("연결 끊김 · 다시 시도")
+        }
+    }
+
+    @ViewBuilder
+    private var indicator: some View {
         switch state {
         case .connected:
             Label("실시간 연결됨", systemImage: "cellularbars").foregroundStyle(.green).font(.caption.weight(.medium))

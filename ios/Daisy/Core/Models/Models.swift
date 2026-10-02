@@ -311,6 +311,8 @@ struct AIUsage: Decodable, Hashable, Sendable {
     let exchangeRate: Double?
     let estimated: Bool?
     let calls: Int?
+    /// 토큰을 확인하지 못한 호출 수 (A-05 `unknown_calls`). 0보다 크면 토큰 합계는 "일부"예요
+    let unknownCalls: Int?
     let items: [Call]?
 }
 

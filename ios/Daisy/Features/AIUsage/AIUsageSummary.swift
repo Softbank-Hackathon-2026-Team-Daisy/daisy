@@ -82,3 +82,49 @@ struct AIUsageSummary: Equatable {
             .compactMap { $0 }.joined(separator: " · ")
     }
 }
+
+/// W-12 전체 사용량 (10/3 앱 추가): 이 프로젝트의 배포마다 plan(A-05) 합계를 더해요. 서버에 프로젝트 합계 API가 없어서 앱이 더해요.
+/// 확인하지 못한 토큰 · 비용은 0으로 치지 않고 "일부"로 알려요.
+struct AIUsageTotals: Equatable {
+    struct Row: Identifiable, Equatable {
+        let deployment: Deployment
+        let calls: Int
+        let tokens: Int?
+        let costKrw: Int?
+        let reusedTargets: Int
+        var id: String { deployment.id }
+    }
+
+    let rows: [Row]
+    let calls: Int
+    /// 확인한 토큰만 더한 값. 하나도 없으면 nil
+    let tokens: Int?
+    let costKrw: Int?
+    let exchangeRate: Double?
+    /// 토큰이나 비용을 확인하지 못한 호출이 있어요 → 합계는 "확인한 것만"
+    let isPartial: Bool
+    let reusedTargets: Int
+    /// AI를 한 번이라도 부른 배포 수
+    let deploymentsWithCalls: Int
+
+    /// - usages: 배포 id → plan 합계 (없으면 배포에 온 합계)
+    init(_ deployments: [Deployment], usages: [String: AIUsage]) {
+        rows = deployments.map { deployment in
+            let usage = usages[deployment.id] ?? deployment.aiUsage
+            return Row(deployment: deployment, calls: usage?.calls ?? 0, tokens: usage?.tokens, costKrw: usage?.costKrw,
+                       reusedTargets: (deployment.targets ?? []).filter { $0.reusedScript == true }.count)
+        }
+        calls = rows.map(\.calls).reduce(0, +)
+        let knownTokens = rows.compactMap(\.tokens)
+        tokens = knownTokens.isEmpty ? nil : knownTokens.reduce(0, +)
+        let knownCost = rows.compactMap(\.costKrw)
+        costKrw = knownCost.isEmpty ? nil : knownCost.reduce(0, +)
+        exchangeRate = deployments.compactMap { usages[$0.id]?.exchangeRate }.first
+        isPartial = deployments.contains { deployment in
+            guard let usage = usages[deployment.id] ?? deployment.aiUsage, (usage.calls ?? 0) > 0 else { return false }
+            return usage.tokens == nil || usage.costKrw == nil || (usage.unknownCalls ?? 0) > 0
+        }
+        reusedTargets = rows.map(\.reusedTargets).reduce(0, +)
+        deploymentsWithCalls = rows.filter { $0.calls > 0 }.count
+    }
+}

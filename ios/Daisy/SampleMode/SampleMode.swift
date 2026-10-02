@@ -41,11 +41,11 @@ enum SampleMode {
         return APIClient(baseURL: baseURL, token: token, session: session)
     }
 
-    static var displayName: String { text("예시 데이터") }
+    static var displayName: String { text(LocalizedStringResource("예시 데이터", table: "SampleMode")) }
 
-    /// 이 폴더 문구표(`SampleMode.xcstrings`)에서 고른 언어로 찾아요
-    static func text(_ key: String.LocalizationValue) -> String {
-        var resource = LocalizedStringResource(key, table: "SampleMode")
+    /// 고른 언어로 찾아요. 글자는 늘 `LocalizedStringResource("…", table: "SampleMode")`로 넘겨서 이 폴더 문구표에만 들어가게 해요
+    static func text(_ resource: LocalizedStringResource) -> String {
+        var resource = resource
         resource.locale = AppLanguage.current.locale
         return String(localized: resource)
     }
@@ -187,7 +187,7 @@ struct SampleBadge: View {
                 .padding(.vertical, 3)
                 .background(.orange.opacity(0.15), in: .capsule)
                 .accessibilityLabel(Text("예시 데이터로 보는 중이에요", tableName: "SampleMode"))
-                .help(SampleMode.text("서버에 연결하지 않고 앱에 들어 있는 예시 데이터를 보여주고 있어요."))
+                .help(SampleMode.text(LocalizedStringResource("서버에 연결하지 않고 앱에 들어 있는 예시 데이터를 보여주고 있어요.", table: "SampleMode")))
         }
     }
 }
