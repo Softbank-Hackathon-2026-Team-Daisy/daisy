@@ -795,7 +795,7 @@ V9 의 실제 Jenkins 실행은 하지 않습니다. 기본 비활성 설정 그
 |---|---|---|
 | `id`·`project_id` | `deployment.id`·`project_id` | |
 | `source_version_id`·`commit` | `deployment.source_version_id`·`commit_sha` | |
-| `image`·`image_digest`·`images` | `deployment.image_refs` | 서비스가 하나면 scalar, 여럿이면 scalar null + `images[]` (S5, A-06 과 같은 규칙). 빌드 결과가 고정되기 전이면 전부 null |
+| `image`·`image_digest`·`images` | `deployment.image_refs` | 배포를 만들 때 고른 성공 빌드의 이미지. 서비스가 하나면 scalar, 여럿이면 scalar null + `images[]` (S5, A-06 과 같은 규칙). 값이 없으면 전부 null |
 | `state` | `deployment.status` | 배포 전체 7값 그대로 (계약과 코드값이 같음) |
 | `kind` | `deployment.kind` | `rollback` 이면 `"rollback"`, 아니면 null. `normal`·`retry` 는 내부 값이라 내보내지 않음 (AGENTS §5) |
 | `rolled_back_from` | `deployment.rollback_of_deployment_id` | 설계 6장 매핑 |
@@ -827,9 +827,25 @@ V9 의 실제 Jenkins 실행은 하지 않습니다. 기본 비활성 설정 그
 | | 검사 | 기대 |
 |---|---|---|
 | Q1 | 토큰 없음 / 없는 배포 / 비멤버 / viewer | 401 / 404 / 404 / 200 |
-| Q2 | 막 만든 배포 (대상 2개) | `state: "queued"`, 대상 2개 `waiting`, `attempt: null`, `pending_approvals: []`, 이미지 null |
+| Q2 | 막 만든 배포 (대상 2개) | `state: "queued"`, 대상 2개 `waiting`, `attempt: null`, `pending_approvals: []`, 고른 빌드의 이미지 |
 | Q3 | 승인 대기 행이 있는 배포 | `pending_approvals` 에 `{target_id, approval_id}`, 만료·처리된 승인은 빠짐 |
 | Q4 | 롤백 배포 | `kind: "rollback"`, `rolled_back_from` 채워짐 |
 | Q5 | 이미지가 고정된 배포 (서비스 1개 / 2개) | scalar / `images[]` |
 | Q6 | 다른 프로젝트 배포가 섞이지 않음 | 경로의 배포 한 건만 |
 | Q7 | OpenAPI | 경로가 나오고 `principal` 노출 0건 |
+
+### 검증 결과 (10/2 오전)
+
+단위 테스트 4개(승인 ID 옮김, `kind` 변환, 시도 0·근거 없는 필드 null, 이미지 단일·여럿·없음)를 추가했고, 빈 PostgreSQL 17 에 jar 로 띄워 확인했습니다.
+
+| | 결과 |
+|---|---|
+| Q1 | 401 / 404 / 404(다른 프로젝트, Q6 와 같이 확인) / 200 |
+| Q2 | `queued`, 대상 2개 `waiting`·`attempt: null`·`step: null`, `pending_approvals: []`, 고른 빌드의 이미지, `created_by: "데모 운영자"`, `last_seq: 1` |
+| Q3 | 유효한 승인만 `[{tgt_demo_aws, apv_ok}]`. 만료 시각이 지난 pending 승인은 빠짐 |
+| Q4 | `kind: "rollback"`, `rolled_back_from` 에 원본 배포 |
+| Q5 | 서비스 2개면 `image: null`, `images[]` 2개 (digest 없는 서비스는 null 그대로) |
+| Q6 | 접근 권한 없는 다른 프로젝트 배포는 404 |
+| Q7 | 경로 노출, `principal` 0건. 500 0건 |
+
+처음 스펙에는 "막 만든 배포는 이미지 null" 이라고 적었는데, 실제로는 생성 때 고른 성공 빌드의 이미지가 고정됩니다. 코드가 맞고 스펙을 고쳤습니다.
