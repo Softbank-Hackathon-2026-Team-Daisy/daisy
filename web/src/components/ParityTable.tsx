@@ -7,7 +7,8 @@ import './ParityTable.css'
 
 // Figma 「06 · Parity Table」 동일성 검증 — "이식성" 데모 포인트. 값이 기준(첫 성공 환경)과 같으면 ✓, 다르면 ✕
 // format: 칸에 보여줄 모양(예: 긴 digest 줄이기). 전체 값은 마우스를 올리면 title로 보여요
-export type ParityRow = { label: string; values: Record<string, string | null>; failed?: string[]; format?: (value: string) => string }
+// mono: digest · 커밋처럼 해시 값만 고정폭 글꼴(기본 true). 헬스 문구 같은 한글 문장은 false
+export type ParityRow = { label: string; values: Record<string, string | null>; failed?: string[]; format?: (value: string) => string; mono?: boolean }
 
 type ParityTableProps = {
   envs: { id: string; type: EnvType }[]
@@ -61,7 +62,7 @@ function ParityTable({ envs, rows, matched, mismatch, unknown }: ParityTableProp
                     ) : (
                       <>
                         <Icon name={bad ? 'x' : 'check'} size={14} label={bad ? t('다름') : t('같음')} />
-                        <span className="t-mono-sm parity__value" title={value}>
+                        <span className={`${row.mono === false ? 't-body-sm' : 't-mono-sm'} parity__value`} title={value}>
                           {row.format ? row.format(value) : value}
                         </span>
                       </>

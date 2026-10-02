@@ -123,3 +123,10 @@ a {
 .t-muted {
   color: var(--color-ink-muted);
 }
+
+/* 긴 낱말(경로 · 해시 · URL)이 좁은 화면에서 가로 스크롤을 만들지 않게 (#102) */
+@media (max-width: 768px) {
+  body {
+    overflow-wrap: break-word;
+  }
+}

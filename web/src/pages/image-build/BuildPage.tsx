@@ -47,6 +47,7 @@ function BuildView({ projectId, build }: { projectId: string; build: Build | und
   const navigate = useNavigate()
   const { state: live } = useProjectLive()
   const status = build?.pipeline.status
+  const steps = build?.pipeline.steps ?? []
 
   return (
     <div className="page">
@@ -83,22 +84,23 @@ function BuildView({ projectId, build }: { projectId: string; build: Build | und
             />
           </div>
 
-          <div className="page__row page__row--2">
-            <Panel title="Jenkins">
-              <div>
-                {/* 단계는 Jenkins 이벤트 연동 뒤에 와요 (#13 답: 인프라 확인 대기) */}
-                {!build.pipeline.steps?.length && <p className="t-body-sm t-muted">{t('단계 정보는 Jenkins 연동 뒤에 보여요')}</p>}
-                {(build.pipeline.steps ?? []).map((s) => (
-                  <StepItem
-                    key={s.name}
-                    state={STEP_STATE[s.state] ?? 'pending'}
-                    label={s.name}
-                    duration={duration(s.duration_ms, s.state === 'running')}
-                  />
-                ))}
-              </div>
-              {/* Jenkins 화면은 배포 키가 있어 외부 비공개 — 로그 열기 버튼 없이 서버가 넘겨준 단계만 보여줘요 (#17 인프라 답) */}
-            </Panel>
+          {/* 서버가 단계(steps)를 안 주면 빈 Jenkins 칸 대신 위 빌드 줄(상태 · 커밋 · 시각)과 이미지 칸만 보여줘요 (#102) */}
+          <div className={steps.length > 0 ? 'page__row page__row--2' : 'page__row'}>
+            {steps.length > 0 && (
+              <Panel title="Jenkins">
+                <div>
+                  {steps.map((s) => (
+                    <StepItem
+                      key={s.name}
+                      state={STEP_STATE[s.state] ?? 'pending'}
+                      label={s.name}
+                      duration={duration(s.duration_ms, s.state === 'running')}
+                    />
+                  ))}
+                </div>
+                {/* Jenkins 화면은 배포 키가 있어 외부 비공개 — 로그 열기 버튼 없이 서버가 넘겨준 단계만 보여줘요 (#17 인프라 답) */}
+              </Panel>
+            )}
 
             <Panel title={t('이미지')}>
               <div>

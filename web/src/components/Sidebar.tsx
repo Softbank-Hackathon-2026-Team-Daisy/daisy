@@ -23,9 +23,11 @@ type SidebarProps = {
   canToggle: boolean
   onToggle: () => void
   onOpenMacApp: () => void
+  // 768px 이하에서는 화면 위에 겹치는 서랍이에요 (AppLayout이 열고 닫아요). 닫혀 있으면 화면 밖에 숨겨요
+  drawer?: 'open' | 'closed'
 }
 
-function Sidebar({ projectId, collapsed, canToggle, onToggle, onOpenMacApp }: SidebarProps) {
+function Sidebar({ projectId, collapsed, canToggle, onToggle, onOpenMacApp, drawer }: SidebarProps) {
   const navigate = useNavigate()
   const [menuOpen, setMenuOpen] = useState(false)
   const switcherRef = useRef<HTMLDivElement>(null)
@@ -49,7 +51,12 @@ function Sidebar({ projectId, collapsed, canToggle, onToggle, onOpenMacApp }: Si
   const p = projectId
 
   return (
-    <nav className={['sidebar', collapsed && 'sidebar--collapsed'].filter(Boolean).join(' ')} aria-label={t('프로젝트 메뉴')}>
+    <nav
+      id="app-sidebar"
+      className={['sidebar', collapsed && 'sidebar--collapsed', drawer && 'sidebar--drawer', drawer === 'open' && 'sidebar--open'].filter(Boolean).join(' ')}
+      aria-label={t('프로젝트 메뉴')}
+      inert={drawer === 'closed' || undefined}
+    >
       <Logo type={collapsed ? 'mark' : 'lockup'} color="ink" />
 
       <div className="sidebar__switcher" ref={switcherRef}>

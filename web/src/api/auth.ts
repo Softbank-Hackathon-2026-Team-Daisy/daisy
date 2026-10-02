@@ -1,7 +1,7 @@
 import { createContext, useContext } from 'react'
 import type { AuthToken } from './types.ts'
 
-// 로그인 상태 — 토큰은 client.ts 메모리에 두고, 화면은 역할(role)만 봐요. viewer는 승인 버튼이 비활성이에요
+// 로그인 상태 — 토큰은 client.ts가 요청에 붙이고 AuthProvider가 sessionStorage(탭 단위)에 남겨요. 화면은 역할(role)만 봐요. viewer는 승인 버튼이 비활성이에요
 export type AuthState = {
   role: AuthToken['role'] | null
   signIn: (token: AuthToken) => void

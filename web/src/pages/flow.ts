@@ -1,4 +1,4 @@
-import { attemptLabel, stepLabel, targetStatus, type StatusView } from '../api/status.ts'
+import { attemptLabel, serverStepLabel, stepLabel, targetStatus, type StatusView } from '../api/status.ts'
 import type { DeploymentTarget, Step } from '../api/types.ts'
 import { ENV_LABEL } from '../components/env.ts'
 import { t } from '../i18n/index.ts'
@@ -18,7 +18,7 @@ const APPLY_STEPS = ['이미지 pull', 'terraform apply', 'state 저장', '헬�
 
 function fromServer(tg: DeploymentTarget): StepView[] | null {
   if (!tg.steps?.length) return null
-  return tg.steps.map((s) => ({ label: s.name, state: STEP_STATE[s.state] ?? 'pending', duration: duration(s.duration_ms, s.state === 'running') }))
+  return tg.steps.map((s) => ({ label: s.name === 'generate' && tg.reused_script ? t('스크립트 재사용') : serverStepLabel(s.name), state: STEP_STATE[s.state] ?? 'pending', duration: duration(s.duration_ms, s.state === 'running') }))
 }
 
 // W-05 검증 단계
@@ -53,17 +53,26 @@ export function applySteps(tg: DeploymentTarget): StepView[] {
 // W-05 · W-05b 환경별 한 줄 설명과 상태
 export function generateRow(tg: DeploymentTarget): { note: string; status: StatusView } {
   const how = tg.reused_script ? t('재사용 · 이미지 태그만 교체') : t('AI 생성')
-  const attempt = attemptLabel(tg.attempt)
+  // 시도 횟수를 모르면(생성 전, #46) 시도 부분을 빼고 문장을 만들어요
+  const attempt = tg.attempt == null ? null : attemptLabel(tg.attempt)
   if (tg.state === 'failed') return { note: tg.attempt ? t('{n}회 실패 · 중단', { n: tg.attempt }) : t('실패 · 중단'), status: { tone: 'failed', label: t('실패') } }
   if (tg.state === 'awaiting_approval' && tg.approval_state === 'approved')
     return { note: t('승인 완료 · 실행 대기'), status: { tone: 'success', label: t('승인됨') } }
   if (tg.state === 'awaiting_approval' || APPLY_ORDER.includes(tg.state))
-    return { note: t('{how} · {attempt} 통과', { how, attempt }), status: { tone: 'success', label: t('검증 통과') } }
+    return { note: attempt ? t('{how} · {attempt} 통과', { how, attempt }) : t('{how} · 통과', { how }), status: { tone: 'success', label: t('검증 통과') } }
   if (tg.state === 'waiting') return { note: t('대기 중'), status: targetStatus('waiting') }
   if (tg.state === 'cancelled') return { note: tg.cancel_requested_at ? t('취소 요청으로 멈췄어요') : t('취소됨'), status: targetStatus('cancelled') }
-  if (tg.state === 'generating') return { note: `${how} · ${attempt}`, status: targetStatus('generating') }
-  if (tg.error_summary) return { note: t('{how} · 위험 설정 발견 → AI 수정 중 · {attempt}', { how, attempt }), status: { tone: 'running', label: t('검증 중') } }
-  return { note: t('{how} · {step} 실행 중 · {attempt}', { how, step: tg.step ? stepLabel(tg.step) : t('검증'), attempt }), status: { tone: 'running', label: t('검증 중') } }
+  if (tg.state === 'generating') return { note: attempt ? `${how} · ${attempt}` : how, status: targetStatus('generating') }
+  if (tg.error_summary)
+    return {
+      note: attempt ? t('{how} · 위험 설정 발견 → AI 수정 중 · {attempt}', { how, attempt }) : t('{how} · 위험 설정 발견 → AI 수정 중', { how }),
+      status: { tone: 'running', label: t('검증 중') },
+    }
+  const step = tg.step ? stepLabel(tg.step) : t('검증')
+  return {
+    note: attempt ? t('{how} · {step} 실행 중 · {attempt}', { how, step, attempt }) : t('{how} · {step} 실행 중', { how, step }),
+    status: { tone: 'running', label: t('검증 중') },
+  }
 }
 
 export const envName = (tg: DeploymentTarget) => t(ENV_LABEL[tg.type])

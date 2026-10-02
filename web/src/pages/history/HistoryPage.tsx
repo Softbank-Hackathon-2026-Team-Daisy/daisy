@@ -59,13 +59,15 @@ function HistoryTable({ projectId, rows, onRollback }: { projectId: string; rows
   const navigate = useNavigate()
   const { role } = useAuth()
   const latestOk = rows.find((d) => d.state === 'succeeded')
+  // 서버가 version을 안 주면 버전 = 짧은 커밋이라 두 칸이 똑같아요 → 커밋 칸 하나만
+  const hasVersion = rows.some((d) => d.version)
   return (
     <DataTable
       label={t('배포 이력')}
       rows={rows}
       rowKey={(d) => d.id}
       columns={[
-        { key: 'v', label: t('버전'), width: 80, render: (d) => <span className="t-mono">{versionLabel(d)}</span> },
+        ...(hasVersion ? [{ key: 'v', label: t('버전'), width: 80, render: (d: Deployment) => <span className="t-mono">{versionLabel(d)}</span> }] : []),
         { key: 'c', label: t('커밋'), width: 110, render: (d) => <span className="t-mono">{shortCommit(d.commit)}</span> },
         {
           key: 's',
@@ -99,6 +101,7 @@ function HistoryTable({ projectId, rows, onRollback }: { projectId: string; rows
           ),
         },
         { key: 't', label: t('시간'), width: 150, render: (d) => `${clockTime(d.created_at)} · ${relativeTime(d.created_at)}` },
+        // 지금 배포된 커밋(가장 최근 성공 배포)과 같은 커밋으로는 롤백할 이유가 없어서 롤백 버튼을 안 보여줘요
         {
           key: 'a',
           label: '',
@@ -108,7 +111,7 @@ function HistoryTable({ projectId, rows, onRollback }: { projectId: string; rows
               <Button variant="ghost" onClick={() => navigate(paths.approve(projectId, d.id))}>
                 {t('승인하기')}
               </Button>
-            ) : d.state === 'succeeded' && d.id !== latestOk?.id ? (
+            ) : d.state === 'succeeded' && d.id !== latestOk?.id && d.commit !== latestOk?.commit ? (
               <Button variant="ghost" disabled={role === 'viewer'} onClick={() => onRollback(d)}>
                 {t('롤백')}
               </Button>

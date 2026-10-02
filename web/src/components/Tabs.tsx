@@ -1,9 +1,12 @@
 import type { KeyboardEvent } from 'react'
+import CloudLogo from './CloudLogo.tsx'
 import type { EnvType } from './env.ts'
+import type { StatusTone } from './StatusBadge.tsx'
 import './Tabs.css'
 
-// Figma 「03 · Tab Item」 · 「05 · Tabs」. 환경별 plan · 스크립트를 나눠 볼 때 써요. 탭 패널은 쓰는 쪽이 그려요
-export type TabItem = { id: string; label: string; env?: EnvType }
+// Figma 「03 · Tab Item」 · 「05 · Tabs」. 환경별 plan · 스크립트 · 로그를 나눠 볼 때 써요. 탭 패널은 쓰는 쪽이 그려요
+// env가 있으면 클라우드는 로고, 온프레미스는 색 점 (Env Tag와 같은 규칙). count · tone은 선택 — 줄 수와 상태 점
+export type TabItem = { id: string; label: string; env?: EnvType; count?: number; tone?: StatusTone; toneLabel?: string }
 
 type TabsProps = {
   items: TabItem[]
@@ -40,8 +43,11 @@ function Tabs({ items, value, onChange, label, idPrefix = 'tab' }: TabsProps) {
             onClick={() => onChange(item.id)}
             onKeyDown={(e) => onKeyDown(e, i)}
           >
-            {item.env && <span className="tabs__env" style={{ background: `var(--color-env-${item.env})` }} />}
+            {item.env &&
+              (item.env === 'onprem' ? <span className="tabs__env" style={{ background: `var(--color-env-${item.env})` }} aria-hidden="true" /> : <CloudLogo env={item.env} />)}
             {item.label}
+            {item.count != null && <span className="tabs__count">{item.count}</span>}
+            {item.tone && <span className={`tabs__dot tabs__dot--${item.tone}`} role="img" aria-label={item.toneLabel} aria-hidden={item.toneLabel ? undefined : true} />}
           </button>
         )
       })}

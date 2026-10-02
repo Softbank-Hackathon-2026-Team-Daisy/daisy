@@ -106,10 +106,31 @@
 
 @media (max-width: 900px) {
   .login {
-    grid-template-columns: 1fr;
+    grid-template-columns: minmax(0, 1fr);
   }
 
   .login__brand {
     display: none;
+  }
+}
+
+/* 폰 (#102): 언어 선택은 폼 위 오른쪽에 붙이고(겹치지 않게), 여백은 16px */
+@media (max-width: 768px) {
+  .login__form-area {
+    flex-direction: column;
+    justify-content: flex-start;
+    gap: var(--space-8);
+    padding: var(--space-4) var(--space-4) var(--space-12);
+  }
+
+  .login__lang {
+    position: static;
+    align-self: flex-end;
+    width: min(200px, 100%);
+  }
+
+  .login__form {
+    width: 100%;
+    max-width: 400px;
   }
 }

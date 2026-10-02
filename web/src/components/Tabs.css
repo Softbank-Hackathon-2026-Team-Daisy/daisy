@@ -30,3 +30,38 @@
   height: 8px;
   border-radius: var(--radius-sm);
 }
+
+.tabs__count {
+  color: var(--color-ink-muted);
+  font-family: var(--font-mono);
+  font-size: 12px;
+  font-weight: 400;
+}
+
+/* 상태 점 — 원형은 상태 점만 (AGENTS.md §5-1) */
+.tabs__dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--color-status-queued);
+}
+
+.tabs__dot--running {
+  background: var(--color-status-running);
+}
+
+.tabs__dot--success {
+  background: var(--color-status-success);
+}
+
+.tabs__dot--failed {
+  background: var(--color-status-failed);
+}
+
+.tabs__dot--warning {
+  background: var(--color-status-warning);
+}
+
+.tabs__dot--rolledback {
+  background: var(--color-status-rolledback);
+}

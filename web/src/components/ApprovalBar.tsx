@@ -15,19 +15,9 @@ type ApprovalBarProps = {
 
 function ApprovalBar({ title, meta, onApprove, onReject, disabled, pending, note }: ApprovalBarProps) {
   return (
-    <section
-      aria-label={t('승인')}
-      style={{
-        display: 'flex',
-        alignItems: 'center',
-        gap: 'var(--space-4)',
-        padding: 'var(--space-4) var(--space-6)',
-        border: 'var(--border-overlay)',
-        borderRadius: 'var(--radius-md)',
-        background: 'var(--color-card)',
-      }}
-    >
-      <div style={{ display: 'flex', flex: 1, flexDirection: 'column', gap: 'var(--space-1)' }}>
+    // 모양은 pages/page.css의 .approval-bar — 좁은 화면에서는 글과 버튼이 두 줄로 쌓여요 (#102)
+    <section aria-label={t('승인')} className="approval-bar">
+      <div className="approval-bar__text">
         <p className="t-label">{title}</p>
         <p className="t-body-sm t-muted">{meta}</p>
         {note}

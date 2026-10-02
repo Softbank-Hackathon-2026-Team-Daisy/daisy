@@ -10,3 +10,36 @@
     grid-template-columns: 1fr;
   }
 }
+
+/* 환경마다 최신 스크립트 한 줄 + 이전 버전 펼치기 */
+.scripts__how {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: var(--space-1) var(--space-3);
+}
+
+.scripts__toggle {
+  padding: 0;
+  border: none;
+  background: none;
+  color: var(--color-ink-muted);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.scripts__toggle:hover {
+  color: var(--color-ink);
+}
+
+.scripts__toggle:focus-visible {
+  outline: 2px solid var(--color-focus);
+  outline-offset: 2px;
+  border-radius: var(--radius-sm);
+}
+
+.scripts__older {
+  padding-left: var(--space-3);
+}

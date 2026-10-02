@@ -23,6 +23,11 @@
   grid-template-columns: repeat(3, minmax(0, 1fr));
 }
 
+/* 숫자 타일 4개 (W-12) — 폰 · 태블릿에서는 2열 */
+.page__row--stats {
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+}
+
 /* 환경 카드 · 레인 — 환경 수(4개까지)만큼 한 줄에, 좁으면 2열 · 1열로 (10/2 Azure 포함) */
 .page__row--envs {
   grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
@@ -55,5 +60,61 @@
 @media (max-width: 860px) {
   .page__row--3 {
     grid-template-columns: 1fr;
+  }
+}
+
+/* 폰 · 태블릿 (#102): 모든 줄을 한 열로, 액션 버튼은 줄바꿈 */
+@media (max-width: 768px) {
+  .page__row--2,
+  .page__row--main-side,
+  .page__row--3,
+  .page__row--envs {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .page__row--stats {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: var(--space-3);
+  }
+
+  .page__actions {
+    flex-wrap: wrap;
+  }
+}
+
+/*
+ * W-06 승인 바 (components/ApprovalBar.tsx). 인라인 style을 이 클래스로 옮기면
+ * 폰 · 태블릿에서 글과 버튼이 위아래로 쌓여요 (#102)
+ */
+.approval-bar {
+  display: flex;
+  align-items: center;
+  gap: var(--space-4);
+  padding: var(--space-4) var(--space-6);
+  border: var(--border-overlay);
+  border-radius: var(--radius-md);
+  background: var(--color-card);
+}
+
+.approval-bar__text {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  gap: var(--space-1);
+  min-width: 0;
+}
+
+@media (max-width: 768px) {
+  .approval-bar {
+    flex-wrap: wrap;
+    padding: var(--space-4);
+  }
+
+  .approval-bar__text {
+    flex-basis: 100%;
+  }
+
+  .approval-bar > button {
+    flex: 1 1 0;
   }
 }

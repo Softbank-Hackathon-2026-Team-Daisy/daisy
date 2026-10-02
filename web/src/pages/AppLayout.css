@@ -8,3 +8,64 @@
   min-width: 0;
   padding: var(--space-8) var(--space-8) var(--space-16);
 }
+
+/* 768px 이하: 사이드바 대신 위쪽 바 + 서랍 (#102) */
+.app-layout__topbar,
+.app-layout__scrim {
+  display: none;
+}
+
+@media (max-width: 768px) {
+  .app-layout {
+    flex-direction: column;
+  }
+
+  .app-layout__topbar {
+    position: sticky;
+    z-index: 20;
+    top: 0;
+    display: flex;
+    align-items: center;
+    gap: var(--space-3);
+    height: 56px;
+    padding: 0 var(--space-2) 0 var(--space-4);
+    border-bottom: var(--border);
+    background: var(--color-surface);
+  }
+
+  .app-layout__project {
+    flex: 1;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .app-layout__menu {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 40px;
+    height: 40px;
+    padding: 0;
+    border: 0;
+    border-radius: var(--radius-sm);
+    background: transparent;
+    color: var(--color-ink);
+    cursor: pointer;
+  }
+
+  .app-layout__scrim {
+    position: fixed;
+    z-index: 40;
+    inset: 0;
+    display: block;
+    background: var(--color-backdrop);
+  }
+
+  /* 안쪽 요소가 넘쳐도 화면 전체가 가로로 밀리지 않게 하는 안전망 (표 · 코드는 각자 안에서 스크롤해요) */
+  .app-layout__main {
+    padding: var(--space-6) var(--space-4) var(--space-12);
+    overflow-x: clip;
+  }
+}

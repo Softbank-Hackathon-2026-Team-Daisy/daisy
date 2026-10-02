@@ -40,6 +40,21 @@ const STEP: Record<Step, string> = {
 
 export const stepLabel = (step: Step) => t(STEP[step] ?? step)
 
+// 서버 단계 목록(steps[].name, #13 가칭)의 코드 → 단계 줄 문구. terraform 명령은 그대로, 나머지는 번역해요
+// 모르는 코드는 받은 그대로 보여줘요
+const STEP_CODE: Record<string, () => string> = {
+  generate: () => t('Terraform 생성 (AI)'),
+  validate: () => 'terraform validate',
+  plan: () => 'terraform plan',
+  risk_check: () => t('위험 설정 검사'),
+  apply: () => 'terraform apply',
+  health_check: () => t('헬스체크'),
+  image_pull: () => t('이미지 pull'),
+  state_save: () => t('state 저장'),
+}
+
+export const serverStepLabel = (code: string) => (Object.hasOwn(STEP_CODE, code) ? STEP_CODE[code]() : code)
+
 const UNKNOWN: StatusView = { tone: 'queued', label: '알 수 없음' }
 
 const translated = (v: StatusView): StatusView => ({ tone: v.tone, label: t(v.label) })

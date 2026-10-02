@@ -57,7 +57,8 @@ function ApproveView({ d, plan, detail, projectName, reload }: { d: Deployment; 
   // 이미 승인했는데 apply가 아직 시작 안 된 대상은 다시 승인하지 않아요 (#56 approval_state, #49 리뷰)
   const approvedWaiting = d.targets.filter((tg) => tg.state === 'awaiting_approval' && tg.approval_state === 'approved')
   const approvable = d.targets.filter((tg) => tg.state === 'awaiting_approval' && tg.approval_state !== 'approved')
-  const [tab, setTab] = useState(approvable[1]?.target_id ?? approvable[0]?.target_id ?? d.targets[0].target_id)
+  // 처음엔 목록 순서대로 첫 승인 대상 환경을 보여줘요 (탭 순서와 같아요)
+  const [tab, setTab] = useState(approvable[0]?.target_id ?? d.targets[0].target_id)
   const [confirm, setConfirm] = useState('')
   const [pending, setPending] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -80,6 +81,9 @@ function ApproveView({ d, plan, detail, projectName, reload }: { d: Deployment; 
   const current = d.targets.find((tg) => tg.target_id === tab) ?? d.targets[0]
   const currentDetail = detail.find((x) => x.target_id === current.target_id)
   const currentPlan = planOf(current.target_id)
+  const c0 = currentPlan?.counts
+  // plan 결과 +0 ~0 −0 — 이미 원하는 상태라 바꿀 게 없어요
+  const noChanges = currentDetail ? currentDetail.resources.length === 0 && (!c0 || c0.create + c0.update + c0.delete === 0) : !!c0 && c0.create + c0.update + c0.delete === 0
 
   const decide = async (decision: 'approve' | 'reject') => {
     if (pending) return
@@ -164,6 +168,9 @@ function ApproveView({ d, plan, detail, projectName, reload }: { d: Deployment; 
       <Tabs label={t('환경별 plan')} value={current.target_id} onChange={setTab} items={d.targets.map((tg) => ({ id: tg.target_id, label: envName(tg), env: tg.type }))} />
 
       <Panel title={t('{env} plan', { env: envName(current) })}>
+        {noChanges && (
+          <Alert type="info" title={t('바뀔 리소스가 없어요 · 이미 같은 상태예요')} />
+        )}
         {currentDetail ? (
           <>
             {currentDetail.resources.map((r) => (
@@ -187,7 +194,7 @@ function ApproveView({ d, plan, detail, projectName, reload }: { d: Deployment; 
             )}
             {currentDetail.plan_text && <CodeBlock file={`${current.type} · terraform plan`} code={currentDetail.plan_text} />}
           </>
-        ) : (
+        ) : noChanges ? null : (
           <p className="t-muted">{t('이 환경은 plan이 없어요.')}</p>
         )}
       </Panel>
@@ -209,7 +216,11 @@ function ApproveView({ d, plan, detail, projectName, reload }: { d: Deployment; 
           total: d.targets.length,
           commit: shortCommit(d.commit),
           risks: risks.length,
-          cost: won(plan.ai_usage.cost_krw) + (plan.ai_usage.exchange_rate ? ' ' + t('(추정, 환율 {rate}원)', { rate: plan.ai_usage.exchange_rate.toLocaleString('ko-KR') }) : ''),
+          // AI를 한 번도 안 불렀으면(전부 재사용) 비용을 몰라서 "—"가 아니라 ₩0이에요
+          cost:
+            plan.ai_usage.calls === 0
+              ? t('₩0 (검증된 스크립트 재사용)')
+              : won(plan.ai_usage.cost_krw) + (plan.ai_usage.exchange_rate ? ' ' + t('(추정, 환율 {rate}원)', { rate: plan.ai_usage.exchange_rate.toLocaleString('ko-KR') }) : ''),
         })}
         disabled={viewer || needsConfirm || approvable.length === 0}
         pending={pending}

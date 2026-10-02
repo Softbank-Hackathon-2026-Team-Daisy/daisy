@@ -214,8 +214,6 @@ export const api = {
       : request<ListResponse<Script>>('GET', `/projects/${projectId}/scripts`).then((r) => r.items), // 봉투 · next_cursor 늘 null (#68)
 }
 
-/** 목업으로 답하는 API가 하나라도 있으면 true — 화면 MOCK 배지 기본값 */
-export const SOME_MOCKED = USE_MOCK || Object.keys(api).some((n) => !SERVER_READY.has(n))
 
 // SSE 채널 경로 (WR-01, #42) — 연결은 useRealtime이 해요
 export const events = {

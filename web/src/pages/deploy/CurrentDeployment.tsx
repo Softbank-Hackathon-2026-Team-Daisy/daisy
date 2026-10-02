@@ -1,5 +1,5 @@
 import { Navigate, useParams } from 'react-router'
-import { api } from '../../api/endpoints.ts'
+import { api, isMocked } from '../../api/endpoints.ts'
 import type { Deployment } from '../../api/types.ts'
 import { useResource } from '../../api/useResource.ts'
 import EmptyState from '../../components/EmptyState.tsx'
@@ -28,7 +28,7 @@ function CurrentDeployment() {
   if (!latest) {
     return (
       <div className="page">
-        <PageHeader overline="Deploy" title={t('배포')} />
+        <PageHeader overline="Deploy" mock={isMocked('listDeployments')} title={t('배포')} />
         <EmptyState icon="play" title={t('아직 배포가 없어요')} description={t('사이드바의 새 배포로 시작해요')} />
       </div>
     )

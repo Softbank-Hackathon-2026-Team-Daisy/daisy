@@ -47,3 +47,17 @@
   justify-content: flex-end;
   gap: var(--space-2);
 }
+
+/* 폰: 화면 안에 맞추고 길면 Dialog 안에서 스크롤 (#102) */
+@media (max-width: 768px) {
+  .dialog {
+    max-width: calc(100vw - var(--space-8));
+    max-height: calc(100dvh - var(--space-8));
+    padding: var(--space-4);
+    overflow-y: auto;
+  }
+
+  .dialog__footer {
+    flex-wrap: wrap;
+  }
+}
