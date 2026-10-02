@@ -24,7 +24,12 @@ struct PlanApprovalView: View {
             let model = Model(plan: plan, deployment: store.deployment)
             if model.approvable.isEmpty {
                 FlowPage(step: 5, title: "변경 사항 확인 후 승인", description: "") {
-                    InlineAlert(.info, "승인을 기다리는 plan이 없어요", "이미 처리됐거나 아직 검증 중이에요.")
+                    if model.approvedWaiting.isEmpty {
+                        InlineAlert(.info, "승인을 기다리는 plan이 없어요", "이미 처리됐거나 아직 검증 중이에요.")
+                    } else {
+                        // 웹 #64: 승인은 끝났고 Jenkins가 apply를 시작하기를 기다려요
+                        InlineAlert(.success, "승인 완료 · 실행 대기", "승인한 plan을 적용하려고 기다리고 있어요.")
+                    }
                     FlowButtons {
                         Button("배포 진행 보기") { router.replaceTop(with: .run(deploymentID)) }
                             .buttonStyle(.glassCapsule)
@@ -65,13 +70,16 @@ struct PlanApprovalView: View {
         let targetIDs: [String]
         let failed: [Deployment.Target]
         let approvable: [Plan.Target]
+        /// 이미 승인하고 apply를 기다리는 환경 (웹 #64): 다시 승인하지 않아요
+        let approvedWaiting: [Deployment.Target]
 
         init(plan: Plan, deployment: Deployment?) {
             self.plan = plan
             let targets = deployment?.targets ?? []
             targetIDs = targets.isEmpty ? plan.targets.map(\.targetId) : targets.map(\.targetId)
             failed = targets.filter { $0.resolvedState == .failed }
-            let waiting = Set(targets.filter { $0.resolvedState == .awaitingApproval }.map(\.targetId))
+            approvedWaiting = targets.filter(\.isApprovedWaiting)
+            let waiting = Set(targets.filter { $0.resolvedState == .awaitingApproval && !$0.isApprovedWaiting }.map(\.targetId))
             approvable = plan.targets.filter { targets.isEmpty || waiting.contains($0.targetId) }
         }
 
@@ -180,7 +188,8 @@ struct PlanApprovalView: View {
     }
 
     private func barButtons(_ model: Model) -> some View {
-        let needsConfirm = model.hasDelete && store.confirmText != confirmWord
+        // 프로젝트 이름을 못 불러왔으면 확인할 수 없으니 막아요
+        let needsConfirm = model.hasDelete && (confirmWord.isEmpty || store.confirmText != confirmWord)
         return HStack(spacing: 8) {
             Button("거절") { Task { await store.submit(.reject, needsConfirm: false, targetIDs: model.approvable.map(\.targetId), using: app) } }
                 .buttonStyle(.glassCapsule(height: 44))
