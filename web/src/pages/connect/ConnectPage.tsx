@@ -42,7 +42,8 @@ function ConnectPage() {
     try {
       const res = await api.createProject(url.trim(), branch)
       setManifest(res.manifest)
-      if (res.manifest.errors.length === 0) navigate(paths.build(res.project.id), { state: { transition: 'l01' } })
+      // 서버는 deploy.yaml을 아직 검증하지 않아 manifest가 null로 와요 (#59) → "검증 전"으로 보고 W-03으로 넘어가요
+      if (!res.manifest || res.manifest.errors.length === 0) navigate(paths.build(res.project.id), { state: { transition: 'l01' } })
     } catch (e) {
       setError(e instanceof ApiError ? e.message : '연결하지 못했어요')
     } finally {

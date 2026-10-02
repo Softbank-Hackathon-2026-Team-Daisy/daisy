@@ -75,13 +75,6 @@ struct LoginView: View {
 
             alert
 
-            // 앱에만 있는 칸: 웹은 주소가 정해져 있지만 앱은 연결할 서버를 골라요.
-            field("서버 주소") {
-                TextField(AppModel.defaultServerURL, text: $app.serverURLString).urlInput()
-            }
-            if !app.serverURLString.isEmpty && app.serverURL == nil {
-                Text("https://로 시작하는 주소를 넣어 주세요.").font(.caption).foregroundStyle(.red)
-            }
             field("아이디") {
                 TextField("아이디", text: $username).textContentType(.username).plainInput()
                     .onSubmit { passwordFocused = true }
@@ -122,19 +115,19 @@ struct LoginView: View {
     private var alert: some View {
         switch problem {
         case .wrongCredentials:
-            InlineAlert(.danger, "로그인하지 못했어요", "아이디 또는 비밀번호가 맞지 않아요. 다시 확인해 주세요.")
+            InlineAlert(.danger, .app("로그인하지 못했어요"), .app("아이디 또는 비밀번호가 맞지 않아요. 다시 확인해 주세요."))
         case .network:
-            InlineAlert(.danger, "서버에 연결하지 못했어요", "서버에 연결하지 못했어요. 잠시 후 다시 시도해 주세요.")
+            InlineAlert(.danger, .app("서버에 연결하지 못했어요"), .app("서버에 연결하지 못했어요. 잠시 후 다시 시도해 주세요."))
         case .other(let message):
-            InlineAlert(.danger, "로그인하지 못했어요", message)
+            InlineAlert(.danger, .app("로그인하지 못했어요"), message)
         case nil:
             if app.sessionExpired {
-                InlineAlert(.info, "다시 로그인해 주세요", "로그인이 만료됐어요.")
+                InlineAlert(.info, .app("다시 로그인해 주세요"), .app("로그인이 만료됐어요."))
             }
         }
     }
 
-    private func field(_ label: String, error: Bool = false, @ViewBuilder content: () -> some View) -> some View {
+    private func field(_ label: LocalizedStringKey, error: Bool = false, @ViewBuilder content: () -> some View) -> some View {
         VStack(alignment: .leading, spacing: 6) {
             Text(label).font(.subheadline.weight(.medium))
             content()

@@ -10,9 +10,9 @@ struct TransitionLoader: View {
 
         var firstCaption: String {
             switch self {
-            case .repository: "저장소를 연결하고 있어요"
+            case .repository: .app("저장소를 연결하고 있어요")
             case .generate: TransitionLoader.captions[0]
-            case .deploy: "승인된 plan으로 배포를 준비하고 있어요"
+            case .deploy: .app("승인된 plan으로 배포를 준비하고 있어요")
             }
         }
 
@@ -33,18 +33,20 @@ struct TransitionLoader: View {
         }
     }
 
-    static let captions = [
-        "AI가 환경별 인프라 코드를 만들고 있어요",
-        "deploy.yaml을 읽고 필요한 리소스를 고르고 있어요",
-        "terraform validate로 문법을 확인하고 있어요",
-        "terraform plan으로 바뀔 리소스를 계산하고 있어요",
-        "보안 그룹이 전체 공개되지 않았는지 살펴보고 있어요",
-        "오류가 나면 AI가 로그를 읽고 최대 3번까지 고쳐요",
-        "검증된 스크립트가 있으면 이미지 태그만 바꿔 재사용해요",
-        "모든 환경에 같은 커밋 해시 이미지가 올라가요",
-        "환경마다 state를 따로 보관해서 서로 부딪히지 않아요",
-        "인프라는 네트워크부터 한 층씩 쌓여요",
-    ]
+    nonisolated static var captions: [String] {
+        [
+            .app("AI가 환경별 인프라 코드를 만들고 있어요"),
+            .app("deploy.yaml을 읽고 필요한 리소스를 고르고 있어요"),
+            .app("terraform validate로 문법을 확인하고 있어요"),
+            .app("terraform plan으로 바뀔 리소스를 계산하고 있어요"),
+            .app("보안 그룹이 전체 공개되지 않았는지 살펴보고 있어요"),
+            .app("오류가 나면 AI가 로그를 읽고 최대 3번까지 고쳐요"),
+            .app("검증된 스크립트가 있으면 이미지 태그만 바꿔 재사용해요"),
+            .app("모든 환경에 같은 커밋 해시 이미지가 올라가요"),
+            .app("환경마다 state를 따로 보관해서 서로 부딪히지 않아요"),
+            .app("인프라는 네트워크부터 한 층씩 쌓여요"),
+        ]
+    }
 
     let stage: Stage
     /// 선택한 환경 수. 있으면 Meta에 "· 3 ENVS"를 붙여요.

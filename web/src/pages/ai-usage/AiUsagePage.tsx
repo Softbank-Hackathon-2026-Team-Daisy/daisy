@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { useParams } from 'react-router'
 import { attemptLabel } from '../../api/status.ts'
-import { api } from '../../api/endpoints.ts'
+import { api, isMocked } from '../../api/endpoints.ts'
 import type { AiUsageItem, AiUsageSummary, Deployment } from '../../api/types.ts'
 import { useResource } from '../../api/useResource.ts'
 import Alert from '../../components/Alert.tsx'
@@ -39,7 +39,7 @@ function AiUsagePage() {
   if (runs.data.items.length === 0) {
     return (
       <div className="page">
-        <PageHeader overline="AI usage" title="AI 사용량" />
+        <PageHeader mock={isMocked('listDeployments', 'getDeployment', 'listAiUsage', 'getPlan')} overline="AI usage" title="AI 사용량" />
         <EmptyState icon="signal" title="아직 배포가 없어요" description="배포하면 AI를 몇 번, 얼마나 썼는지 여기서 봐요" />
       </div>
     )
@@ -50,6 +50,8 @@ function AiUsagePage() {
   const summary = plan.data?.ai_usage ?? (items ? summarize(items) : null)
   const reused = d?.targets.filter((t) => t.reused_script) ?? []
   const typeOf = (targetId: string) => d?.targets.find((t) => t.target_id === targetId)?.type ?? 'onprem'
+  // Jenkins가 아직 호출별 기록을 안 보내서 빈 목록일 수 있어요 — "AI를 안 썼다"로 보이지 않게 "기록 없음"으로 (#60)
+  const noRecord = (items?.length ?? 0) === 0 && (summary?.calls ?? 0) === 0
   const rows: Row[] = [
     ...(items ?? []).map((item, i) => ({ key: `${i}`, item, type: typeOf(item.target_id) })),
     ...reused.map((t) => ({ key: `reuse-${t.target_id}`, item: null, type: t.type })),
@@ -57,7 +59,7 @@ function AiUsagePage() {
 
   return (
     <div className="page">
-      <PageHeader
+      <PageHeader mock={isMocked('listDeployments', 'getDeployment', 'listAiUsage', 'getPlan')}
         overline="AI usage"
         title="AI 사용량"
         description="배포마다 AI를 몇 번, 얼마나 썼는지 봐요. 판단이 필요한 생성 · 수정에만 AI를 쓰고, 검증된 스크립트는 재사용해요."
@@ -80,11 +82,17 @@ function AiUsagePage() {
       ) : (
         <>
           <div className="page__row" style={{ gridTemplateColumns: 'repeat(4, minmax(0, 1fr))' }}>
-            <StatTile label="AI 호출" value={`${summary.calls}회`} hint="이번 배포" />
+            <StatTile label="AI 호출" value={noRecord ? '—' : `${summary.calls}회`} hint={noRecord ? '기록 없음' : '이번 배포'} />
             <StatTile label="토큰" value={count(summary.tokens)} hint="입력 + 출력" />
             <StatTile label="비용" value={won(summary.cost_krw)} hint={`추정 · ${summary.exchange_rate ? `환율 ${count(summary.exchange_rate)}원 · ` : ''}Claude`} />
             <StatTile label="재사용한 환경" value={`${reused.length}곳`} hint={reused.length ? `${names(reused)} · AI 호출 0회` : '없음'} />
           </div>
+
+          {noRecord && (
+            <Alert type="info" title="호출 기록을 아직 받지 않았어요">
+              AI를 안 썼다는 뜻이 아니에요. 생성 · 수정 호출 기록은 Jenkins 연동 뒤에 들어와요.
+            </Alert>
+          )}
 
           <Panel title="이 배포의 호출 기록">
             <DataTable
@@ -94,7 +102,7 @@ function AiUsagePage() {
               columns={[
                 { key: 'at', label: '시각', width: 100, render: (r) => <span className="t-mono-sm">{r.item ? clockTime(r.item.at) : clockTime(d.created_at)}</span> },
                 { key: 'env', label: '환경', width: 120, render: (r) => <EnvTag env={r.type} /> },
-                { key: 'job', label: '작업', render: (r) => (r.item ? (r.item.title ?? STEP_LABEL[r.item.step]) : '— 검증된 스크립트 재사용') },
+                { key: 'job', label: '작업', render: (r) => (r.item ? (r.item.title ?? r.item.note ?? STEP_LABEL[r.item.step]) : '— 검증된 스크립트 재사용') },
                 { key: 'att', label: '시도', width: 80, render: (r) => <span className="t-mono-sm">{r.item ? attemptLabel(r.item.attempt).replace('시도 ', '') : '—'}</span> },
                 { key: 'tok', label: '토큰', width: 90, render: (r) => <span className="t-mono-sm">{r.item ? count(r.item.tokens) : '0'}</span> },
                 { key: 'cost', label: '비용', width: 80, render: (r) => <span className="t-mono-sm">{r.item ? won(r.item.cost_krw) : '₩0'}</span> },

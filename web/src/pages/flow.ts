@@ -54,6 +54,8 @@ export function generateRow(t: DeploymentTarget): { note: string; status: Status
   const how = t.reused_script ? '재사용 · 이미지 태그만 교체' : 'AI 생성'
   const attempt = attemptLabel(t.attempt)
   if (t.state === 'failed') return { note: t.attempt ? `${t.attempt}회 실패 · 중단` : '실패 · 중단', status: { tone: 'failed', label: '실패' } }
+  if (t.state === 'awaiting_approval' && t.approval_state === 'approved')
+    return { note: '승인 완료 · 실행 대기', status: { tone: 'success', label: '승인됨' } }
   if (t.state === 'awaiting_approval' || APPLY_ORDER.includes(t.state))
     return { note: `${how} · ${attempt} 통과`, status: { tone: 'success', label: '검증 통과' } }
   if (t.state === 'waiting') return { note: '대기 중', status: targetStatus('waiting') }

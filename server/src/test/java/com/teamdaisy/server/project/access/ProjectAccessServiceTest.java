@@ -32,7 +32,7 @@ class ProjectAccessServiceTest {
   private final ProjectAccessService service = new ProjectAccessService(projects, members);
 
   private void givenProjectExists() {
-    when(projects.existsById(PROJECT)).thenReturn(true);
+    when(projects.existsByIdAndArchivedAtIsNull(PROJECT)).thenReturn(true);
   }
 
   private void givenMembership(AuthPrincipal principal, boolean revoked) {
@@ -50,7 +50,7 @@ class ProjectAccessServiceTest {
   @Test
   @DisplayName("없는 프로젝트는 404예요")
   void missingProjectIsNotFound() {
-    when(projects.existsById(PROJECT)).thenReturn(false);
+    when(projects.existsByIdAndArchivedAtIsNull(PROJECT)).thenReturn(false);
 
     assertThatThrownBy(() -> service.requireRead(OWNER, PROJECT))
         .isInstanceOf(DaisyException.class)

@@ -5,9 +5,6 @@ import Observation
 @MainActor
 @Observable
 final class AppModel {
-    var serverURLString: String {
-        didSet { defaults.set(serverURLString, forKey: Keys.serverURL) }
-    }
     var selectedProjectID: String? {
         didSet { defaults.set(selectedProjectID, forKey: Keys.projectID) }
     }
@@ -25,13 +22,12 @@ final class AppModel {
     private let tokenStore: TokenStore
     private let defaults: UserDefaults
 
-    /// 처음 켰을 때 채워 둘 서버 주소: 팀 개발 서버 (10/2 하은현 공지 `api.unibloom.cloud`). 앱 심사도 이 서버로 해요 (박승준 결정). 설정 · 로그인에서 바꿀 수 있어요
+    /// Unibloom 서버 주소. 우리가 운영하는 서비스라 쓰는 사람이 주소를 넣지 않아요 — 앱은 늘 이 주소로 가요 (10/2 박승준 결정)
     static let defaultServerURL = "https://api.unibloom.cloud"
 
     init(tokenStore: TokenStore = TokenStore(), defaults: UserDefaults = .standard) {
         self.tokenStore = tokenStore
         self.defaults = defaults
-        serverURLString = defaults.string(forKey: Keys.serverURL) ?? Self.defaultServerURL
         selectedProjectID = defaults.string(forKey: Keys.projectID)
         role = defaults.string(forKey: Keys.role)
         username = defaults.string(forKey: Keys.username)
@@ -39,14 +35,20 @@ final class AppModel {
         token = isSampleMode ? SampleData.token : tokenStore.load()
     }
 
+    /// 개발 빌드에서만 실행 환경변수 `UNIBLOOM_SERVER_URL`로 다른 서버를 시험할 수 있어요 (화면에는 칸이 없어요)
     var serverURL: URL? {
-        guard let url = URL(string: serverURLString.trimmingCharacters(in: .whitespaces)),
-              url.scheme == "https" || url.scheme == "http",
-              url.host() != nil else { return nil }
-        return url
+        #if DEBUG
+        if let override = ProcessInfo.processInfo.environment["UNIBLOOM_SERVER_URL"], let url = URL(string: override) {
+            return url
+        }
+        #endif
+        return URL(string: Self.defaultServerURL)
     }
 
     var isSignedIn: Bool { token != nil }
+
+    /// 사이드바 · 설정에 보일 이름. 예시 데이터 모드는 고른 언어로 "예시 데이터"예요
+    var displayName: String? { isSampleMode ? String.app("예시 데이터") : username }
     var isViewer: Bool { role == "viewer" }
 
     /// 서버 주소와 토큰이 모두 있을 때만 만들어져요.
@@ -104,7 +106,6 @@ final class AppModel {
     }
 
     private enum Keys {
-        static let serverURL = "serverURL"
         static let projectID = "selectedProjectID"
         static let role = "role"
         static let username = "username"
