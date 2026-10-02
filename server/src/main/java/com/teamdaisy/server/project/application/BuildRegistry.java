@@ -73,8 +73,9 @@ public class BuildRegistry {
    * 저장 결과예요.
    *
    * @param changed 행이 새로 생기거나 바뀌었으면 true. false 면 수신부는 이벤트를 다시 남기지 않아요
+   * @param statusChanged 새 빌드이거나 상태가 앞으로 갔으면 true. 같은 상태에서 빈 값만 채웠으면 false 예요. 이벤트는 이 값으로 남겨요
    */
-  public record Recorded(String sourceVersionId, boolean changed) {}
+  public record Recorded(String sourceVersionId, boolean changed, boolean statusChanged) {}
 
   /** 저장된 행에서 판단에 필요한 값이에요. */
   record Stored(
@@ -99,12 +100,15 @@ public class BuildRegistry {
   @Transactional
   public Recorded record(BuildReport input) {
     BuildReport report = validate(input);
-    Integer active =
-        jdbc.queryForObject(
-            "select count(*) from project where id = :project and archived_at is null",
+    // 저장하기 전에 활성 프로젝트 행을 먼저 잠가요. 실행부와 같은 project → source_version → event 순서예요.
+    // 잠그지 않으면 같은 프로젝트의 다른 빌드 둘이 동시에 올 때, 각 INSERT 의 FK 검사가 project 에 KEY SHARE 를 남기고
+    // 뒤이은 이벤트 기록이 둘 다 같은 project 를 FOR UPDATE 로 올리려다 교착돼요 (#72 리뷰).
+    List<String> active =
+        jdbc.queryForList(
+            "select id from project where id = :project and archived_at is null for update",
             Map.of("project", report.projectId()),
-            Integer.class);
-    if (active == null || active == 0) {
+            String.class);
+    if (active.isEmpty()) {
       throw new DaisyException(ErrorCode.NOT_FOUND);
     }
     String id = "sv_" + UUID.randomUUID();
@@ -121,7 +125,7 @@ public class BuildRegistry {
             """,
             params(report).addValue("id", id));
     if (inserted == 1) {
-      return new Recorded(id, true);
+      return new Recorded(id, true, true);
     }
     Stored stored =
         jdbc.queryForObject(
@@ -156,7 +160,7 @@ public class BuildRegistry {
           """,
           params(report).addValue("id", stored.id()));
     }
-    return new Recorded(stored.id(), outcome != Outcome.UNCHANGED);
+    return new Recorded(stored.id(), outcome != Outcome.UNCHANGED, outcome == Outcome.ADVANCE);
   }
 
   /**

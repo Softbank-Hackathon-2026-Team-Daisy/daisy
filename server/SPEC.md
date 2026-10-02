@@ -1456,3 +1456,87 @@ record Recorded(String sourceVersionId, boolean changed)
 | D6 | 시드 프로젝트 A-01·A-12·A-02·A-04 그대로 200. 서버 로그 ERROR 0건 |
 
 권한 검사를 바꿨으므로 실행 서비스(`ExecutionPostgresTest`)를 포함한 실DB 테스트 전체를 다시 돌렸습니다. 188개 통과. 해제·이력 확인을 SQL 로 해서, 처음에 넣었던 `Project.archive()` 는 쓰지 않아 지웠습니다.
+
+## CI 빌드 수신 (10/2, 하은현)
+
+### 범위
+
+Jenkins `daisy-ci` 가 끝나면 결과를 `POST /internal/jenkins/builds` 로 보냅니다 (#35). 서버는 `source_version` 에 저장하고(#53 `BuildRegistry`), 상태가 바뀌었으면 같은 트랜잭션에서 프로젝트 이벤트 `build.received` 를 남깁니다. 이게 있어야 성공 빌드가 생겨 웹에서 배포를 시작할 수 있습니다. 승환님이 #35(10/2 13:53)에서 이 경로를 맡기고 조건을 정했습니다.
+
+- 인증: 사용자 Bearer 예외는 이 경로만 (`BearerAuthFilter` 공개 경로). 서비스 토큰 `X-Daisy-Jenkins-Token` 은 필수이고, #63 `JenkinsCallbackTokenAccess.requireToken` 을 그대로 씁니다 (설정 없음 403, 없거나 다름 401).
+- 켜고 끄기: 콜백과 같은 `daisy.jenkins.callbacks-enabled`. 꺼져 있으면 404.
+- 응답: 200 `{ source_version_id, changed }`.
+
+### 신뢰 확인 — project_id 만 믿지 않음
+
+| 확인 | 어기면 |
+|---|---|
+| `source` 가 `jenkins:<daisy.jenkins.instance-id>` 와 같음. 인스턴스가 바뀌어도 빌드 키가 섞이지 않게 | 403 |
+| `external_build_id` 가 `<전체 Job 경로>#<번호>` | 400 |
+| 그 Job 이 설정 `daisy.jenkins.ci-projects` 의 Job→프로젝트 매핑에 있고, 매핑된 프로젝트가 `project_id` 와 같음 | 403 |
+| 프로젝트가 있고 보관되지 않음 (`BuildRegistry`) | 404 |
+
+`daisy.jenkins.ci-projects` 는 `Job=프로젝트ID` 를 쉼표로 잇습니다. 예: `DAISY_JENKINS_CI_PROJECTS=daisy-ci=prj_demo_monolith`. 비어 있으면 모든 빌드를 403 으로 막습니다.
+
+확인하지 못하는 것: 그 commit 이 정말 그 저장소의 것인지, 이미지가 레지스트리에 있는지. 서버가 GitHub·레지스트리·Jenkins 를 다시 부르지 않습니다. 매핑은 서버 설정이라 Jenkins 가 보낸 `project_id` 만으로 다른 프로젝트에 기록할 수는 없습니다.
+
+### 요청
+
+#35 JSON 그대로입니다. 다만 `source` 는 Jenkins 인스턴스를 담아야 합니다.
+
+```json
+{"project_id": "prj_demo_monolith", "source": "jenkins:unibloom-onprem", "external_build_id": "daisy-ci#12",
+ "commit_sha": "<40자>", "branch": "main", "status": "succeeded",
+ "image_refs": {"hellocalc": {"image_ref": "...", "digest": "sha256:<64자>", "commit_sha": "<40자>"}},
+ "run_url": "...", "started_at": "...Z", "finished_at": "...Z"}
+```
+
+- 모르는 필드는 400 입니다 (이름을 잘못 보내면 조용히 버려지지 않게). 본문은 64 KiB 까지.
+- 값 검사는 `BuildRegistry.validate` 그대로입니다.
+
+### 저장과 이벤트
+
+- `BuildRegistry.record` 와 `EventJournal.appendProject` 를 한 트랜잭션에서 부릅니다. 둘 중 하나가 실패하면 같이 롤백됩니다.
+- 저장 전에 활성 프로젝트 행을 `FOR UPDATE` 로 먼저 잠급니다 (`BuildRegistry.record`). 실행부와 같은 project → source_version → event 순서라서, 같은 프로젝트의 다른 빌드가 동시에 와도 INSERT 의 FK 검사(KEY SHARE)와 이벤트의 project `FOR UPDATE` 가 서로 기다리는 교착이 생기지 않습니다 (#72 승환님 리뷰).
+- 이벤트는 **상태가 바뀌었을 때만** 남깁니다 (새 빌드, 상태가 앞으로 감). 같은 결과 재수신(`changed: false`)과, 같은 상태에서 빈 값만 채운 경우는 남기지 않습니다. 같은 이벤트 ID 로 내용이 다른 이벤트를 다시 쓰면 `EventJournal` 이 409 를 내서 수신 전체가 롤백되기 때문입니다.
+- `BuildRegistry.Recorded` 에 `status_changed` 를 더해 이걸 판단합니다 (공개 응답에는 없음).
+- 이벤트: `source` = 요청 `source`, `source_event_id` = `<external_build_id>:<status>`, `source_version_id` 연결, `payload` = `{ source_version_id, commit_sha, status }`, 시각 = `finished_at` → `started_at` → 받은 시각.
+
+### 검증 계획
+
+| | 검사 | 기대 |
+|---|---|---|
+| B1 | 토큰 없음 / 틀림 / 토큰 설정 없음 | 401 / 401 / 403 |
+| B2 | #35 JSON (source 만 인스턴스 포함) succeeded | 200 `changed: true`, A-06 목록에 보이고 그 빌드로 배포 생성 201, `build.received` 1건 |
+| B3 | 같은 본문 재전송 | 200 `changed: false`, 이벤트 늘지 않음 |
+| B4 | `running` → `succeeded` | 같은 `source_version_id`, 이벤트 2건 |
+| B5 | 모르는 필드 / 잘못된 `external_build_id` | 400 / 400 |
+| B6 | 다른 인스턴스 `source` / 매핑에 없는 Job / 매핑과 다른 `project_id` | 403 / 403 / 403 |
+| B7 | `succeeded` 뒤 `failed` | 409, 이벤트 늘지 않음 |
+| B8 | 콜백 꺼짐 / `/projects` | 404 / Bearer 없으면 401 |
+
+### 검증 결과 (10/2 오후)
+
+단위 테스트 3개(보낸 쪽 확인 규칙)와, 빈 PostgreSQL 17 에 jar 를 설정만 바꿔 세 번 띄운 실서버로 확인했습니다. 본문은 #35 인프라 JSON 그대로이고 `source` 만 `jenkins:unibloom-onprem` 으로 바꿨습니다.
+
+| | 결과 |
+|---|---|
+| B1 | 토큰 없음 401, 틀린 토큰 401, 토큰 설정 없음 403 |
+| B2 | 200 `changed: true`, A-06 목록에 보이고 그 빌드로 배포 생성 201, `build.received` 1건 |
+| B3 | 같은 본문 재전송 200 `changed: false`, 같은 ID, 이벤트 그대로 |
+| B4 | `running` → `succeeded` 같은 ID, 이벤트 2건 |
+| B5 | 모르는 필드 400, `external_build_id` 에 `#번호` 없음 400 |
+| B6 | 다른 인스턴스 `source`(`jenkins:daisy-ci`) / 매핑에 없는 Job / 매핑과 다른 프로젝트 모두 403 |
+| B7 | `succeeded` 뒤 `failed` 409, 이벤트 그대로 |
+| B8 | 콜백 끔 404, `/projects` 는 콜백 토큰을 보내도 401 |
+
+세 번 띄운 서버 로그에 토큰 값 0회, ERROR 0건. 실DB 포함 테스트 214개 통과. 매핑 파싱에서 `" =2"` 처럼 공백 뒤 이름이 빈 Job 이 들어가던 것을 단위 테스트로 잡아 고쳤습니다.
+
+인프라에 맞춰 달라고 할 것: `source` 를 `jenkins:<DAISY_JENKINS_INSTANCE_ID 와 같은 값>` 으로, 개발 서버에 `DAISY_JENKINS_CI_PROJECTS=daisy-ci=prj_demo_monolith` 추가.
+
+### 교착 수정 (10/2 저녁, 승환님 리뷰 반영)
+
+은현님 요청으로 임채준이 반영했습니다. 저장 전에 프로젝트 행을 먼저 잠급니다 (위 「저장과 이벤트」).
+
+- 회귀 테스트 `BuildRegistryPostgresTest.concurrentReceiptsSameProject`: 실제 `BuildReceipt` · `EventJournal` 로, 같은 프로젝트의 다른 빌드(`daisy-ci#1` · `#2`) 2건이 저장 직후 서로를 기다리게 만들어요. 잠금이 없으면 `deadlock detected` 로 실패하고, 잠금 후에는 둘 다 저장되고 `build.received` 2건이 남아요.
+- PostgreSQL 17 실DB로 `./gradlew spotlessApply check build --rerun-tasks --no-daemon`: 219개 통과, 건너뜀 0.
