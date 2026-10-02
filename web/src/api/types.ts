@@ -158,7 +158,7 @@ export type DeploymentAccepted = { id: string; project_id: string; state: Deploy
 
 export type Risk = { level: 'high' | 'medium' | 'low'; rule: string; resource: string; message: string }
 
-// A-05 GET /deployments/{id}/plan
+// A-05 GET /deployments/{id}/plan (#51). 현재 plan이 없는 대상은 targets에서 빠져요
 export type Plan = {
   deployment_id: string
   targets: {
@@ -166,7 +166,8 @@ export type Plan = {
     counts: { create: number; update: number; delete: number }
     has_delete: boolean
     risks: Risk[]
-    summary?: string // 예: "이미지 태그만 교체"
+    summary?: string | null // 예: "이미지 태그만 교체". 서버는 원천이 없어 null (#51)
+    plan_text?: string | null
   }[]
   ai_usage: AiUsageSummary
 }

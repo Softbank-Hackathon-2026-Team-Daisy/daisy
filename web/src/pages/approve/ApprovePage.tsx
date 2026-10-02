@@ -2,7 +2,7 @@ import { useState } from 'react'
 import { useNavigate, useParams } from 'react-router'
 import { useAuth } from '../../api/auth.ts'
 import { ApiError, errorMessage, newIdempotencyKey } from '../../api/client.ts'
-import { api } from '../../api/endpoints.ts'
+import { api, isMocked } from '../../api/endpoints.ts'
 import type { Deployment, Plan, PlanDetail } from '../../api/types.ts'
 import { useResource } from '../../api/useResource.ts'
 import Alert from '../../components/Alert.tsx'
@@ -101,7 +101,7 @@ function ApproveView({ d, plan, detail, reload }: { d: Deployment; plan: Plan; d
     return (
       <div className="page">
         <Stepper current={5} />
-        <PageHeader overline="Step 5" title="변경 사항 확인 후 승인" />
+        <PageHeader mock={isMocked('getDeployment', 'getPlan', 'getPlanDetail', 'approve')} overline="Step 5" title="변경 사항 확인 후 승인" />
         <Alert type="info" title="승인을 기다리는 plan이 없어요">
           이미 처리됐거나 아직 검증 중이에요.
         </Alert>
@@ -117,7 +117,7 @@ function ApproveView({ d, plan, detail, reload }: { d: Deployment; plan: Plan; d
   return (
     <div className="page">
       <Stepper current={5} />
-      <PageHeader overline="Step 5" title="변경 사항 확인 후 승인" description="환경별 plan 결과예요. 승인하면 선택한 모든 환경에 동시에 적용해요." />
+      <PageHeader mock={isMocked('getDeployment', 'getPlan', 'getPlanDetail', 'approve')} overline="Step 5" title="변경 사항 확인 후 승인" description="환경별 plan 결과예요. 승인하면 선택한 모든 환경에 동시에 적용해요." />
 
       <Panel title="환경별 요약">
         {d.targets.map((t) => {

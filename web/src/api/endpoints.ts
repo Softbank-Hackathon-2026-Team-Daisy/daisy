@@ -23,7 +23,7 @@ import type {
 // 상태를 바꾸는 요청은 마지막 인자로 Idempotency-Key를 받아요 — 화면은 useAction이 사용자 동작마다 하나 만들어 줘요
 
 // 서버에 열린 API (#38 머지, 10/1). 서버 PR이 머지되면 여기에 이름만 더해요
-// 아직 목업: A-05 plan · plan 상세, A-07 로그, 스크립트, AI 사용량, manifest, 프로젝트 연결 · 해제, 연결 테스트 · 리소스
+// 아직 목업: A-07 로그, 스크립트, AI 사용량 호출별, manifest, 프로젝트 연결 · 해제, 연결 테스트 · 리소스
 // #42 · #46 · #48: 배포 목록 · 상세 · 생성 · 승인 · 취소 · 재시도 · 롤백 · 환경 목록
 const SERVER_READY = new Set<string>([
   'login',
@@ -40,6 +40,9 @@ const SERVER_READY = new Set<string>([
   'cancel',
   'retry',
   'rollback',
+  // #51: A-05 plan 요약 · WR-06 리소스 목록 (W-06)
+  'getPlan',
+  'getPlanDetail',
 ])
 
 /** 이 API를 목업으로 답하는지 — 화면이 MOCK 배지를 붙일지 정할 때 써요 */

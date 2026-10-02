@@ -281,7 +281,8 @@ Page ──▶ hook ──▶ api/client ──────────▶ Unibl
 | A-03 `GET /projects/{id}/deployments` · A-04 `GET /deployments/{id}` (#46 · #48) | ✅ 실서버 (#42~#48 머지 후) | 목록 · 상세 같은 모양. `version` 없음 → 짧은 커밋, `kind` null, 대상 `step` · `attempt` null → 상태로 추정 · "시도 —", `pending_approvals` |
 | 배포 시작 `POST /projects/{id}/deployments` · 승인 · 취소 · 재시도 `POST /deployments/{id}/retry` · 롤백 (#42) | ✅ 실서버 (#42 머지 후) | 응답 `{ id, project_id, state }`. 시작 `{ source_version_id, target_ids }`, 승인 `{ decision, confirm_text, items }`(빈 items는 보내지 않음), 취소 · 재시도 `{ target_ids }`, 롤백 `{ target_ids, reason }` |
 | WR-04 `GET /projects/{id}/targets` (#42) | ✅ 실서버 (#42 머지 후) | 봉투, `reuse` null → "판단 전", `connection.checked_at` null |
-| A-05 · WR-06 plan, A-07 로그, 스크립트, AI 사용량, manifest, 연결 테스트 · 리소스, SSE | ⏳ 목업 | 실서버 모드에서 연결 테스트 · 리소스 버튼은 꺼요. SSE(`GET /deployments/{id}/events` · `/projects/{id}/events`)는 서버에 열렸지만 웹은 5초 폴링 유지 — 다음 PR |
+| A-05 `GET /deployments/{id}/plan` · WR-06 `?detail=resources` (#51) | ✅ 실서버 | `summary` · `plan_text` null, 현재 plan 없는 대상은 빠짐, `ai_usage` 토큰 · 원화 · 환율 null 가능 · `unknown_calls`. 리소스별 월 비용 없음 |
+| A-07 로그, 스크립트, AI 사용량 호출별, manifest, 연결 테스트 · 리소스, SSE | ⏳ 목업 | 실서버 모드에서 연결 테스트 · 리소스 버튼은 꺼요. SSE(`GET /deployments/{id}/events` · `/projects/{id}/events`)는 서버에 열렸지만 웹은 5초 폴링 유지 — 다음 PR |
 
 **개발 서버 (10/2, 은현 님):** API `https://api.unibloom.cloud`(지금 #38 범위 — 이 PR의 `SERVER_READY`와 같아요), 웹 `https://www.unibloom.cloud`. 개발 API는 CORS로 localhost를 막아서, 로컬 웹은 Vite 프록시로 붙어요: `.env.local`에 `VITE_API_BASE_URL=/api` · `VITE_PROXY_TARGET=https://api.unibloom.cloud` · `VITE_USE_MOCK=false`.
 
