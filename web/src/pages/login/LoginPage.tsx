@@ -16,14 +16,12 @@ import MacAppDialog from '../app-download/MacAppDialog.tsx'
 import './LoginPage.css'
 
 // W-00 로그인 · W-00b 실패. Bearer 토큰 하나(R-01 · R-02), GitHub 로그인은 넣지 않아요
-type Failure = { kind: 'auth' | 'network' | 'other'; message: string } | null
+type Failure = { kind: 'empty' | 'auth' | 'network' | 'other'; message: string } | null
 
 function LoginPage() {
   const navigate = useNavigate()
   const [params] = useSearchParams()
   const { signIn } = useAuth()
-  const [username, setUsername] = useState('')
-  const [password, setPassword] = useState('')
   const [failure, setFailure] = useState<Failure>(null)
   const [pending, setPending] = useState(false)
   const [macAppOpen, setMacAppOpen] = useState(false)
@@ -32,7 +30,7 @@ function LoginPage() {
   // 로그인 후 첫 화면 — 원래 가려던 화면, 없으면 첫 프로젝트(FirstProject)
   const goNext = () => navigate(params.get('next') ?? '/', { replace: true })
 
-  const run = async (login: () => ReturnType<typeof api.login>) => {
+  const run = async (login: () => ReturnType<typeof api.login>, form?: HTMLFormElement) => {
     setPending(true)
     setFailure(null)
     try {
@@ -41,7 +39,8 @@ function LoginPage() {
     } catch (e) {
       if (e instanceof ApiError && e.status === 401) {
         setFailure({ kind: 'auth', message: t('아이디 또는 비밀번호가 맞지 않아요. 다시 확인해 주세요.') })
-        setPassword('')
+        const pw = form?.elements.namedItem('password')
+        if (pw instanceof HTMLInputElement) pw.value = ''
       } else if (e instanceof ApiError && e.code === 'NETWORK') {
         setFailure({ kind: 'network', message: t('서버에 연결하지 못했어요. 잠시 후 다시 시도해 주세요.') })
       } else {
@@ -52,9 +51,19 @@ function LoginPage() {
     }
   }
 
-  const onSubmit = (e: FormEvent) => {
+  // 값은 제출할 때 폼에서 읽어요 — Chrome 자동 완성(:-webkit-autofill)은 사용자가 누르기 전까지 React 상태에 안 들어와서,
+  // 상태로 버튼을 막으면 채워진 폼도 제출할 수 없어요 (#102)
+  const onSubmit = (e: FormEvent<HTMLFormElement>) => {
     e.preventDefault()
-    void run(() => api.login(username, password))
+    const form = e.currentTarget
+    const data = new FormData(form)
+    const username = String(data.get('username') ?? '').trim()
+    const password = String(data.get('password') ?? '')
+    if (!username || !password) {
+      setFailure({ kind: 'empty', message: t('아이디와 비밀번호를 모두 입력해 주세요.') })
+      return
+    }
+    void run(() => api.login(username, password), form)
   }
 
   return (
@@ -94,8 +103,6 @@ function LoginPage() {
                 name="username"
                 autoComplete="username"
                 placeholder="doyoung@teamdaisy.dev"
-                value={username}
-                onChange={(e) => setUsername(e.target.value)}
                 required
               />
             </label>
@@ -105,15 +112,13 @@ function LoginPage() {
                 name="password"
                 type="password"
                 autoComplete="current-password"
-                value={password}
                 invalid={failure?.kind === 'auth'}
-                onChange={(e) => setPassword(e.target.value)}
                 required
               />
             </label>
           </div>
 
-          <Button type="submit" variant="secondary" className="login__full" disabled={pending || !username || !password}>
+          <Button type="submit" variant="secondary" className="login__full" disabled={pending}>
             {pending ? t('로그인하는 중…') : t('로그인')}
           </Button>
 

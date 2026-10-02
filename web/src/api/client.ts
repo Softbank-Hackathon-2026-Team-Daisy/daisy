@@ -1,5 +1,5 @@
 // REST 클라이언트 — Bearer 토큰, 서버 에러 봉투 { error: { code, message, details, retryable } } (ios/SPEC.md R-05)
-// 토큰은 메모리에만 둬요 (SPEC.md §3-2). 401이 오면 로그인 화면으로 보내요 (로그인 요청 제외)
+// 토큰은 여기(메모리)에서 요청에 붙이고, 새로고침 뒤 복원은 AuthProvider가 sessionStorage에서 해요 (SPEC.md §3-2). 401이 오면 로그인 화면으로 보내요 (로그인 요청 제외)
 
 import { getLang, t } from '../i18n/index.ts'
 
