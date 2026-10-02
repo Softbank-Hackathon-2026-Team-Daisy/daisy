@@ -37,16 +37,20 @@ struct RetryRequest: Equatable {
     let projectID: String
     let commit: String
     let targetIDs: [String]
+    /// 원래 배포가 쓴 빌드 (#36). 서버는 필수로 받아요 — 없으면 화면이 "다시 시도"를 막아요
+    var sourceVersionID: String? = nil
 
     /// W-05b "AWS만 다시 시도", W-08 실패 카드 "다시 시도"
     static func only(_ targetID: String, of deployment: Deployment) -> RetryRequest {
-        RetryRequest(projectID: deployment.projectId, commit: deployment.commit, targetIDs: [targetID])
+        RetryRequest(projectID: deployment.projectId, commit: deployment.commit, targetIDs: [targetID],
+                     sourceVersionID: deployment.sourceVersionId)
     }
 
     /// W-05b "AWS만 다시 시도": 실패한 환경 전부를 한 번에 (웹과 같아요)
     static func failed(of deployment: Deployment) -> RetryRequest {
         RetryRequest(projectID: deployment.projectId, commit: deployment.commit,
-                     targetIDs: (deployment.targets ?? []).filter(\.isFailed).map(\.targetId))
+                     targetIDs: (deployment.targets ?? []).filter(\.isFailed).map(\.targetId),
+                     sourceVersionID: deployment.sourceVersionId)
     }
 }
 

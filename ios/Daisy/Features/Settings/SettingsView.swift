@@ -109,7 +109,7 @@ struct SettingsView: View {
         return SectionCard("앱") {
             VStack(alignment: .leading, spacing: 6) {
                 Text("서버 주소").font(.subheadline.weight(.medium))
-                TextField("https://api.example.com", text: $app.serverURLString)
+                TextField(AppModel.defaultServerURL, text: $app.serverURLString)
                     .urlInput()
                     .textFieldStyle(.roundedBorder)
                 if !app.serverURLString.isEmpty && app.serverURL == nil {
