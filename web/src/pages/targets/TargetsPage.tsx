@@ -12,6 +12,7 @@ import InfoRow from '../../components/InfoRow.tsx'
 import PageHeader from '../../components/PageHeader.tsx'
 import Panel from '../../components/Panel.tsx'
 import Stepper from '../../components/Stepper.tsx'
+import { t } from '../../i18n/index.ts'
 import { paths } from '../../paths.ts'
 import { shortCommit } from '../../utils/format.ts'
 import { ErrorBlock, LoadingBlock } from '../Loading.tsx'
@@ -39,12 +40,12 @@ function TargetsPage() {
     builds.data.items[0]
   const commit = build?.commit ?? ''
   const list = targets.data.items
-  const selected = list.filter((t) => !unselected.has(t.target_id) && t.connection.state !== 'failed')
+  const selected = list.filter((tg) => !unselected.has(tg.target_id) && tg.connection.state !== 'failed')
   // reuse가 null이면 인프라가 아직 판단을 안 준 거라 "확인 전"으로 따로 세요 (#42)
-  const reuse = selected.filter((t) => t.reuse?.available === true)
-  const generate = selected.filter((t) => t.reuse?.available === false)
-  const unknown = selected.filter((t) => !t.reuse)
-  const names = (list: typeof selected) => list.map((t) => ENV_LABEL[t.type]).join(', ')
+  const reuse = selected.filter((tg) => tg.reuse?.available === true)
+  const generate = selected.filter((tg) => tg.reuse?.available === false)
+  const unknown = selected.filter((tg) => !tg.reuse)
+  const names = (list: typeof selected) => list.map((tg) => t(ENV_LABEL[tg.type])).join(', ')
 
   const toggle = (id: string, on: boolean) =>
     setUnselected((prev) => {
@@ -55,7 +56,7 @@ function TargetsPage() {
     })
 
   const start = async () => {
-    const d = await run((key) => api.createDeployment(projectId, { source_version_id: build?.source_version_id, commit }, selected.map((t) => t.target_id), key), '배포를 시작하지 못했어요')
+    const d = await run((key) => api.createDeployment(projectId, { source_version_id: build?.source_version_id, commit }, selected.map((tg) => tg.target_id), key), t('배포를 시작하지 못했어요'))
     if (d) navigate(paths.generate(projectId, d.id), { state: { transition: 'l02' } })
   }
 
@@ -64,52 +65,52 @@ function TargetsPage() {
       <Stepper current={3} />
       <PageHeader mock={isMocked('listTargets', 'listBuilds', 'createDeployment')}
         overline="Step 3"
-        title="배포할 환경 선택"
-        description={`여러 환경을 동시에 고를 수 있어요. 같은 이미지(${shortCommit(commit)})가 모든 환경에 배포돼요.`}
+        title={t('배포할 환경 선택')}
+        description={t('여러 환경을 동시에 고를 수 있어요. 같은 이미지({commit})가 모든 환경에 배포돼요.', { commit: shortCommit(commit) })}
       />
 
       <div className="page__row page__row--3">
-        {list.map((t) => (
+        {list.map((tg) => (
           <EnvSelectCard
-            key={t.target_id}
-            env={t.type}
-            title={t.title ?? t.name}
+            key={tg.target_id}
+            env={tg.type}
+            title={tg.title ?? tg.name}
             description={
-              t.connection.state === 'failed'
-                ? '연결할 수 없어요 · 환경 화면에서 확인해 주세요'
-                : (t.reuse?.reason ?? (t.connection.state === 'unknown' ? '연결 확인 전 · 재사용 여부는 생성할 때 정해져요' : '재사용 여부는 생성할 때 정해져요'))
+              tg.connection.state === 'failed'
+                ? t('연결할 수 없어요 · 환경 화면에서 확인해 주세요')
+                : (tg.reuse?.reason ?? (tg.connection.state === 'unknown' ? t('연결 확인 전 · 재사용 여부는 생성할 때 정해져요') : t('재사용 여부는 생성할 때 정해져요')))
             }
-            selected={!unselected.has(t.target_id) && t.connection.state !== 'failed'}
-            disabled={t.connection.state === 'failed'}
-            onChange={(on) => toggle(t.target_id, on)}
+            selected={!unselected.has(tg.target_id) && tg.connection.state !== 'failed'}
+            disabled={tg.connection.state === 'failed'}
+            onChange={(on) => toggle(tg.target_id, on)}
           />
         ))}
       </div>
 
-      <Panel title="선택 요약">
+      <Panel title={t('선택 요약')}>
         <div>
-          <InfoRow label="선택한 환경">{`${selected.length}개`}</InfoRow>
-          <InfoRow label="스크립트 재사용">{reuse.length ? `${reuse.length}개 · ${names(reuse)}` : '없음'}</InfoRow>
-          <InfoRow label="AI가 새로 생성">{generate.length ? `${generate.length}개 · ${names(generate)}` : '없음'}</InfoRow>
-          {unknown.length > 0 && <InfoRow label="판단 전">{`${unknown.length}개 · ${names(unknown)}`}</InfoRow>}
-          <InfoRow label="배포할 이미지">{build?.image ?? '—'}</InfoRow>
+          <InfoRow label={t('선택한 환경')}>{t('{count}개', { count: selected.length })}</InfoRow>
+          <InfoRow label={t('스크립트 재사용')}>{reuse.length ? t('{count}개 · {names}', { count: reuse.length, names: names(reuse) }) : t('없음')}</InfoRow>
+          <InfoRow label={t('AI가 새로 생성')}>{generate.length ? t('{count}개 · {names}', { count: generate.length, names: names(generate) }) : t('없음')}</InfoRow>
+          {unknown.length > 0 && <InfoRow label={t('판단 전')}>{t('{count}개 · {names}', { count: unknown.length, names: names(unknown) })}</InfoRow>}
+          <InfoRow label={t('배포할 이미지')}>{build?.image ?? '—'}</InfoRow>
         </div>
       </Panel>
 
       {error && (
-        <Alert type="danger" title="배포를 시작하지 못했어요">
+        <Alert type="danger" title={t('배포를 시작하지 못했어요')}>
           {error}
         </Alert>
       )}
 
-      {viewer && <ReadOnlyNote action="배포를 시작할" />}
+      {viewer && <ReadOnlyNote message={t('읽기 전용 계정이라 배포를 시작할 수 없어요.')} />}
 
       <div className="page__actions">
         <Button variant="ghost" onClick={() => navigate(paths.build(projectId))}>
-          이전
+          {t('이전')}
         </Button>
         <Button variant="secondary" disabled={viewer || selected.length === 0 || pending} onClick={() => void start()}>
-          {pending ? '시작하는 중…' : '인프라 코드 생성 · 검증 시작'}
+          {pending ? t('시작하는 중…') : t('인프라 코드 생성 · 검증 시작')}
         </Button>
       </div>
     </div>

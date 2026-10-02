@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { t } from '../i18n/index.ts'
 import Icon from './Icon.tsx'
 import './CodeBlock.css'
 
@@ -21,7 +22,7 @@ function CodeBlock({ file, code, ai = false }: CodeBlockProps) {
       <figcaption className="code-block__header">
         {ai && <span className="code-block__ai">AI</span>}
         <span className="t-label">{file}</span>
-        <button type="button" className="code-block__copy" aria-label={copied ? '복사했어요' : '코드 복사'} onClick={() => void copy()}>
+        <button type="button" className="code-block__copy" aria-label={copied ? t('복사했어요') : t('코드 복사')} onClick={() => void copy()}>
           <Icon name={copied ? 'check' : 'copy'} size={16} />
         </button>
       </figcaption>

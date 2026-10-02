@@ -1,5 +1,6 @@
 import type { EnvType } from './env.ts'
 import { ENV_LABEL } from './env.ts'
+import { t } from '../i18n/index.ts'
 import Icon from './Icon.tsx'
 import './ParityTable.css'
 
@@ -21,25 +22,25 @@ function ParityTable({ envs, rows, matched, mismatch, unknown }: ParityTableProp
   return (
     <section className="parity">
       <header className="parity__title">
-        <h2 className="t-h2">동일성 검증</h2>
-        <span className="t-body-sm t-muted">모든 환경이 같은 상태인지 비교해요</span>
+        <h2 className="t-h2">{t('동일성 검증')}</h2>
+        <span className="t-body-sm t-muted">{t('모든 환경이 같은 상태인지 비교해요')}</span>
         {unknown ? (
-          <span className="parity__summary parity__summary--unknown">확인 전</span>
+          <span className="parity__summary parity__summary--unknown">{t('확인 전')}</span>
         ) : (
           <span className={`parity__summary ${all ? '' : 'parity__summary--partial'}`}>
             <Icon name={all ? 'circle-check' : 'alert-triangle'} size={14} />
-            {matched}/{envs.length} 일치
+            {t('{matched}/{total} 일치', { matched, total: envs.length })}
           </span>
         )}
       </header>
       <table className="parity__table">
         <thead>
           <tr>
-            <th scope="col">항목</th>
+            <th scope="col">{t('항목')}</th>
             {envs.map((e) => (
               <th scope="col" key={e.id}>
                 <span className="parity__env" style={{ background: `var(--color-env-${e.type})` }} />
-                {ENV_LABEL[e.type]}
+                {t(ENV_LABEL[e.type])}
               </th>
             ))}
           </tr>
@@ -57,7 +58,7 @@ function ParityTable({ envs, rows, matched, mismatch, unknown }: ParityTableProp
                       '—'
                     ) : (
                       <>
-                        <Icon name={bad ? 'x' : 'check'} size={14} label={bad ? '다름' : '같음'} />
+                        <Icon name={bad ? 'x' : 'check'} size={14} label={bad ? t('다름') : t('같음')} />
                         <span className="t-mono-sm">{value}</span>
                       </>
                     )}

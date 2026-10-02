@@ -1,4 +1,5 @@
 import { API_BASE_URL, getAccessToken, notifyUnauthorized } from './client.ts'
+import { getLang } from '../i18n/index.ts'
 
 // SSE — EventSource는 Authorization 헤더를 못 붙여서 fetch 스트림을 직접 읽어요 (WR-01, SPEC.md §6-2)
 // 서버 형식: id(= seq) / event / data(한 줄 JSON), 빈 줄로 끊어요. 재연결은 Last-Event-ID 헤더
@@ -75,7 +76,7 @@ export function subscribe(path: string, { since = null, onEvent, onState, onResy
         watchdog = setTimeout(() => attempt.abort(), STALE_MS)
       }
       try {
-        const headers: Record<string, string> = { Accept: 'text/event-stream' }
+        const headers: Record<string, string> = { Accept: 'text/event-stream', 'Accept-Language': getLang() }
         const token = getAccessToken()
         if (token) headers.Authorization = `Bearer ${token}`
         if (lastId !== null) headers['Last-Event-ID'] = String(lastId)

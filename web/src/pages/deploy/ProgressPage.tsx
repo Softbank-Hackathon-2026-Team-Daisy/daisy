@@ -12,6 +12,7 @@ import LogViewer from '../../components/LogViewer.tsx'
 import PageHeader from '../../components/PageHeader.tsx'
 import StatusBadge from '../../components/StatusBadge.tsx'
 import Stepper from '../../components/Stepper.tsx'
+import { t } from '../../i18n/index.ts'
 import { paths } from '../../paths.ts'
 import { applySteps } from '../flow.ts'
 import TransitionGate from '../loading/TransitionGate.tsx'
@@ -37,7 +38,7 @@ function ProgressPage() {
   const deployment = useResource(() => api.getDeployment(deploymentId), [deploymentId, live.tick], pollFor(live.state), (d) => FINISHED.has(d.state))
   const d = deployment.data
   // L-03: 승인에서 넘어왔으면 한 환경이라도 apply를 시작할 때까지 전환 로딩
-  const ready = !!d && d.targets.some((t) => APPLY_STARTED.has(t.state))
+  const ready = !!d && d.targets.some((tg) => APPLY_STARTED.has(tg.state))
 
   return (
     <TransitionGate kind="l03" ready={ready} meta={d ? `Step 5 · ${d.targets.length} envs` : 'Step 5'}>
@@ -65,7 +66,7 @@ function ProgressView({ d, sseLines }: { d: Deployment; sseLines: LiveLogLine[] 
   }, [finished, navigate, projectId, d.id])
 
   // 콘솔 줄(target_id null)은 특정 환경이 아니라 실행 공통이에요
-  const typeOf = (targetId: string | null) => (targetId ? (d.targets.find((t) => t.target_id === targetId)?.type ?? null) : null)
+  const typeOf = (targetId: string | null) => (targetId ? (d.targets.find((tg) => tg.target_id === targetId)?.type ?? null) : null)
 
   return (
     <div className="page">
@@ -73,15 +74,15 @@ function ProgressView({ d, sseLines }: { d: Deployment; sseLines: LiveLogLine[] 
       <PageHeader
         overline="Step 5"
         mock={isMocked('getDeployment') || (!sse && isMocked('getLogs'))}
-        title="배포 중"
+        title={t('배포 중')}
         badge={<StatusBadge tone={status.tone}>{status.label}</StatusBadge>}
-        description={`${d.targets.length}개 환경에 terraform apply를 동시에 실행하고 있어요. 환경마다 state는 따로 저장해요.`}
+        description={t('{n}개 환경에 terraform apply를 동시에 실행하고 있어요. 환경마다 state는 따로 저장해요.', { n: d.targets.length })}
       />
 
       <div className="page__row page__row--3">
-        {d.targets.map((t) => {
-          const s = targetStatus(t.state)
-          return <DeployLane key={t.target_id} env={t.type} region={t.title ?? t.target_id} tone={s.tone} label={s.label} steps={applySteps(t)} />
+        {d.targets.map((tg) => {
+          const s = targetStatus(tg.state)
+          return <DeployLane key={tg.target_id} env={tg.type} region={tg.title ?? tg.target_id} tone={s.tone} label={s.label} steps={applySteps(tg)} />
         })}
       </div>
 
@@ -92,7 +93,7 @@ function ProgressView({ d, sseLines }: { d: Deployment; sseLines: LiveLogLine[] 
       {finished && (
         <div className="page__actions">
           <Button variant="secondary" onClick={() => navigate(paths.result(projectId, d.id))}>
-            결과 보기
+            {t('결과 보기')}
           </Button>
         </div>
       )}

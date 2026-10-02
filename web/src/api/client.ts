@@ -1,6 +1,8 @@
 // REST 클라이언트 — Bearer 토큰, 서버 에러 봉투 { error: { code, message, details, retryable } } (ios/SPEC.md R-05)
 // 토큰은 메모리에만 둬요 (SPEC.md §3-2). 401이 오면 로그인 화면으로 보내요 (로그인 요청 제외)
 
+import { getLang, t } from '../i18n/index.ts'
+
 export const API_BASE_URL = import.meta.env.VITE_API_BASE_URL ?? ''
 
 // 서버가 열리기 전까지는 목업을 써요. VITE_USE_MOCK=false면 서버에 열린 API(endpoints.ts의 SERVER_READY)만 실서버로,
@@ -28,11 +30,11 @@ export function notifyUnauthorized(path: string) {
 }
 
 // 403 FORBIDDEN은 어느 화면이든 같은 문구로 보여줘요
-export const FORBIDDEN_MESSAGE = '읽기 전용 계정이라 할 수 없어요.'
+export const forbiddenMessage = () => t('읽기 전용 계정이라 할 수 없어요.')
 
 // 화면에 보여줄 에러 문구 — ApiError면 서버 문구(403은 공통 문구), 아니면 fallback
 export function errorMessage(e: unknown, fallback: string) {
-  if (e instanceof ApiError) return e.status === 403 ? FORBIDDEN_MESSAGE : e.message
+  if (e instanceof ApiError) return e.status === 403 ? forbiddenMessage() : e.message
   return fallback
 }
 
@@ -59,7 +61,8 @@ type RequestOptions = {
 export const newIdempotencyKey = () => crypto.randomUUID()
 
 export async function request<T>(method: string, path: string, options: RequestOptions = {}): Promise<T> {
-  const headers: Record<string, string> = { Accept: 'application/json' }
+  // 화면 언어를 알려요 — 서버는 지금 한국어로만 답하고(#74 안 A), 나중에 언어별로 주면 그대로 보여줘요
+  const headers: Record<string, string> = { Accept: 'application/json', 'Accept-Language': getLang() }
   if (accessToken) headers.Authorization = `Bearer ${accessToken}`
   if (options.body !== undefined) headers['Content-Type'] = 'application/json'
   if (options.idempotencyKey) headers['Idempotency-Key'] = options.idempotencyKey
@@ -73,14 +76,14 @@ export async function request<T>(method: string, path: string, options: RequestO
       signal: options.signal,
     })
   } catch {
-    throw new ApiError(0, 'NETWORK', '서버에 연결하지 못했어요. 잠시 후 다시 시도해 주세요.', true)
+    throw new ApiError(0, 'NETWORK', t('서버에 연결하지 못했어요. 잠시 후 다시 시도해 주세요.'), true)
   }
 
   if (res.status === 401) notifyUnauthorized(path)
   if (!res.ok) {
     const body = await res.json().catch(() => null)
     const err = body?.error
-    throw new ApiError(res.status, err?.code ?? 'UNKNOWN', err?.message ?? `요청이 실패했어요 (${res.status})`, !!err?.retryable)
+    throw new ApiError(res.status, err?.code ?? 'UNKNOWN', err?.message ?? t('요청이 실패했어요 ({status})', { status: res.status }), !!err?.retryable)
   }
   if (res.status === 204) return undefined as T
   return (await res.json()) as T

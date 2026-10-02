@@ -1,6 +1,7 @@
 import { Navigate } from 'react-router'
 import { useProjects } from '../api/useWorkspace.ts'
 import EmptyState from '../components/EmptyState.tsx'
+import { t } from '../i18n/index.ts'
 import { paths } from '../paths.ts'
 import { ErrorBlock, LoadingBlock } from './Loading.tsx'
 
@@ -11,7 +12,7 @@ function FirstProject() {
   if (!projects.data) return <LoadingBlock />
   const first = projects.data.items[0]
   if (!first) {
-    return <EmptyState icon="git-merge" title="연결된 프로젝트가 없어요" description="저장소를 연결하면 여기서 시작해요" />
+    return <EmptyState icon="git-merge" title={t('연결된 프로젝트가 없어요')} description={t('저장소를 연결하면 여기서 시작해요')} />
   }
   return <Navigate to={paths.overview(first.id)} replace />
 }

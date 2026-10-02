@@ -1,4 +1,5 @@
 import type { ReactNode } from 'react'
+import { t } from '../i18n/index.ts'
 import './StatusBadge.css'
 
 // Figma 「02 Core · Status Badge」. 서버 상태 값 → 톤 매핑은 화면에서 해요 (SPEC.md §2-5)
@@ -23,7 +24,7 @@ function StatusBadge({ tone, children }: StatusBadgeProps) {
   return (
     <span className={`status-badge status-badge--${tone}`}>
       <span className="status-badge__dot" aria-hidden="true" />
-      {children ?? DEFAULT_LABEL[tone]}
+      {children ?? t(DEFAULT_LABEL[tone])}
     </span>
   )
 }

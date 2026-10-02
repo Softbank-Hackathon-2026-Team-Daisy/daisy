@@ -19,11 +19,14 @@ import TargetsPage from './pages/targets/TargetsPage.tsx'
 import ComponentsPage from './pages/dev/ComponentsPage.tsx'
 import PrimitivesPage from './pages/dev/PrimitivesPage.tsx'
 import TokensPage from './pages/dev/TokensPage.tsx'
+import { useLang } from './i18n/index.ts'
 
 // 화면 경로 (SPEC.md §2, 경로 함수는 paths.ts)
 function App() {
+  // 언어를 바꾸면 화면 전체를 새 언어로 다시 그려요. 로그인(AuthProvider)은 바깥이라 그대로 남아요 (#75)
+  const lang = useLang()
   return (
-    <Routes>
+    <Routes key={lang}>
       <Route path="/login" element={<LoginPage />} />
 
       <Route element={<AppLayout />}>
