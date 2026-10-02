@@ -120,12 +120,14 @@ func poll(every seconds: Double = 5, until done: @MainActor () -> Bool = { false
 /// 화면 폭에 맞춰 열 수가 바뀌는 그리드. 폰은 1열, iPad · Mac은 여러 열.
 struct AdaptiveGrid<Content: View>: View {
     var minimumWidth: CGFloat = 300
+    /// 카드가 늘 줄 폭을 다 써요: 열 수를 카드 수의 약수 중 들어가는 가장 큰 값으로 (4장 → 4 · 2 · 1열, 빈 칸 없음). AI 사용량 타일 (10/3)
+    var fillsWidth = false
     @ViewBuilder let content: () -> Content
 
     var body: some View {
         // LazyVGrid는 카드 높이가 나중에 바뀌면(스크립트 로딩 등) 스크롤 높이를 크게 잡아 아래에 빈 공간이 생겨서 (W-05, 10/1)
         // 카드 몇 개뿐인 화면이라 지연 없는 레이아웃으로 그려요.
-        AdaptiveColumns(minimumWidth: minimumWidth, spacing: 12, equalRowHeights: Self.equalRowHeights) {
+        AdaptiveColumns(minimumWidth: minimumWidth, spacing: 12, equalRowHeights: Self.equalRowHeights, fillsWidth: fillsWidth) {
             content()
         }
         .environment(\.fillsRowHeight, Self.equalRowHeights)
@@ -167,13 +169,17 @@ private struct AdaptiveColumns: Layout {
     let minimumWidth: CGFloat
     let spacing: CGFloat
     var equalRowHeights = false
+    var fillsWidth = false
 
     private func columns(for width: CGFloat) -> Int {
         max(1, Int((width + spacing) / (minimumWidth + spacing)))
     }
 
     private func rows(_ subviews: Subviews, width: CGFloat) -> (columnWidth: CGFloat, heights: [CGFloat], count: Int) {
-        let count = columns(for: width)
+        let fit = columns(for: width)
+        let count = fillsWidth && !subviews.isEmpty
+            ? (1...min(fit, subviews.count)).last { subviews.count % $0 == 0 } ?? 1
+            : fit
         let columnWidth = (width - spacing * CGFloat(count - 1)) / CGFloat(count)
         let proposal = ProposedViewSize(width: columnWidth, height: nil)
         let heights = stride(from: 0, to: subviews.count, by: count).map { start in

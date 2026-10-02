@@ -139,6 +139,19 @@ private struct SidebarLayout: View {
                 .id(router.tab)
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
                 .contentSurface()
+                // 사이드바를 닫으면 아래에서 iPhone과 같은 얇은 탭 바가 올라와요 (10/3 담당자). 사이드바가 없으니
+                // 탭 바 화면처럼 굴러가요: 스크롤 끝 여백, 아래 고정 줄, 배포 머리줄 "새 배포", 설정 로그아웃
+                .contentMargins(.bottom, sidebarShown ? 0 : 40, for: .scrollContent)
+                .environment(\.tabBarClearance, sidebarShown ? 0 : SlimTabBar.height + 8)
+                .safeAreaInset(edge: .bottom, spacing: 0) {
+                    if !sidebarShown {
+                        SlimTabBar()
+                            .frame(maxWidth: 440)
+                            .padding(.horizontal, 20)
+                            .padding(.bottom, 12)
+                            .transition(.move(edge: .bottom).combined(with: .opacity))
+                    }
+                }
         }
         #if os(macOS)
         .toolbar {

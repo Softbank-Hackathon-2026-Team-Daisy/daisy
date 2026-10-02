@@ -60,8 +60,8 @@ struct AIUsageView: View {
     }
 
     private var deploymentPicker: some View {
-        ExpandingMenuButton(systemImage: "arrow.triangle.branch", title: selectedTitle, isExpanded: $pickerExpanded,
-                            options: [ExpandingMenuOption(id: "all", title: .app("전체 사용량"), systemImage: "sum",
+        ExpandingMenuButton(systemImage: "wonsign.circle", title: selectedTitle, isExpanded: $pickerExpanded,
+                            options: [ExpandingMenuOption(id: "all", title: .app("전체 사용량"),
                                                           isSelected: selectedID == nil) { select(nil) }]
                                 + deployments.enumerated().map { index, deployment in
                                     ExpandingMenuOption(id: deployment.id, title: AIUsageSummary.pickerTitle(deployment),
@@ -79,7 +79,7 @@ struct AIUsageView: View {
     private func totalsContent(_ totals: AIUsageTotals) -> some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 16) {
-                AdaptiveGrid(minimumWidth: 150) {
+                AdaptiveGrid(minimumWidth: 150, fillsWidth: true) {
                     tile(.app("AI 호출"), .app("\(totals.calls)회"), .app("배포 \(totals.rows.count)건 중 \(totals.deploymentsWithCalls)건"))
                     tile(.app("토큰"), totals.tokens.map { $0.appFormatted } ?? "—",
                          totals.isPartial ? .app("확인한 호출만 더했어요") : .app("입력 + 출력"))
@@ -130,7 +130,7 @@ struct AIUsageView: View {
         ScrollView {
             VStack(alignment: .leading, spacing: 16) {
                 // iPhone 폭에서도 2×2로 보이게 최소 폭을 150으로
-                AdaptiveGrid(minimumWidth: 150) {
+                AdaptiveGrid(minimumWidth: 150, fillsWidth: true) {
                     tile(.app("AI 호출"), .app("\(summary.calls)회"), .app("이번 배포"))
                     tile(.app("토큰"), summary.tokens.map { $0.appFormatted } ?? "—", .app("입력 + 출력"))
                     tile(.app("비용"), summary.costKrw.map { "₩\($0.appFormatted)" } ?? "—", costNote(summary))

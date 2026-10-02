@@ -35,6 +35,7 @@ struct ScriptsView: View {
                             if let script = selected(scripts) {
                                 ViewThatFits(in: .horizontal) {
                                     HStack(alignment: .top, spacing: 16) { code(script, all: scripts); info(script).frame(width: 320) }
+                                        .equalCardHeights()
                                     VStack(spacing: 16) { code(script, all: scripts); info(script) }
                                 }
                             }
