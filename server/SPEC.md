@@ -977,6 +977,8 @@ URL 인코딩 자체가 깨진 커서(`%%%bad`)는 Tomcat 이 파라미터를 �
 
 `monthly_cost_krw` 는 원천이 없어 넣지 않습니다.
 
+10/2 오후: 인프라 #35 초안은 리소스 한 줄을 `{address, type, action}`(문자열)로 보냅니다. 서버 저장 모양(`actions` 배열)과 어느 쪽으로 정해질지 몰라 둘 다 읽게 했습니다. 문자열은 `create`·`update`·`delete`·`replace` 만 그대로 쓰고, 그 밖의 값(`no-op` 등)은 뺍니다.
+
 ### `ai_usage` 합계
 
 이 배포에 속한 모든 대상·회차의 `ai_usage` 행을 더합니다. 설계 5.13 과 9/29 결정을 따릅니다.
@@ -1030,6 +1032,28 @@ URL 인코딩 자체가 깨진 커서(`%%%bad`)는 Tomcat 이 파라미터를 �
 
 같은 경로의 두 핸들러가 OpenAPI 에서 한 operation 으로 합쳐지면서 처음에는 `detail` 이 필수로 표시됐습니다. 붙이지 않는 A-05 호출이 있으니 문서에서 선택으로 보이게 고쳤습니다.
 
+## Jenkins 콜백 인증 (10/2, 하은현)
+
+### 범위
+
+인프라(#35, 10/2 채준님)가 Jenkins 결과를 `POST /internal/jenkins/callbacks` 로 보냅니다. 받는 코드는 승환님 `JenkinsCallbackService` 이고, 서비스 인증은 제가 `ExecutionCallbackAccess` 로 제공하기로 돼 있습니다 (`docs/jenkins-callbacks.md`). 이번에 두 가지를 합니다.
+
+1. `BearerAuthFilter` 공개 경로에 `/internal/jenkins/callbacks` 추가. 사용자 로그인(Bearer)을 요구하지 않고, 아래 서비스 토큰이 그 경로를 지킵니다.
+2. `ExecutionCallbackAccess` 구현 `JenkinsCallbackTokenAccess` (`identity/auth`).
+
+### 인증 규칙
+
+| 상황 | 결과 |
+|---|---|
+| 서버에 콜백 토큰 설정(`DAISY_JENKINS_CALLBACK_TOKEN`)이 없거나 빔 | 403. 콜백 전체를 막음 |
+| 요청에 `X-Daisy-Jenkins-Token` 헤더가 없음 | 401 |
+| 헤더 값이 다름 | 401 |
+| 같음 | 통과. `instanceId` = `daisy.jenkins.instance-id`(명령 서비스와 같은 값), 허용 Job = `daisy.jenkins.operation-jobs.prepare`·`replan`·`apply` 설정값(기본 `daisy-cd-plan`·`daisy-cd-apply`) |
+
+- 비교는 상수 시간입니다. 두 값을 SHA-256 으로 같은 길이로 만든 뒤 `MessageDigest.isEqual` 로 비교해서, 길이나 앞부분 일치 여부가 응답 시간에 드러나지 않게 합니다.
+- 토큰 값은 로그에 남기지 않습니다.
+- 콜백 경로는 `daisy.jenkins.callbacks-enabled=true` 일 때만 등록됩니다(승환님 설정). 꺼져 있으면 공개 경로여도 404 입니다.
+- CI 빌드 수신(`/internal/jenkins/builds`)은 승환님 답을 받은 뒤 같은 토큰으로 붙입니다. 이번 범위가 아닙니다.
 ## AI 호출별 기록 WR-11 (10/2, 하은현)
 
 ### 범위
@@ -1163,6 +1187,27 @@ record Recorded(String sourceVersionId, boolean changed)
 
 | | 검사 | 기대 |
 |---|---|---|
+| K1 | 콜백 켜고 토큰 설정, 헤더 없음 / 틀린 토큰 | 401 / 401 (Bearer 필터가 아니라 콜백 인증이 낸 401) |
+| K2 | 맞는 토큰 + 형식이 틀린 본문 | 400 (인증 통과 후 본문 검사에서 막힘) |
+| K3 | 토큰 설정 없이 콜백 켬 | 맞는 헤더를 보내도 403 |
+| K4 | 콜백 끔 | 404 |
+| K5 | 다른 경로 | `/projects` 는 여전히 Bearer 없으면 401 |
+| K6 | 서버 로그 | 토큰 값 0회 출력, ERROR 0건 |
+
+### 검증 결과 (10/2 오후)
+
+단위 테스트 5개와, 빈 PostgreSQL 17 에 jar 를 설정만 바꿔 세 번 띄운 실서버로 확인했습니다. 토큰·인스턴스 ID 는 인프라가 쓸 환경변수 이름(`DAISY_JENKINS_CALLBACK_TOKEN`·`DAISY_JENKINS_INSTANCE_ID`) 그대로 넣었습니다.
+
+| | 결과 |
+|---|---|
+| K1 | 헤더 없음 401, 틀린 토큰 401 (`UNAUTHENTICATED`) |
+| K2 | 맞는 토큰 + `{}` 본문 400, 맞는 토큰 + JSON 아닌 본문 400. 인증을 통과해 본문 검사까지 갔다는 뜻이고, Bearer 필터가 더는 이 경로를 막지 않는다는 근거입니다 |
+| K3 | 토큰 설정 없이 콜백만 켬 → 맞는 헤더를 보내도 403 |
+| K4 | 콜백 끔 → 404 |
+| K5 | `/projects` 는 Bearer 없으면 401. 콜백 토큰을 보내도 401 (콜백 토큰이 다른 경로를 열지 않음) |
+| K6 | 세 번 띄운 서버 로그에 토큰 값 0회, ERROR 0건 |
+
+실DB 포함 테스트 190개 통과 (승환님 `ExecutionPostgresTest` 포함). 실제 Jenkins 가 보낸 콜백은 아직 받아 보지 못했습니다. plan 콜백은 #35 에 적은 `summary`·`resources` 모양 불일치가 정리돼야 통과합니다.
 | U1 | 토큰 없음 / 비멤버 프로젝트 / viewer | 401 / 404 / 200 |
 | U2 | `deployment_id` 없음 / 다른 프로젝트 배포 / 없는 배포 | 400 / 404 / 404 |
 | U3 | 호출 3행 (하나는 토큰·비용 모름, 하나는 출력 토큰만 모름) | 시각 순, `tokens`·`cost_krw` 는 아는 줄만, 나머지 null |
