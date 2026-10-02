@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { useParams } from 'react-router'
-import { ApiError } from '../../api/client.ts'
-import { api } from '../../api/endpoints.ts'
+import { ApiError, USE_MOCK } from '../../api/client.ts'
+import { api, isMocked } from '../../api/endpoints.ts'
 import type { Target } from '../../api/types.ts'
 import { useResource } from '../../api/useResource.ts'
 import Button from '../../components/Button.tsx'
@@ -24,6 +24,8 @@ function EnvironmentsPage() {
   const [toast, setToast] = useState<{ ok: boolean; text: string } | null>(null)
   const [resourcesOf, setResourcesOf] = useState<Target | null>(null)
 
+  const probeReady = USE_MOCK || !isMocked('testTarget', 'listTargetResources')
+
   if (targets.error) return <ErrorBlock error={targets.error} />
   if (!targets.data) return <LoadingBlock />
 
@@ -38,10 +40,10 @@ function EnvironmentsPage() {
 
   return (
     <div className="page">
-      <PageHeader overline="Environments" title="환경" description="배포 대상 환경의 연결 상태와 인프라 구성을 봐요. 환경을 고르는 건 배포할 때 해요." />
+      <PageHeader mock={isMocked('listTargets')} overline="Environments" title="환경" description="배포 대상 환경의 연결 상태와 인프라 구성을 봐요. 환경을 고르는 건 배포할 때 해요." />
 
       <div className="page__row page__row--3">
-        {targets.data.map((t) => (
+        {targets.data.items.map((t) => (
           <Panel key={t.target_id} title={<EnvTag env={t.type} />} aside={<ConnectionBadge state={t.connection.state} />}>
             <div>
               <InfoRow label="유형">{t.runtime ?? t.title ?? '—'}</InfoRow>
@@ -52,10 +54,11 @@ function EnvironmentsPage() {
               <InfoRow label="현재 버전">{t.current_commit ? shortCommit(t.current_commit) : '—'}</InfoRow>
             </div>
             <div className="page__actions">
-              <Button variant="outline" onClick={() => void test(t)}>
+              {/* 실서버 모드에서 A-10 · A-11이 아직 없으면 목업 결과를 실제 환경처럼 보이지 않게 꺼요 (#13 후순위) */}
+              <Button variant="outline" disabled={!probeReady} onClick={() => void test(t)}>
                 연결 테스트
               </Button>
-              <Button variant="ghost" onClick={() => setResourcesOf(t)}>
+              <Button variant="ghost" disabled={!probeReady} onClick={() => setResourcesOf(t)}>
                 리소스 보기
               </Button>
             </div>

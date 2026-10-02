@@ -25,8 +25,8 @@ final class AppModel {
     private let tokenStore: TokenStore
     private let defaults: UserDefaults
 
-    /// 처음 켰을 때 채워 둘 서버 주소: 앱 심사용 서버 (10/1 임채준 `ios.unibloom.cloud`). 설정 · 로그인에서 바꿀 수 있어요
-    static let defaultServerURL = "https://ios.unibloom.cloud"
+    /// 처음 켰을 때 채워 둘 서버 주소: 팀 개발 서버 (10/2 하은현 공지 `api.unibloom.cloud`). 앱 심사도 이 서버로 해요 (박승준 결정). 설정 · 로그인에서 바꿀 수 있어요
+    static let defaultServerURL = "https://api.unibloom.cloud"
 
     init(tokenStore: TokenStore = TokenStore(), defaults: UserDefaults = .standard) {
         self.tokenStore = tokenStore

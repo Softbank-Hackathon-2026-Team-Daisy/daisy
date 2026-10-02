@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { useNavigate, useParams } from 'react-router'
 import { useAuth } from '../../api/auth.ts'
-import { api } from '../../api/endpoints.ts'
+import { api, isMocked } from '../../api/endpoints.ts'
 import { deploymentStatus } from '../../api/status.ts'
 import type { Deployment } from '../../api/types.ts'
 import { useAction } from '../../api/useAction.ts'
@@ -20,7 +20,7 @@ import Panel from '../../components/Panel.tsx'
 import StatusBadge from '../../components/StatusBadge.tsx'
 import { paths } from '../../paths.ts'
 import { clockTime, relativeTime, shortCommit } from '../../utils/format.ts'
-import { envName, names } from '../flow.ts'
+import { envName, names, versionLabel } from '../flow.ts'
 import { ErrorBlock, LoadingBlock } from '../Loading.tsx'
 import '../page.css'
 
@@ -38,7 +38,7 @@ function HistoryPage() {
 
   return (
     <div className="page">
-      <PageHeader overline="History" title="배포 이력" description="버전마다 어떤 이미지와 스크립트로 어느 환경에 배포했는지 남겨요." />
+      <PageHeader mock={isMocked('listDeployments', 'rollback')} overline="History" title="배포 이력" description="버전마다 어떤 이미지와 스크립트로 어느 환경에 배포했는지 남겨요." />
       <Panel title={PROJECT_NAME}>
         {runs.data.items.length === 0 ? (
           <EmptyState icon="clock" title="아직 배포 이력이 없어요" description="첫 배포를 하면 여기에 쌓여요" />
@@ -61,7 +61,7 @@ function HistoryTable({ projectId, rows, onRollback }: { projectId: string; rows
       rows={rows}
       rowKey={(d) => d.id}
       columns={[
-        { key: 'v', label: '버전', width: 80, render: (d) => <span className="t-mono">{d.version}</span> },
+        { key: 'v', label: '버전', width: 80, render: (d) => <span className="t-mono">{versionLabel(d)}</span> },
         { key: 'c', label: '커밋', width: 110, render: (d) => <span className="t-mono">{shortCommit(d.commit)}</span> },
         {
           key: 's',
@@ -135,7 +135,7 @@ function RollbackDialog({ projectId, from, onClose }: { projectId: string; from:
     })
 
   const start = async () => {
-    const d = await run((key) => api.rollback(from.id, chosen.map((t) => t.target_id), `${from.version}로 롤백`, key), '롤백을 시작하지 못했어요')
+    const d = await run((key) => api.rollback(from.id, chosen.map((t) => t.target_id), `${versionLabel(from)}로 롤백`, key), '롤백을 시작하지 못했어요')
     if (d) navigate(paths.generate(projectId, d.id), { state: { transition: 'l02' } })
   }
 
@@ -144,8 +144,8 @@ function RollbackDialog({ projectId, from, onClose }: { projectId: string; from:
       open
       onClose={onClose}
       icon="rotate-ccw"
-      title={`${from.version}로 롤백 배포를 시작할까요?`}
-      description={`${from.version}(${shortCommit(from.commit)}) 이미지로 새 배포를 만들어서 ${names(chosen) || '고른 환경'}에 다시 올려요. 검증된 스크립트를 재사용해서 AI는 부르지 않아요. plan을 확인하고 승인해야 적용돼요.`}
+      title={`${versionLabel(from)}로 롤백 배포를 시작할까요?`}
+      description={`${versionLabel(from)}(${shortCommit(from.commit)}) 이미지로 새 배포를 만들어서 ${names(chosen) || '고른 환경'}에 다시 올려요. 검증된 스크립트를 재사용해서 AI는 부르지 않아요. plan을 확인하고 승인해야 적용돼요.`}
       actions={
         <>
           <Button variant="outline" onClick={onClose}>

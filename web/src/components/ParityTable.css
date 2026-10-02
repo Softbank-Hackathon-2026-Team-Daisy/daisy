@@ -75,3 +75,7 @@
   margin-right: var(--space-1);
   border-radius: var(--radius-sm);
 }
+
+.parity__summary--unknown {
+  color: var(--color-ink-muted);
+}

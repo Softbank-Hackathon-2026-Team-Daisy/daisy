@@ -60,9 +60,9 @@ function GenerateView({ d }: { d: Deployment }) {
     wasBusy.current = busy
   }, [busy, approvable, navigate, projectId, d.id])
 
-  // 실패한 환경만 고른 새 배포 (#13 서버 결정, 시도 1/3부터)
+  // 실패한 환경만 새 배포로 다시 시도 — POST /deployments/{id}/retry (10/2 확정, 시도 1/3부터)
   const retry = async () => {
-    const next = await run((key) => api.createDeployment(projectId, d.commit, failed.map((t) => t.target_id), key), '다시 시도하지 못했어요')
+    const next = await run((key) => api.retry(d.id, failed.map((t) => t.target_id), key), '다시 시도하지 못했어요')
     if (next) navigate(paths.generate(projectId, next.id), { state: { transition: 'l02' } })
   }
 
@@ -87,7 +87,7 @@ function GenerateView({ d }: { d: Deployment }) {
           title={`${who}만 멈췄어요`}
           description={`${who}는 3번 모두 실패해서 멈췄어요. ${names(d.targets.filter((t) => t.state !== 'failed'))}는 그대로 계속 진행해요.`}
         />
-        <Alert type="danger" title={`${envName(f)} · ${f.attempt}회 시도 모두 실패`}>
+        <Alert type="danger" title={`${envName(f)} · ${f.attempt ? `${f.attempt}회 시도 모두 실패` : '실패'}`}>
           {f.error_summary}
         </Alert>
         <div className="page__row page__row--2">
@@ -174,7 +174,7 @@ function GenerateView({ d }: { d: Deployment }) {
               <CodeBlock
                 key={f.path}
                 ai={!target.reused_script}
-                file={`${f.path} · ${target.reused_script ? '검증된 스크립트 재사용' : target.attempt > 1 ? `AI 수정 ${target.attempt}회차` : 'AI 생성'}`}
+                file={`${f.path} · ${target.reused_script ? '검증된 스크립트 재사용' : (target.attempt ?? 0) > 1 ? `AI 수정 ${target.attempt}회차` : 'AI 생성'}`}
                 code={f.content}
               />
             ))
