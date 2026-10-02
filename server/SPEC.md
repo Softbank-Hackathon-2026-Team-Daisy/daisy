@@ -786,3 +786,71 @@ V9 의 실제 Jenkins 실행은 하지 않습니다. 기본 비활성 설정 그
 | T3 | 판정 없음 → `reuse: null`, 정상 판정 → 네 필드 그대로, `available: "yes"` 처럼 모양이 틀린 판정 → 그 대상만 `reuse: null`, 응답은 200 |
 | T4 | 보관된 대상은 목록에 없음 |
 | T5 | OpenAPI 에 경로가 나오고 파라미터는 `projectId` 하나 (`principal` 노출 없음) |
+
+## 빌드 결과 저장 (10/2, 하은현)
+
+### 범위
+
+Jenkins CI 빌드 결과를 `source_version` 에 저장하는 서비스입니다. 공개 API 가 아니라 **승환님 Jenkins 수신부가 부르는 서비스 메서드**입니다 (#42 ④, 10/2 01:44 승환님 답). A-06 빌드 목록과 배포 생성의 빌드 선택이 이 행을 읽습니다.
+
+| 누가 | 무엇 |
+|---|---|
+| 승환님 수신부 | Jenkins 조회·검증, 그 실행이 등록된 프로젝트·저장소와 맞는지 확인, 같은 트랜잭션에서 저장 서비스 → `build.received` 이벤트 기록 |
+| 저장 서비스 (`project/application/BuildRegistry`) | 입력 모양 검사, 중복·충돌·상태 전이 판단, `source_version` 저장, `source_version_id` 와 실제 변경 여부 반환 |
+
+### 인터페이스
+
+```java
+Recorded record(BuildReport report)
+
+record BuildReport(String projectId, String source, String externalBuildId, String commitSha,
+                   String branch, String status, JsonNode imageRefs, String runUrl,
+                   Instant startedAt, Instant finishedAt, String errorSummary)
+record Recorded(String sourceVersionId, boolean changed)
+```
+
+- 트랜잭션은 따로 열지 않고 호출한 쪽 트랜잭션을 그대로 탑니다 (`REQUIRES_NEW` 없음). 저장과 이벤트 중 어느 쪽이 실패해도 같이 롤백됩니다.
+- `changed=false` 면 승환님 수신부는 이벤트를 다시 남기지 않습니다.
+
+### 입력 검사 (어기면 400 `VALIDATION_FAILED`)
+
+| 필드 | 규칙 |
+|---|---|
+| `project_id` | 있는 프로젝트. 없으면 404 |
+| `source`·`external_build_id` | 비지 않음, 255자 이하. 둘을 합쳐 Jenkins 인스턴스·Job·빌드를 구분해야 함 (예: 인스턴스 ID, 전체 Job 경로 + 빌드 번호 — 표현은 #35 에서 확정) |
+| `commit_sha` | 소문자 hex 40자 또는 64자 |
+| `status` | `pending`·`running`·`succeeded`·`failed` |
+| `image_refs` | `succeeded` 면 필수이고 A-06·배포 생성과 같은 모양 `{service: {image_ref, digest?, commit_sha}}`, 모든 서비스의 `commit_sha` 가 빌드 commit 과 같아야 함. 다른 상태면 없어야 함 |
+| `branch` | 255자 이하 또는 null |
+
+### 중복·충돌·상태 전이
+
+같은 `(source, external_build_id)` 가 이미 있으면 그 행을 기준으로 판단합니다. 행을 잠그고(`for update`) 판단해서 동시 수신도 한 행으로 모입니다.
+
+| 경우 | 결과 |
+|---|---|
+| 처음 받음 | 새 행 (`sv_` + UUID), `changed=true` |
+| 기존 행과 `project_id`·`commit_sha` 가 다름, 또는 `branch` 가 둘 다 있는데 다름 | 409 `STATE_CONFLICT`. 덮어쓰지 않음 |
+| 상태가 앞으로 감 (`pending` → `running` → `succeeded`/`failed`, 건너뛰기 허용) | 새 상태와 값으로 갱신, `changed=true` |
+| 상태가 뒤로 감 (예: `succeeded` 뒤에 `running`) | 무시, `changed=false`. 폴링이 늦게 본 옛 상태라 수신 전체를 실패시키지 않음 |
+| 종료 상태끼리 다름 (`succeeded` ↔ `failed`) | 409. 종료 결과는 바꾸지 않음 |
+| 같은 종료 상태인데 `image_refs`·`finished_at`·`error_summary` 가 다름 | 409 |
+| 같은 종료 상태, 같은 값 | 무변경, `changed=false` |
+| 같은 진행 상태 (`pending`·`running`) | 비어 있던 `run_url`·`started_at`·`branch` 만 채움. 채운 게 있으면 `changed=true` |
+
+- `received_at` 은 처음 받은 시각 그대로 둡니다. A-06 커서 기준이라 바꾸면 목록 순서가 흔들립니다.
+- `manifest_*` 컬럼은 이번 범위가 아닙니다. 빌드 결과에 `deploy.yaml` 이 실려 오는 계약이 정해지면 붙입니다.
+
+### 검증 계획
+
+| | 검사 | 기대 |
+|---|---|---|
+| R1 | 처음 받은 `running` → 같은 키 `succeeded` (이미지 포함) | 한 행, 두 번 다 `changed=true`, 같은 ID |
+| R2 | 같은 `succeeded` 재수신 | `changed=false`, 값 그대로 |
+| R3 | `succeeded` 뒤 `running` | `changed=false`, 상태 그대로 |
+| R4 | `succeeded` 뒤 `failed` / 다른 이미지 | 409 / 409 |
+| R5 | 같은 키 다른 프로젝트·다른 commit | 409 |
+| R6 | 모양 오류 (`succeeded` 인데 이미지 없음, commit 불일치 이미지, 실패인데 이미지, 짧은 sha, 모르는 상태) | 400 |
+| R7 | 없는 프로젝트 | 404 |
+| R8 | 저장한 빌드를 A-06 이 읽고, 배포 생성이 그 빌드를 고를 수 있음 | 목록에 보이고 생성 201 |
+| R9 | 같은 키 동시 2건 | 행 1개, 하나만 `changed=true` 이거나 둘 다 같은 ID |
