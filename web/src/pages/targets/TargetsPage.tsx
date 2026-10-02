@@ -34,10 +34,15 @@ function TargetsPage() {
   if (!targets.data || !builds.data) return <LoadingBlock />
 
   // 빌드는 source_version_id(?build=)로 골라요. 같은 커밋이 여러 번 빌드될 수 있어서예요 (#19 · #36)
-  const build =
-    builds.data.items.find((b) => (params.get('build') ? b.source_version_id === params.get('build') : b.commit === params.get('commit'))) ??
-    builds.data.items.find((b) => b.pipeline.status === 'success') ??
-    builds.data.items[0]
+  // 주소로 빌드를 지정했는데 목록(첫 페이지)에 없으면 다른 빌드로 바꾸지 않고 멈춰요 — 고른 버전과 다른 버전이 배포되지 않게 (#86)
+  // 지정하지 않고 들어왔으면(사이드바 "새 배포" 등) 최근 성공 빌드를 골라요
+  const wantedBuild = params.get('build')
+  const wantedCommit = params.get('commit')
+  const pinned = wantedBuild ?? wantedCommit
+  const build = pinned
+    ? builds.data.items.find((b) => (wantedBuild ? b.source_version_id === wantedBuild : b.commit === wantedCommit))
+    : (builds.data.items.find((b) => b.pipeline.status === 'success') ?? builds.data.items[0])
+  const buildMissing = !!pinned && !build
   const commit = build?.commit ?? ''
   const list = targets.data.items
   const selected = list.filter((tg) => !unselected.has(tg.target_id) && tg.connection.state !== 'failed')
@@ -66,8 +71,14 @@ function TargetsPage() {
       <PageHeader mock={isMocked('listTargets', 'listBuilds', 'createDeployment')}
         overline="Step 3"
         title={t('배포할 환경 선택')}
-        description={t('여러 환경을 동시에 고를 수 있어요. 같은 이미지({commit})가 모든 환경에 배포돼요.', { commit: shortCommit(commit) })}
+        description={t('여러 환경을 동시에 고를 수 있어요. 같은 이미지({commit})가 모든 환경에 배포돼요.', { commit: commit ? shortCommit(commit) : '—' })}
       />
+
+      {buildMissing && (
+        <Alert type="warning" title={t('지정한 빌드를 찾지 못했어요')}>
+          {t('{build}를 빌드 목록에서 찾지 못해서 배포를 시작하지 않아요. 다른 빌드로 바꾸지 않았어요. 빌드 화면에서 다시 골라 주세요.', { build: wantedBuild ?? shortCommit(wantedCommit ?? '') })}
+        </Alert>
+      )}
 
       <div className="page__row page__row--envs">
         {list.map((tg) => (
@@ -107,9 +118,9 @@ function TargetsPage() {
 
       <div className="page__actions">
         <Button variant="ghost" onClick={() => navigate(paths.build(projectId))}>
-          {t('이전')}
+          {buildMissing ? t('빌드 다시 고르기') : t('이전')}
         </Button>
-        <Button variant="secondary" disabled={viewer || selected.length === 0 || pending} onClick={() => void start()}>
+        <Button variant="secondary" disabled={viewer || selected.length === 0 || !build || pending} onClick={() => void start()}>
           {pending ? t('시작하는 중…') : t('인프라 코드 생성 · 검증 시작')}
         </Button>
       </div>
