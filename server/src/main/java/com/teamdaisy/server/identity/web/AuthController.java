@@ -2,6 +2,7 @@ package com.teamdaisy.server.identity.web;
 
 import com.teamdaisy.server.identity.auth.AuthPrincipal;
 import com.teamdaisy.server.identity.auth.AuthService;
+import io.swagger.v3.oas.annotations.security.SecurityRequirement;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.Size;
@@ -27,6 +28,7 @@ public class AuthController {
   }
 
   @GetMapping("/auth/me")
+  @SecurityRequirement(name = "bearerAuth")
   public MeResponse me(@CurrentAccount AuthPrincipal principal) {
     return new MeResponse(principal.accountId(), principal.username(), principal.role());
   }

@@ -60,21 +60,13 @@ struct StoppedStage: View {
         }
     }
 
-    /// 실패한 환경만 같은 커밋으로 새 배포를 만들어요 (WR-05, `RetryRequest`). 새 배포의 시도는 1/3부터예요 (10/1 서버)
+    /// 실패한 환경만 원본 배포에서 다시 시도해요 (`POST /deployments/{id}/retry`, `RetryRequest`). 새 배포의 시도는 1/3부터예요 (10/1 서버)
     private func retry() async {
         guard let client = app.client else { return }
         working = true
         defer { working = false }
-        let request = RetryRequest.failed(of: deployment)
-        // 서버는 빌드 ID가 필수예요 (#42). 커밋으로 다른 빌드를 고르지 않아요
-        guard let build = request.sourceVersionID else {
-            errorMessage = "이 배포의 빌드 정보를 받지 못해 다시 시도할 수 없어요. 새 배포로 시작해 주세요."
-            return
-        }
         do {
-            let next = try await client.send(.startDeployment(projectID: request.projectID, commit: request.commit,
-                                                              sourceVersionID: build,
-                                                              targetIDs: request.targetIDs))
+            let next = try await client.send(.retry(.failed(of: deployment)))
             router.push(.started(next.id))
         } catch {
             app.handle(error)

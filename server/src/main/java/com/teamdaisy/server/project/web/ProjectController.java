@@ -6,12 +6,17 @@ import com.teamdaisy.server.common.web.PageResponse;
 import com.teamdaisy.server.identity.auth.AuthPrincipal;
 import com.teamdaisy.server.identity.web.CurrentAccount;
 import com.teamdaisy.server.project.access.ProjectAccessService;
+import com.teamdaisy.server.project.application.DeploymentHistoryReader;
+import com.teamdaisy.server.project.application.DeploymentHistoryReader.CurrentView;
 import com.teamdaisy.server.project.domain.Project;
 import com.teamdaisy.server.project.domain.ProjectRepository;
 import com.teamdaisy.server.project.domain.SourceVersion;
 import com.teamdaisy.server.project.domain.SourceVersionRepository;
+import com.teamdaisy.server.project.domain.Target;
 import com.teamdaisy.server.project.domain.TargetRepository;
+import io.swagger.v3.oas.annotations.security.SecurityRequirement;
 import java.util.List;
+import java.util.Map;
 import org.springframework.data.domain.Limit;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -23,6 +28,7 @@ import org.springframework.web.bind.annotation.RestController;
 /** 프로젝트 조회예요. 생성·연결은 저장소 연결 절차가 정해진 뒤에 넣어요. */
 @RestController
 @RequestMapping("/projects")
+@SecurityRequirement(name = "bearerAuth")
 @Transactional(readOnly = true)
 public class ProjectController {
   private static final int DEFAULT_LIMIT = 20;
@@ -32,16 +38,19 @@ public class ProjectController {
   private final TargetRepository targets;
   private final SourceVersionRepository versions;
   private final ProjectAccessService access;
+  private final DeploymentHistoryReader history;
 
   public ProjectController(
       ProjectRepository projects,
       TargetRepository targets,
       SourceVersionRepository versions,
-      ProjectAccessService access) {
+      ProjectAccessService access,
+      DeploymentHistoryReader history) {
     this.projects = projects;
     this.targets = targets;
     this.versions = versions;
     this.access = access;
+    this.history = history;
   }
 
   @GetMapping
@@ -64,6 +73,19 @@ public class ProjectController {
   }
 
   /**
+   * 배포할 수 있는 대상 목록이에요 (WR-04). 배포 시작 화면(W-04)이 여기서 환경을 골라요.
+   *
+   * <p>A-02 와 따로 둬요 (9/30 결정). 연결 상태는 소비자 값으로 바꾸고, 인프라 보고가 없는 재사용 판정은 null 로 둬요.
+   */
+  @GetMapping("/{projectId}/targets")
+  public PageResponse<TargetResponse> targetList(
+      @CurrentAccount AuthPrincipal principal, @PathVariable String projectId) {
+    access.requireRead(principal, projectId);
+    return PageResponse.of(
+        targets.findActiveByProject(projectId).stream().map(TargetResponse::of).toList());
+  }
+
+  /**
    * 환경별 현재 상태예요 (A-02). 앱 현황 화면이 이 경로만 써요.
    *
    * <p>집계하지 않아요. 배포 전체 상태 집계는 설계 2장대로 실행 서비스 소유라서, 여기서는 대상별 현재 값만 읽어 내보내요.
@@ -74,8 +96,12 @@ public class ProjectController {
   public PageResponse<TargetStatusResponse> targetStatus(
       @CurrentAccount AuthPrincipal principal, @PathVariable String projectId) {
     access.requireRead(principal, projectId);
+    List<Target> active = targets.findActiveByProject(projectId);
+    Map<String, CurrentView> current = history.current(principal.accountId(), projectId, active);
     List<TargetStatusResponse> items =
-        targets.findActiveByProject(projectId).stream().map(TargetStatusResponse::of).toList();
+        active.stream()
+            .map(target -> TargetStatusResponse.of(target, current.get(target.id())))
+            .toList();
     return PageResponse.of(items);
   }
 
@@ -109,7 +135,14 @@ public class ProjectController {
       SourceVersion last = page.get(page.size() - 1);
       nextCursor = new BuildCursor(last.receivedAt(), last.id()).encode();
     }
-    return new PageResponse<>(page.stream().map(BuildResponse::of).toList(), nextCursor);
+    var deployed =
+        history.deployedTo(
+            principal.accountId(), projectId, page.stream().map(SourceVersion::id).toList());
+    return new PageResponse<>(
+        page.stream()
+            .map(version -> BuildResponse.of(version, deployed.get(version.id())))
+            .toList(),
+        nextCursor);
   }
 
   private List<SourceVersion> fetchAfter(String projectId, String cursor, Limit limit) {
@@ -121,7 +154,7 @@ public class ProjectController {
    * {@code limit} 을 다듬어요. 최대값을 넘으면 400 이 아니라 깎아요 — 목록 조회가 한도 때문에 실패하지 않는 쪽이 나아요. 다만 0·음수는 요청이 잘못된
    * 것이라 막아요.
    */
-  private static int normalizeLimit(int limit) {
+  static int normalizeLimit(int limit) {
     if (limit <= 0) {
       throw new DaisyException(ErrorCode.VALIDATION_FAILED);
     }

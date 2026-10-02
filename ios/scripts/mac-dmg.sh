@@ -72,4 +72,3 @@ echo "   앱은 Developer ID 서명 + Apple 공증 + 스테이플 완료. 다운
 echo "   릴리스(담당자가 요청할 때만):"
 echo "     gh release create mac-v${VERSION}-${BUILD} $DMG --prerelease --target <커밋>"
 echo "     cp $DMG /tmp/Unibloom.dmg && gh release upload mac-latest /tmp/Unibloom.dmg --clobber   # 웹 W-14 고정 주소 (10/1부터 Unibloom.dmg)"
-echo "     cp $DMG /tmp/Daisy.dmg && gh release upload mac-latest /tmp/Daisy.dmg --clobber      # 옛 주소 호환: 웹이 Unibloom.dmg로 바꿀 때까지"

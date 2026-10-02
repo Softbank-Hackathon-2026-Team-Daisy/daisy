@@ -27,6 +27,16 @@ struct EndpointContractTests {
         #expect(body["project_id"] == nil)
     }
 
+    /// 다시 시도: 원본 배포 아래 `retry`, 본문은 `target_ids`만, Idempotency-Key 필수 (10/2 09:57 확정)
+    @Test func retry() throws {
+        let endpoint = Endpoint<CreatedDeployment>.retry(RetryRequest(deploymentID: "dep_42", targetIDs: ["tgt_aws"]))
+        #expect(endpoint.method == "POST" && endpoint.path == "deployments/dep_42/retry")
+        #expect(endpoint.idempotencyKey != nil)
+        let body = try json(endpoint)
+        #expect(body["target_ids"] as? [String] == ["tgt_aws"])
+        #expect(body.count == 1)
+    }
+
     /// 생성 응답은 `{ id, project_id, state }`만 와요 (10/2 01:07 #42). 전체 배포 모양이 아니어도 읽어요
     @Test func createdDeploymentResponse() throws {
         let created = try JSONDecoder.daisy.decode(CreatedDeployment.self, from: Data("""

@@ -1,6 +1,7 @@
 package com.teamdaisy.server.project.web;
 
 import com.fasterxml.jackson.databind.JsonNode;
+import com.teamdaisy.server.deployment.application.DeploymentQueryService.SuccessfulDeployment;
 import com.teamdaisy.server.project.domain.SourceVersion;
 import java.time.Instant;
 import java.util.ArrayList;
@@ -22,7 +23,7 @@ public record BuildResponse(
     String image,
     String imageDigest,
     List<ServiceImage> images,
-    List<Object> deployedTo,
+    List<DeployedTo> deployedTo,
     Instant startedAt,
     Instant finishedAt,
     Instant receivedAt,
@@ -30,12 +31,19 @@ public record BuildResponse(
 
   public record Pipeline(String status, String runUrl) {}
 
+  /**
+   * 이 빌드로 성공한 대상별 마지막 배포예요. 과거 성공 이력이지 지금 그 버전이 떠 있다는 뜻이 아니에요.
+   *
+   * @param deployedAt 대상 성공 완료 시각이에요
+   */
+  public record DeployedTo(String targetId, String deploymentId, Instant deployedAt) {}
+
   public record ServiceImage(String service, String imageRef, String imageDigest) {}
 
-  /** `image_refs` 안에서 이 두 키를 찾아요. 모양이 확정되면 여기만 바뀌어요. */
+  /** 실행 도메인의 저장 키를 읽고 공개 응답에서는 image_digest로 내보내요. */
   private static final String KEY_REF = "image_ref";
 
-  private static final String KEY_DIGEST = "image_digest";
+  private static final String KEY_DIGEST = "digest";
 
   /**
    * DB 상태를 소비자 enum 으로 바꿔요.
@@ -100,6 +108,13 @@ public record BuildResponse(
   }
 
   public static BuildResponse of(SourceVersion version) {
+    return of(version, null);
+  }
+
+  /**
+   * @param deployed 조회한 성공 이력. 조회했는데 없으면 빈 목록이고, 조회하지 못했으면 null 이에요 — 둘을 섞지 않아요
+   */
+  public static BuildResponse of(SourceVersion version, List<SuccessfulDeployment> deployed) {
     Images images = flatten(version.imageRefs());
     return new BuildResponse(
         version.id(),
@@ -109,8 +124,11 @@ public record BuildResponse(
         images.image(),
         images.imageDigest(),
         images.images(),
-        // deployment 모듈 소유라 읽지 않아요. 조회 서비스 계약이 생기면 채워요 (A-02 의 current 와 같은 이유).
-        null,
+        deployed == null
+            ? null
+            : deployed.stream()
+                .map(d -> new DeployedTo(d.targetId(), d.deploymentId(), d.deployedAt()))
+                .toList(),
         version.startedAt(),
         version.finishedAt(),
         version.receivedAt(),

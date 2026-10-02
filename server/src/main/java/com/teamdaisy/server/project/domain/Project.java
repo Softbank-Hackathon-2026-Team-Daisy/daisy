@@ -94,6 +94,11 @@ public class Project {
     return manifestPath;
   }
 
+  /** 저장소 자격증명 참조예요. 실제 비밀값이 아니에요. */
+  public String repositoryCredentialRef() {
+    return repositoryCredentialRef;
+  }
+
   public Instant createdAt() {
     return createdAt;
   }

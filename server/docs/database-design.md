@@ -484,7 +484,7 @@ PK(id), UNIQUE(id,deployment_target_id), UNIQUE(deployment_target_id,revision), 
 | decision | varchar(32) | NULL / NULL | 원래 approved/rejected 결정, 무효화해도 유지 |
 | decided_by | ID | NULL / NULL | account FK |
 | decided_at | timestamptz | NULL / NULL | 원래 결정 시각 |
-| confirmation_text | varchar(128) | NULL / NULL | 삭제 plan 승인 시 제출한 확인 문자열. 검증 대상은 소비자와 협의 |
+| confirmation_text | varchar(128) | NULL / NULL | 현재 실행 구현: pending 생성 시 고정한 프로젝트 이름. 삭제 승인 시 제출값과 비교; 결정 시 덮어쓰지 않음 |
 | created_at | timestamptz | NN / now() | 승인 대기 생성 |
 | expires_at | timestamptz | NN / — | plan 기한 이하로 고정 |
 | invalidated_at | timestamptz | NULL / NULL | 무효화 시각 |
@@ -494,7 +494,7 @@ PK(id), UNIQUE(plan_id), (plan_id,deployment_target_id)→plan_revision(id,deplo
 
 superseded/expired 이후 원래 decision·결정자를 지우지 않는다. 승인 row를 새 plan으로 옮기거나 같은 plan의 새 pending을 만들지 않는다. 거절 시 해당 target은 실행하지 않으며 최종 결과/이벤트에 거절 사유를 남긴다.
 
-삭제/교체로 `has_delete=true`인 plan 승인은 확인 문자열 검증이 필요하다. 기존 대상 snapshot 이름·대상별 map 제안에 대해 web/ios는 **승인 대기 대상 전부를 한 번에 승인하고 단일 `confirm_text=프로젝트명`**을 요청했다. 어느 값을 고정·검증하고 단일 pending_approval ID를 대상별 행에 연결할지는 은현·소비자와 확인한다. 여기서 대상명 또는 프로젝트명 정책을 임의 확정하지 않는다. 각 승인 행이 특정 대상의 plan에 묶이는 불변 조건은 유지한다.
+삭제/교체로 `has_delete=true`인 plan 승인은 확인 문자열 검증이 필요하다. 사용자 후속 수정 요청에 따라 실행 서비스는 **승인 대기 대상 전체·각 approval_id를 원자 검증하고, 삭제 확인은 pending 생성 때 고정한 프로젝트 이름**을 사용한다. 여러 pending의 이름 snapshot이 서로 다르거나 조회한 대상/승인이 바뀌면 전체 409다. 이름 변경만으로 기존 snapshot을 덮어쓰지 않는다. 공개 API는 단일 confirm_text를 각 대상 결정에 전달하며, DTO·OpenAPI 연결은 은현과 공유한다. 각 승인 행이 특정 대상의 plan에 묶이는 불변 조건은 유지한다. V1의 컬럼·NULL 제약은 변경하지 않는다.
 
 ### 5.12 script — 승환 수집, 은현 조회
 

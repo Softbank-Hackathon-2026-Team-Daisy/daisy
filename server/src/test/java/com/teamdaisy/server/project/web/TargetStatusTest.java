@@ -12,9 +12,11 @@ import com.fasterxml.jackson.databind.node.JsonNodeFactory;
 import com.teamdaisy.server.common.error.DaisyException;
 import com.teamdaisy.server.common.error.ErrorCode;
 import com.teamdaisy.server.common.web.PageResponse;
+import com.teamdaisy.server.deployment.application.DeploymentQueryService;
 import com.teamdaisy.server.identity.auth.AuthPrincipal;
 import com.teamdaisy.server.project.access.ProjectAccess;
 import com.teamdaisy.server.project.access.ProjectAccessService;
+import com.teamdaisy.server.project.application.DeploymentHistoryReader;
 import com.teamdaisy.server.project.domain.ProjectRepository;
 import com.teamdaisy.server.project.domain.SourceVersionRepository;
 import com.teamdaisy.server.project.domain.Target;
@@ -37,8 +39,10 @@ class TargetStatusTest {
   private final TargetRepository targets = mock(TargetRepository.class);
   private final SourceVersionRepository versions = mock(SourceVersionRepository.class);
   private final ProjectAccessService access = mock(ProjectAccessService.class);
+  private final DeploymentQueryService queries = mock(DeploymentQueryService.class);
   private final ProjectController controller =
-      new ProjectController(projects, targets, versions, access);
+      new ProjectController(
+          projects, targets, versions, access, new DeploymentHistoryReader(queries));
 
   private static Target target(String id, String name, String type, String connectionState) {
     return Target.create(
