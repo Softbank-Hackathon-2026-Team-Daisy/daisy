@@ -16,6 +16,7 @@
     daisy_server.py applied <env> <service_url>         succeeded + 승인 plan · 입력 · 이미지 증거
     daisy_server.py stale <env>                         승인한 plan이 낡아 적용하지 않았어요 → plan_stale (서버가 다시 plan)
     daisy_server.py fail-open [--error 메시지]           아직 끝나지 않은 대상을 모두 failed로 (빌드가 중간에 멈췄을 때)
+    daisy_server.py build-report <succeeded|failed> --started-at <시각>   (daisy-ci) 빌드 결과 → 서버 빌드 기록 `(가칭)`
 
 환경변수
   DAISY_DIR             작업 공간 안 상태 폴더 (job.json · 순번 · 보낸 콜백 기록 events.jsonl)
@@ -580,6 +581,9 @@ def main() -> int:
     s = sub.add_parser("check-plan"); s.add_argument("env")
     s = sub.add_parser("applied"); s.add_argument("env"); s.add_argument("url")
     s = sub.add_parser("stale"); s.add_argument("env")
+    s = sub.add_parser("build-report"); s.add_argument("status", choices=["succeeded", "failed"])
+    s.add_argument("--started-at", required=True); s.add_argument("--deploy-yaml", default="app/deploy.yaml")
+    s.add_argument("--error")
     s = sub.add_parser("fail-open"); s.add_argument("--error")
     s.add_argument("--status", choices=["failed", "cancelled"], default="failed")
     a = ap.parse_args()
@@ -609,6 +613,8 @@ def main() -> int:
             stale(a.env)
         elif a.cmd == "fail-open":
             fail_open(a.error, a.status)
+        elif a.cmd == "build-report":
+            build_report(a.status, a.started_at, a.deploy_yaml, a.error)
     except Fail as e:
         print(f"daisy_server: {e}", file=sys.stderr)
         try:
@@ -617,6 +623,42 @@ def main() -> int:
             pass
         return 1
     return 0
+
+
+def build_report(status: str, started_at: str, deploy_yaml: str, error: str | None) -> None:
+    """daisy-ci 결과 → 서버 빌드 기록 (source_version). 수신 주소 DAISY_BUILD_URL이 없으면 건너뛰어요.
+
+    본문은 서버 BuildRegistry.BuildReport와 같은 이름이에요 (PR #53, 수신 경로는 서버가 정해요 `(가칭)`).
+    프로젝트는 Job 파라미터 PROJECT_ID, 서비스 이름은 deploy.yaml name이에요. 같은 빌드를 다시 보내도 서버가 한 행으로 모아요.
+    """
+    url = os.environ.get("DAISY_BUILD_URL", "")
+    if not url:
+        print("DAISY_BUILD_URL이 없어서 서버에 빌드 결과를 보내지 않아요")
+        return
+    import yaml  # Ubuntu: python3-yaml
+
+    commit = os.environ["IMAGE_TAG"]
+    report = {
+        "project_id": os.environ["PROJECT_ID"],
+        "source": f"jenkins:{os.environ['JOB_NAME']}",
+        "external_build_id": f"{os.environ['JOB_NAME']}#{os.environ['BUILD_NUMBER']}",
+        "commit_sha": commit,
+        "branch": os.environ.get("APP_BRANCH", "main"),
+        "status": status,
+        "run_url": os.environ.get("BUILD_URL"),
+        "started_at": started_at,
+        "finished_at": now(),
+    }
+    if status == "succeeded":
+        service = yaml.safe_load(pathlib.Path(deploy_yaml).read_text(encoding="utf-8"))["name"]
+        image = {"image_ref": os.environ["IMAGE_REF"], "commit_sha": commit}
+        if re.fullmatch(r"sha256:[0-9a-f]{64}", os.environ.get("IMAGE_DIGEST", "")):
+            image["digest"] = os.environ["IMAGE_DIGEST"]
+        report["image_refs"] = {service: image}
+    else:
+        report["error_summary"] = clean(error or "CI 빌드가 실패했어요. Jenkins 콘솔을 확인해 주세요", 2000)
+    ack = post(url, json.dumps(report, ensure_ascii=False).encode())
+    print(f"서버 빌드 기록 {status} → {ack}")
 
 
 def stage(env: str, step: str, phase: str, occurrence: str | None = None, message: str | None = None) -> None:

@@ -620,6 +620,7 @@ daisy-cd-apply ◀── 서버가 buildWithParameters(PLAN_BUILD=N, APPROVAL_ID
 | apply 대조 | `artifact_ref`로 plan 폴더를 찾아 `digest` · 미적용 · 이미지를 대조해요. **폴더가 없거나 만료** → 적용하지 않고 `plan_stale` (서버가 다시 plan · 승인). 해시 불일치 · 이미 적용 · 이미지 다름 → failed. terraform이 "Saved plan is stale"로 거부해도 `plan_stale` |
 | 성공 | 헬스체크 · 스모크 테스트를 통과하면 `succeeded` + `result` = `{plan_id, plan_digest, input_hash, image_refs, public_urls: {<서비스>: service_url}}` (서버가 승인 plan · 입력 · 이미지와 대조해요). 환경마다 apply → 헬스체크를 이어서 해서, 한 환경 실패가 다른 환경 결과를 막지 않아요 |
 | 중간에 멈춤 | 빌드가 끝날 때 결과를 못 보낸 대상은 failed로 알려요. apply 도중이면 "적용 여부 확인 필요"라고 적어요 |
+| CI 빌드 기록 `(가칭)` | `daisy-ci`가 끝나면(성공 · 실패) Jenkins 전역 `DAISY_BUILD_URL`로 서버 `BuildRegistry.BuildReport`(PR #53)와 같은 이름의 본문을 보내요: `project_id`(Job 파라미터 `PROJECT_ID`, 기본 `prj_demo_monolith`) · `source` · `external_build_id`(`daisy-ci#<N>`) · `commit_sha` · `branch` · `status` · `image_refs`(`{<deploy.yaml name>: {image_ref, digest, commit_sha}}`) · `run_url` · 시각 · `error_summary`. 인증은 콜백과 같은 `X-Daisy-Jenkins-Token`. 수신 경로는 서버가 정해요. 배포 생성에 성공 빌드가 필요해서 이게 있어야 웹에서 배포를 시작할 수 있어요 |
 | 비밀값 | 오류 문구는 서버 금지 패턴(`password=` · `token:` · `AKIA…` 등)을 가린 뒤 보내요. plan 원문 · state · 변수 값은 보내지 않아요 |
 
 Jenkins 준비 (사람이 UI에서 1번):
