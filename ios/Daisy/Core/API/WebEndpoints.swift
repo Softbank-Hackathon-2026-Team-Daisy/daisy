@@ -44,6 +44,12 @@ extension Endpoint {
         .init(path: "deployments/\(deploymentID)/targets/\(targetID)/script")
     }
 
+    /// W-05b · W-08 다시 시도: 원본 배포에서 고른 환경만 새 배포로 (10/2 09:57 서버 확정, #42). 응답은 생성과 같은 `{ id, project_id, state }`
+    static func retry(_ request: RetryRequest) -> Endpoint<CreatedDeployment> {
+        .init(method: "POST", path: "deployments/\(request.deploymentID)/retry",
+              body: jsonBody(RetryBody(targetIds: request.targetIDs)), idempotencyKey: UUID().uuidString)
+    }
+
     /// WR-14 · W-09 롤백. 이전 성공 배포의 커밋 + 그때 검증된 스크립트로 새 배포가 생기고, plan 승인을 거쳐요
     static func rollback(deploymentID: String, targetIDs: [String], reason: String) -> Endpoint<CreatedDeployment> {
         .init(method: "POST", path: "deployments/\(deploymentID)/rollback",
@@ -83,4 +89,5 @@ extension Endpoint {
 
 private struct ConnectProjectBody: Encodable, Sendable { let repository: String; let branch: String }
 private struct StartDeploymentBody: Encodable, Sendable { let sourceVersionId: String; let commit: String; let targetIds: [String] }
+private struct RetryBody: Encodable, Sendable { let targetIds: [String] }
 private struct RollbackBody: Encodable, Sendable { let targetIds: [String]; let reason: String }

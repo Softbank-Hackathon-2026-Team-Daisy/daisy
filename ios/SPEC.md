@@ -408,7 +408,8 @@ API 모양보다 **이 정보가 어딘가에 저장되어 있는지**가 더 �
 | WR-02 | `POST /projects` `{ repository, branch }` | W-02 연결하기 | 좋아요, 응답에 deploy.yaml 검증 결과 · D2 |
 | WR-03 | `GET /projects/{id}/manifest` | W-02 배포 명세 확인 · W-13 | 좋아요, 모양은 `deploy.yaml` 스키마 결정 뒤 · D3 |
 | WR-04 | `GET /projects/{id}/targets` → `target_id, type, name, reuse{ available, script_id?, reason? }, connection{ state: ok·failed·unknown, checked_at }` | W-04 · W-10 · 사이드바 | 별도 엔드포인트로 · D2 |
-| WR-05 | `POST /projects/{id}/deployments` `{ source_version_id, commit, target_ids[] }` + `Idempotency-Key` → 응답 `{ id, project_id, state }` | W-04 시작, **W-05b "○○만 다시 시도"(실패한 환경 전부) · W-08 "다시 시도"도 같은 빌드 · 그 환경만으로 새 배포** | ✅ `source_version_id` 필수(#36 · #42, 커밋으로 빌드를 추정하지 않아요), 생성 응답은 `id` · `project_id` · `state`만(10/2 01:07). 빌드 ID가 없으면 앱은 시작 · 다시 시도를 막아요. 재시도 전용 `POST /deployments/{id}/retry`는 서버 제안(#42 ⑥, 웹 · 앱 의견 대기) |
+| WR-05 | `POST /projects/{id}/deployments` `{ source_version_id, commit, target_ids[] }` + `Idempotency-Key` → 응답 `{ id, project_id, state }` | W-04 시작 | ✅ `source_version_id` 필수(#36 · #42, 커밋으로 빌드를 추정하지 않아요), 생성 응답은 `id` · `project_id` · `state`만(10/2 01:07). 빌드 ID가 없으면 앱은 시작을 막아요 |
+| WR-05b | `POST /deployments/{id}/retry` `{ target_ids[] }` + `Idempotency-Key` → `{ id, project_id, state }` | **W-05b "○○만 다시 시도"(실패한 환경 전부) · W-08 "다시 시도"(그 환경만)** | ✅ 10/2 09:57 확정 (하은현 제안 · 김도영 수락 · 박승준 동의, #42). 서버가 원본 배포의 빌드 · 연결을 이어받아 새 배포를 만들어요. 앱은 원본 배포 ID와 환경만 보내요 |
 | WR-06 | `GET /deployments/{id}/plan?detail=resources` | W-06 리소스 행 (`action`에 `replace` 포함) | 좋아요 · D3 |
 | WR-07 | `GET /deployments/{id}/targets/{target_id}/script` → `files[{ path, content }]` | W-05 생성된 스크립트 | 18시 백엔드 회의에서 확인 |
 | WR-08 | `POST /deployments/{id}/cancel` | (앱은 아직 버튼 없음) | 좋아요 · D3. **apply 도중에는 중단하지 않고 서버가 결과를 기다려요** (10/1 17:23, #17) — 앱도 apply 시작 뒤에는 취소를 보여주지 않아요 |
@@ -512,6 +513,7 @@ API 모양보다 **이 정보가 어딘가에 저장되어 있는지**가 더 �
 
 | 날짜 | 변경 | 작성 |
 |---|---|---|
+| 10/2 | "다시 시도"(W-05b · W-08)를 확정된 `POST /deployments/{id}/retry { target_ids }`로 바꿈. 빌드 ID 없이도 다시 시도할 수 있어요 (WR-05b) | 박승준 |
 | 10/2 | Mac DMG는 `Unibloom.dmg` 하나만 올려요 (W-14가 #37에서 새 주소로 바뀜, `Daisy.dmg` 복사본 중단) | 박승준 |
 | 10/2 | 감사에서 찾은 앱 버그 3개: 승인 · 취소가 본문 없는 202 · 204여도 성공으로(전에는 디코딩 실패로 "실패" 표시), A-04 환경의 `step` · `step_state` · `attempt`가 없어도 배포 화면이 뜨게(없으면 모름 · 시도 0), "데모 계정으로 둘러보기" 버튼 삭제(서버는 `/auth/demo`를 만들지 않고 viewer 계정으로 로그인, #13 김승환 답 → §6-9 S-7 해결) | 박승준 |
 | 10/2 | 서버 #42 결정 반영: 배포 시작 · 다시 시도에 `source_version_id` 필수(없으면 막음), 생성 · 롤백 응답은 `{ id, project_id, state }`, 승인 ID는 `pending_approvals`에서만 · 빈 `items`는 보내지 않음, A-02 `current_status`와 "확인된 배포 없음" 문구. 예시 데이터에 `source_version_id` · `pending_approvals` | 박승준 |
