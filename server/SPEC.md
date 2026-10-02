@@ -55,7 +55,7 @@
 | 로컬 DB | Docker Compose의 `postgres` 서비스로 PostgreSQL 17을 실행하거나 기존 로컬 PostgreSQL에 연결합니다. |
 | 설정 | `DAISY_DB_URL`, `DAISY_DB_USER`, `DAISY_DB_PASSWORD`로 연결 설정을 주입합니다. 비밀번호 기본값은 두지 않습니다. |
 | JSON | Jackson 전역 `SNAKE_CASE` 설정을 사용합니다. |
-| API 문서 | springdoc-openapi 2.9.1을 사용합니다. `/v3/api-docs`, `/swagger-ui.html`을 제공합니다. 업무 API가 없으므로 경로 목록은 비어 있습니다. |
+| API 문서 | springdoc-openapi 2.9.1을 사용합니다. `/v3/api-docs`, `/swagger-ui.html`을 제공합니다. 업무 API 경로와 Bearer 인증 요구가 노출됩니다. 경로 목록은 `/v3/api-docs` 를 기준으로 봅니다. |
 | 포맷 | Spotless 8.10.3 + google-java-format 1.36.0. `spotlessApply`로 적용하고 `check`·`build`에서 검사합니다. |
 
 ### 후속 기능 개발
@@ -213,7 +213,7 @@
 
 ### 후속 범위
 
-- 조회·관리 API 는 아직 없습니다. 인가 판정이 실제 요청 경로에 붙은 적이 없고 단위 테스트로만 확인했습니다.
+- ~~조회·관리 API 는 아직 없습니다. 인가 판정이 실제 요청 경로에 붙은 적이 없고 단위 테스트로만 확인했습니다.~~ → 10/2: 조회·관리·배포 API 가 붙었고, 인가는 아래 각 절 검증 표에서 실제 요청(401·404·403)으로 확인했습니다.
 - SSE 경로의 인증 실패 전달, 실제 터널·프록시 뒤의 CORS·스트리밍은 도메인과 개발 서버가 생긴 뒤 확인합니다.
 - 만료된 `pending` 승인을 `expired` 로 내리는 일은 서비스 책임입니다. 시간 조건은 PostgreSQL 인덱스 조건에 넣을 수 없습니다.
 - FK 인덱스가 없는 컬럼 36곳은 예선 데이터 규모를 보고 넣지 않았습니다.
@@ -274,12 +274,12 @@
 | `target_id` | `target.id` | 제공 |
 | `type` | `target.environment_type` (`onprem`·`aws`·`gcp`) | 제공 |
 | `name` | `target.name` | 제공 |
-| `connection_state` | `target.connection_state` (`unknown`·`connected`·`disconnected`) | **제공 (계약에 없는 추가)** — W-04 가 "연결 안 되는 환경은 고를 수 없어요" 를 하려면 필요합니다 |
+| `connection_state` | `target.connection_state` 를 WR-04 와 같은 값(`ok`·`failed`·`unknown`)으로 변환 (10/2, 아래 WR-04 「확인이 필요한 것 ①」) | **제공 (계약에 없는 추가)** — W-04 가 "연결 안 되는 환경은 고를 수 없어요" 를 하려면 필요합니다 |
 | `checked_at` | `target.connection_checked_at` | 제공 (연결 확인이 돈 적 없으면 null) |
 | `current.deployment_id` | `deployment_target.deployment_id` | 제공 |
 | `current.commit` | `deployment.commit_sha` | 제공 |
 | `current.deployed_at` | `deployment_target.finished_at` | 제공 |
-| `current.image` | `deployment.image_refs` 평탄화 | **미제공 (null)** — 빌드 수신(A-06)이 없어 `image_refs` 가 빈 상태입니다 |
+| `current.image` | `deployment.image_refs` 평탄화 | ~~미제공 (null)~~ → #42 부터 제공. 서비스가 둘 이상이면 `images[]` |
 | `url` | `deployment_target.result` 의 `service_url` | **미제공 (null)** — `apply-result.json` 이 아직 인프라에 없습니다 (#17) |
 | `health` | 같은 곳 | **항상 `unknown`** — 헬스 결과가 지금 apply 로그에만 있습니다 (#17) |
 | `health_summary` | 같은 곳 | **미제공 (null)** |
@@ -291,6 +291,8 @@
 2. **소유 경계입니다.** 설계 2장이 `deployment` 모듈(Deployment·DeploymentTarget)을 승환 소유로, `project` 모듈(Project·Target·SourceVersion)을 은현 소유로 나눴습니다. `work.md` §14 가 *"다른 담당 영역의 Repository·Entity를 직접 사용하지 않고 서비스 계약으로 연결합니다"* 로 두었으므로, `current` 를 채우려면 **deployment 모듈의 조회 서비스 계약이 필요합니다.** `target.current_deployment_target_id` 까지는 제 소유라 읽고, 그 ID 가 가리키는 행은 읽지 않습니다.
 
 모양만 먼저 고정해 앱이 목업을 떼고 붙을 수 있게 하는 것이 이번 범위입니다.
+
+> 10/2: #42 부터 `current` 를 승환님 `currentByTarget` 로 읽습니다. 다만 `target.current_deployment_target_id` 를 갱신하는 코드가 아직 없어서(실행 결과 수신 #35 와 함께 붙음), **배포가 성공해도 그 전까지 `current` 는 null 입니다.** 화면에서 "아직 배포 없음" 으로 보이는 이유가 이것입니다.
 
 ### 데모 대상 시딩
 
@@ -363,7 +365,7 @@ V10 이 핵심이었습니다. 나머지가 다 맞아도 여기서 새면 다�
 | `error_summary` | 같은 이름 | 제공 (없으면 null) |
 | `received_at` | 같은 이름 | 제공 — 커서 기준이라 소비자도 순서를 알 수 있게 내보냅니다 |
 | `message`·`author`·`committed_at` | 없음 | **미제공** — 승환 S1 이 *"원천 없는 커밋 설명·작성자·시각은 후순위"* 로 두었습니다. GitHub 을 따로 호출해 채우지 않습니다 |
-| `deployed_to[]` | `deployment` 모듈 | **미제공 (null)** — 소유 경계입니다. A-02 의 `current` 와 같은 이유입니다 |
+| `deployed_to[]` | `deployment` 모듈 | ~~미제공 (null)~~ → #42 부터 승환님 조회 서비스로 제공 |
 
 ### 상태 대조 — 소비자 enum 에 `pending` 자리가 없습니다
 
@@ -435,3 +437,373 @@ V10 이 핵심이었습니다. 나머지가 다 맞아도 여기서 새면 다�
 - `deployed_to[]` 가 채워진 응답은 확인하지 못했습니다. `deployment` 모듈 조회 계약이 없습니다.
 - 빌드가 수천 건일 때의 커서 성능은 보지 않았습니다. 설계 5.5 의 `INDEX(project_id, received_at DESC, id)` 를 쓰는 질의라는 것만 확인했습니다.
 - 실행 도메인에서 수용한 `image_refs`의 digest가 조회 projection까지 보존되는 회귀 테스트를 추가했습니다. 실제 Jenkins 수신부터 조회까지의 연결은 아직 검증하지 않았습니다.
+
+## 실행 서비스 연결 — 어댑터와 공개 배포 API (10/2, 하은현)
+
+> **스펙 리뷰를 먼저 받습니다.** 7시 연동 일정 때문에 구현도 같이 올렸고, 아래 「확인이 필요한 것」에서 갈리면 코드를 그에 맞춰 고칩니다. 구현 범위는 「구현 상태」 절에 있습니다.
+> 기준: #40 (`server/feat-backend-integration`, `82edcd0`) 의 `ExecutionAccess`·`ExecutionInputs`·`DeploymentExecutionService`·`EventSseService`·`DeploymentQueryService`, `docs/execution-service-contract.md`.
+> 반영한 코멘트: #36 승환(22:39)·도영 리뷰, #13 승환(22:39), #40 승준(22:54), 승환 메시지(23:58 — 조회 계약 push, "그렇게 개발해주셔도 좋아요").
+
+### 범위
+
+#40 이 요청한 연결 작업 네 가지입니다.
+
+| | 무엇 | 이 절의 깊이 |
+|---|---|---|
+| ① | `ExecutionAccess` 어댑터 | 구현할 수준까지 |
+| ② | `ExecutionInputs` 어댑터 | 구현할 수준까지 |
+| ③ | 공개 REST·SSE 연결 (생성·승인·취소·재시도·롤백·이벤트) | 경로·요청·검증까지. 응답 DTO 는 조회 API(A-04)와 함께 정합니다 |
+| ④ | 승인 요청 변환 | 구현할 수준까지 |
+| ⑤ | A-02 `current`·A-06 `deployed_to` 연결 (`82edcd0` 의 `DeploymentQueryService`) | 구현할 수준까지 |
+
+이번 범위가 아닌 것: 조회 API A-03·A-04·A-05·A-07. 응답 대부분이 `deployment` 모듈이라 그쪽 조회 계약이 더 필요합니다. 단 ④ 를 위해 A-04 에 넣을 승인 ID 필드 이름은 여기서 정합니다.
+
+### ① `ExecutionAccess` 어댑터
+
+`project/access/ExecutionAccessAdapter` 가 `deployment.application.ExecutionAccess` 를 구현합니다. 의존 방향은 `project → deployment` 의 인터페이스 하나뿐이고, `deployment` 는 제 인증 타입을 모릅니다.
+
+| 메서드 | 동작 |
+|---|---|
+| `requireRead(actorId, projectId)` | `actorId` 로 계정을 읽습니다. 없거나 비활성이면 **401 `UNAUTHENTICATED`**. 있으면 `AuthPrincipal` 을 만들어 `ProjectAccessService.requireRead` 로 위임합니다 |
+| `requireWrite(actorId, projectId)` | 같은 방식으로 `ProjectAccessService.requireWrite` 로 위임합니다 |
+
+- 판정은 기존 그대로입니다. **없는 프로젝트·비멤버·철회된 멤버십은 모두 404, 접근은 되는데 `viewer` 면 403.**
+- 역할은 `actorId` 로 **DB 에서 다시 읽습니다.** 필터가 인증한 뒤 같은 요청 안에서 계정이 비활성화돼도 막힙니다.
+- 호출한 쪽의 트랜잭션에 참여하고 읽기만 합니다. 잠금을 걸지 않고 외부 HTTP 도 부르지 않습니다.
+- `actorId` 는 컨트롤러가 인증된 principal 에서만 꺼냅니다. 요청 본문에서 받지 않습니다.
+
+### ② `ExecutionInputs` 어댑터
+
+`project/execution/ExecutionInputsAdapter` 가 구현합니다. 네 메서드 모두 **호출한 쪽의 트랜잭션 안에서 읽기만** 합니다. 새 트랜잭션을 열지 않고, 추가 잠금을 걸지 않고, 외부 HTTP 를 부르지 않습니다. 잠금 순서(`project → deployment → target(ID 정렬) → state identity`)는 실행 서비스가 쥡니다.
+
+#### `capture(actorId, projectId, sourceVersionId, targetIds, input)`
+
+| 검사 | 실패하면 |
+|---|---|
+| `sourceVersionId` 가 있고 이 프로젝트의 빌드다 | 404 `NOT_FOUND` — 다른 프로젝트 빌드와 없는 빌드를 구분하지 않습니다 |
+| 그 빌드가 `succeeded` 다 | 409 `STATE_CONFLICT` |
+| `image_refs` 가 계약 모양이고, 모든 서비스의 `commit_sha` 가 빌드의 `commit_sha` 와 같다 | 409 `STATE_CONFLICT` |
+| 각 `targetIds` 가 이 프로젝트의 보관되지 않은 대상이다 | 404 `NOT_FOUND` — 다른 프로젝트 대상과 없는 대상을 구분하지 않습니다 |
+| `input` 이 허용 키만 가진다 (아래) | 400 `VALIDATION_FAILED` |
+
+**commit 으로 다른 빌드를 고르지 않습니다.** 받은 `sourceVersionId` 하나만 봅니다.
+
+돌려주는 값 (키는 `snake_case`):
+
+| 필드 | 내용 | 근거 |
+|---|---|---|
+| `repository` | `repository_id`, `repository_url`, `default_branch`, `manifest_path`, `repository_credential_ref` | 설계 338·664행 |
+| `commonInput` | `{ "hash_format_version": 1, "strategy": "recreate" }` | 설계 339행, `Deployment.java` 가 `1` 만 받음 |
+| `targets[].snapshot` | `name`, `environment_type`, `config`, `config_revision`, `credential_ref`, `credential_version` | 설계 364·665행 |
+| `targets[].stateIdentity` | `target.state_identity` | 설계 665행 |
+| `source` | `BuildInput(id, commit_sha, image_refs)` — **DB 에 저장된 값** | 계약 「ExecutionInputs JSON 저장 형태」 |
+
+- **자격증명은 참조만 넘깁니다.** `credential_ref`·`credential_version`·`repository_credential_ref` 를 그대로 넘기고 복호화하지 않습니다.
+- `input` 은 지금 `strategy` 하나만 받습니다. 값은 `recreate` 만 허용합니다 (계약: *"현재 전략은 recreate만 지원"*). 다른 키나 `hash_format_version` 을 사용자가 보내면 400 입니다. 사용자가 해시 형식 번호를 바꾸지 못하게 하려는 것입니다.
+
+#### `projectName(projectId)`
+
+`project.name` 을 돌려줍니다. 없으면 404. 승인 대기 생성 때 실행 서비스가 `approval.confirmation_text` 에 고정합니다.
+
+#### `verifyFrozen(actorId, projectId, frozen)`
+
+재시도·롤백 때 저장된 입력이 지금도 유효한지 봅니다. 권한은 실행 서비스가 앞에서 `requireWrite` 로 이미 확인했으므로 다시 보지 않습니다.
+
+| 검사 | 실패하면 |
+|---|---|
+| `frozen.projectId` 가 `projectId` 와 같다 | 409 `STATE_CONFLICT` |
+| 각 대상이 아직 이 프로젝트에 있고 보관되지 않았다 | 409 `STATE_CONFLICT` |
+| 각 대상의 `state_identity` 가 고정 값과 같다 | 409 `STATE_CONFLICT` — 다른 state 에 apply 하게 되는 것을 막습니다 |
+| `source` 가 있으면 그 빌드가 같은 프로젝트·같은 commit·`succeeded` 다 | 409 `STATE_CONFLICT` |
+
+`config_revision`·`credential_version` 이 바뀐 경우는 아래 「확인이 필요한 것」 ② 입니다.
+
+#### `recordBuild(result)`
+
+| 검사 | 실패하면 |
+|---|---|
+| `result.sourceVersionId` 가 있다 | 409 `STATE_CONFLICT` |
+| 그 빌드가 `result.projectId` 의 것이고 `commit_sha` 가 같다 | 409 `STATE_CONFLICT` |
+| 그 빌드가 `succeeded` 이고 `image_refs` 가 계약 모양이다 | 409 `STATE_CONFLICT` |
+
+통과하면 **DB 에 저장된** `BuildInput` 을 돌려줍니다. `result` 의 값을 그대로 되돌려주지 않습니다. 실행 서비스가 둘을 비교해 다르면 거절하게 하려는 것입니다. `source_version` 에 쓰지는 않습니다 — 이 부분이 「확인이 필요한 것」 ③ 입니다.
+
+### ③ 공개 REST·SSE
+
+| ID | 경로 | 요청 | 실행 서비스 호출 | 성공 |
+|---|---|---|---|---|
+| WR-05 | `POST /projects/{id}/deployments` | `{ source_version_id, target_ids[], commit?, strategy? }` | `create` | 201 |
+| W-01 | `POST /deployments/{id}/approvals` | ④ 참고 | `decide` | 202 |
+| WR-08 | `POST /deployments/{id}/cancel` | `{ target_ids[] }` | `cancel` | 202 |
+| W-05b·W-08 | `POST /deployments/{id}/retry` | `{ target_ids[] }` | `retry` | 201 |
+| WR-14 | `POST /deployments/{id}/rollback` | `{ target_ids[], reason, trigger_deployment_id? }` — `reason` 필수·1000자 이하 (웹은 자동으로 채움) | `rollback` | 201 |
+| E-01 | `GET /deployments/{id}/events` | `Last-Event-ID` 헤더, `?event_type=` | `openDeployment` | SSE |
+| E-02 | `GET /projects/{id}/events` | `Last-Event-ID` 헤더, `?event_type=` | `openProject` | SSE |
+
+- **모든 POST 는 `Idempotency-Key` 헤더가 필수**입니다 (R-05). 없으면 400.
+- **`/deployments/{id}/...` 경로는 `DeploymentQueryService.projectIdOf(actorId, deploymentId)` 로 프로젝트를 찾습니다** (044a436). 없는 배포와 접근할 수 없는 배포는 404 입니다. 조회 권한만 확인하는 메서드라, 변경 권한(viewer 403)은 실행 서비스의 `requireWrite` 가 그대로 봅니다.
+- 다섯 명령의 성공 응답은 생성과 같은 `{ id, project_id, state }` 입니다. 재시도·롤백의 `id` 는 새로 만든 배포입니다.
+- 재시도 경로는 확정입니다. 승환(#42)·승준(#42, 10/2 02:50)·도영(Slack, 10/2 09:57)이 동의했습니다. 내부는 새 배포를 만드는 `retry` 에 연결합니다.
+- `actorId` 는 `@CurrentAccount` 에서만 꺼냅니다.
+- 입력 검증은 컨트롤러에서 길이·형식만 보고, 업무 규칙은 실행 서비스와 ② 에 맡깁니다. 같은 검사를 두 곳에 두지 않습니다.
+- `DaisyException` 은 기존 전역 처리기로 보냅니다. 상태 코드는 실행 서비스가 정한 것(생성·재시도·롤백 201, 승인·취소 202)을 그대로 씁니다.
+- **웹은 `source_version_id` 로 바꾸기로 했습니다** (#36 도영 리뷰: *"웹 W-04도 A-06 빌드의 `source_version_id`로 고르고 보내게 바꿀게요"*). 앱은 아직 확인 전이고 명세에는 `{ commit, target_ids }` 가 남아 있어, S1 대로 **전환 기간에는 둘 다 받습니다.** `source_version_id` 는 필수이고, `commit` 이 함께 오면 그 빌드의 `commit_sha` 와 같은지 봅니다 (다르면 400). `commit` 만으로 빌드를 고르지는 않습니다. `strategy` 는 생략하면 `recreate`, 다른 값은 400 입니다.
+- SSE 는 `text/event-stream`·`Cache-Control: no-cache` 를 붙이고, 인증은 REST 와 같은 Bearer 헤더입니다.
+- 응답 본문은 지금 실행 서비스의 최소 응답을 그대로 내보내지 않고, A-04 `Deployment` 요약 DTO 로 바꿉니다. 그 DTO 는 A-04 와 함께 정합니다. **그 전까지는 `{ id, project_id, state }` 만** 돌려줍니다. 이름은 소비자 `Deployment` 모델(`ios/SPEC.md` 326행)과 같습니다 — 웹이 응답의 `id` 로 다음 화면에 갑니다 (#42 리뷰).
+- 모두 OpenAPI 에 나오게 하고, `principal` 이 쿼리 파라미터로 새지 않는지 확인합니다 (#38 에서 한 번 샜습니다).
+
+### ④ 승인 요청 변환
+
+```jsonc
+POST /deployments/{id}/approvals
+Idempotency-Key: <키>
+{
+  "kind": "plan",
+  "decision": "approve",            // approve | reject
+  "confirm_text": "sample-monolith", // 삭제가 있는 plan 이면 필수 (검증은 실행 서비스)
+  "comment": "...",                  // 선택
+  "items": [ { "target_id": "tgt_aws", "approval_id": "apv_7" } ]
+}
+```
+
+| 규칙 | 실패하면 |
+|---|---|
+| `kind` 는 생략하면 `plan`, 다른 값은 거절 (웹·앱이 `plan` 만 써서 빼고 보내기도 함, #43) | 400 |
+| `decision` 은 공개 값 **`approve`·`reject`** 만. 내부로는 `approved=true/false`. 저장 상태 `approved`·`rejected` 는 받지 않습니다 | 400 |
+| `items` 가 비어 있지 않다 | 400 |
+| **`target_id` 가 중복되지 않는다 — Map 으로 바꾸기 전에 검사합니다.** 중복을 Map 에 넣으면 앞 항목이 조용히 덮입니다 | 400 |
+| 각 항목에 `target_id`·`approval_id` 가 있다 | 400 |
+
+통과하면 `Map<target_id, Decision(approval_id, approved, confirm_text)>` 으로 바꿉니다. **모든 항목에 같은 `decision`·`confirm_text` 를 넣습니다** (계약: *"공개 요청의 단일 decision·confirm_text를 API에서 각 항목에 동일하게 전달"*). 승인 대기 대상 전체와 맞는지, 옛 승인인지는 실행 서비스가 판정합니다 (하나라도 어긋나면 전체 409).
+
+`comment` 는 실행 서비스에 넘길 자리가 없어서 지금은 저장하지 않습니다. OpenAPI 설명에 그렇게 적습니다.
+
+**`items` 가 비면 400 입니다.** 승인 대기 전체로 해석하지 않습니다. 사용자가 본 대상만 승인한다는 S4 의 원칙이라, 서버가 대상을 채워 넣으면 화면에 없던 대상까지 승인될 수 있습니다.
+
+**A-04 에 `pending_approvals: [{ target_id, approval_id }]` 로 승인 ID 를 줍니다** (#40 승준 질문의 1번). S4 가 제안한 이름이고 `items` 와 모양이 같아 그대로 보낼 수 있습니다. `targets[].approval_id`·`pending_approval` 은 쓰지 않습니다. A-04 를 만들 때 넣습니다.
+
+### ⑤ A-02 `current`·A-06 `deployed_to` 연결
+
+`DeploymentQueryService` 를 그대로 부릅니다. 대상 목록·빌드 페이지는 제가 읽고, 포인터·ID 만 넘깁니다.
+
+**A-02** — `findActiveByProject` 로 읽은 대상의 `(id, current_deployment_target_id)` 를 `current()` 에 넘기고, 결과를 `current` 로 바꿉니다.
+
+| 공개 필드 | 값 |
+|---|---|
+| `current.deployment_id` | `deploymentId` |
+| `current.commit` | `commitSha` |
+| `current.deployed_at` | `deployedAt` — 대상 성공 완료 시각. 트래픽 전환 시각이 아닙니다 |
+| `current.image`·`image_digest` | 서비스가 **정확히 하나**일 때만. 여럿이면 null 로 두고 `current.images[{service, image_ref, image_digest}]` 를 줍니다 (A-06 과 같은 S5 규칙) |
+
+**A-06** — 페이지의 빌드 ID 를 `deployedTo()` 에 넘기고 `deployed_to[{ target_id, deployment_id, deployed_at }]` 로 바꿉니다. **조회했는데 성공 이력이 없으면 `[]`, 조회 자체를 못 했으면 null** 입니다. 과거 성공 이력이지 지금 그 버전이 떠 있다는 뜻이 아닙니다.
+
+**대상 하나가 화면 전체를 깨지 않게 합니다.** 처음 `current()` 는 포인터 하나만 잘못돼도 404·409 로 전체를 거절했습니다. #42 리뷰 뒤 승환이 `currentByTarget()`(044a436)을 열어서, 포인터 확인에 실패한 대상은 예외 없이 `unverified` 로 돌려받습니다. 권한 오류(401·403·404)·입력 오류·DB 장애는 그대로 올라옵니다. 제 쪽에는 대상별 재조회나 예외 처리가 없습니다.
+
+**`current: null` 의 뜻을 공개 계약에 적습니다.** 승환 정의대로 *"확인된 현재 참조 없음"* 이지 "배포가 없다"가 아닙니다. 지금은 포인터를 갱신하는 경로가 없어 **실제로 배포됐어도 null** 입니다. 웹은 *"`current`가 null이면 '아직 배포 없음'으로"* 보여주기로 했는데(#38 도영), 이 문구는 사실과 다를 수 있습니다. **"확인된 배포 없음" 또는 "—"** 로 바꿔 달라고 웹·앱에 알립니다. `current_status` 를 함께 두어 `none`(포인터 없음)·`confirmed`(확인됨)·`unverified`(포인터는 있으나 확인 실패)를 구분합니다.
+
+**A-02 는 목록 조회와 같은 읽기 트랜잭션에서 부릅니다.** 처음에는 `current()` 의 예외를 잡으면 바깥 트랜잭션이 롤백 전용이 되어 `UnexpectedRollbackException`(500)이 나는 것을 실측하고 A-02 만 `NOT_SUPPORTED` 로 돌렸습니다. `currentByTarget()` 은 대상 실패로 예외를 던지지 않아서 `NOT_SUPPORTED` 를 뺐습니다. 실측 (10/2, 빈 PostgreSQL 17, 대상 3개에 성공·대기·없음 포인터, 클래스 기본 읽기 트랜잭션): **200**, `confirmed`·`unverified`·`none`, `UnexpectedRollbackException` 0건.
+
+**포인터 갱신은 제 몫입니다 (후속).** `target.current_deployment_target_id` 는 제 영역이라 실제 결과에 따라 바꾸는 서비스를 제가 열어야 합니다. 오래된 결과나 "가장 최근 시각" 만으로 바꾸지 않는다는 승환의 원칙을 따릅니다. 어떤 결과를 근거로 바꿀지는 #35 의 실제 결과 계약이 정해진 뒤 정합니다. **그 전까지 A-02 `current` 는 항상 null 입니다.**
+
+### #42 리뷰 반영 (10/2, 승환 리뷰 00:59)
+
+| 질문 | 답 | 반영 |
+|---|---|---|
+| ① 배포 ID → 프로젝트 | 승환이 `projectIdOf(actorId, deploymentId)` 를 044a436 으로 제공. 없는·접근 못 하는 배포는 404, 경로는 `/deployments/{id}/...` 유지 | 승인·취소·재시도·롤백·배포 SSE 연결 (다음 작업) |
+| ② 설정 변경 시 409 | 동의. 바뀐 설정으로 진행하려면 새 배포 | 확정 |
+| ③ `recordBuild` | 동의. 기존 빌드를 확인하고 저장값 반환, 새 빌드 등록과 별개 | 확정 |
+| ④ 빌드 결과 저장 | 승환 제안: Jenkins 결과 수신·검증은 승환, `source_version` 등록은 은현 관리 서비스 | 수락 (10/2). 결과에 `project_id` 포함 여부·중복 기준·`build.received` 이벤트 3가지를 승환님께 확인 중 |
+| ⑤ `disconnected` 409 | 동의. `unknown` 은 허용하되 연결 성공으로 표시하지 않음 | 확정 |
+| ⑥ 재시도 경로 | 승환·승준·도영 동의 | 확정 `POST /deployments/{id}/retry` |
+
+- **A-02 대상별 처리에서 권한 404 를 구분합니다.** 리뷰 지적대로 예전 재조회 방식은 권한 재검사의 404 를 대상 문제로 숨길 수 있었습니다. 승환의 `currentByTarget()`(044a436)으로 바꾸고 재조회 처리를 지웠습니다. 권한 오류는 조회 서비스가 그대로 올립니다.
+- **생성 응답 이름을 소비자 모델에 맞췄습니다.** `deployment_id`·`status` → `id`·`state`, `project_id` 추가.
+
+### 10/2 오전 점검 반영
+
+- **요청 하나의 대상 수를 50개로 막습니다.** 생성·취소·재시도·롤백의 `target_ids` 와 승인의 `items` 가 50개를 넘으면 400 입니다. 실행 서비스가 프로젝트 행을 잠근 채 대상을 확인하므로, 잠그기 전에 공개 경로에서 끊습니다. 50 은 데모 대상(3개)보다 넉넉하게 잡은 값입니다.
+- **A-02 `connection_state` 를 WR-04 와 같은 값(`ok`·`failed`·`unknown`)으로 바꿨습니다.** 계약에 없던 필드를 제가 더하면서 DB 값을 그대로 내보냈던 것입니다.
+- 확인: 빈 PostgreSQL 17 에 jar 로 띄워 확인했습니다. A-02 가 DB `connected`·`disconnected`·`unknown` 을 `ok`·`failed`·`unknown` 으로 내보내고 대상마다 WR-04 와 같음. 생성 51개 400, 50개는 상한을 지나 다음 검사(없는 대상 404), 1개는 201. 승인 `items` 51개, 취소·재시도·롤백 51개 모두 400. A-04·A-03 200, 서버 로그 ERROR 0건.
+
+### 승인 성공 확인 — DB 픽스처 (10/2 낮, 승환님 #42 리뷰)
+
+실제 Jenkins E2E 와 따로, 빈 PostgreSQL 17 에 jar 를 띄우고 배포는 API 로 만든 뒤 plan·승인·스크립트 행을 SQL 로 넣어 확인했습니다. 승인 요청 `items` 는 A-04 `pending_approvals` 를 그대로 보냈습니다.
+
+| | 검사 | 결과 |
+|---|---|---|
+| A1 | viewer 승인 | 403 |
+| A2 | 대상 둘 다 승인 대기인데 하나만 보냄 | 409 (승인 대기 전체와 같아야 함) |
+| A3 | A-04 `pending_approvals` 그대로 승인 | 202, 승인 행 둘 다 `approved`, apply 실행 1건 |
+| A4 | 같은 `Idempotency-Key` 재전송 | 같은 202 응답, apply 실행 여전히 1건 |
+| A5 | 삭제 포함 plan: 확인 문구 없음 / 틀림 / 프로젝트 이름 | 400 / 400 / 202 |
+| A6 | 거절 | 202, 승인 행 `rejected`, 배포 `cancelled`, apply 실행 0건 |
+| A7 | 기한 지난 승인만 있는 대상 | A-04 `pending_approvals` 에서 빠짐, 그 ID 로 승인 409 |
+
+서버 로그 ERROR 0건. 픽스처를 맞추면서 실행부 조건 두 가지를 확인했습니다. 실제 수신부가 같은 값을 넣는지 연동 때 같이 봐야 합니다.
+
+- 승인 기한은 plan 기한 이하여야 apply 명령이 만들어집니다. 처음 픽스처는 plan·승인을 따로 넣어 `now()` 가 몇 ms 달라 409 가 났습니다.
+- 거절하려면 그 대상의 plan 을 만든 prepare 실행이 끝난 상태여야 합니다.
+
+승인 직후 배포·대상 상태는 apply 실행이 시작될 때까지 `awaiting_approval` 그대로이고 `pending_approvals` 만 비어 있습니다. 화면에서는 "승인 대기인데 승인할 것이 없음" 으로 보일 수 있어 승환님께 여쭤봤습니다.
+
+### 구현 상태 (10/2 새벽)
+
+| | 무엇 | 위치 | 상태 |
+|---|---|---|---|
+| ① | `ExecutionAccess` 어댑터 | `project/access/ExecutionAccessAdapter` | 완료 |
+| ② | `ExecutionInputs` 어댑터 | `project/execution/ExecutionInputsAdapter` | 완료. 확인 ②·⑤ 는 제안대로 넣고 메서드 하나씩으로 분리 |
+| ③ | `POST /projects/{id}/deployments`·`GET /projects/{id}/events` | `project/web/DeploymentRequestController` | 완료 |
+| ③ | `/deployments/{id}/...` 경로 (승인·취소·재시도·롤백·배포 SSE) | `project/web/DeploymentCommandController` | 완료 (`projectIdOf` 사용) |
+| ④ | 승인 요청 변환 | `project/web/ApprovalRequest` | 완료 (컨트롤러는 ③ 대기) |
+| ⑤ | A-02 `current`·A-06 `deployed_to` | `project/application/DeploymentHistoryReader` | 완료 |
+
+공개 API 코드는 `server/AGENTS.md` §3 의 폴더 소유대로 `deployment/` 가 아니라 `project/` 에 둡니다.
+
+**실측 (빈 PostgreSQL 17, jar 기동, Jenkins 워커 꺼진 기본 설정)**
+
+| | 검사 | 결과 |
+|---|---|---|
+| C1 | `Idempotency-Key` 없음 | 400 |
+| C2 | viewer 생성 | 403 |
+| C3 | 정상 생성 (대상 2개) | 201 `{id, project_id, state: "queued"}` (#42 리뷰 뒤 이름 변경, 재기동으로 다시 확인). 입력 스냅샷 `{strategy: recreate, hash_format_version: 1}`, 저장소 스냅샷 키 5개, 대상 스냅샷의 자격증명은 참조 문자열 그대로. prepare 명령은 `pending` 으로 저장만 됨 |
+| C4 | 같은 키·같은 본문 재전송 | 첫 응답 그대로, 배포 행 늘지 않음 |
+| C5 | 같은 키·다른 본문 | 409 |
+| C6 | `commit` 이 빌드와 다름 / 같음 | 400 / 201 |
+| C7 | 없는 빌드 | 404 |
+| C8 | `disconnected` 대상 | 409 |
+| C9 | `strategy: canary` | 400 |
+| S1 | 토큰 없이 SSE | 401 |
+| S2 | SSE + `Last-Event-ID: 0` | 200 `text/event-stream`·`Cache-Control: no-cache`, heartbeat 뒤 `deployment.created` 두 건을 seq 1·2 로 재생 |
+| S3 | 잘못된 `event_type` | 400 |
+| O1 | OpenAPI | 두 경로·`Idempotency-Key`·`Last-Event-ID`·Bearer 요구가 나오고 `principal` 노출 0건 |
+
+**배포 ID 경로 실측 (10/2 새벽, 같은 조건)** — 승인 성공(202)은 plan·승인 대기 행이 있어야 해서 Jenkins 결과 수신 뒤에 봅니다. 여기서는 실행 서비스까지 정확히 전달되고 판정을 그대로 돌려주는지 봤습니다.
+
+| | 검사 | 결과 |
+|---|---|---|
+| D1 | 멱등 키 없음 | 400 |
+| D2 | 없는 배포 | 404 (`projectIdOf`) |
+| D3 | viewer 승인·취소 | 403 / 403 |
+| D4 | `decision: "approved"`·빈 `items` | 400 / 400 |
+| D5 | 승인 대기가 아닌 배포에 승인 | 409 |
+| D6 | Jenkins 에 아직 안 나간 배포 취소 | 202 `{id, project_id, state: "cancelled"}` |
+| D7 | 같은 키로 취소 재전송 | 첫 응답 재생 |
+| D8 | 취소된 배포 재시도·롤백 / 롤백 사유 없음 | 409·409 / 400 |
+| D9 | 배포 SSE 토큰 없음·없는 배포·정상 | 401·404·200 (`deployment.created`·`target.status_changed` 2건·`deployment.completed` 재생) |
+| D10 | OpenAPI | 다섯 경로, 재시도 summary 에 (가칭), `principal` 노출 0건 |
+
+500 은 0건이었습니다. 처음에 롤백이 400 으로 나온 것은 검증 명령(Git Bash 가 한글을 UTF-8 이 아닌 바이트로 보냄) 때문이었고, UTF-8 로 다시 보내 409 를 확인했습니다.
+
+### 확인이 필요한 것 (승환)
+
+**① `/deployments/{id}/...` 경로에서 `projectId` 를 어떻게 얻을까요.** 실행 서비스는 모든 요청에 `projectId` 를 받는데, 공개 경로에는 배포 ID 만 있습니다. 배포 → 프로젝트 조회는 `deployment` 모듈 소유라 제가 직접 읽지 않으려고 합니다. `EventJournal.requireDeploymentProject(projectId, deploymentId)` 는 둘 다 알 때 맞는지만 봅니다. **`deployment` 쪽에 `projectIdOf(deploymentId)` 같은 조회를 하나 열어 주실 수 있을까요.** 없는 배포는 404 로 하면 됩니다. 이게 없으면 경로를 `/projects/{pid}/deployments/{id}/...` 로 바꿔야 해서 웹·앱 계약이 바뀝니다.
+
+**② 재시도·롤백 때 대상 설정이 바뀌었으면 막을까요.** `verifyFrozen` 에서 `config_revision`·`credential_version` 이 고정 값과 다를 때 두 길이 있습니다.
+
+| | 동작 | 결과 |
+|---|---|---|
+| 가 | 409 로 막는다 | 옛 설정으로 apply 하지 않는다. 사용자는 새 배포를 만들어야 한다 |
+| 나 | 허용한다 | 재시도는 "같은 입력 그대로" 라는 계약과 맞다. 대신 지금 설정과 다른 것이 적용된다 |
+
+저는 **가** 쪽이 안전하다고 봅니다. 고정 입력을 재사용하는 게 재시도의 정의라면, 그 입력이 이미 낡았을 때 조용히 쓰는 것보다 막는 게 낫다고 생각합니다. 어느 쪽이 맞을까요.
+
+**③ `recordBuild` 가 `source_version` 에 무언가를 써야 할까요.** 인터페이스 주석은 *"before recording the build"* 인데, `capture` 가 이미 성공 빌드만 받기 때문에 `bindBuildResult` 시점에는 그 빌드가 DB 에 있다고 봤습니다. 그래서 위 스펙은 **확인만 하고 쓰지 않습니다.** PREPARE 가 새 빌드를 만들어 그 결과를 여기서 기록해야 하는 흐름이 있다면 알려 주세요.
+
+**④ Jenkins 빌드 결과를 `source_version` 에 넣는 쪽은 누구일까요.** A-06 빌드 목록과 ② 의 `capture` 가 모두 이 행을 전제로 합니다. #40 의 결과 수신 기준에 들어가는지, 제가 수신 경로를 따로 만들어야 하는지 정해야 합니다.
+
+**⑤ `disconnected` 대상을 생성에서 막을까요.** W-04 가 *"연결 안 되는 환경은 고를 수 없어요"* 인데, 지금은 연결 확인 기능이 없어서 모든 대상이 `unknown` 입니다. `unknown` 까지 막으면 아무것도 배포할 수 없습니다. **`disconnected` 만 409 로 막고 `unknown` 은 허용**하는 쪽을 제안합니다.
+
+**⑥ 재시도를 어느 경로로 받을까요 (웹·앱과 함께).** 승환은 #13 에서 *"실패한 환경 재시도는 기존 답변대로 새 배포"*, *"재시도의 원본 연결 등 구체 요청은 공개 API에서 맞추겠습니다"* 라고 했습니다. 웹·앱 명세는 WR-05(새 배포 생성)를 그대로 씁니다. 실행 서비스에는 원본 배포에서 실패 대상만 복사하는 `retry` 가 따로 있습니다. 계보(lineage)가 남는 `retry` 를 쓰려면 `POST /deployments/{id}/retry` 를 새로 열어야 하고 웹·앱 호출도 바뀝니다. **저는 `retry` 경로를 여는 쪽을 제안합니다** — 실패 대상만 고르고 원본 성공 대상을 건드리지 않는 규칙을 서버가 보장할 수 있어서입니다.
+
+### 다른 파트와 닿는 지점
+
+| 누구 | 무엇 |
+|---|---|
+| 승환 | 위 ①~⑤. ① 이 정해져야 ③ 의 경로가 확정됩니다 |
+| 웹·앱 | WR-05 에 `source_version_id` 가 필수로 더해집니다 (S1, A-06 이 이미 내보냄. 웹은 수용). 승인 요청에 `items[]` 가 더해지고 **비면 400** 입니다 (S4). 승인 ID 는 A-04 `pending_approvals` 로 줍니다 (#40 승준). **A-02 `current: null` 은 "배포 없음"이 아니라 "확인된 참조 없음"** 이라 화면 문구를 바꿔야 합니다. 재시도 경로는 ⑥ 에서 함께 정합니다 |
+| 인프라 | 없음. Jenkins 연결은 #35 에서 승환이 맞춥니다 |
+
+### 검증 계획 (구현 뒤)
+
+검사 항목을 먼저 적고 그대로 돌립니다.
+
+| | 검사 | 기대 |
+|---|---|---|
+| V1 | `ExecutionAccess` — 없는 프로젝트·비멤버·철회 멤버십·`viewer` 쓰기·비활성 계정 | 404·404·404·403·401 |
+| V2 | `capture` — 다른 프로젝트 빌드·`running` 빌드·`image_refs` commit 불일치·다른 프로젝트 대상·보관 대상·`input` 에 `hash_format_version` | 404·409·409·404·404·400 |
+| V3 | `capture` 반환값에 비밀값이 없다 — `credential_*` 는 참조 문자열 그대로 | 통과 |
+| V4 | `verifyFrozen` — 대상 보관·`state_identity` 변경·빌드 상태 변경 | 409 |
+| V5 | `recordBuild` — `sourceVersionId` 없음·commit 불일치·`image_refs` 없음 | 409, NPE 없음 |
+| V6 | 승인 변환 — `decision: "approved"`·중복 `target_id`·빈 `items`·`kind: "deploy"` | 400 |
+| V7 | `Idempotency-Key` 없는 POST | 400 |
+| V8 | 같은 키로 같은 요청 두 번 | 첫 응답 그대로 재생 |
+| V9 | 실제 기동 — 로그인 → 생성 → 승인 → SSE 연결·`Last-Event-ID` 재연결 | 각 단계 상태 코드와 이벤트 seq |
+| V10 | OpenAPI — 새 경로 전부 Bearer 요구, `principal` 쿼리 노출 0건 | 통과 |
+| V11 | A-02 — 포인터 없음·정상 포인터·다른 대상을 가리키는 포인터가 섞인 프로젝트 | 각각 `none`·채워짐·`unverified`, **응답 전체는 200** |
+| V12 | A-06 — 성공 이력 있는 빌드·없는 빌드 | `deployed_to` 채워짐·`[]` |
+| V13 | `./gradlew --no-daemon spotlessCheck check build` | 성공 |
+
+V9 의 실제 Jenkins 실행은 하지 않습니다. 기본 비활성 설정 그대로 명령이 저장되는 데까지만 봅니다.
+
+## 배포 대상 목록 WR-04 (10/2, 하은현)
+
+### 범위
+
+`GET /projects/{id}/targets` 는 배포 시작 화면(W-04)과 환경 화면(W-10)에서 고를 수 있는 대상 목록을 돌려줍니다. A-02(`targets/status`)와 별도 경로로 두는 것은 9/30 결정(*"환경 선택용 `GET /projects/{id}/targets`는 `targets/status`와 별도"*, PR #9)대로입니다. A-02 는 "지금 어떻게 떠 있나", WR-04 는 "어디에 배포할 수 있나" 입니다.
+
+- 권한은 A-02 와 같습니다. `ProjectAccessService.requireRead` — 없는 프로젝트·비멤버 404, viewer 도 조회는 됩니다.
+- 보관된 대상은 뺍니다. 정렬은 A-02 와 같은 `(environment_type, name)` 입니다.
+- 목록 봉투 `{ items, next_cursor }` 이고 `next_cursor` 는 항상 null 입니다 (프로젝트당 대상이 몇 개뿐).
+- 이번 범위가 아닌 것: W-10 의 선택 필드(`title`·`runtime`·`location`·`access_method`·`exposure`·`state_backend`·`current_commit`). 대상 설정 키가 정해지지 않았고 S8 에서 `title` 조립 주체도 미정입니다.
+
+### 응답 필드
+
+소비자 계약은 `ios/SPEC.md` 406행 *"`target_id, type, name, reuse{ available, script_id?, reason? }, connection{ state: ok·failed·unknown, checked_at }`"* 입니다.
+
+| 필드 | 출처 | 비고 |
+|---|---|---|
+| `target_id`·`type`·`name` | `target.id`·`environment_type`·`name` | A-02 와 같음 |
+| `connection.state` | `target.connection_state` 를 변환 | 아래 표 |
+| `connection.checked_at` | `target.connection_checked_at` | 확인한 적 없으면 null |
+| `reuse` | `target.reuse_assessment` | **인프라 보고가 없으면 통째로 null** |
+| `reuse.available`·`script_id`·`reason` | 같은 JSON 의 같은 키 | |
+| `reuse.assessed_at` | 같은 JSON 의 `assessed_at` | 설계의 "판정 시각". 키 이름은 인프라 보고 형식이 정해지면 맞춥니다 |
+
+**연결 상태는 소비자 값으로 바꿉니다.** S1 의 *"DB enum을 API에 그대로 노출하지 않습니다"* 를 따릅니다.
+
+| DB `ck_target_conn` | WR-04 `connection.state` |
+|---|---|
+| `connected` | `ok` |
+| `disconnected` | `failed` |
+| `unknown` | `unknown` |
+| 그 밖 | 그대로 (꾸미지 않음) |
+
+**`reuse` 는 없으면 null 입니다.** 인프라가 재사용 판정을 보고한 적이 없는데 `available: false` 로 보내면 "재사용 불가로 확인됨" 처럼 읽힙니다. 지금은 `reuse_assessment` 를 채우는 곳이 없어서 항상 null 입니다. 저장된 JSON 이 모양과 다르면(`available` 이 boolean 이 아님 등) 목록 전체를 실패시키지 않고 그 대상의 `reuse` 만 null 로 둡니다.
+
+### 확인이 필요한 것
+
+**① A-02 의 `connection_state` 와 값이 다릅니다 (웹·앱).** A-02 는 계약에 없던 필드를 제가 더하면서 DB 값(`connected`·`disconnected`)을 그대로 내보냈고, 웹은 *"W-04에서 연결이 안 되는 환경을 막을 때는 `connection_state`를 쓸게요"* (#38 도영) 라고 했습니다. W-04 는 원래 WR-04 를 쓰는 화면이라, **W-04 에서는 WR-04 `connection.state` 를 써 달라고** 알리겠습니다. A-02 값도 같은 변환으로 맞출지는 웹·앱과 정합니다. → 10/2: A-02 도 같은 변환으로 맞췄습니다. 두 화면이 같은 값을 쓰게 하는 쪽이 낫다고 봤고, 웹·앱에 알립니다.
+
+**② `reuse_assessment` 를 채우는 쪽 (승환·인프라).** 설계는 *"인프라가 보고한"* 값인데 수신 경로가 없습니다. 실행 결과 수신(#35)과 함께 정해지면 키 이름도 맞춥니다.
+
+### 검증 계획
+
+| | 검사 | 기대 |
+|---|---|---|
+| T1 | 토큰 없음 / 비멤버 / viewer | 401 / 404 / 200 |
+| T2 | `connected`·`disconnected`·`unknown` 대상 | `ok`·`failed`·`unknown` |
+| T3 | `reuse_assessment` 없음 / 정상 / 모양 틀림 | null / 채워짐 / 그 대상만 null, 응답 200 |
+| T4 | 보관된 대상 | 목록에 없음 |
+| T5 | OpenAPI | 경로가 나오고 `principal` 노출 0건 |
+
+### 검증 결과 (10/2 새벽)
+
+빈 PostgreSQL 17 에 jar 로 기동해서 확인했습니다. 단위 테스트 4개(변환 규칙)도 추가했습니다.
+
+| | 결과 |
+|---|---|
+| T1 | 토큰 없음 401, viewer 200, 멤버십 철회 뒤 404 |
+| T2 | `connected`→`ok`, `disconnected`→`failed`, `unknown`→`unknown`. 확인한 적 없는 대상은 `checked_at: null` |
+| T3 | 판정 없음 → `reuse: null`, 정상 판정 → 네 필드 그대로, `available: "yes"` 처럼 모양이 틀린 판정 → 그 대상만 `reuse: null`, 응답은 200 |
+| T4 | 보관된 대상은 목록에 없음 |
+| T5 | OpenAPI 에 경로가 나오고 파라미터는 `projectId` 하나 (`principal` 노출 없음) |
