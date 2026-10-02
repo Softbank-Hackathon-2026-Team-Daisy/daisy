@@ -29,7 +29,7 @@ struct Project: Decodable, Identifiable, Hashable, Sendable {
 // MARK: - 현황 (A-02)
 
 enum TargetType: String, ServerEnum {
-    case onprem, aws, gcp, unknown
+    case onprem, aws, gcp, azure, unknown  // azure: 10/2 회의로 포함 (웹 #87)
     static let unknownCase = TargetType.unknown
 }
 

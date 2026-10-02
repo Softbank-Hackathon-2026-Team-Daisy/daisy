@@ -47,7 +47,7 @@ struct SectionCard<Trailing: View, Content: View>: View {
 
 struct EnvTag: View {
     let type: TargetType
-    /// 아직 앱이 모르는 환경 이름 (W-10 "Azure")
+    /// 앱이 아직 모르는 환경 이름
     var label: String? = nil
 
     var body: some View {
@@ -65,7 +65,7 @@ extension TargetType {
     var systemImage: String {
         switch self {
         case .onprem: "server.rack"
-        case .aws, .gcp: "cloud"
+        case .aws, .gcp, .azure: "cloud"
         case .unknown: "questionmark.circle"
         }
     }
@@ -76,6 +76,7 @@ extension TargetType {
         case .onprem: "onprem"
         case .aws: "aws"
         case .gcp: "gcp"
+        case .azure: "azure"
         case .unknown: "?"
         }
     }

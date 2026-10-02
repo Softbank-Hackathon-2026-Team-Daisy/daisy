@@ -99,7 +99,7 @@ struct EnvironmentIcon: View {
     private var systemImage: String {
         switch type {
         case .onprem: "server.rack"
-        case .aws, .gcp: "cloud"
+        case .aws, .gcp, .azure: "cloud"
         case .unknown: "questionmark.circle"
         }
     }

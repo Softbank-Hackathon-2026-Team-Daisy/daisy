@@ -26,6 +26,14 @@ struct ModelDecodingTests {
         #expect(status.checkedAt != nil)
     }
 
+    /// 10/2 회의로 Azure가 4번째 환경이에요 (웹 #87). 모르는 값은 여전히 unknown
+    @Test func targetTypeAzure() throws {
+        let types = try decode([TargetType].self, #"["azure", "onprem", "oracle"]"#)
+        #expect(types == [.azure, .onprem, .unknown])
+        #expect(TargetType.azure.displayName == "Azure")
+        #expect(TargetType.azure.systemImage == "cloud")
+    }
+
     /// 서버 #38 모양: `current` null · `health: unknown` · `connection_state`, 빌드는 메시지 · 작성자 없이 `queued`, 프로젝트는 `default_branch`
     @Test func serverQueryShapes() throws {
         let status = try #require(try decode(Page<TargetStatus>.self, """
