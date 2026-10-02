@@ -123,7 +123,9 @@ export type AiUsageItem = {
   target_id: string
   step: 'generate' | 'fix'
   title?: string
-  attempt: number
+  note?: string | null // 서버 이름 (#60). 지금은 null
+  deployment_id?: string
+  attempt: number | null
   tokens: number | null
   cost_krw: number | null
   status: 'succeeded' | 'failed'
@@ -238,7 +240,13 @@ export type Manifest = {
   errors: string[]
 }
 
-export type LogLine = { seq: number; at: string; target_id: string; level: 'INFO' | 'WARN' | 'ERROR'; message: string }
+// A-07 한 줄 (#56). 서버는 level을 소문자로, 콘솔 줄은 target_id null로 줘요 → 웹은 대문자로 맞춰 써요
+export type LogLine = { seq: number; at: string; target_id: string | null; step?: string | null; level: 'INFO' | 'WARN' | 'ERROR'; message: string }
+
+export const toLevel = (level: string | null | undefined): LogLine['level'] => {
+  const v = (level ?? '').toUpperCase()
+  return v === 'WARN' || v === 'WARNING' ? 'WARN' : v === 'ERROR' ? 'ERROR' : 'INFO'
+}
 
 // R-02 POST /auth/token — 역할은 owner · viewer (#32 · #38)
 export type Role = 'owner' | 'viewer'
