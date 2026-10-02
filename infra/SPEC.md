@@ -325,8 +325,15 @@ DB 접속 정보는 앱에 환경변수로 넣어요. 이름은 온프레미스�
 ### 6-4. 완료 기준
 
 §5-4와 같아요. 차이만 적으면:
-- [ ] `image_tag`만 바꾼 `plan`이 `google_cloud_run_v2_service` 변경(`~`) 하나만 보여줌
-- [ ] `service_url`이 `https://`로 시작하고 `/health` 200
+- [ ] `image_tag`만 바꾼 `plan`이 `google_cloud_run_v2_service` 변경(`~`) 하나만 보여줌 (같은 이미지 재plan은 `No changes` 확인, 다른 태그는 다음 CI 빌드 때)
+- [x] `service_url`이 `https://`로 시작하고 `/health` 200
+
+검증 (10/2, 프로젝트 `unibloom-ffe106` · asia-northeast1):
+- `daisy-cd-plan` #16 (GCS state, AI 없이): 4개 추가(런타임 SA · Cloud Run · 공개 호출 · 도메인 매핑), 위험 검사 통과
+- `daisy-cd-apply` #6 (사람 승인): `4 added`. Cloud Run 기본 주소 `/health` 200, `/version` `GCP · Cloud Run` · 커밋 `5139b93`. 헬스체크는 도메인 인증서 발급 전이라 5분 안에 실패했어요(`SSL_ERROR_SYSCALL`)
+- 도메인 매핑을 만든 뒤 **약 16분** 만에 Google Trust Services 인증서가 발급되고 `https://gcp.unibloom.cloud/health` 200. 이미지만 바꾸는 재배포는 매핑 · 인증서를 그대로 써서 다시 기다리지 않아요. **GCP 앱을 지우면 다음 배포 때 다시 15분 이상 기다려야 해서 시연 전에는 지우지 않아요**
+- `daisy-cd-plan` #17 (같은 입력 재plan): `No changes`
+- 같은 날 `aws.unibloom.cloud` · `onprem.unibloom.cloud` · `gcp.unibloom.cloud`가 같은 커밋(`5139b93`)으로 열려요
 
 ---
 
