@@ -1,0 +1,158 @@
+package com.teamdaisy.server.project.web;
+
+import com.teamdaisy.server.deployment.application.DeploymentExecutionService;
+import com.teamdaisy.server.deployment.application.DeploymentExecutionService.ControlRequest;
+import com.teamdaisy.server.deployment.application.DeploymentExecutionService.DecisionRequest;
+import com.teamdaisy.server.deployment.application.DeploymentExecutionService.RollbackRequest;
+import com.teamdaisy.server.deployment.application.DeploymentQueryService;
+import com.teamdaisy.server.history.application.EventSseService;
+import com.teamdaisy.server.identity.auth.AuthPrincipal;
+import com.teamdaisy.server.identity.web.CurrentAccount;
+import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.security.SecurityRequirement;
+import jakarta.servlet.http.HttpServletResponse;
+import java.util.List;
+import org.springframework.http.HttpHeaders;
+import org.springframework.http.MediaType;
+import org.springframework.http.ResponseEntity;
+import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.web.bind.annotation.RequestHeader;
+import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
+import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
+
+/**
+ * 배포 ID 경로의 명령·이벤트 API 예요. 승인(W-01)·취소(WR-08)·재시도·롤백(WR-14)·배포 SSE(E-01).
+ *
+ * <p>경로에 배포 ID 만 있어서, 승환의 {@code projectIdOf} 로 프로젝트를 찾아요. 없거나 접근할 수 없는 배포는 404 예요. 조회 권한만 보는 메서드라
+ * 변경 권한(viewer 403)은 실행 서비스의 {@code requireWrite} 가 봐요.
+ *
+ * <p><b>상태를 직접 바꾸지 않아요.</b> 검증한 요청을 실행 서비스로 넘기기만 해요. 지금 상태에서 허용되는지, 옛 승인인지, apply 뒤 취소를 어떻게 다룰지는 실행
+ * 서비스가 판정해요 (server/docs/eh/roles.md §3). 트랜잭션도 실행 서비스가 열어요.
+ */
+@RestController
+@RequestMapping("/deployments/{deploymentId}")
+@SecurityRequirement(name = "bearerAuth")
+public class DeploymentCommandController {
+  private final DeploymentExecutionService deployments;
+  private final DeploymentQueryService queries;
+  private final EventSseService events;
+
+  public DeploymentCommandController(
+      DeploymentExecutionService deployments,
+      DeploymentQueryService queries,
+      EventSseService events) {
+    this.deployments = deployments;
+    this.queries = queries;
+    this.events = events;
+  }
+
+  /** 취소·재시도 요청이에요. 고를 대상을 적어요. */
+  public record TargetSelection(List<String> targetIds) {}
+
+  /**
+   * 롤백 요청이에요.
+   *
+   * @param reason 필수, 1000자 이하, 비밀값 제외. 웹은 자동으로 채워요
+   * @param triggerDeploymentId 롤백하게 만든 배포 (선택)
+   */
+  public record RollbackSelection(
+      List<String> targetIds, String reason, String triggerDeploymentId) {}
+
+  /** 승인·거절이에요 (W-01). 승인 대기 대상 전체를 한 번에 보내요. */
+  @PostMapping("/approvals")
+  public ResponseEntity<DeploymentAccepted> decide(
+      @CurrentAccount AuthPrincipal principal,
+      @PathVariable String deploymentId,
+      @RequestHeader(value = DeploymentAccepted.IDEMPOTENCY_KEY, required = false) String key,
+      @RequestBody ApprovalRequest request) {
+    String projectId = queries.projectIdOf(principal.accountId(), deploymentId);
+    DeploymentAccepted.requireKey(key);
+    return DeploymentAccepted.from(
+        deployments.decide(
+            new DecisionRequest(
+                principal.accountId(), projectId, deploymentId, request.toDecisions(), key)),
+        projectId);
+  }
+
+  /** 취소 요청이에요 (WR-08). 접수가 실제 종료를 뜻하지 않아요 — apply 뒤에는 실행 서비스가 결과를 기다려요. */
+  @PostMapping("/cancel")
+  public ResponseEntity<DeploymentAccepted> cancel(
+      @CurrentAccount AuthPrincipal principal,
+      @PathVariable String deploymentId,
+      @RequestHeader(value = DeploymentAccepted.IDEMPOTENCY_KEY, required = false) String key,
+      @RequestBody TargetSelection request) {
+    String projectId = queries.projectIdOf(principal.accountId(), deploymentId);
+    DeploymentAccepted.requireKey(key);
+    return DeploymentAccepted.from(
+        deployments.cancel(
+            new ControlRequest(
+                principal.accountId(), projectId, deploymentId, targets(request), key)),
+        projectId);
+  }
+
+  /** 실패한 대상만 새 배포로 다시 시도해요. 공개 경로는 웹·앱 의견을 기다리는 (가칭) 이에요. */
+  @Operation(summary = "(가칭) 실패 대상 재시도 — 새 배포를 만들어요")
+  @PostMapping("/retry")
+  public ResponseEntity<DeploymentAccepted> retry(
+      @CurrentAccount AuthPrincipal principal,
+      @PathVariable String deploymentId,
+      @RequestHeader(value = DeploymentAccepted.IDEMPOTENCY_KEY, required = false) String key,
+      @RequestBody TargetSelection request) {
+    String projectId = queries.projectIdOf(principal.accountId(), deploymentId);
+    DeploymentAccepted.requireKey(key);
+    return DeploymentAccepted.from(
+        deployments.retry(
+            new ControlRequest(
+                principal.accountId(), projectId, deploymentId, targets(request), key)),
+        projectId);
+  }
+
+  /** 전체 성공한 원본에서 고른 대상만 새 배포로 되돌려요 (WR-14). 새 plan·승인을 거쳐요. */
+  @PostMapping("/rollback")
+  public ResponseEntity<DeploymentAccepted> rollback(
+      @CurrentAccount AuthPrincipal principal,
+      @PathVariable String deploymentId,
+      @RequestHeader(value = DeploymentAccepted.IDEMPOTENCY_KEY, required = false) String key,
+      @RequestBody RollbackSelection request) {
+    String projectId = queries.projectIdOf(principal.accountId(), deploymentId);
+    DeploymentAccepted.requireKey(key);
+    return DeploymentAccepted.from(
+        deployments.rollback(
+            new RollbackRequest(
+                principal.accountId(),
+                projectId,
+                deploymentId,
+                request == null ? null : request.triggerDeploymentId(),
+                request == null ? null : request.targetIds(),
+                request == null ? null : request.reason(),
+                key)),
+        projectId);
+  }
+
+  /**
+   * 배포 이벤트 스트림이에요 (E-01).
+   *
+   * <p>재생·heartbeat·연결 수 제한은 승환의 SSE 기반이 맡아요. 여기서는 인증된 주체와 재연결 위치만 넘겨요.
+   */
+  @GetMapping(value = "/events", produces = MediaType.TEXT_EVENT_STREAM_VALUE)
+  public SseEmitter deploymentEvents(
+      @CurrentAccount AuthPrincipal principal,
+      @PathVariable String deploymentId,
+      @RequestHeader(value = "Last-Event-ID", required = false) String lastEventId,
+      @RequestParam(value = "event_type", required = false) String eventType,
+      HttpServletResponse response) {
+    String projectId = queries.projectIdOf(principal.accountId(), deploymentId);
+    response.setHeader(HttpHeaders.CACHE_CONTROL, "no-cache");
+    return events.openDeployment(
+        principal.accountId(), projectId, deploymentId, lastEventId, eventType);
+  }
+
+  private static List<String> targets(TargetSelection request) {
+    return request == null ? null : request.targetIds();
+  }
+}

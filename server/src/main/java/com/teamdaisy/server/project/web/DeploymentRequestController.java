@@ -1,6 +1,5 @@
 package com.teamdaisy.server.project.web;
 
-import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.teamdaisy.server.common.error.DaisyException;
@@ -42,7 +41,6 @@ import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
 @RequestMapping("/projects/{projectId}")
 @SecurityRequirement(name = "bearerAuth")
 public class DeploymentRequestController {
-  static final String IDEMPOTENCY_KEY = "Idempotency-Key";
   private static final int MAX_ID = 64;
 
   private final DeploymentExecutionService deployments;
@@ -76,14 +74,6 @@ public class DeploymentRequestController {
       String sourceVersionId, List<String> targetIds, String commit, String strategy) {}
 
   /**
-   * 접수 결과예요. 배포 성공이 아니라 접수됐다는 뜻이에요.
-   *
-   * <p>필드 이름은 소비자 {@code Deployment} 모델({@code ios/SPEC.md} 326행)과 같아요 — 웹은 응답의 {@code id} 로 다음 화면에
-   * 가요. 나머지 필드는 A-04 를 만들 때 같은 모델로 채워요.
-   */
-  public record DeploymentAccepted(String id, String projectId, String state) {}
-
-  /**
    * 배포를 접수해요 (WR-05).
    *
    * <p>권한을 먼저 봐요. 빌드의 commit 을 읽기 전에 막아야 다른 프로젝트 빌드의 존재가 응답 차이로 새지 않아요.
@@ -92,10 +82,11 @@ public class DeploymentRequestController {
   public ResponseEntity<DeploymentAccepted> create(
       @CurrentAccount AuthPrincipal principal,
       @PathVariable String projectId,
-      @RequestHeader(value = IDEMPOTENCY_KEY, required = false) String idempotencyKey,
+      @RequestHeader(value = DeploymentAccepted.IDEMPOTENCY_KEY, required = false)
+          String idempotencyKey,
       @RequestBody CreateDeployment request) {
     access.requireWrite(principal, projectId);
-    requireKey(idempotencyKey);
+    DeploymentAccepted.requireKey(idempotencyKey);
     if (request == null || blank(request.sourceVersionId())) {
       throw invalid();
     }
@@ -112,13 +103,7 @@ public class DeploymentRequestController {
                 request.targetIds(),
                 input(request.strategy()),
                 idempotencyKey));
-    JsonNode body = response.body();
-    return ResponseEntity.status(response.status())
-        .body(
-            new DeploymentAccepted(
-                body.path("deployment_id").asText(null),
-                projectId,
-                body.path("status").asText(null)));
+    return DeploymentAccepted.from(response, projectId);
   }
 
   /**
@@ -161,12 +146,6 @@ public class DeploymentRequestController {
       node.put("strategy", strategy);
     }
     return node;
-  }
-
-  static void requireKey(String key) {
-    if (blank(key) || key.length() > 255) {
-      throw invalid();
-    }
   }
 
   private static boolean blank(String value) {

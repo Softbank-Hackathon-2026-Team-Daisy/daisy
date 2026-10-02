@@ -533,12 +533,15 @@ V10 이 핵심이었습니다. 나머지가 다 맞아도 여기서 새면 다�
 | WR-05 | `POST /projects/{id}/deployments` | `{ source_version_id, target_ids[], commit?, strategy? }` | `create` | 201 |
 | W-01 | `POST /deployments/{id}/approvals` | ④ 참고 | `decide` | 202 |
 | WR-08 | `POST /deployments/{id}/cancel` | `{ target_ids[] }` | `cancel` | 202 |
-| (제안) | `POST /deployments/{id}/retry` | `{ target_ids[] }` | `retry` | 201 |
+| (가칭) | `POST /deployments/{id}/retry` | `{ target_ids[] }` | `retry` | 201 |
 | WR-14 | `POST /deployments/{id}/rollback` | `{ target_ids[], reason, trigger_deployment_id? }` — `reason` 필수·1000자 이하 (웹은 자동으로 채움) | `rollback` | 201 |
 | E-01 | `GET /deployments/{id}/events` | `Last-Event-ID` 헤더, `?event_type=` | `openDeployment` | SSE |
 | E-02 | `GET /projects/{id}/events` | `Last-Event-ID` 헤더, `?event_type=` | `openProject` | SSE |
 
 - **모든 POST 는 `Idempotency-Key` 헤더가 필수**입니다 (R-05). 없으면 400.
+- **`/deployments/{id}/...` 경로는 `DeploymentQueryService.projectIdOf(actorId, deploymentId)` 로 프로젝트를 찾습니다** (044a436). 없는 배포와 접근할 수 없는 배포는 404 입니다. 조회 권한만 확인하는 메서드라, 변경 권한(viewer 403)은 실행 서비스의 `requireWrite` 가 그대로 봅니다.
+- 다섯 명령의 성공 응답은 생성과 같은 `{ id, project_id, state }` 입니다. 재시도·롤백의 `id` 는 새로 만든 배포입니다.
+- 재시도 경로는 `(가칭)` 입니다. 승환이 찬성했고(#42) 웹·앱 의견을 기다립니다. 내부는 새 배포를 만드는 `retry` 에 연결합니다.
 - `actorId` 는 `@CurrentAccount` 에서만 꺼냅니다.
 - 입력 검증은 컨트롤러에서 길이·형식만 보고, 업무 규칙은 실행 서비스와 ② 에 맡깁니다. 같은 검사를 두 곳에 두지 않습니다.
 - `DaisyException` 은 기존 전역 처리기로 보냅니다. 상태 코드는 실행 서비스가 정한 것(생성·재시도·롤백 201, 승인·취소 202)을 그대로 씁니다.
@@ -621,7 +624,7 @@ Idempotency-Key: <키>
 | ① | `ExecutionAccess` 어댑터 | `project/access/ExecutionAccessAdapter` | 완료 |
 | ② | `ExecutionInputs` 어댑터 | `project/execution/ExecutionInputsAdapter` | 완료. 확인 ②·⑤ 는 제안대로 넣고 메서드 하나씩으로 분리 |
 | ③ | `POST /projects/{id}/deployments`·`GET /projects/{id}/events` | `project/web/DeploymentRequestController` | 완료 |
-| ③ | `/deployments/{id}/...` 경로 (승인·취소·재시도·롤백·배포 SSE) | — | **확인 ① 대기** |
+| ③ | `/deployments/{id}/...` 경로 (승인·취소·재시도·롤백·배포 SSE) | `project/web/DeploymentCommandController` | 완료 (`projectIdOf` 사용, 재시도 경로는 (가칭)) |
 | ④ | 승인 요청 변환 | `project/web/ApprovalRequest` | 완료 (컨트롤러는 ③ 대기) |
 | ⑤ | A-02 `current`·A-06 `deployed_to` | `project/application/DeploymentHistoryReader` | 완료 |
 
@@ -644,6 +647,23 @@ Idempotency-Key: <키>
 | S2 | SSE + `Last-Event-ID: 0` | 200 `text/event-stream`·`Cache-Control: no-cache`, heartbeat 뒤 `deployment.created` 두 건을 seq 1·2 로 재생 |
 | S3 | 잘못된 `event_type` | 400 |
 | O1 | OpenAPI | 두 경로·`Idempotency-Key`·`Last-Event-ID`·Bearer 요구가 나오고 `principal` 노출 0건 |
+
+**배포 ID 경로 실측 (10/2 새벽, 같은 조건)** — 승인 성공(202)은 plan·승인 대기 행이 있어야 해서 Jenkins 결과 수신 뒤에 봅니다. 여기서는 실행 서비스까지 정확히 전달되고 판정을 그대로 돌려주는지 봤습니다.
+
+| | 검사 | 결과 |
+|---|---|---|
+| D1 | 멱등 키 없음 | 400 |
+| D2 | 없는 배포 | 404 (`projectIdOf`) |
+| D3 | viewer 승인·취소 | 403 / 403 |
+| D4 | `decision: "approved"`·빈 `items` | 400 / 400 |
+| D5 | 승인 대기가 아닌 배포에 승인 | 409 |
+| D6 | Jenkins 에 아직 안 나간 배포 취소 | 202 `{id, project_id, state: "cancelled"}` |
+| D7 | 같은 키로 취소 재전송 | 첫 응답 재생 |
+| D8 | 취소된 배포 재시도·롤백 / 롤백 사유 없음 | 409·409 / 400 |
+| D9 | 배포 SSE 토큰 없음·없는 배포·정상 | 401·404·200 (`deployment.created`·`target.status_changed` 2건·`deployment.completed` 재생) |
+| D10 | OpenAPI | 다섯 경로, 재시도 summary 에 (가칭), `principal` 노출 0건 |
+
+500 은 0건이었습니다. 처음에 롤백이 400 으로 나온 것은 검증 명령(Git Bash 가 한글을 UTF-8 이 아닌 바이트로 보냄) 때문이었고, UTF-8 로 다시 보내 409 를 확인했습니다.
 
 ### 확인이 필요한 것 (승환)
 
