@@ -87,12 +87,11 @@ struct ResultStage: View {
         .cardStyle()
     }
 
-    /// 실패한 환경만 같은 커밋으로 새 배포를 만들어요 (WR-05)
+    /// 실패한 환경만 원본 배포에서 다시 시도해요 (`POST /deployments/{id}/retry`)
     private func retry(_ target: Deployment.Target) async {
         guard let client = app.client else { return }
         do {
-            let retry = RetryRequest.only(target.targetId, of: deployment)
-            let next = try await client.send(.startDeployment(projectID: retry.projectID, commit: retry.commit, targetIDs: retry.targetIDs))
+            let next = try await client.send(.retry(.only(target.targetId, of: deployment)))
             router.push(.started(next.id))
         } catch {
             app.handle(error)

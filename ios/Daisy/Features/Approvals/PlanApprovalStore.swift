@@ -33,8 +33,15 @@ final class PlanApprovalStore {
         }
     }
 
-    func submit(_ decision: ApprovalDecision, needsConfirm: Bool, using app: AppModel) async {
+    func submit(_ decision: ApprovalDecision, needsConfirm: Bool, targetIDs: [String], using app: AppModel) async {
         guard let client = app.client, !isSubmitting else { return }
+        // 서버는 빈 items를 400으로 거절해요 (10/2 00:40). 승인 ID를 못 받았으면 보내지 않고 다시 불러와요
+        let items = deployment?.approvalItems(for: targetIDs) ?? []
+        guard !items.isEmpty else {
+            errorMessage = "승인할 환경 정보를 아직 받지 못했어요. 잠시 뒤 다시 시도해 주세요."
+            await load(using: app)
+            return
+        }
         isSubmitting = true
         defer { isSubmitting = false }
         errorMessage = nil
@@ -42,7 +49,8 @@ final class PlanApprovalStore {
             _ = try await client.send(.approve(
                 deploymentID: deploymentID,
                 decision: decision,
-                confirmText: needsConfirm ? confirmText : nil
+                confirmText: needsConfirm ? confirmText : nil,
+                items: items
             ))
             decided = decision
         } catch let error as APIError where error.isStateConflict {

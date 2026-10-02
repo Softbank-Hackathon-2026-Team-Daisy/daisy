@@ -182,10 +182,10 @@ struct PlanApprovalView: View {
     private func barButtons(_ model: Model) -> some View {
         let needsConfirm = model.hasDelete && store.confirmText != confirmWord
         return HStack(spacing: 8) {
-            Button("거절") { Task { await store.submit(.reject, needsConfirm: false, using: app) } }
+            Button("거절") { Task { await store.submit(.reject, needsConfirm: false, targetIDs: model.approvable.map(\.targetId), using: app) } }
                 .buttonStyle(.glassCapsule(height: 44))
             Button(store.isSubmitting ? "승인하는 중…" : "승인하고 배포") {
-                Task { await store.submit(.approve, needsConfirm: model.hasDelete, using: app) }
+                Task { await store.submit(.approve, needsConfirm: model.hasDelete, targetIDs: model.approvable.map(\.targetId), using: app) }
             }
             .buttonStyle(.glassCapsule(prominent: true, height: 44))
             .disabled(needsConfirm)
