@@ -3,12 +3,13 @@ import { useNavigate, useParams } from 'react-router'
 import { api, isMocked } from '../../api/endpoints.ts'
 import { pollFor } from '../../api/projectLive.ts'
 import { deploymentStatus, targetStatus } from '../../api/status.ts'
-import type { Deployment } from '../../api/types.ts'
+import type { Deployment, DeploymentTarget, Target } from '../../api/types.ts'
 import { liveLogs, useDeploymentLive, type LiveLogLine } from '../../api/useRealtime.ts'
 import { POLL_MS, useResource } from '../../api/useResource.ts'
 import Button from '../../components/Button.tsx'
 import DeployLane from '../../components/DeployLane.tsx'
-import LogViewer from '../../components/LogViewer.tsx'
+import type { EnvType } from '../../components/env.ts'
+import LogViewer, { type LogViewerEnv, type LogViewerTab } from '../../components/LogViewer.tsx'
 import PageHeader from '../../components/PageHeader.tsx'
 import StatusBadge from '../../components/StatusBadge.tsx'
 import Stepper from '../../components/Stepper.tsx'
@@ -57,6 +58,9 @@ function ProgressView({ d, sseLines }: { d: Deployment; sseLines: LiveLogLine[] 
   const logs = useResource(() => api.getLogs(d.id), [d.id, finished, sse], sse || finished ? undefined : POLL_MS)
   const lines = sse ? mergeLogs(logs.data ?? [], sseLines) : (logs.data ?? [])
   const status = deploymentStatus(d.state, d.kind)
+  // 레인 부제(리전 · 런타임)는 WR-04 대상 환경 정보로 만들어요. 못 불러와도 화면은 그대로 보여요
+  const targets = useResource(() => api.listTargets(projectId), [projectId])
+  const [logTab, setLogTab] = useState<LogViewerTab>('all')
 
   // 끝나면 W-08로 넘어가요 (처음부터 끝난 배포였으면 버튼으로)
   const wasRunning = useRef(!finished)
@@ -82,12 +86,26 @@ function ProgressView({ d, sseLines }: { d: Deployment; sseLines: LiveLogLine[] 
       <div className="page__row page__row--envs">
         {d.targets.map((tg) => {
           const s = targetStatus(tg.state)
-          return <DeployLane key={tg.target_id} env={tg.type} region={tg.title ?? tg.target_id} tone={s.tone} label={s.label} steps={applySteps(tg)} />
+          return (
+            <DeployLane
+              key={tg.target_id}
+              env={tg.type}
+              region={laneSubtitle(tg, targets.data?.items.find((x) => x.target_id === tg.target_id))}
+              tone={s.tone}
+              label={s.label}
+              steps={applySteps(tg)}
+              selected={logTab === tg.type}
+              onSelect={() => setLogTab((cur) => (cur === tg.type ? 'all' : tg.type))}
+            />
+          )
         })}
       </div>
 
       <LogViewer
         lines={lines.map((l) => ({ key: l.seq, time: l.at, env: typeOf(l.target_id), level: l.level, message: l.message }))}
+        envs={logEnvs(d.targets)}
+        tab={logTab}
+        onTabChange={setLogTab}
       />
 
       {finished && (
@@ -99,6 +117,24 @@ function ProgressView({ d, sseLines }: { d: Deployment; sseLines: LiveLogLine[] 
       )}
     </div>
   )
+}
+
+// "ap-northeast-2 · ECS Fargate + ALB" — 리전(위치) · 런타임. 없으면 서버 title · 이름, 정말 아무것도 없을 때만 target_id
+function laneSubtitle(tg: DeploymentTarget, target: Target | undefined) {
+  const parts = [target?.location, target?.runtime].filter((v): v is string => !!v)
+  if (parts.length) return parts.join(' · ')
+  return tg.title ?? target?.title ?? target?.name ?? tg.name ?? tg.target_id
+}
+
+// 로그 탭 — 배포에 있는 환경만 레인 순서대로. 같은 환경이 둘이면 실패 > 진행 중 > 첫 레인 상태 순으로 점을 골라요
+function logEnvs(list: DeploymentTarget[]): LogViewerEnv[] {
+  const byEnv = new Map<EnvType, LogViewerEnv>()
+  for (const tg of list) {
+    const s = targetStatus(tg.state)
+    const prev = byEnv.get(tg.type)
+    if (!prev || s.tone === 'failed' || (s.tone === 'running' && prev.tone !== 'failed')) byEnv.set(tg.type, { env: tg.type, tone: s.tone, toneLabel: s.label })
+  }
+  return [...byEnv.values()]
 }
 
 function mergeLogs(history: { seq: number }[], live: LiveLogLine[]) {

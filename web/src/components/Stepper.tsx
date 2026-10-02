@@ -17,7 +17,7 @@ function Stepper({ current }: { current: 1 | 2 | 3 | 4 | 5 | 6 }) {
             {i > 0 && <li className={`stepper__connector ${n <= current ? 'stepper__connector--done' : ''}`} aria-hidden="true" />}
             <li className={`stepper__step stepper__step--${state}`} aria-current={state === 'current' ? 'step' : undefined}>
               <span className="stepper__bullet">{state === 'done' ? <Icon name="check" size={14} /> : n}</span>
-              {t(label)}
+              <span className="stepper__label">{t(label)}</span>
             </li>
           </Fragment>
         )
