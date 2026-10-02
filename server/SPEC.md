@@ -1050,3 +1050,16 @@ URL 인코딩 자체가 깨진 커서(`%%%bad`)는 Tomcat 이 파라미터를 �
 | Q2 | 배포를 하나 만든 뒤 A-12 | `last_seq` 가 늘어남 |
 | Q3 | 그 값으로 `Last-Event-ID` 를 주고 프로젝트 채널에 붙은 뒤 배포를 하나 더 만듦 | 그 뒤 이벤트만 오고, 처음부터 다시 오지 않음 |
 | Q4 | `Last-Event-ID` 없이 붙음 | 처음부터 다시 옴 (비교용) |
+
+### 검증 결과 (10/2 오후)
+
+단위 테스트 1개와, 빈 PostgreSQL 17 에 jar 로 띄워 실제로 SSE 를 열어 확인했습니다.
+
+| | 결과 |
+|---|---|
+| Q1 | 시드 프로젝트 A-12 `last_seq: 0`, A-01 목록은 null |
+| Q2 | 배포 하나 만든 뒤 `last_seq` 0 → 1, DB `project.last_event_seq` 와 같음 |
+| Q3 | `Last-Event-ID: 1` 로 붙은 뒤 배포를 하나 더 만듦 → 받은 이벤트 id `[2]` (`heartbeat`, `deployment.created`). 처음부터 다시 오지 않음 |
+| Q4 | `Last-Event-ID` 없이 붙음 → id `[1, 2]`, 처음부터 다시 옴 (비교용) |
+
+서버 로그 ERROR 0건. `./gradlew --no-daemon spotlessCheck check build` 성공.
