@@ -216,6 +216,7 @@ APP=hellocalc IMAGE_TAG=<커밋 해시 40자> infra/scripts/tf-run.sh aws plan
 | 2026-10-01 | `[온프레미스]` Compose는 사용자 검증용, 배포 리소스 관리 주체는 Terraform | 기존 Compose 배포 제안을 대체. 같은 컨테이너·네트워크·볼륨의 이중 관리 방지 | 1 |
 | 2026-10-02 | `daisy-cd-plan` · `daisy-cd-apply`가 서버 요청(`request_id` · `payload`)을 받고, 대상별 결과를 서버 콜백(`/internal/jenkins/callbacks`, `X-Daisy-Jenkins-Token`)으로 보내요. `state_identity`는 러너가 실제로 쓰는 state 위치 `(가칭 · 서버 확인, #35)` | 서버(PR #40)가 이미 이 형식으로 보내고 받아요. plan의 `script_id`가 서버가 정하는 ID라 산출물 폴링으로는 안 돼요 (클라우드 SPEC §12-9) | 2 (서버가 쓰는 계약, 김승환 · 하은현에게 공유) |
 | 2026-10-02 | `[클라우드]` AWS 기준 모듈에 선택 입력 `domain` · `subdomain`: 있으면 `*.<domain>` 인증서로 HTTPS, Route 53 `<subdomain>.<domain>` → ALB, `service_url` = `https://…`. 비우면 지금처럼 ALB 주소(HTTP) | 시연을 `aws.unibloom.cloud`로 해요. 인증서 · 영역은 `aws-domain` 스택 것을 찾아만 써요 | 2 (모듈 입력 추가, 기본값이 있어 기존 호출 그대로) |
+| 2026-10-02 | 온프레미스 앱 공개 주소는 **ngrok** (`onprem.unibloom.cloud` → 서비스 VM `172.16.1.5:18080`). 10/1 `[온프레미스]` pfSense + Let's Encrypt 방향을 대신해요. 데모 앱 포트는 백엔드(8080)와 겹치지 않게 18080 `(가칭 · 황지환 확인)` | 서비스 VM에 www · api용 ngrok 서비스가 이미 상시 실행 중이라 엔드포인트 하나 추가로 끝나요. 포트 개방 · 인증서 갱신이 필요 없어요 (임채준 · 황지환 10/2 함께 설정) | 1 |
 | 2026-10-02 | 대상 환경 등록의 `public_url`: 모듈 밖에서 연결한 공개 주소(온프레미스 pfSense HTTPS). 러너가 헬스체크 · 서버 보고에만 쓰고 모듈 변수에는 넣지 않아요 `(가칭 · 황지환 확인)` | 온프레미스 모듈 출력은 내부 주소예요. 모듈을 바꾸지 않고 `onprem.unibloom.cloud`를 서버에 알려요 | 2 |
 
 ## 10. 아직 정하지 못한 것
