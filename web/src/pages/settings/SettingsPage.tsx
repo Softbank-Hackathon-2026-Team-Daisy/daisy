@@ -2,7 +2,7 @@ import { useState } from 'react'
 import { useNavigate, useParams } from 'react-router'
 import { useAuth } from '../../api/auth.ts'
 import { ApiError } from '../../api/client.ts'
-import { api } from '../../api/endpoints.ts'
+import { api, isMocked } from '../../api/endpoints.ts'
 import { useResource } from '../../api/useResource.ts'
 import Alert from '../../components/Alert.tsx'
 import Button from '../../components/Button.tsx'
@@ -24,7 +24,7 @@ import '../page.css'
 // W-13 설정 — 저장소(A-12) · 배포 명세(WR-03, 읽기 전용) · 비밀값(WR-12, 전달 방식 [미정]) · 알림 · 연결 해제(WR-13)
 // 알림 설정은 저장 API가 없어서 이 브라우저에서만 기억해요 (가칭)
 const NOTIFY = [
-  { key: 'approval', label: '승인이 필요할 때 · Swift 앱 푸시', on: true },
+  { key: 'approval', label: '승인이 필요할 때 · Mac · iPhone 앱 알림', on: true },
   { key: 'done', label: '배포가 끝났을 때', on: true },
   { key: 'failed', label: '배포가 실패했을 때', on: true },
   { key: 'browser', label: '브라우저 알림', on: false },
@@ -41,10 +41,11 @@ function SettingsPage() {
   const m = manifest.data
   return (
     <div className="page">
+      {/* 화면 전체가 아니라 목업으로 답하는 칸에만 MOCK (#102) */}
       <PageHeader overline="Settings" title={t('설정')} description={t('이 프로젝트의 저장소 연결, 배포 명세, 비밀값, 알림을 관리해요.')} />
 
       <div className="page__row page__row--2" style={{ alignItems: 'start' }}>
-        <Panel title={t('저장소')}>
+        <Panel title={t('저장소')} mock={isMocked('getProject')}>
           <div>
             <InfoRow label="GitHub">
               {p.repository_url ? (
@@ -59,26 +60,26 @@ function SettingsPage() {
             <InfoRow label={t('배포 명세')}>{p.manifest_path ?? '—'}</InfoRow>
             {/* 빌드 · 레지스트리 · 웹훅은 서버 미제공 (#13 10/1 답) — 오면 보여줘요 */}
             <InfoRow label={t('빌드')}>{p.build ?? 'Jenkins daisy-ci'}</InfoRow>
-            <InfoRow label={t('레지스트리')}>{t('{registry} [미정]', { registry: p.registry ?? '—' })}</InfoRow>
+            <InfoRow label={t('레지스트리')}>{p.registry ?? '—'}</InfoRow>
             <InfoRow label={t('웹훅')}>{p.webhook_last_at ? t('수신 중 · 마지막 {time}', { time: clockTime(p.webhook_last_at) }) : '—'}</InfoRow>
           </div>
           <ReconnectButton />
         </Panel>
 
-        <Panel title={t('배포 명세 (deploy.yaml)')}>
+        <Panel title={t('배포 명세 (deploy.yaml)')} mock={isMocked('getManifest')}>
           <p className="t-body-sm t-muted">{t('저장소의 deploy.yaml이 기준이에요. 여기서는 읽기만 해요.')}</p>
           <CodeBlock file={m.ref} code={m.raw ?? `port: ${m.port}\nhealthcheck: ${m.healthcheck}`} />
         </Panel>
       </div>
 
       <div className="page__row page__row--2" style={{ alignItems: 'start' }}>
-        <Panel title={t('비밀값')}>
+        <Panel title={t('비밀값')} mock={isMocked('getManifest')}>
           <p className="t-body-sm t-muted">{t('deploy.yaml의 secrets에 적힌 이름만 값을 넣어요. 값은 다시 볼 수 없어요.')}</p>
           {m.secrets.length === 0 ? (
             <EmptyState
               icon="lock"
               title={t('이 앱은 비밀값이 없어요')}
-              description={t('secrets: [] · 전달 방식(GitHub Secrets / 시크릿 매니저 / 서버 암호화 저장)은 [미정]')}
+              description={t('deploy.yaml의 secrets가 비어 있어요. 비밀값 추가는 아직 지원하지 않아요.')}
               action={
                 <Button variant="outline" disabled>
                   {t('비밀값 추가')}
@@ -89,7 +90,7 @@ function SettingsPage() {
             <div>
               {m.secrets.map((name) => (
                 <InfoRow key={name} label={name}>
-                  {t('●●●● (전달 방식 [미정])')}
+                  ●●●●
                 </InfoRow>
               ))}
             </div>

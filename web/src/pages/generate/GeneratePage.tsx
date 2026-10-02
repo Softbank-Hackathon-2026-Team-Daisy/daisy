@@ -93,6 +93,7 @@ function GenerateView({ d }: { d: Deployment }) {
         <Stepper current={4} />
         <PageHeader
           overline="Step 4"
+          mock={isMocked('getDeployment')}
           title={t('{who}만 멈췄어요', { who })}
           description={t('{who}는 3번 모두 실패해서 멈췄어요. {others}는 그대로 계속 진행해요.', { who, others: names(d.targets.filter((tg) => tg.state !== 'failed')) })}
         />
@@ -146,6 +147,7 @@ function GenerateView({ d }: { d: Deployment }) {
       <Stepper current={4} />
       <PageHeader
         overline="Step 4"
+        mock={isMocked('getDeployment')}
         title={t('인프라 코드 생성 · 검증')}
         description={t('AI가 환경별 Terraform을 만들고 validate · plan · 위험 설정 검사를 통과할 때까지 최대 3번 고쳐요.')}
       />
@@ -178,9 +180,10 @@ function GenerateView({ d }: { d: Deployment }) {
             </Alert>
           )}
         </Panel>
-        <Panel title={t('생성된 스크립트')}>
+        {/* 스크립트 API(WR-07)가 목업으로 답할 때만 이 칸에 MOCK — 실서버 모드에서는 목업 코드 대신 안내만 보여줘요 */}
+        <Panel title={t('생성된 스크립트')} mock={scriptReady && isMocked('getScript')}>
           {!scriptReady ? (
-            <p className="t-body-sm t-muted">{t('생성된 스크립트는 서버 연결(WR-07) 뒤에 보여요')}</p>
+            <p className="t-body-sm t-muted">{t('생성된 Terraform 코드는 곧 여기에서 볼 수 있어요')}</p>
           ) : script.error ? (
             <ErrorBlock error={script.error} />
           ) : !script.data ? (

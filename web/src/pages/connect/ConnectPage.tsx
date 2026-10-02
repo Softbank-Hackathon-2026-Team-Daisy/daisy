@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { useNavigate } from 'react-router'
 import { ApiError } from '../../api/client.ts'
-import { api } from '../../api/endpoints.ts'
+import { api, isMocked } from '../../api/endpoints.ts'
 import type { Manifest } from '../../api/types.ts'
 import Alert from '../../components/Alert.tsx'
 import Button from '../../components/Button.tsx'
@@ -57,7 +57,8 @@ function ConnectPage() {
   return (
     <div className="page">
       <Stepper current={1} />
-      <PageHeader overline="Step 1" title={t('애플리케이션 연결')} description={t('배포할 저장소를 연결해요. 처음 한 번만 하면 돼요.')} />
+      {/* 이 화면이 부르는 API는 WR-02 하나 — deploy.yaml 미리보기도 그 응답(manifest)이라 따로 배지를 달지 않아요 */}
+      <PageHeader overline="Step 1" mock={isMocked('createProject')} title={t('애플리케이션 연결')} description={t('배포할 저장소를 연결해요. 처음 한 번만 하면 돼요.')} />
 
       <div>
         <SourceOptionCard icon="git-merge" title={t('GitHub 레포 연결')} description={t('main에 merge하면 Jenkins가 이미지를 빌드해요')} selected />
