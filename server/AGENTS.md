@@ -42,7 +42,7 @@ src/main/java/com/teamdaisy/server/
 
 - `controller/` `service/` `repository/` 로 **최상위를 나누지 않아요.** 기능 폴더 안에서 나눠요
 - **폴더끼리는 서비스 메서드로만** 불러요. 남의 폴더 Repository·Entity 를 직접 쓰지 않아요
-  - **예외 (10/2 승환·은현 합의, #42):** 은현의 공개 조회 API(A-03·A-04·A-05·A-07)는 `project/` 의 조회 계층에서 `deployment`·`deployment_target`·`approval`·`plan_revision`·로그·사용량 테이블을 **읽기 전용 SQL** 로 직접 읽어요. Entity·Repository 는 쓰지 않고 JdbcTemplate 로 필요한 컬럼만 읽어요. 상태·승인·명령 변경은 계속 실행 서비스로만 보내요. 테이블이 바뀌면 승환이 알려 주고, 은현 조회는 실DB 테스트로 막아요
+  - **예외 (10/2 승환·은현 합의, #42):** 은현의 공개 조회 API(A-03·A-04·A-05·A-07·WR-10·WR-11)는 `project/` 의 조회 계층에서 `deployment`·`deployment_target`·`approval`·`plan_revision`·로그·사용량·`script` 테이블을 **읽기 전용 SQL** 로 직접 읽어요. Entity·Repository 는 쓰지 않고 JdbcTemplate 로 필요한 컬럼만 읽어요. 상태·승인·명령 변경은 계속 실행 서비스로만 보내요. 테이블이 바뀌면 승환이 알려 주고, 은현 조회는 실DB 테스트로 막아요
 - Terraform CLI·AI 실행부는 **인프라 소유**예요. 서버는 실행·조회 서비스 계약으로 연결해요
 
 | 실행 규칙·수신 (김승환) | 공개 API·관리·조회 (하은현) |

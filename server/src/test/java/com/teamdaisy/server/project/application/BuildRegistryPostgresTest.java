@@ -7,20 +7,26 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.teamdaisy.server.common.error.DaisyException;
 import com.teamdaisy.server.common.error.ErrorCode;
+import com.teamdaisy.server.common.json.CanonicalJson;
+import com.teamdaisy.server.history.application.EventJournal;
 import com.teamdaisy.server.project.application.BuildRegistry.BuildReport;
 import com.teamdaisy.server.project.application.BuildRegistry.Recorded;
 import com.teamdaisy.server.project.domain.ImageRefs;
 import java.sql.Connection;
 import java.sql.SQLException;
+import java.time.Clock;
 import java.time.Instant;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
+import java.util.concurrent.BrokenBarrierException;
 import java.util.concurrent.CyclicBarrier;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
 import javax.sql.DataSource;
 import org.flywaydb.core.Flyway;
 import org.junit.jupiter.api.AfterEach;
@@ -33,6 +39,7 @@ import org.springframework.jdbc.core.namedparam.NamedParameterJdbcTemplate;
 import org.springframework.jdbc.datasource.AbstractDataSource;
 import org.springframework.jdbc.datasource.DataSourceTransactionManager;
 import org.springframework.jdbc.datasource.DriverManagerDataSource;
+import org.springframework.mock.env.MockEnvironment;
 import org.springframework.transaction.support.TransactionTemplate;
 
 /**
@@ -154,7 +161,7 @@ class BuildRegistryPostgresTest {
     Recorded succeeded = record(report("prj_1", "succeeded", images(COMMIT)));
 
     assertThat(running.changed()).isTrue();
-    assertThat(succeeded).isEqualTo(new Recorded(running.sourceVersionId(), true));
+    assertThat(succeeded).isEqualTo(new Recorded(running.sourceVersionId(), true, true));
     assertThat(jdbc.queryForObject("select count(*) from source_version", Integer.class))
         .isEqualTo(1);
 
@@ -213,5 +220,80 @@ class BuildRegistryPostgresTest {
     } finally {
       pool.shutdownNow();
     }
+  }
+
+  @Test
+  @DisplayName("#72 리뷰: 같은 프로젝트의 다른 빌드 둘이 동시에 수신돼도 교착 없이 둘 다 저장 · 이벤트 기록돼요")
+  void concurrentReceiptsSameProject() throws Exception {
+    // 저장 직후 두 트랜잭션이 서로를 기다리게 해서 승환님 재현(두 INSERT 를 끝낸 뒤 이벤트 기록)을 만들어요.
+    // 프로젝트를 먼저 잠그면 뒤 요청은 잠금에서 기다려서 여기 오지 못해요. 장벽은 시간 초과로 풀리고 순서대로 끝나요.
+    CyclicBarrier afterRecord = new CyclicBarrier(2);
+    NamedParameterJdbcTemplate named = new NamedParameterJdbcTemplate(jdbc);
+    BuildRegistry racing =
+        new BuildRegistry(named, MAPPER) {
+          @Override
+          public Recorded record(BuildReport input) {
+            Recorded recorded = super.record(input);
+            try {
+              afterRecord.await(3, TimeUnit.SECONDS);
+            } catch (BrokenBarrierException | TimeoutException ignored) {
+              // 다른 쪽이 잠금에서 기다리는 중이에요. 그대로 진행해요
+            } catch (InterruptedException interrupted) {
+              Thread.currentThread().interrupt();
+            }
+            return recorded;
+          }
+        };
+    // 이벤트 기록은 시각(Instant)을 직렬화해서 시간 모듈이 있는 매퍼를 써요 (EventJournalTest 와 같아요)
+    ObjectMapper events = new ObjectMapper().findAndRegisterModules();
+    BuildReceipt receipt =
+        new BuildReceipt(
+            racing,
+            new EventJournal(named, events, new CanonicalJson(events)),
+            new MockEnvironment()
+                .withProperty("daisy.jenkins.instance-id", "unibloom-onprem")
+                .withProperty("daisy.jenkins.ci-projects", "daisy-ci=prj_1"),
+            events,
+            Clock.systemUTC());
+    CyclicBarrier start = new CyclicBarrier(2);
+    ExecutorService pool = Executors.newFixedThreadPool(2);
+    try {
+      List<Future<Recorded>> calls = new ArrayList<>();
+      for (String build : List.of("daisy-ci#1", "daisy-ci#2")) {
+        calls.add(
+            pool.submit(
+                () -> {
+                  start.await(5, TimeUnit.SECONDS);
+                  return tx.execute(status -> receipt.receive(ciReport(build)));
+                }));
+      }
+      for (Future<Recorded> call : calls) {
+        assertThat(call.get(30, TimeUnit.SECONDS).changed()).isTrue();
+      }
+      assertThat(jdbc.queryForObject("select count(*) from source_version", Integer.class))
+          .isEqualTo(2);
+      assertThat(
+              jdbc.queryForObject(
+                  "select count(*) from project_event where event_type = 'build.received'",
+                  Integer.class))
+          .isEqualTo(2);
+    } finally {
+      pool.shutdownNow();
+    }
+  }
+
+  private static BuildReport ciReport(String build) {
+    return new BuildReport(
+        "prj_1",
+        "jenkins:unibloom-onprem",
+        build,
+        COMMIT,
+        "main",
+        "running",
+        null,
+        "https://jenkins.test/job/daisy-ci/1/",
+        DONE.minusSeconds(60),
+        null,
+        null);
   }
 }
