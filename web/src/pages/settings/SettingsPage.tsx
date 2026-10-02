@@ -44,9 +44,19 @@ function SettingsPage() {
       <div className="page__row page__row--2" style={{ alignItems: 'start' }}>
         <Panel title="저장소">
           <div>
-            <InfoRow label="GitHub">{p.repository}</InfoRow>
-            <InfoRow label="기준 브랜치">{p.branch ?? 'main'}</InfoRow>
-            <InfoRow label="빌드">{p.build ?? '—'}</InfoRow>
+            <InfoRow label="GitHub">
+              {p.repository_url ? (
+                <a href={p.repository_url} target="_blank" rel="noopener noreferrer">
+                  {p.repository}
+                </a>
+              ) : (
+                p.repository
+              )}
+            </InfoRow>
+            <InfoRow label="기준 브랜치">{p.default_branch ?? '—'}</InfoRow>
+            <InfoRow label="배포 명세">{p.manifest_path ?? '—'}</InfoRow>
+            {/* 빌드 · 레지스트리 · 웹훅은 서버 미제공 (#13 10/1 답) — 오면 보여줘요 */}
+            <InfoRow label="빌드">{p.build ?? 'Jenkins daisy-ci'}</InfoRow>
             <InfoRow label="레지스트리">{`${p.registry ?? '—'} [미정]`}</InfoRow>
             <InfoRow label="웹훅">{p.webhook_last_at ? `수신 중 · 마지막 ${clockTime(p.webhook_last_at)}` : '—'}</InfoRow>
           </div>

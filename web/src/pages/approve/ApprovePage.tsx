@@ -69,7 +69,12 @@ function ApproveView({ d, plan, detail, reload }: { d: Deployment; plan: Plan; d
     setPending(true)
     setError(null)
     try {
-      await api.approve(d.id, decision, hasDelete ? confirm : undefined, newIdempotencyKey())
+      // 화면에 보인 승인 대기 환경만 보내요. 서버가 pending_approvals를 주기 전(목업)에는 단건 approval_id로 채워요
+      const items = approvable.map((t) => ({
+        target_id: t.target_id,
+        approval_id: d.pending_approvals?.find((a) => a.target_id === t.target_id)?.approval_id ?? d.pending_approval?.approval_id ?? '',
+      }))
+      await api.approve(d.id, decision, hasDelete ? confirm : undefined, items, newIdempotencyKey())
       if (decision === 'approve') navigate(paths.progress(projectId, d.id), { state: { transition: 'l03' } })
       // Q1(거절하면 어디로)이 정해지기 전까지는 개요로 돌아가요
       else navigate(paths.overview(projectId))

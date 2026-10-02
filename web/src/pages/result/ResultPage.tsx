@@ -49,7 +49,7 @@ function ResultView({ d }: { d: Deployment }) {
 
   // 실패한 환경만 고른 새 배포 (#13 서버 결정)
   const retry = async (t: DeploymentTarget) => {
-    const next = await run((key) => api.createDeployment(projectId, d.commit, [t.target_id], key), '다시 시도하지 못했어요')
+    const next = await run((key) => api.createDeployment(projectId, d, [t.target_id], key), '다시 시도하지 못했어요')
     if (next) navigate(paths.generate(projectId, next.id), { state: { transition: 'l02' } })
   }
 

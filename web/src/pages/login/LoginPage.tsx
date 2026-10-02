@@ -10,8 +10,6 @@ import InfraBlock from '../../components/InfraBlock.tsx'
 import Input from '../../components/Input.tsx'
 import Logo from '../../components/Logo.tsx'
 import MockBadge from '../../components/MockBadge.tsx'
-import { MOCK_PROJECTS } from '../../mocks/workspace.ts'
-import { paths } from '../../paths.ts'
 import MacAppDialog from '../app-download/MacAppDialog.tsx'
 import './LoginPage.css'
 
@@ -29,8 +27,8 @@ function LoginPage() {
   const [macAppOpen, setMacAppOpen] = useState(false)
   const expired = params.get('expired') === '1' && !failure
 
-  // MOCK: 로그인 후 첫 화면 — 프로젝트 목록(A-01)이 열리면 첫 프로젝트로 보내요
-  const goNext = () => navigate(params.get('next') ?? paths.overview(MOCK_PROJECTS[0].id), { replace: true })
+  // 로그인 후 첫 화면 — 원래 가려던 화면, 없으면 첫 프로젝트(FirstProject)
+  const goNext = () => navigate(params.get('next') ?? '/', { replace: true })
 
   const run = async (login: () => ReturnType<typeof api.login>) => {
     setPending(true)

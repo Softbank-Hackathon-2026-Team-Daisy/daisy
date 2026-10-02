@@ -12,19 +12,25 @@ type ParityTableProps = {
   matched: number
   // 이미지가 실제로 다를 때만 주황. 헬스체크 실패처럼 이미지와 상관없는 불일치는 초록 그대로
   mismatch?: boolean
+  // 비교할 값(digest)을 하나도 못 받았으면 "n/m 일치" 대신 "확인 전"
+  unknown?: boolean
 }
 
-function ParityTable({ envs, rows, matched, mismatch }: ParityTableProps) {
+function ParityTable({ envs, rows, matched, mismatch, unknown }: ParityTableProps) {
   const all = !(mismatch ?? matched !== envs.length)
   return (
     <section className="parity">
       <header className="parity__title">
         <h2 className="t-h2">동일성 검증</h2>
         <span className="t-body-sm t-muted">모든 환경이 같은 상태인지 비교해요</span>
-        <span className={`parity__summary ${all ? '' : 'parity__summary--partial'}`}>
-          <Icon name={all ? 'circle-check' : 'alert-triangle'} size={14} />
-          {matched}/{envs.length} 일치
-        </span>
+        {unknown ? (
+          <span className="parity__summary parity__summary--unknown">확인 전</span>
+        ) : (
+          <span className={`parity__summary ${all ? '' : 'parity__summary--partial'}`}>
+            <Icon name={all ? 'circle-check' : 'alert-triangle'} size={14} />
+            {matched}/{envs.length} 일치
+          </span>
+        )}
       </header>
       <table className="parity__table">
         <thead>

@@ -28,7 +28,7 @@ function OverviewPage() {
   if (status.error) return <ErrorBlock error={status.error} />
   if (!status.data || !runs.data) return <LoadingBlock />
 
-  const targets = status.data
+  const targets = status.data.items
   const deployments = runs.data.items
   const pending = deployments.find((d) => d.state === 'awaiting_approval')
   const recent = deployments.filter((d) => d.state !== 'awaiting_approval').slice(0, 3)
@@ -41,7 +41,7 @@ function OverviewPage() {
       <div className="page__row page__row--main-side">
         <Panel title="환경별 현재 버전" aside={image && <span className="t-mono-sm t-muted">{shortImage(image)}</span>}>
           {targets.length === 0 ? (
-            <EmptyState icon="server" title="아직 배포한 환경이 없어요" description="새 배포로 첫 환경을 올려 보세요" />
+            <EmptyState icon="server" title="아직 연결한 환경이 없어요" description="환경을 연결하면 여기에 현재 버전이 보여요" />
           ) : (
             <div>
               {targets.map((t) => (
@@ -49,8 +49,9 @@ function OverviewPage() {
                   <span className="env-row__tag">
                     <EnvTag env={t.type} />
                   </span>
+                  {/* current가 null이면 "확인된 현재 배포 없음" — 배포를 안 했다는 뜻이 아니에요 (#42) */}
                   <span className="t-mono">{t.current ? shortCommit(t.current.commit) : '—'}</span>
-                  <span className="t-body-sm t-muted">{t.current ? relativeTime(t.current.deployed_at) : ''}</span>
+                  <span className="t-body-sm t-muted">{t.current ? relativeTime(t.current.deployed_at) : '확인된 배포 없음'}</span>
                   <span className="env-row__url t-mono-sm t-muted">{t.url ?? '—'}</span>
                   <StatusBadge tone={t.health === 'healthy' ? 'success' : t.health === 'unhealthy' ? 'failed' : 'queued'}>
                     {t.health === 'healthy' ? '정상' : t.health === 'unhealthy' ? '이상' : '확인 전'}
@@ -120,11 +121,21 @@ function Parity({ targets, compact }: { targets: TargetStatus[]; compact?: boole
   const live = targets.filter((t) => t.current)
   const base = live[0]
   const same = live.filter((t) => t.image_digest && t.image_digest === base?.image_digest).length
+  const known = targets.filter((t) => t.image_digest).length
   if (compact) {
+    // digest를 하나도 못 받았으면 "다르다"가 아니라 "확인 전"이에요 (인프라 apply 결과 전에는 null, #38)
+    if (known === 0) {
+      return (
+        <p className="overview__parity">
+          <StatusBadge tone="queued">확인 전</StatusBadge>
+          <span className="t-body-sm t-muted">아직 환경별 이미지 digest를 받지 못했어요</span>
+        </p>
+      )
+    }
     return (
       <p className="overview__parity">
         <StatusBadge tone={same === targets.length ? 'success' : 'warning'}>{`${same}/${targets.length} 일치`}</StatusBadge>
-        <span className="t-body-sm t-muted">{same === targets.length ? '세 환경 모두 같은 이미지 digest예요' : '이미지 digest가 다른 환경이 있어요'}</span>
+        <span className="t-body-sm t-muted">{same === targets.length ? `${targets.length}개 환경 모두 같은 이미지 digest예요` : '이미지 digest가 다르거나 확인 전인 환경이 있어요'}</span>
       </p>
     )
   }
@@ -137,7 +148,7 @@ function Parity({ targets, compact }: { targets: TargetStatus[]; compact?: boole
     { label: '커밋', values: values((t) => (t.current ? shortCommit(t.current.commit) : null)), failed: differs((t) => t.current?.commit ?? null) },
     { label: '헬스체크', values: values((t) => t.health_summary ?? (t.health === 'healthy' ? '정상' : t.health === 'unhealthy' ? '실패' : null)), failed: targets.filter((t) => t.health === 'unhealthy').map((t) => t.target_id) },
   ]
-  return <ParityTable envs={targets.map((t) => ({ id: t.target_id, type: t.type }))} rows={rows} matched={same} />
+  return <ParityTable envs={targets.map((t) => ({ id: t.target_id, type: t.type }))} rows={rows} matched={same} unknown={known === 0} />
 }
 
 function reuseNote(d: Deployment) {

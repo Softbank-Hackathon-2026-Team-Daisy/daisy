@@ -27,28 +27,39 @@ export type Step = 'generate' | 'validate' | 'plan' | 'risk_check' | 'apply' | '
 
 export type Health = 'healthy' | 'unhealthy' | 'unknown'
 
+// A-01 목록 · A-12 상세 (#38). repository_url · manifest_path는 상세에서만 와요
 export type Project = {
   id: string
   name: string
-  repository: string
-  branch?: string
-  // A-12 GET /projects/{id} (#13 가칭) 선택 필드
+  repository: string // "org/repo"
+  default_branch: string | null
+  repository_url?: string | null
+  manifest_path?: string | null
+  created_at?: string
+  // #13 요청 — 서버 미제공(10/1 #13 답). 목업에만 있어요
   build?: string
   registry?: string
   webhook_last_at?: string
 }
 
-// A-02 GET /projects/{id}/targets/status
+// GET /auth/me (#38)
+export type Me = { account_id: string; username: string; role: Role }
+
+// A-02 GET /projects/{id}/targets/status — { items, next_cursor } 봉투 (#38)
+// current가 null이면 "확인된 현재 배포 없음"이에요. 배포를 한 번도 안 했다는 뜻이 아니에요 (#42, 10/2)
+// url · health_summary · image_digest는 인프라 apply 결과가 들어오기 전까지 null, health는 unknown
+export type ConnectionState = 'connected' | 'disconnected' | 'unknown'
 export type TargetStatus = {
   target_id: string
   type: EnvKind
   name: string
-  current: { commit: string; image: string; deployment_id: string; deployed_at: string } | null
-  image_digest?: string // WR-09
+  connection_state?: ConnectionState // #38에서 추가. W-04에서 연결 안 되는 환경을 막을 때 써요
+  checked_at: string | null
+  current: { commit: string; image: string | null; deployment_id: string; deployed_at: string } | null
+  image_digest?: string | null // WR-09
   url: string | null
   health: Health
-  health_summary?: string // 예: "200 OK · 120ms" — 헬스체크 1회 측정이라 p95는 없어요 (#17 인프라 답). 없으면 상태만 보여줘요
-  checked_at: string
+  health_summary?: string | null // 예: "200 OK · 120ms" — 헬스체크 1회 측정이라 p95는 없어요 (#17 인프라 답)
 }
 
 // WR-04 GET /projects/{id}/targets
@@ -116,11 +127,14 @@ export type Deployment = {
   rolled_back_from: string | null
   version: string
   commit: string
+  source_version_id?: string // 다시 시도 · 롤백 때 같은 빌드를 고르려고 (#36)
   commit_message?: string
   image: string
   state: DeploymentState
   targets: DeploymentTarget[]
   pending_approval: { approval_id: string; kind: 'plan' } | null
+  // 승인 대기 환경별 승인 ID — 승인 요청 items에 그대로 담아요 (#40 은현 님, A-04에 추가 예정)
+  pending_approvals?: { target_id: string; approval_id: string }[]
   created_by: string
   created_at: string
   finished_at: string | null
@@ -150,18 +164,28 @@ export type PlanDetail = {
   plan_text?: string
 }
 
-// A-06 GET /projects/{id}/builds
+// A-06 GET /projects/{id}/builds — 커서 봉투 (#38). 커밋 메시지 · 작성자 · 커밋 시각은 서버 미제공(후순위) → "—"
+// 배포 시작은 commit이 아니라 source_version_id로 빌드를 골라요 (#19 · #36)
+export type BuildStatus = 'queued' | 'running' | 'success' | 'failed'
 export type Build = {
+  source_version_id?: string
   commit: string
-  message: string
-  author: string
-  committed_at: string
+  branch?: string | null
+  message?: string | null
+  author?: string | null
+  committed_at?: string | null
+  received_at?: string | null
+  started_at?: string | null
+  finished_at?: string | null
+  error_summary?: string | null
   // Jenkins 화면은 외부 비공개라 run_url은 화면에서 쓰지 않아요 (#17). 단계는 Checkout → Test → Build & Push → Trigger CD
   // Trigger CD는 운영에서 늘 건너뜀(skipped) — 서버가 CI 결과를 받아 daisy-cd-plan을 직접 시작해요 (#25 채준 님)
-  pipeline: { status: 'running' | 'success' | 'failed'; run_url?: string; steps?: { name: string; state: 'running' | 'done' | 'failed' | 'waiting' | 'skipped'; duration_ms?: number }[] }
+  pipeline: { status: BuildStatus | null; run_url?: string | null; steps?: { name: string; state: 'running' | 'done' | 'failed' | 'waiting' | 'skipped'; duration_ms?: number }[] }
+  // 서비스가 하나면 image · image_digest, 여럿이면 둘 다 null이고 images[] (#38)
   image: string | null
-  digest?: string
-  deployed_to: { target_id: string; deployment_id: string; deployed_at: string }[]
+  image_digest?: string | null
+  images?: { service: string; image_ref: string | null; image_digest: string | null }[] | null
+  deployed_to: { target_id: string; deployment_id: string; deployed_at: string }[] | null
 }
 
 // WR-07 · WR-10
@@ -200,7 +224,8 @@ export type Manifest = {
 
 export type LogLine = { seq: number; at: string; target_id: string; level: 'INFO' | 'WARN' | 'ERROR'; message: string }
 
-// R-02 POST /auth/token
-export type AuthToken = { access_token: string; expires_at: string; role: 'admin' | 'viewer' }
+// R-02 POST /auth/token — 역할은 owner · viewer (#32 · #38)
+export type Role = 'owner' | 'viewer'
+export type AuthToken = { access_token: string; expires_at: string; role: Role }
 
 export type ListResponse<T> = { items: T[]; next_cursor: string | null }

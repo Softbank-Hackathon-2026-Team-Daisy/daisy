@@ -24,14 +24,14 @@ export const IMAGE = `ghcr.io/team-daisy/sample-monolith:${COMMIT}`
 export const DIGEST = 'sha256:9f3c…e1a'
 
 export const projects: Project[] = [
-  { id: 'prj_monolith', name: 'sample-monolith', repository: 'Softbank-Hackathon-2026-Team-Daisy/sample-monolith', branch: 'main', build: 'Jenkins · daisy-build', registry: 'ghcr.io', webhook_last_at: ago(3) },
-  { id: 'prj_msa', name: 'sample-msa', repository: 'Softbank-Hackathon-2026-Team-Daisy/sample-msa', branch: 'main' },
+  { id: 'prj_monolith', name: 'sample-monolith', repository: 'Softbank-Hackathon-2026-Team-Daisy/sample-monolith', default_branch: 'main', repository_url: 'https://github.com/Softbank-Hackathon-2026-Team-Daisy/sample-monolith', manifest_path: 'deploy.yaml', build: 'Jenkins · daisy-build', registry: 'ghcr.io', webhook_last_at: ago(3) },
+  { id: 'prj_msa', name: 'sample-msa', repository: 'Softbank-Hackathon-2026-Team-Daisy/sample-msa', default_branch: 'main' },
 ]
 
 export const targetStatus: TargetStatus[] = [
-  { target_id: 'tgt_onprem', type: 'onprem', name: 'home-lab', current: { commit: COMMIT, image: IMAGE, deployment_id: 'dep_41', deployed_at: ago(12) }, image_digest: DIGEST, url: 'https://sample.home-lab.daisy.dev', health: 'healthy', health_summary: '200 OK', checked_at: ago(1) },
-  { target_id: 'tgt_aws', type: 'aws', name: 'aws-prod', current: { commit: COMMIT, image: IMAGE, deployment_id: 'dep_41', deployed_at: ago(12) }, image_digest: DIGEST, url: 'https://sample-monolith.aws.daisy.dev', health: 'healthy', health_summary: '200 OK', checked_at: ago(1) },
-  { target_id: 'tgt_gcp', type: 'gcp', name: 'gcp-prod', current: { commit: COMMIT, image: IMAGE, deployment_id: 'dep_41', deployed_at: ago(12) }, image_digest: DIGEST, url: 'https://sample-monolith-x7k.a.run.app', health: 'healthy', health_summary: '200 OK', checked_at: ago(1) },
+  { target_id: 'tgt_onprem', type: 'onprem', name: 'home-lab', current: { commit: COMMIT, image: IMAGE, deployment_id: 'dep_41', deployed_at: ago(12) }, image_digest: DIGEST, url: 'https://sample.home-lab.daisy.dev', connection_state: 'connected', health: 'healthy', health_summary: '200 OK', checked_at: ago(1) },
+  { target_id: 'tgt_aws', type: 'aws', name: 'aws-prod', current: { commit: COMMIT, image: IMAGE, deployment_id: 'dep_41', deployed_at: ago(12) }, image_digest: DIGEST, url: 'https://sample-monolith.aws.daisy.dev', connection_state: 'connected', health: 'healthy', health_summary: '200 OK', checked_at: ago(1) },
+  { target_id: 'tgt_gcp', type: 'gcp', name: 'gcp-prod', current: { commit: COMMIT, image: IMAGE, deployment_id: 'dep_41', deployed_at: ago(12) }, image_digest: DIGEST, url: 'https://sample-monolith-x7k.a.run.app', connection_state: 'connected', health: 'healthy', health_summary: '200 OK', checked_at: ago(1) },
 ]
 
 export const targets: Target[] = [
@@ -60,7 +60,10 @@ database: false`,
 
 export const builds: Build[] = [
   {
+    source_version_id: 'src_a1b2c3d',
     commit: COMMIT,
+    branch: 'main',
+    received_at: ago(2),
     message: 'feat: 결제 페이지 추가 (#42)',
     author: '도영',
     committed_at: ago(2),
@@ -74,10 +77,10 @@ export const builds: Build[] = [
       ],
     },
     image: IMAGE,
-    digest: 'sha256:9f3c…e21a',
+    image_digest: 'sha256:9f3c…e21a',
     deployed_to: [],
   },
-  { commit: 'f4e5d6c', message: 'fix: 헬스체크 경로 수정 (#41)', author: '도영', committed_at: ago(3), pipeline: { status: 'success' }, image: 'ghcr.io/team-daisy/sample-monolith:f4e5d6c', deployed_to: [] },
+  { source_version_id: 'src_f4e5d6c', commit: 'f4e5d6c', branch: 'main', message: 'fix: 헬스체크 경로 수정 (#41)', author: '도영', committed_at: ago(3), pipeline: { status: 'success' }, image: 'ghcr.io/team-daisy/sample-monolith:f4e5d6c', deployed_to: [] },
 ]
 
 export const aiItems: AiUsageItem[] = [
@@ -96,6 +99,7 @@ function deployment(id: string, state: Deployment['state'], t: [TargetPatch, Tar
     { target_id: 'tgt_aws', type: 'aws', title: 'ap-northeast-2 · ECS Fargate', state: 'waiting', step: 'generate', attempt: 1, reused_script: false, url: null, error_summary: null },
     { target_id: 'tgt_gcp', type: 'gcp', title: 'asia-northeast3 · Cloud Run', state: 'waiting', step: 'generate', attempt: 1, reused_script: false, url: null, error_summary: null },
   ]
+  const targets = base.map((b, i) => ({ ...b, ...t[i] }))
   return {
     id,
     project_id: PROJECT_ID,
@@ -106,7 +110,9 @@ function deployment(id: string, state: Deployment['state'], t: [TargetPatch, Tar
     commit_message: 'feat: 결제 페이지 추가 (#42)',
     image: IMAGE,
     state,
-    targets: base.map((b, i) => ({ ...b, ...t[i] })),
+    targets,
+    pending_approvals: targets.filter((x) => x.state === 'awaiting_approval').map((x) => ({ target_id: x.target_id, approval_id: `apv_${id}_${x.target_id}` })),
+    source_version_id: 'src_a1b2c3d',
     pending_approval: state === 'awaiting_approval' ? { approval_id: 'apv_7', kind: 'plan' } : null,
     created_by: '도영',
     created_at: ago(10),

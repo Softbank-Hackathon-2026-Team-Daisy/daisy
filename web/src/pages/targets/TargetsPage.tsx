@@ -32,7 +32,11 @@ function TargetsPage() {
   if (targets.error) return <ErrorBlock error={targets.error} />
   if (!targets.data || !builds.data) return <LoadingBlock />
 
-  const build = builds.data.items.find((b) => b.commit === params.get('commit')) ?? builds.data.items[0]
+  // 빌드는 source_version_id(?build=)로 골라요. 같은 커밋이 여러 번 빌드될 수 있어서예요 (#19 · #36)
+  const build =
+    builds.data.items.find((b) => (params.get('build') ? b.source_version_id === params.get('build') : b.commit === params.get('commit'))) ??
+    builds.data.items.find((b) => b.pipeline.status === 'success') ??
+    builds.data.items[0]
   const commit = build?.commit ?? ''
   const selected = targets.data.filter((t) => !unselected.has(t.target_id) && t.connection.state !== 'failed')
   const reuse = selected.filter((t) => t.reuse.available)
@@ -48,7 +52,7 @@ function TargetsPage() {
     })
 
   const start = async () => {
-    const d = await run((key) => api.createDeployment(projectId, commit, selected.map((t) => t.target_id), key), '배포를 시작하지 못했어요')
+    const d = await run((key) => api.createDeployment(projectId, { source_version_id: build?.source_version_id, commit }, selected.map((t) => t.target_id), key), '배포를 시작하지 못했어요')
     if (d) navigate(paths.generate(projectId, d.id), { state: { transition: 'l02' } })
   }
 

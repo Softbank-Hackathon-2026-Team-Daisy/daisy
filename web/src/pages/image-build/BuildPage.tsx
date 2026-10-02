@@ -1,5 +1,5 @@
 import { useNavigate, useParams } from 'react-router'
-import { api } from '../../api/endpoints.ts'
+import { api, isMocked } from '../../api/endpoints.ts'
 import type { Build } from '../../api/types.ts'
 import { POLL_MS, useResource } from '../../api/useResource.ts'
 import Button from '../../components/Button.tsx'
@@ -22,7 +22,7 @@ const STEP_STATE: Record<string, StepItemState> = { waiting: 'pending', running:
 
 function BuildPage() {
   const { projectId = '' } = useParams()
-  const builds = useResource(() => api.listBuilds(projectId), [projectId], POLL_MS, (b) => !!b.items[0] && b.items[0].pipeline.status !== 'running')
+  const builds = useResource(() => api.listBuilds(projectId), [projectId], POLL_MS, (b) => b.items[0]?.pipeline.status === 'success' || b.items[0]?.pipeline.status === 'failed')
   // L-01: 저장소를 연결하고 넘어왔으면 첫 빌드가 나타날 때까지 전환 로딩
   const ready = !!builds.data && builds.data.items.length > 0
 
@@ -48,13 +48,18 @@ function BuildView({ projectId, build }: { projectId: string; build: Build | und
       <Stepper current={2} />
       <PageHeader
         overline="Step 2"
+        mock={isMocked('listBuilds')}
         title="이미지 빌드"
         description={
-          status === 'success'
+          !build
+            ? 'main에 merge하면 Jenkins가 이미지를 빌드해요.'
+            : status === 'success'
             ? '이미지가 준비됐어요. 배포할 환경을 골라 주세요.'
             : status === 'failed'
               ? '빌드 · 테스트가 실패해서 멈췄어요. 실패한 단계를 확인해 주세요.'
-              : 'main merge를 감지했어요. Jenkins가 이미지를 만들고 있어요.'
+              : status === 'queued'
+                ? 'main merge를 감지했어요. Jenkins가 빌드를 시작하기를 기다리고 있어요.'
+                : 'main merge를 감지했어요. Jenkins가 이미지를 만들고 있어요.'
         }
       />
 
@@ -64,18 +69,20 @@ function BuildView({ projectId, build }: { projectId: string; build: Build | und
         <>
           <div className="page__list">
             <RunListItem
-              tone={status === 'success' ? 'success' : status === 'failed' ? 'failed' : 'running'}
-              label={status === 'success' ? '빌드 완료' : status === 'failed' ? '빌드 실패' : '빌드 중'}
+              tone={status === 'success' ? 'success' : status === 'failed' ? 'failed' : status === 'queued' ? 'queued' : 'running'}
+              label={status === 'success' ? '빌드 완료' : status === 'failed' ? '빌드 실패' : status === 'queued' ? '대기 중' : '빌드 중'}
               commit={build.commit}
               message={build.message}
               author={build.author}
-              at={build.committed_at}
+              at={build.committed_at ?? build.received_at}
             />
           </div>
 
           <div className="page__row page__row--2">
             <Panel title="Jenkins">
               <div>
+                {/* 단계는 Jenkins 이벤트 연동 뒤에 와요 (#13 답: 인프라 확인 대기) */}
+                {!build.pipeline.steps?.length && <p className="t-body-sm t-muted">단계 정보는 Jenkins 연동 뒤에 보여요</p>}
                 {(build.pipeline.steps ?? []).map((s) => (
                   <StepItem
                     key={s.name}
@@ -91,9 +98,13 @@ function BuildView({ projectId, build }: { projectId: string; build: Build | und
             <Panel title="이미지">
               <div>
                 <InfoRow label="커밋">{shortCommit(build.commit)}</InfoRow>
-                <InfoRow label="브랜치">main</InfoRow>
+                <InfoRow label="브랜치">{build.branch ?? '—'}</InfoRow>
                 <InfoRow label="이미지">{build.image ?? '—'}</InfoRow>
-                <InfoRow label="digest">{build.digest ?? '—'}</InfoRow>
+                <InfoRow label="digest">{build.image_digest ?? '—'}</InfoRow>
+                {/* 서비스가 여럿이면 image · image_digest 대신 서비스별로 와요 (#38) */}
+                {build.images?.map((im) => (
+                  <InfoRow key={im.service} label={im.service}>{`${im.image_ref ?? '—'} · ${im.image_digest ?? '—'}`}</InfoRow>
+                ))}
               </div>
               <div>
                 {/* 서버 SSE(D3) 전까지는 폴링 */}
@@ -106,7 +117,7 @@ function BuildView({ projectId, build }: { projectId: string; build: Build | und
             <Button
               variant="secondary"
               disabled={status !== 'success'}
-              onClick={() => navigate(`${paths.targets(projectId)}?commit=${build.commit}`)}
+              onClick={() => navigate(`${paths.targets(projectId)}?${build.source_version_id ? `build=${build.source_version_id}` : `commit=${build.commit}`}`)}
             >
               배포할 환경 고르기
             </Button>

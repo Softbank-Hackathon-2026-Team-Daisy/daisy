@@ -199,7 +199,7 @@ pnpm build    # tsc -b + vite build
 pnpm lint     # oxlint — 경고 0으로 유지
 ```
 
-- 환경 변수는 `.env.example`을 `.env.local`로 복사해서 써요: `VITE_API_BASE_URL`(서버 주소), `VITE_USE_MOCK`(기본 `true`, 실서버면 `false`)
+- 환경 변수는 `.env.example`을 `.env.local`로 복사해서 써요: `VITE_API_BASE_URL`(서버 주소), `VITE_USE_MOCK`(기본 `true`. `false`면 서버에 열린 API만 실서버, 나머지는 목업 + 배지 — `src/api/endpoints.ts`의 `SERVER_READY`에 서버가 연 API 이름을 더해요)
 - 목업 로그인: 비밀번호 `daisy` (아이디 `demo`는 읽기 전용). 토큰은 메모리에만 있어서 새로고침하면 다시 로그인해요
 - 화면별 고정 상태: `/projects/prj_monolith/deployments/{dep_generate · dep_stuck · dep_approve · dep_apply · dep_result}/…` — W-05 · W-05b · W-06 · W-07 · W-08을 바로 볼 수 있어요. `dep_live`는 시간이 흐르며 W-04 → W-08을 끝까지 진행해요
 - 개발용 확인 페이지: `/dev/tokens` · `/dev/components` · `/dev/primitives` — Figma와 라이트 · 다크로 비교해요
@@ -240,4 +240,6 @@ pnpm lint     # oxlint — 경고 0으로 유지
 | 10/1 | W-03에 Jenkins 로그 링크를 두지 않아요. 단계는 서버가 넘겨준 것만 | Jenkins 화면은 배포 키가 있어 외부 비공개 (#17 인프라 답) | 1 |
 | 10/1 | 상태를 바꾸는 요청은 `useAction`으로 — 버튼 한 번에 요청 · `Idempotency-Key` 하나, 누르는 동안 비활성 | 두 번 누르면 배포가 두 개 생기던 문제 (#18 리뷰) | 1 |
 | 10/1 | 폴링 간격은 `POLL_MS`(5초) 한 곳, 끝난 빌드 · 배포는 멈춰요 | 서버와 합의한 5초 (9/29), 끝난 걸 계속 부르지 않으려고 | 1 |
+| 10/2 | 실서버 연결은 API 단위로 켜요 (`SERVER_READY`). 아직 없는 API는 목업으로 답하고 그 화면에 MOCK 배지 | 서버 API가 나눠서 열려서, 열린 것부터 바로 붙이고 데모도 이어서 할 수 있게 | 1 |
+| 10/2 | 실서버 모드의 데모 버튼은 안내만 하고 viewer 비밀번호를 웹에 넣지 않아요 | 서버가 `/auth/demo`를 안 만들고 계정을 따로 전달하기로 해서 (#13) | 1 |
 | 10/1 | 403은 `errorMessage()` 공통 문구, viewer는 시작 · 다시 시도 · 승인 · 롤백 버튼 비활성 | 화면마다 따로 처리하던 것을 한 곳으로 (#18 리뷰) | 1 |

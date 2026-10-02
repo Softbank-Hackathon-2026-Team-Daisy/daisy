@@ -156,7 +156,7 @@ M = 예선 데모 필수, S = 선택 (S도 모두 만들었어요, §5)
 | 긴 로그 | 느려지면 TanStack Virtual 추가 | 와이어프레임 W-07 NOTE (ADR-006) |
 | 차트 | 쓰지 않아요 | W-12도 숫자 · 표로만 |
 | 폰트 | IBM Plex Sans KR · IBM Plex Mono | 디자인 시스템 |
-| 목업 | **허용.** `src/mocks/`에만 두고 `// MOCK:` + 화면 배지. `VITE_USE_MOCK=false`면 실서버 | 서버 API가 D2~D3에 나와서, 그전에 화면을 만들어야 해요 (`AGENTS.md` §4) |
+| 목업 | **허용.** `src/mocks/`에만 두고 `// MOCK:` + 화면 배지. `VITE_USE_MOCK=false`면 **서버에 열린 API만 실서버**(`endpoints.ts`의 `SERVER_READY`), 아직 없는 API는 목업으로 답하고 그 화면에 MOCK 배지 (10/2) | 서버 API가 D2~D3에 나와서, 그전에 화면을 만들어야 해요 (`AGENTS.md` §4) |
 | 인증 상태 | 토큰은 메모리에만, 역할(admin · viewer)은 React context | 새로고침하면 다시 로그인해요 (SPEC §3-2) |
 
 ### 3-1. 폴더 구조
@@ -270,6 +270,18 @@ Page ──▶ hook ──▶ api/client ──────────▶ Daisy
 | E-01 · E-02 SSE | W-03 · W-05 · W-07, L-xx 완료 감지 | `log.batch`는 웹에서 **M** |
 | API W-01 `POST /deployments/{id}/approvals` | W-06 승인 · 거절 | 409 → 최신 상태 다시 불러오기 |
 
+### 6-0-1. 실서버 연결 현황 (10/2, #38 머지 기준)
+
+| API | 상태 | 웹에서 맞춘 것 |
+|---|---|---|
+| R-02 `POST /auth/token` · R-03 `GET /auth/me` | ✅ 실서버 | 역할 `owner` · `viewer`, 사이드바 사용자 이름 · 역할. 틀린 비밀번호도 세션 만료로 보내지 않아요 |
+| A-01 `GET /projects` · A-12 `GET /projects/{id}` | ✅ 실서버 | 첫 화면 = 첫 프로젝트, 사이드바 프로젝트 목록, W-13 `default_branch` · `repository_url` · `manifest_path`. `build` · `registry` · `webhook_last_at`은 미제공 |
+| A-02 `GET /projects/{id}/targets/status` | ✅ 실서버 | `{ items, next_cursor }` 봉투, `connection_state`, `current: null` = "확인된 배포 없음", `health: unknown` = "확인 전", digest가 하나도 없으면 동일성 "확인 전" |
+| A-06 `GET /projects/{id}/builds` | ✅ 실서버 | `queued` "대기 중", 커밋 메시지 · 작성자 · 시각 없으면 "—", `image_digest` · `images[]`, W-04로 `?build=source_version_id` |
+| 배포 시작 · 승인 · 취소 · 재시도 · 롤백, A-03 · A-04 · A-05 · A-07, WR-xx, SSE | ⏳ 목업 | 요청 모양만 먼저 맞춤: 배포 시작 `source_version_id`, 승인 `{ decision, confirm_text, items: [{ target_id, approval_id }] }` (A-04 `pending_approvals`) — #40 · #42 |
+
+로컬 확인: `main`의 서버를 로컬 Postgres로 띄우고 `VITE_API_BASE_URL=http://127.0.0.1:8080` · `VITE_USE_MOCK=false`로 owner · viewer 로그인, 개요 · 빌드(대기 중 → 완료) · 설정을 확인했어요.
+
 ### 6-1. 웹 신규 요구사항
 
 | ID | 메서드 · 경로 | 화면 | 요청 · 응답 요약 | 우선 | 서버 답변 (9/30) · 제공 |
@@ -295,7 +307,7 @@ Page ──▶ hook ──▶ api/client ──────────▶ Daisy
 
 | ID | 메서드 · 경로 (가칭) | 웹 화면 | 비고 |
 |---|---|---|---|
-| R-09 | `POST /auth/demo` | W-00 "데모 계정으로 둘러보기" | 21시 인증 범위 안건. `/auth/token` + 공개 데모 계정으로 대신할 수도 있어요 |
+| R-09 | ~~`POST /auth/demo`~~ | W-00 "데모 계정으로 둘러보기" | ❌ 만들지 않아요 (#13 10/1). 따로 받은 viewer 계정으로 `/auth/token`. 실서버 모드에서 버튼은 안내만 하고, 비밀번호는 웹에 넣지 않아요 |
 | A-10 | `POST /targets/{id}/test` | W-10 "연결 테스트" | |
 | A-11 | `GET /targets/{id}/resources` | W-10 "리소스 보기" | |
 | A-12 | `GET /projects/{id}` | W-13 저장소 카드 | |
@@ -437,6 +449,7 @@ Page ──▶ hook ──▶ api/client ──────────▶ Daisy
 | 9/30 | 와이어프레임 수정 · 서버 답변 반영: W-00 로그인 추가, W-02b 범위 제외, W-05b 한 환경만 중단, 상태 값(§2-5), 롤백(WR-14) 범위 포함, WR-01 `fetch` 스트리밍, WR-04 · WR-05 모양 확정, W-12 배포별 보기, Q7 · Q9 · Q10 해결 | 김도영 |
 | 9/30 | 승준 님 코멘트 반영: §1-1 앱 범위는 회의 안건으로 표시(ADR-007 기준 유지), §6-1-1 앱 요청(#13) 중 웹도 쓰는 R-09 · A-10 ~ A-12 연결 | 김도영 |
 | 9/30 | W-14 Mac 앱 다운로드(Dialog) 추가 (와이어프레임 갱신) | 김도영 |
+| 10/2 | 실서버 연결(#38): 서버에 열린 API만 실서버로(§6-0-1), 역할 `owner`, A-02 봉투 · `current` null 문구, A-06 `queued` · `source_version_id`, 승인 `items`, R-09 없음 | 김도영 |
 | 10/1 | 앱 범위 확정: §1-1을 "웹과 앱이 같은 전체 흐름"으로, §7 앱 범위 해결 | 김도영 |
 | 10/1 | 인프라 답(#17) 반영: W-03 Jenkins 로그 링크 제거 · 단계 이름, 헬스 1회 측정 형식, W-10 state 저장소 이름 | 김도영 |
 | 10/1 | 리뷰 · 결정 반영(#18): W-12 데이터 출처(A-05 + ai-usage), 호출 성공 · 실패, 빌드 Jenkins, W-14 고정 주소, 다시 시도 = 새 배포, 목록 봉투 질문, `pages/image-build` | 김도영 |

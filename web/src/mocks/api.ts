@@ -1,4 +1,4 @@
-import type { AiUsageItem, AuthToken, Deployment, DeploymentTarget, ListResponse, Script } from '../api/types.ts'
+import type { AiUsageItem, AuthToken, Deployment, DeploymentTarget, ListResponse, Me, Script, TargetStatus } from '../api/types.ts'
 import * as s from './scenario.ts'
 
 // MOCK: 서버 대신 응답하는 목업 API. 모양은 SPEC.md §6과 같아요. 서버가 열리면 VITE_USE_MOCK=false로 꺼요
@@ -21,6 +21,7 @@ class MockError extends Error {
 let live: { startedAt: number; approvedAt: number | null } | null = null
 let buildStartedAt: number | null = null
 let connectedAt: number | null = null
+let mockRole: 'owner' | 'viewer' = 'owner'
 
 function liveDeployment(): Deployment {
   if (!live) throw new MockError(404, 'NOT_FOUND', '배포를 찾을 수 없어요')
@@ -80,17 +81,23 @@ function findDeployment(id: string): Deployment {
 export const mockApi = {
   async login(username: string, password: string): Promise<AuthToken> {
     await wait(400)
+    if (username === 'demo') mockRole = 'viewer'
     if (username === 'demo') return { access_token: 'mock-viewer', expires_at: new Date(Date.now() + 3_600_000).toISOString(), role: 'viewer' }
     if (!username || password !== 'daisy') throw new MockError(401, 'UNAUTHENTICATED', '아이디나 비밀번호가 맞지 않아요')
-    return { access_token: 'mock-admin', expires_at: new Date(Date.now() + 3_600_000).toISOString(), role: 'admin' }
+    mockRole = 'owner'
+    return { access_token: 'mock-owner', expires_at: new Date(Date.now() + 3_600_000).toISOString(), role: 'owner' }
+  },
+  async me(): Promise<Me> {
+    await wait(100)
+    return mockRole === 'viewer' ? { account_id: 'acc_viewer', username: 'demo', role: 'viewer' } : { account_id: 'acc_owner', username: '김도영', role: 'owner' }
   },
   async listProjects() {
     await wait()
     return { items: clone(s.projects), next_cursor: null }
   },
-  async getTargetsStatus(_projectId: string) {
+  async getTargetsStatus(_projectId: string): Promise<ListResponse<TargetStatus>> {
     await wait()
-    return clone(s.targetStatus)
+    return { items: clone(s.targetStatus), next_cursor: null }
   },
   async listTargets(_projectId: string) {
     await wait()
