@@ -2,7 +2,7 @@
 
 output "service_url" {
   description = "서비스 접속 URL (스킴 포함, 끝에 / 없음)"
-  value       = "http://${aws_lb.this.dns_name}"
+  value       = local.https ? "https://${local.hostname}" : "http://${aws_lb.this.dns_name}"
 }
 
 output "log_group" {

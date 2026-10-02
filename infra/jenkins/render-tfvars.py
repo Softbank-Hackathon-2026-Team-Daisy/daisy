@@ -8,11 +8,15 @@
 - target.json: 관리자가 환경 등록 때 1번 넣는 값 (region, project_id 등). 계정 ID가 들어가서 레포 밖에 둬요
 - env: deploy.yaml에는 이름만 있고 값의 출처가 [미정]이라 넘기지 않아요 (앱 기본값 사용)
 - secrets: 값은 Jenkins Credentials에서 TF_VAR_secrets로만 넣어요
+- public_url: 모듈 밖에서 연결한 공개 주소예요 (온프레미스 pfSense HTTPS 등). 러너가 헬스체크 · 서버 보고에만 써서
+  모듈 변수에는 넣지 않아요 (infra/SPEC.md §12-9)
 """
 import json
 import sys
 
 import yaml  # Ubuntu: python3-yaml
+
+RUNNER_ONLY = {"public_url"}  # 대상 환경 등록값 중 모듈 변수가 아닌 것
 
 deploy_yaml, target_file, image_repo = sys.argv[1:4]
 
@@ -28,7 +32,7 @@ tfvars = {
 }
 if target_file != "-":
     with open(target_file, encoding="utf-8") as f:
-        tfvars.update(json.load(f))
+        tfvars.update({k: v for k, v in json.load(f).items() if k not in RUNNER_ONLY})
 
 json.dump(tfvars, sys.stdout, indent=2)
 print()

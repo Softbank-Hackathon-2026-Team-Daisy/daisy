@@ -256,6 +256,7 @@ NAT Gateway 없이 이미지를 받으려고 태스크를 public 서브넷에 �
 | 권한 | 실행 역할 `aws_iam_role` + `AmazonECSTaskExecutionRolePolicy` + 자기 비밀값 읽기 인라인 정책 | 항상 (인라인은 비밀값이 있을 때) |
 | 비밀값 | `aws_secretsmanager_secret` + `_version` (키마다) | `secrets`가 있을 때 |
 | DB (S) | `aws_db_subnet_group`(고정 private 서브넷), DB SG, `aws_db_instance` | `database = true` |
+| 공개 도메인 | 443 인바운드, `aws_lb_listener`(443, `*.<domain>` 인증서), `aws_route53_record`(`<subdomain>.<domain>` → ALB). 인증서 · 호스팅 영역은 `aws-domain` 스택 것을 data로 찾아요. `service_url` = `https://<subdomain>.<domain>` | `domain`이 있을 때 (10/2, 대상 등록 `targets/aws.json`에 `domain` · `subdomain`) |
 
 DB 접속 정보는 앱에 환경변수로 넣어요. 이름은 온프레미스·GCP와 같아야 해서 황지환과 맞춰요 (D-6): `(가칭)` `DB_HOST`, `DB_PORT`, `DB_NAME`, `DB_USER`는 일반 환경변수, `DB_PASSWORD`는 RDS 관리 비밀값(`manage_master_user_password = true`)에서 읽어요.
 
@@ -608,7 +609,8 @@ daisy-cd-apply ◀── 서버가 buildWithParameters(PLAN_BUILD=N, APPROVAL_ID
 | 순번 | `source_sequence`는 실행(빌드) · 대상마다 0부터 1씩 올라가요 (state · stage · plan · plan_stale 공통) |
 | 대상 | `targets[].snapshot.environment_type` = `aws` · `onprem` · `gcp`. 한 요청에 같은 종류는 하나 |
 | 앱 이름 | `repository_snapshot`의 저장소 · `default_branch` · `manifest_path`에서 `commit_sha`의 deploy.yaml을 읽고, `name`을 state key · 작업 폴더로 써요 |
-| `state_identity` | 러너가 실제로 쓰는 state 위치예요. S3면 `s3://<버킷>/<앱>/aws/terraform.tfstate`, 러너 로컬이면 `local://<DAISY_RUNNER_ID>/<앱>/<env>/terraform.tfstate`. **서버 대상 등록 값과 다르면 그 대상은 failed**이고, 등록할 값을 오류에 적어요 (`daisy_server.py state-identity <env> <앱>`으로도 봐요) |
+| `state_identity` | 러너가 실제로 쓰는 state 위치예요. S3면 `s3://<버킷>/<앱>/aws/terraform.tfstate`, 러너 로컬이면 `local://<DAISY_RUNNER_ID>/<앱>/<env>/terraform.tfstate`. 서버 대상 등록 값과 다르면 **경고만** 해요 (10/2: 서버 데모 대상이 임시 값 `<프로젝트>/<대상>`을 써요. 대상마다 다르면 서버 잠금에는 충분하고, 러너도 앱 · 환경마다 한 번에 하나만 돌려요). 맞출 값은 `daisy_server.py state-identity <env> <앱>`으로 봐요 |
+| 공개 주소 | AWS는 모듈이 `https://aws.unibloom.cloud`를 만들어요 (`targets/aws.json`에 `"domain": "unibloom.cloud", "subdomain": "aws"`). 온프레미스는 모듈 밖(pfSense HTTPS + Let's Encrypt, 황지환)에서 연결하고 `targets/onprem.json`에 `"public_url": "https://onprem.unibloom.cloud"`를 넣어요. 러너는 내부 주소 헬스체크 · 스모크 테스트 뒤 공개 주소도 확인하고, **공개 주소를 서버에 알려요**. 공개 주소 확인이 실패하면 그 대상은 failed예요 (`public_url`을 지우면 내부 주소로 알려요). `public_url`은 모듈 변수에 넣지 않아요 |
 | 이미지 | `image_refs`는 서비스 1개, `image_ref` = `<저장소>:<commit_sha>`. 모듈 `image` · `image_tag`로 나눠요. MSA(서비스 여러 개)는 아직 실패로 알려요 |
 | AI | `allow_ai_autofix=false`(롤백)거나 Jenkins 전역 `SERVER_USE_AI=0`(리허설)이면 AI 없이 기준 모듈로 plan해요. 롤백의 `restore_scripts` 복원은 아직이에요 |
 | script 콜백 | `artifact_ref` = `daisy-script:<앱>/<env>/verified/<입력 지문>` (기준 모듈이면 `daisy-script:reference/<env>`), `content_digest` = 3파일 해시, `compatibility_key` = 입력 지문 |
@@ -754,6 +756,7 @@ GCP 규칙은 GCP 모듈과 함께 추가해요 (지금은 구조 검사만).
 | 2026-10-01 | 고정 네트워크 분리(§5-0, `infra/bootstrap/aws-network`, `daisy-bootstrap` §12-8). 앱 모듈은 VPC · 서브넷 ID를 받아요. 개인 AWS 계정을 실제 환경으로 변경(§12-5) |
 | 2026-10-01 | AI Terraform 생성 · 수정 루프 · 재사용 구현(§17, `infra/ai/`). 담당이 임채준으로 바뀐 것 기록. CD Plan 단계의 MOCK 위험 검사를 실제 검사로 대체(§12-4). 실제 Claude API로 생성 → 승인 → 배포 → 재사용(AI 0회) → 삭제 plan 검증(§17-5) |
 | 2026-10-01 | 10/1 결정 동기화: AI 담당 변경(§0 · §1 · §3 · §4), Jenkins 실행 확정(D-1 · D-2 · §3-4), 완료 기준 실측(§5-4), state가 아직 로컬인 점(§7), 일정(§9), Job 4개 · `claude-api-key` · `aws.json` 필수(§3-5 · §12), 서버 이전을 "러너만 / 계정까지"로 나눔(§13) |
+| 2026-10-02 | 공개 도메인: AWS 모듈 `domain` · `subdomain`(HTTPS · Route 53, §5-2), 온프레미스 `public_url`(§12-9). `state_identity` 불일치는 경고만 |
 | 2026-10-02 | 서버 요청 연동(§12-9): 두 Job이 `request_id` · `payload`를 받고 대상별 결과를 서버 콜백으로 보내요. `state_identity` 규칙, apply 대조 · `plan_stale`, apply와 헬스체크를 환경마다 이어서 실행 |
 
 ---

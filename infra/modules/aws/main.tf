@@ -51,6 +51,10 @@ locals {
     var.database ? [{ name = "DB_PASSWORD", valueFrom = "${aws_db_instance.this[0].master_user_secret[0].secret_arn}:password::" }] : [],
   )
   secret_arns = [for s in local.container_secrets : split(":password::", s.valueFrom)[0]]
+
+  # 공개 도메인을 넣으면 HTTPS + Route 53 레코드 (variables.tf 맨 아래)
+  https    = var.domain != ""
+  hostname = "${var.subdomain}.${var.domain}"
 }
 
 # ---------------------------------------------------------------- 보안 그룹
@@ -69,6 +73,17 @@ resource "aws_vpc_security_group_ingress_rule" "alb_http" {
   ip_protocol       = "tcp"
   from_port         = 80
   to_port           = 80
+}
+
+resource "aws_vpc_security_group_ingress_rule" "alb_https" {
+  count = local.https ? 1 : 0
+
+  security_group_id = aws_security_group.alb.id
+  description       = "HTTPS from the internet"
+  cidr_ipv4         = "0.0.0.0/0"
+  ip_protocol       = "tcp"
+  from_port         = 443
+  to_port           = 443
 }
 
 resource "aws_vpc_security_group_egress_rule" "alb_to_app" {
@@ -162,6 +177,53 @@ resource "aws_lb_listener" "http" {
   default_action {
     type             = "forward"
     target_group_arn = aws_lb_target_group.app.arn
+  }
+}
+
+# ---------------------------------------------------------------- 공개 도메인 (선택)
+# 인증서 · 호스팅 영역은 고정 리소스(infra/bootstrap/aws-domain)라 찾아서만 써요. 배포마다 만들지 않아요
+
+data "aws_route53_zone" "this" {
+  count = local.https ? 1 : 0
+
+  name         = var.domain
+  private_zone = false
+}
+
+data "aws_acm_certificate" "wildcard" {
+  count = local.https ? 1 : 0
+
+  domain      = "*.${var.domain}"
+  statuses    = ["ISSUED"]
+  most_recent = true
+}
+
+resource "aws_lb_listener" "https" {
+  count = local.https ? 1 : 0
+
+  load_balancer_arn = aws_lb.this.arn
+  port              = 443
+  protocol          = "HTTPS"
+  ssl_policy        = "ELBSecurityPolicy-TLS13-1-2-2021-06"
+  certificate_arn   = data.aws_acm_certificate.wildcard[0].arn
+
+  default_action {
+    type             = "forward"
+    target_group_arn = aws_lb_target_group.app.arn
+  }
+}
+
+resource "aws_route53_record" "this" {
+  count = local.https ? 1 : 0
+
+  zone_id = data.aws_route53_zone.this[0].zone_id
+  name    = local.hostname
+  type    = "A"
+
+  alias {
+    name                   = aws_lb.this.dns_name
+    zone_id                = aws_lb.this.zone_id
+    evaluate_target_health = true
   }
 }
 

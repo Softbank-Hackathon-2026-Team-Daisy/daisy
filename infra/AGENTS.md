@@ -215,6 +215,8 @@ APP=hellocalc IMAGE_TAG=<커밋 해시 40자> infra/scripts/tf-run.sh aws plan
 | 2026-10-01 | WireGuard 원격 접속은 허용된 개발자에게 제한 | 개발자 관리 접속을 서비스 공개 및 자동 배포 경로와 분리 | 황지환·임채준 합의 |
 | 2026-10-01 | `[온프레미스]` Compose는 사용자 검증용, 배포 리소스 관리 주체는 Terraform | 기존 Compose 배포 제안을 대체. 같은 컨테이너·네트워크·볼륨의 이중 관리 방지 | 1 |
 | 2026-10-02 | `daisy-cd-plan` · `daisy-cd-apply`가 서버 요청(`request_id` · `payload`)을 받고, 대상별 결과를 서버 콜백(`/internal/jenkins/callbacks`, `X-Daisy-Jenkins-Token`)으로 보내요. `state_identity`는 러너가 실제로 쓰는 state 위치 `(가칭 · 서버 확인, #35)` | 서버(PR #40)가 이미 이 형식으로 보내고 받아요. plan의 `script_id`가 서버가 정하는 ID라 산출물 폴링으로는 안 돼요 (클라우드 SPEC §12-9) | 2 (서버가 쓰는 계약, 김승환 · 하은현에게 공유) |
+| 2026-10-02 | `[클라우드]` AWS 기준 모듈에 선택 입력 `domain` · `subdomain`: 있으면 `*.<domain>` 인증서로 HTTPS, Route 53 `<subdomain>.<domain>` → ALB, `service_url` = `https://…`. 비우면 지금처럼 ALB 주소(HTTP) | 시연을 `aws.unibloom.cloud`로 해요. 인증서 · 영역은 `aws-domain` 스택 것을 찾아만 써요 | 2 (모듈 입력 추가, 기본값이 있어 기존 호출 그대로) |
+| 2026-10-02 | 대상 환경 등록의 `public_url`: 모듈 밖에서 연결한 공개 주소(온프레미스 pfSense HTTPS). 러너가 헬스체크 · 서버 보고에만 쓰고 모듈 변수에는 넣지 않아요 `(가칭 · 황지환 확인)` | 온프레미스 모듈 출력은 내부 주소예요. 모듈을 바꾸지 않고 `onprem.unibloom.cloud`를 서버에 알려요 | 2 |
 
 ## 10. 아직 정하지 못한 것
 

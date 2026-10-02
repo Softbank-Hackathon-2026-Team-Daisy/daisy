@@ -315,7 +315,11 @@ def state_identity(env: str, app: str) -> str:
 
 
 def bind_app(deploy_yaml: str) -> None:
-    """deploy.yaml의 name = 앱 이름 = state key · 작업 폴더 (tf-run.sh APP). state 위치가 서버 등록과 다르면 그 대상은 실패예요."""
+    """deploy.yaml의 name = 앱 이름 = state key · 작업 폴더 (tf-run.sh APP).
+
+    state 위치가 서버 등록(state_identity)과 다르면 경고만 해요. 서버 데모 대상은 아직 임시 값(<프로젝트>/<대상>)을 쓰고,
+    서버 잠금은 대상마다 다른 값이면 충분해요. 러너도 앱 · 환경마다 flock + state 잠금으로 한 번에 하나만 돌려요.
+    """
     import yaml  # Ubuntu: python3-yaml
 
     job = load_job()
@@ -330,9 +334,8 @@ def bind_app(deploy_yaml: str) -> None:
     for env, t in job["targets"].items():
         want = state_identity(env, name)
         if t["state_identity"] != want:
-            fail_target(env, f"state 위치가 서버 대상 등록과 달라요. 대상의 state_identity를 '{want}'로 등록해 주세요 "
-                             f"(지금: '{t['state_identity']}')")
-            continue
+            print(f"경고: {env} 대상의 서버 state_identity '{t['state_identity']}'가 실제 state 위치 '{want}'와 달라요. "
+                  "서버 대상 등록을 이 값으로 맞추면 좋아요", file=sys.stderr)
         print(env)
 
 

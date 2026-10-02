@@ -189,6 +189,7 @@ def applyTarget(String t) {
 }
 
 // 헬스체크 · 스모크 테스트. 서버 요청이면 성공 결과(승인 plan · 입력 · 이미지 · 주소)를 알려요
+// 대상 환경 등록에 public_url이 있으면(온프레미스 pfSense HTTPS 등, 모듈 밖에서 연결) 그 주소도 확인하고 그 주소를 알려요
 def checkTarget(String t) {
   def server = env.D_SERVER == '1'
   if (server) {
@@ -205,6 +206,16 @@ def checkTarget(String t) {
     done
     if [ -f app/scripts/smoke-test.sh ]; then
       BASE_URL="\$url" EXPECTED_COMMIT="\$D_COMMIT" sh app/scripts/smoke-test.sh
+    fi
+    pub=\$(jq -r '.public_url // empty' "\$WORK_ROOT/targets/${t}.json")
+    if [ -n "\$pub" ]; then
+      echo "\$pub" > "url-${t}.txt"
+      for i in \$(seq 1 18); do
+        if curl -fsS --max-time 10 -o /dev/null -w "${t} 공개 주소: %{http_code} · %{time_total}s\\n" "\$pub\$hc"; then break; fi
+        [ "\$i" -lt 18 ] || { echo "${t}: 앱은 떴지만 공개 주소 확인 실패 \$pub\$hc (targets/${t}.json의 public_url을 지우면 내부 주소로 알려요)"; exit 1; }
+        sleep 10
+      done
+      url="\$pub"
     fi
     echo "${t}: \$url" > "result-${t}.txt"
   """, returnStatus: true)

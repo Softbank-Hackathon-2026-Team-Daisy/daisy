@@ -35,6 +35,7 @@ Structure
 
 Fixed network (aws)
 - The VPC and subnets already exist and are passed in as `vpc_id`, `public_subnet_ids`, `private_subnet_ids`. **Never create** `aws_vpc`, `aws_subnet`, `aws_internet_gateway`, `aws_route_table`, `aws_route_table_association`, `aws_nat_gateway`, or `aws_eip`.
+- The public domain is optional (`domain`, `subdomain`). When `domain` is set, keep the reference module's HTTPS handling exactly: look up the existing Route 53 zone and the issued `*.<domain>` ACM certificate with data sources (never create a zone or a certificate), add the 443 listener and the `<subdomain>.<domain>` alias record, and return `https://<subdomain>.<domain>` as `service_url`.
 
 Fixed host (onprem)
 - The Service VM and its Docker engine already exist. Connect only over `ssh://` with the key and known_hosts paths passed in as variables. Bind published ports to `var.host_ip`, never `0.0.0.0`. No `privileged`, no `host` network mode, no Docker socket mounts.
