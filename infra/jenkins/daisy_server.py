@@ -428,16 +428,11 @@ def plan_ready(env: str) -> None:
         "attempt": attempt,
         "artifact_ref": f"daisy-plan:{job['app']}/{env}/{plan_id}",
         "digest": "sha256:" + meta["plan_sha256"],
+        # 서버 PlanRevision이 받는 키만 보내요 (summary: counts · has_delete · risks, resources: address · actions). 다른 키는 400
         "summary": {
             "counts": {k: counts[k] for k in ("create", "update", "delete")},
-            "replace": counts["replace"],
             "has_delete": counts["delete"] > 0,
             "risks": [],  # 위험 검사(infra/ai/risk_check.py)를 통과한 plan만 보내요. 위반은 승인 대상이 아니에요
-            "risk_checked": True,
-            "text": meta["summary"],
-            "destroy": meta["destroy"],
-            "ai_mode": mode,
-            "ai_calls": ai.get("ai_calls", 0),
         },
         "resources": resources,
         "expires_at": expires,
@@ -512,21 +507,19 @@ def check_plan(env: str) -> str:
 
 
 def plan_resources(plan_json: pathlib.Path):
-    """plan JSON에서 리소스 주소 · 종류 · 동작만 뽑아요. 값(before · after)은 비밀값이 있을 수 있어서 넣지 않아요."""
+    """plan JSON에서 리소스 주소와 terraform 동작 배열만 뽑아요. 값(before · after)은 비밀값이 있을 수 있어서 넣지 않아요.
+
+    교체(["delete", "create"])는 terraform 요약처럼 추가 · 삭제에 모두 세요. 그래서 has_delete도 참이 돼요 (서버 검사와 같아요).
+    """
     plan = json.loads(plan_json.read_text(encoding="utf-8"))
-    out, counts = [], {"create": 0, "update": 0, "delete": 0, "replace": 0}
+    out, counts = [], {"create": 0, "update": 0, "delete": 0}
     for rc in plan.get("resource_changes") or []:
-        actions = rc.get("change", {}).get("actions") or []
-        if actions in (["no-op"], ["read"]) or not actions:
+        actions = [a for a in rc.get("change", {}).get("actions") or [] if a in ("create", "update", "delete")]
+        if not actions:  # no-op · read
             continue
-        if sorted(actions) == ["create", "delete"]:
-            action = "replace"
-            counts["create"] += 1  # terraform 요약처럼 교체는 추가 · 삭제에 모두 세요
-            counts["delete"] += 1
-        else:
-            action = actions[0]
-        counts[action] += 1
-        out.append({"address": rc["address"], "type": rc.get("type"), "action": action})
+        for a in set(actions):
+            counts[a] += 1
+        out.append({"address": rc["address"], "actions": actions})
     return out, counts
 
 
