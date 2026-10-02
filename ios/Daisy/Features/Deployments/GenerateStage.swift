@@ -30,9 +30,9 @@ struct GenerateStage: View {
     }
 
     var body: some View {
-        FlowPage(step: 4, title: "인프라 코드 생성 · 검증",
-                 description: "AI가 환경별 Terraform을 만들고 validate · plan · 위험 설정 검사를 통과할 때까지 최대 3번 고쳐요.") {
-            SectionCard("환경별 진행") {
+        FlowPage(step: 4, title: .app("인프라 코드 생성 · 검증"),
+                 description: .app("AI가 환경별 Terraform을 만들고 validate · plan · 위험 설정 검사를 통과할 때까지 최대 3번 고쳐요.")) {
+            SectionCard(.app("환경별 진행")) {
                 VStack(spacing: 10) {
                     ForEach(targets) { target in
                         let row = target.generateRow
@@ -44,15 +44,15 @@ struct GenerateStage: View {
                             targetIDs: targets.map(\.targetId))
             if let current {
                 AdaptiveGrid(minimumWidth: 320) {
-                    SectionCard("\(workspace.name(of: current.targetId)) 검증 단계") {
+                    SectionCard(.app("\(workspace.name(of: current.targetId)) 검증 단계")) {
                         ForEach(current.generateSteps, id: \.self) { StepItemRow($0) }
                         if let error = current.errorSummary {
                             InlineAlert(.danger,
-                                        current.generateRow.badge.text == "검증 중" ? "위험 설정 발견 · AI가 수정 중" : "검증 실패",
+                                        isFixing(current) ? String.app("위험 설정 발견 · AI가 수정 중") : String.app("검증 실패"),
                                         error)
                         }
                     }
-                    SectionCard("생성된 스크립트") {
+                    SectionCard(.app("생성된 스크립트")) {
                         if let script, let file = script.files?.first {
                             CodeBlock(header: scriptHeader(file.path, target: current),
                                       aiGenerated: current.reusedScript != true, code: file.content)
@@ -74,8 +74,13 @@ struct GenerateStage: View {
 
     /// 웹: "aws/main.tf · 검증된 스크립트 재사용" / "aws/main.tf · AI 수정 2회차" / "aws/main.tf · AI 생성"
     private func scriptHeader(_ file: String, target: Deployment.Target) -> String {
-        if target.reusedScript == true { return "\(file) · 검증된 스크립트 재사용" }
-        return target.attempt > 1 ? "\(file) · AI 수정 \(target.attempt)회차" : "\(file) · AI 생성"
+        if target.reusedScript == true { return .app("\(file) · 검증된 스크립트 재사용") }
+        return target.attempt > 1 ? String.app("\(file) · AI 수정 \(target.attempt)회차") : String.app("\(file) · AI 생성")
+    }
+
+    /// 아직 검증 중인데 오류 요약이 있으면 AI가 고치는 중이에요 (`generateRow` 배지 "검증 중"과 같은 조건)
+    private func isFixing(_ target: Deployment.Target) -> Bool {
+        !target.isApprovedWaiting && [.validating, .unknown].contains(target.resolvedState)
     }
 
     private func loadScript() async {

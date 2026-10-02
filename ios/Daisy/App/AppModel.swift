@@ -47,6 +47,9 @@ final class AppModel {
     }
 
     var isSignedIn: Bool { token != nil }
+
+    /// 사이드바 · 설정에 보일 이름. 예시 데이터 모드는 고른 언어로 "예시 데이터"예요
+    var displayName: String? { isSampleMode ? String.app("예시 데이터") : username }
     var isViewer: Bool { role == "viewer" }
 
     /// 서버 주소와 토큰이 모두 있을 때만 만들어져요.

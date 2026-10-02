@@ -5,11 +5,15 @@ struct APIClient: Sendable {
     let baseURL: URL
     let token: String?
     var session: URLSession = .shared
+    /// 설정 › 언어에서 고른 언어. 서버가 메시지를 그 언어로 줄 수 있게 `Accept-Language`로 보내요 (10/2, SPEC R-10)
+    var language: AppLanguage = .current
 
-    func send<Response: Decodable & Sendable>(_ endpoint: Endpoint<Response>) async throws -> Response {
+    /// 요청 하나의 URLRequest: 경로 · 헤더(Bearer, Accept-Language, Idempotency-Key) · 본문
+    func request<Response>(for endpoint: Endpoint<Response>) throws -> URLRequest {
         var request = URLRequest(url: try url(for: endpoint))
         request.httpMethod = endpoint.method
         request.setValue("application/json", forHTTPHeaderField: "Accept")
+        request.setValue(language.rawValue, forHTTPHeaderField: "Accept-Language")
         if let token {
             request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
         }
@@ -20,7 +24,11 @@ struct APIClient: Sendable {
         if let key = endpoint.idempotencyKey {
             request.setValue(key, forHTTPHeaderField: "Idempotency-Key")
         }
+        return request
+    }
 
+    func send<Response: Decodable & Sendable>(_ endpoint: Endpoint<Response>) async throws -> Response {
+        let request = try request(for: endpoint)
         let data: Data
         let response: URLResponse
         do {
