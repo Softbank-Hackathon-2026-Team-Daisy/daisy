@@ -75,13 +75,6 @@ struct LoginView: View {
 
             alert
 
-            // 앱에만 있는 칸: 웹은 주소가 정해져 있지만 앱은 연결할 서버를 골라요.
-            field("서버 주소") {
-                TextField(AppModel.defaultServerURL, text: $app.serverURLString).urlInput()
-            }
-            if !app.serverURLString.isEmpty && app.serverURL == nil {
-                Text("https://로 시작하는 주소를 넣어 주세요.").font(.caption).foregroundStyle(.red)
-            }
             field("아이디") {
                 TextField("아이디", text: $username).textContentType(.username).plainInput()
                     .onSubmit { passwordFocused = true }

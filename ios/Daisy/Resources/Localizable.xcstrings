@@ -1428,22 +1428,6 @@
         }
       }
     },
-    "https://로 시작하는 주소를 넣어 주세요." : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Enter an address that starts with https://."
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "https:// で始まるアドレスを入力してください。"
-          }
-        }
-      }
-    },
     "main merge를 감지했어요. Jenkins가 이미지를 만들고 있어요." : {
       "localizations" : {
         "en" : {
@@ -2094,6 +2078,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "もう一度ログインしてください"
+          }
+        }
+      }
+    },
+    "다시 로그인해 주세요." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Please sign in again."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "もう一度ログインしてください。"
           }
         }
       }
@@ -3736,6 +3736,22 @@
         }
       }
     },
+    "서버" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Server"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "サーバー"
+          }
+        }
+      }
+    },
     "서버 없이 앱에 들어 있는 예시 데이터를 보여주고 있어요. 바꾸는 동작은 막혀 있어요." : {
       "localizations" : {
         "en" : {
@@ -3780,22 +3796,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "サーバーの応答が正しくありません。"
-          }
-        }
-      }
-    },
-    "서버 주소" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Server address"
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "サーバーアドレス"
           }
         }
       }
@@ -3892,38 +3892,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "設定"
-          }
-        }
-      }
-    },
-    "설정 탭에서 서버 주소를 넣고 로그인해 주세요." : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Enter the server address in the Settings tab and sign in."
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "設定タブでサーバーアドレスを入力してログインしてください。"
-          }
-        }
-      }
-    },
-    "설정에서 서버 주소를 넣고 로그인해 주세요." : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Enter the server address in Settings and sign in."
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "設定でサーバーアドレスを入力してログインしてください。"
           }
         }
       }

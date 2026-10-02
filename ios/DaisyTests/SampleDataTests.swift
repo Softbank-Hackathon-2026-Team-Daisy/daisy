@@ -112,13 +112,14 @@ struct SampleDataTests {
         #expect(!app.isSampleMode && !app.isSignedIn)
     }
 
-    /// 처음 켜면 팀 개발 서버 주소가 채워져 있고, 사용자가 바꾼 주소는 다음에도 그대로예요
+    /// 서버 주소는 늘 Unibloom 서버(api.unibloom.cloud)예요. 예전에 저장된 주소는 무시해요 (10/2 결정)
     @Test @MainActor func defaultServerAddress() {
         let defaults = UserDefaults(suiteName: "SampleDataTests-\(UUID())")!
         let first = AppModel(tokenStore: TokenStore(service: "SampleDataTests-\(UUID())"), defaults: defaults)
         #expect(first.serverURL?.absoluteString == "https://api.unibloom.cloud")
-        first.serverURLString = "https://dev.example.com"
+        // 예전 앱이 저장해 둔 주소(예: 웹 주소)가 남아 있어도 늘 Unibloom 서버예요
+        defaults.set("https://unibloom.cloud", forKey: "serverURL")
         let again = AppModel(tokenStore: TokenStore(service: "SampleDataTests-\(UUID())"), defaults: defaults)
-        #expect(again.serverURLString == "https://dev.example.com")
+        #expect(again.serverURL?.absoluteString == "https://api.unibloom.cloud")
     }
 }

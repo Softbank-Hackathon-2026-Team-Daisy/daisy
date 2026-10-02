@@ -109,15 +109,8 @@ struct SettingsView: View {
         @Bindable var app = app
         return SectionCard(.app("앱")) {
             languagePicker
-            VStack(alignment: .leading, spacing: 6) {
-                Text("서버 주소").font(.subheadline.weight(.medium))
-                TextField(AppModel.defaultServerURL, text: $app.serverURLString)
-                    .urlInput()
-                    .textFieldStyle(.roundedBorder)
-                if !app.serverURLString.isEmpty && app.serverURL == nil {
-                    Text("https://로 시작하는 주소를 넣어 주세요.").font(.caption).foregroundStyle(.red)
-                }
-            }
+            // 서버는 Unibloom 고정이라 바꾸는 칸 없이 보여만 줘요
+            InfoRow(.app("서버"), app.serverURL?.host() ?? "—", monospaced: true)
             InfoRow(.app("계정"), app.displayName)
             InfoRow(String.app("권한"), app.isViewer ? String.app("읽기 전용") : String.app("승인 가능"))
             InfoRow(.app("버전"), Bundle.main.versionText)

@@ -29,7 +29,7 @@ extension APIError: LocalizedError {
     var errorDescription: String? {
         switch self {
         case .notConfigured:
-            .app("설정에서 서버 주소를 넣고 로그인해 주세요.")
+            .app("다시 로그인해 주세요.")
         case .transport:
             // 웹 W-00b와 같은 문구
             .app("서버에 연결하지 못했어요. 잠시 후 다시 시도해 주세요.")

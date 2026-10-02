@@ -38,6 +38,10 @@ struct APIClient: Sendable {
         }
         guard let http = response as? HTTPURLResponse else { throw APIError.invalidResponse }
 
+        // API가 아니라 웹 페이지(HTML)가 오면 JSON으로 읽지 않고 "응답이 올바르지 않아요"로 보여줘요 (주소 오류 · 터널 오류 페이지)
+        if data.first(where: { ![0x20, 0x0A, 0x0D, 0x09].contains($0) }) == UInt8(ascii: "<") {
+            throw APIError.invalidResponse
+        }
         guard (200..<300).contains(http.statusCode) else {
             if let envelope = try? JSONDecoder.daisy.decode(ErrorEnvelope.self, from: data) {
                 throw APIError.server(
