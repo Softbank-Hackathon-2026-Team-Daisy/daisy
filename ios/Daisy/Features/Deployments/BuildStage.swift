@@ -16,7 +16,7 @@ struct BuildStage: View {
             HStack(spacing: 10) {
                 pipelineBadge
                 if let current { CommitLabel(commit: current) }
-                Text(build?.message ?? "").font(.subheadline).lineLimit(1)
+                Text(build.map { $0.message ?? "—" } ?? "").font(.subheadline).lineLimit(1)
                 Spacer(minLength: 8)
                 if let author = build?.author { Avatar(name: author) }
             }
@@ -34,7 +34,7 @@ struct BuildStage: View {
                     InfoRow("커밋", current.map { String($0.prefix(7)) }, monospaced: true)
                     InfoRow("브랜치", build?.branch ?? workspace.project?.branch, monospaced: true)
                     InfoRow("이미지", build?.image, monospaced: true)
-                    InfoRow("digest", build?.digest, monospaced: true)
+                    InfoRow("digest", build?.imageDigest, monospaced: true)
                     ConnectionIndicator(state: workspace.connection)
                 }
             }
@@ -53,6 +53,7 @@ struct BuildStage: View {
         switch build?.pipeline.status {
         case .success: StatusBadge(text: "빌드 완료", color: .green)
         case .failed: StatusBadge(text: "빌드 실패", color: .red)
+        case .queued: StatusBadge(text: "대기 중", color: .gray)
         default: StatusBadge(text: "빌드 중", color: .blue)
         }
     }

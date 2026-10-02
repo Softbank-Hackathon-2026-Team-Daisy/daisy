@@ -220,7 +220,9 @@ private struct VersionRow: View {
                     RelativeTime(date: deployedAt).font(.caption).foregroundStyle(.secondary)
                 }
             } else {
-                Text("아직 배포되지 않았어요").font(.caption).foregroundStyle(.secondary)
+                // null은 "배포 없음"이 아니라 "확인된 현재 배포 없음"이에요 (10/2 01:10 서버 #42 요청)
+                Text(status.currentStatus == .unverified ? "현재 배포를 확인하지 못했어요" : "확인된 배포 없음")
+                    .font(.caption).foregroundStyle(.secondary)
             }
             if let url = status.url {
                 Link(url.absoluteString, destination: url).font(.caption).lineLimit(1).truncationMode(.middle)

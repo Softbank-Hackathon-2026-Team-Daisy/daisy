@@ -808,6 +808,228 @@ V9 의 실제 Jenkins 실행은 하지 않습니다. 기본 비활성 설정 그
 | T4 | 보관된 대상은 목록에 없음 |
 | T5 | OpenAPI 에 경로가 나오고 파라미터는 `projectId` 하나 (`principal` 노출 없음) |
 
+## 배포 상세 A-04 (10/2, 하은현)
+
+### 범위
+
+`GET /deployments/{id}` 는 배포 한 건의 스냅샷을 돌려줍니다. 웹·앱의 배포 진행·승인·결과 화면이 이걸로 상태를 그리고, 승인할 때 보낼 `approval_id` 를 `pending_approvals` 에서 얻습니다 (#40 승준, #42).
+
+- 권한: `projectIdOf(actorId, deploymentId)` (044a436). 없는 배포·접근할 수 없는 배포는 404, viewer 도 조회는 됩니다.
+- 데이터: `server/AGENTS.md` §3 예외대로 `deployment`·`deployment_target`·`approval` 을 읽기 전용 SQL 로 직접 읽습니다. 쓰지 않습니다.
+- 소비자 모델: `ios/SPEC.md` 326행 `Deployment`, 웹 `web/src/api/types.ts` `Deployment`.
+
+### 응답 필드
+
+| 필드 | 출처 | 비고 |
+|---|---|---|
+| `id`·`project_id` | `deployment.id`·`project_id` | |
+| `source_version_id`·`commit` | `deployment.source_version_id`·`commit_sha` | |
+| `image`·`image_digest`·`images` | `deployment.image_refs` | 배포를 만들 때 고른 성공 빌드의 이미지. 서비스가 하나면 scalar, 여럿이면 scalar null + `images[]` (S5, A-06 과 같은 규칙). 값이 없으면 전부 null |
+| `state` | `deployment.status` | 배포 전체 7값 그대로 (계약과 코드값이 같음) |
+| `kind` | `deployment.kind` | `rollback` 이면 `"rollback"`, 아니면 null. `normal`·`retry` 는 내부 값이라 내보내지 않음 (AGENTS §5) |
+| `rolled_back_from` | `deployment.rollback_of_deployment_id` | 설계 6장 매핑 |
+| `retry_of` | `deployment.retry_of_deployment_id` | 계약에 없던 필드. 재시도 화면이 원본으로 돌아갈 때 쓸 수 있게 둠 |
+| `targets[]` | `deployment_target` | 아래 표. 정렬은 `target_id` |
+| `pending_approvals[]` | `approval` (`state='pending'`) | `{ target_id, approval_id }`. 승인 요청 `items` 와 같은 모양. 없으면 `[]` |
+| `created_by` | `deployment.requested_by` → `account.display_name` | 계정이 없으면 계정 ID 그대로 |
+| `created_at`·`finished_at` | 같은 이름 | |
+| `last_seq` | `deployment.last_event_seq` | SSE 재연결 기준점 |
+
+`targets[]`
+
+| 필드 | 출처 | 비고 |
+|---|---|---|
+| `target_id` | `deployment_target.target_id` | |
+| `type`·`name` | `target_snapshot` 의 `environment_type`·`name` | 배포 당시 고정값 |
+| `state` | `deployment_target.status` | 대상별 9값 그대로 |
+| `attempt` | `deployment_target.attempt` | **0 이면 null** (S2: "API null, DB 0 유지") |
+| `reused_script` | `deployment_target.ai_reused` | |
+| `error_summary` | 같은 이름 | |
+| `cancel_requested_at` | 같은 이름 | 취소 요청이 접수됐지만 아직 끝나지 않은 상태를 보여 줄 수 있게 둠 |
+| `started_at`·`finished_at` | 같은 이름 | |
+| `step`·`step_state`·`url`·`image_digest`·`health_summary` | — | **null.** `url`·`image_digest`·`health_summary` 는 근거 데이터가 아직 없음 (apply 결과 수신 #35 대기). `step`·`step_state` 는 승환님 Jenkins 수신이 `deployment_log` 에 `step.started`·`completed`·`failed` 로 남기지만 아직 읽지 않음 — A-07 로그 조회와 함께 붙임 (10/2 점검에서 정정). 0·빈 값으로 채우지 않음 |
+
+내보내지 않는 것: `version`("v7")·`commit_message` 는 S8 후순위, 단건 `pending_approval` 은 `pending_approvals` 로 대체 (#40 승준 질문에 답한 대로).
+
+### 검증 계획
+
+| | 검사 | 기대 |
+|---|---|---|
+| Q1 | 토큰 없음 / 없는 배포 / 비멤버 / viewer | 401 / 404 / 404 / 200 |
+| Q2 | 막 만든 배포 (대상 2개) | `state: "queued"`, 대상 2개 `waiting`, `attempt: null`, `pending_approvals: []`, 고른 빌드의 이미지 |
+| Q3 | 승인 대기 행이 있는 배포 | `pending_approvals` 에 `{target_id, approval_id}`, 만료·처리된 승인은 빠짐 |
+| Q4 | 롤백 배포 | `kind: "rollback"`, `rolled_back_from` 채워짐 |
+| Q5 | 이미지가 고정된 배포 (서비스 1개 / 2개) | scalar / `images[]` |
+| Q6 | 다른 프로젝트 배포가 섞이지 않음 | 경로의 배포 한 건만 |
+| Q7 | OpenAPI | 경로가 나오고 `principal` 노출 0건 |
+
+### 검증 결과 (10/2 오전)
+
+단위 테스트 4개(승인 ID 옮김, `kind` 변환, 시도 0·근거 없는 필드 null, 이미지 단일·여럿·없음)를 추가했고, 빈 PostgreSQL 17 에 jar 로 띄워 확인했습니다.
+
+| | 결과 |
+|---|---|
+| Q1 | 401 / 404 / 404(다른 프로젝트, Q6 와 같이 확인) / 200 |
+| Q2 | `queued`, 대상 2개 `waiting`·`attempt: null`·`step: null`, `pending_approvals: []`, 고른 빌드의 이미지, `created_by: "데모 운영자"`, `last_seq: 1` |
+| Q3 | 유효한 승인만 `[{tgt_demo_aws, apv_ok}]`. 만료 시각이 지난 pending 승인은 빠짐 |
+| Q4 | `kind: "rollback"`, `rolled_back_from` 에 원본 배포 |
+| Q5 | 서비스 2개면 `image: null`, `images[]` 2개 (digest 없는 서비스는 null 그대로) |
+| Q6 | 접근 권한 없는 다른 프로젝트 배포는 404 |
+| Q7 | 경로 노출, `principal` 0건. 500 0건 |
+
+처음 스펙에는 "막 만든 배포는 이미지 null" 이라고 적었는데, 실제로는 생성 때 고른 성공 빌드의 이미지가 고정됩니다. 코드가 맞고 스펙을 고쳤습니다.
+
+### 후속·통합 검증으로 남기는 것 (10/2 승환님 #46 리뷰)
+
+- **일부 승인만 만료된 대상 / 전부 만료된 대상.** A-04 는 `state='pending'` 이고 기한이 남은 승인만 `pending_approvals` 로 줍니다. 그런데 실행 서비스의 승인은 `awaiting_approval` 인 대상 전체와 요청 `items` 가 같아야 통과합니다. 대상 A 는 유효하고 B 는 기한이 지났는데 아직 `awaiting_approval` 이면, A-04 응답 그대로 승인해도 409 입니다. 만료된 ID 를 다시 내보내거나 승인 검사를 느슨하게 하지 않고, 승환님 실행부가 만료 대상을 정리하도록 연결합니다(승환님 담당). 그 전까지 "A-04 의 승인 대기만 보내면 승인된다" 는 완료로 보지 않습니다. 연결 뒤 두 경우를 통합 검증에 넣습니다.
+- **단계(`step`·`step_state`).** 두 가지를 나눠 둡니다. ① 저장된 `step.*` 이벤트를 읽는 조회 구현은 A-07 과 함께 제가 붙입니다. ② 실제 Jenkins 에서 그 이벤트가 들어오는 것은 #35 수신 대기입니다.
+
+## 배포 목록 A-03 (10/2, 하은현)
+
+### 범위
+
+`GET /projects/{id}/deployments?state=&cursor=&limit=` 는 프로젝트의 배포를 최신순으로 돌려줍니다. 배포 이력(W-09)·현황(W-01)·AI 사용량 배포 고르기(W-12) 화면이 쓰고, 승인 대기 목록은 별도 API 없이 `state=awaiting_approval` 로 거릅니다 (9/29 결정, PR #1).
+
+- 권한: `ProjectAccessService.requireRead` — 없는 프로젝트·비멤버 404, viewer 도 조회는 됩니다.
+- 데이터: A-04 와 같이 배포 테이블을 읽기 전용 SQL 로 읽습니다 (`server/AGENTS.md` §3 예외).
+- 봉투: `{ items, next_cursor }`. **목록 한 줄은 A-04 상세와 같은 모양**입니다. 웹은 목록을 `ListResponse<Deployment>` 로 받아서, 모양을 둘로 나누면 화면마다 다른 필드를 다뤄야 합니다.
+
+### 동작
+
+| 항목 | 규칙 |
+|---|---|
+| 정렬 | `created_at DESC, id DESC`. 설계의 `INDEX(project_id, created_at DESC, id)`·`INDEX(project_id, status, created_at DESC, id)` 와 맞춤 |
+| `state` | 배포 전체 7값 중 하나. 다른 값은 400. 생략하면 전부 |
+| `cursor` | A-06 과 같은 불투명 문자열 (base64url 로 감싼 `created_at` + `id`). 깨진 커서는 400. 같은 시각의 배포가 페이지 경계에 걸려도 건너뛰지 않음 |
+| `limit` | 기본 20, 최대 100. 넘으면 100 으로 깎고, 0·음수는 400 (A-06 과 같음) |
+| 대상·승인 대기 | 한 페이지의 배포 ID 로 `deployment_target`·`approval` 을 한 번씩만 읽음. 배포마다 따로 읽지 않음 |
+
+### 검증 계획
+
+| | 검사 | 기대 |
+|---|---|---|
+| L1 | 토큰 없음 / 비멤버 / viewer | 401 / 404 / 200 |
+| L2 | 배포 3개 | 최신순, 각 항목이 A-04 모양 (대상·`pending_approvals` 포함) |
+| L3 | `state=awaiting_approval` / `state=bogus` | 그 상태만 / 400 |
+| L4 | `limit=2` 로 커서 왕복, 같은 `created_at` 두 건 포함 | 중복·누락 0, 마지막 페이지 `next_cursor: null` |
+| L5 | 깨진 커서 / `limit=0` | 400 / 400 |
+| L6 | 다른 프로젝트 배포 | 섞이지 않음 |
+| L7 | OpenAPI | 경로·`state`·`cursor`·`limit` 노출, `principal` 노출 0건 |
+
+### 검증 결과 (10/2 오전)
+
+빈 PostgreSQL 17 에 jar 로 띄워, API 로 만든 배포 3개와 SQL 로 넣은 배포 4개(그중 2개는 `created_at` 이 똑같음), 다른 프로젝트 배포 1개로 확인했습니다.
+
+| | 결과 |
+|---|---|
+| L1 | 401 / 404 / 200 |
+| L2 | 7개 최신순, 각 항목이 A-04 모양 (대상 수·`pending_approvals` 포함) |
+| L3 | `awaiting_approval` 은 그 1건만 / `bogus` 400 |
+| L4 | `limit=2` 로 4페이지, 7개 모두, 중복 0, 전체 목록과 순서가 같음 (같은 시각 2건이 경계에 걸려도 빠지지 않음), 마지막 `next_cursor: null` |
+| L5 | 구분자 없는 base64·base64 아닌 문자 커서 400 / `limit=0` 400 |
+| L6 | 다른 프로젝트 배포가 섞이지 않음 |
+| L7 | 파라미터 `state`·`cursor`·`limit`, `principal` 노출 0건. 500 0건. 조회 코드를 바꾼 뒤 A-04 상세도 200 |
+
+URL 인코딩 자체가 깨진 커서(`%%%bad`)는 Tomcat 이 파라미터를 버려서 커서 없이 첫 페이지(200)가 나갑니다. A-06 도 같습니다. 서블릿 컨테이너 동작이라 따로 막지 않았습니다.
+
+**회귀 테스트 (10/2, 승환님 #48 리뷰).** `DeploymentQueryPostgresTest` 가 실제 PostgreSQL 에서 같은 시각 배포 두 건이 페이지 경계에 걸리는 경우(첫 페이지가 `dep_c` 로 끝나고 다음 페이지가 같은 시각 `dep_b` 부터), 상태 필터, 다른 프로젝트가 섞이지 않는 것, 다른 프로젝트 배포 상세 404 를 고정합니다. `DAISY_TEST_DB_URL` 이 있을 때만 돕니다. 같은 시각 비교 조건을 빼면 커서 테스트 2개가 실패하는 것을 확인했습니다.
+
+## 배포 plan 조회 A-05 · WR-06 (10/2, 하은현)
+
+### 범위
+
+승인 화면(W-06)이 대상별 변경 개수·삭제 여부·위험 설정과 이 배포의 AI 사용량 합계를 읽습니다.
+
+| 경로 | 응답 | 소비자 모델 |
+|---|---|---|
+| `GET /deployments/{id}/plan` | `{ deployment_id, targets[], ai_usage }` | `ios/SPEC.md` `Plan`, `web/src/api/types.ts` `Plan` |
+| `GET /deployments/{id}/plan?detail=resources` | `[{ target_id, resources[], plan_text }]` (배열) | `web/src/api/types.ts` `PlanDetail[]` (WR-06) |
+
+- 권한: A-04 와 같이 승환님 `projectIdOf` 로 봅니다. 없는 배포·접근할 수 없는 배포는 404, viewer 도 조회는 됩니다.
+- 데이터: `deployment_target.current_plan_id` 가 가리키는 `plan_revision` 과 `ai_usage` 를 읽기 전용 SQL 로 읽습니다 (`server/AGENTS.md` §3 예외에 두 테이블이 이미 들어 있음). 상태를 바꾸지 않습니다.
+- `detail` 은 `resources` 만 받습니다. 다른 값은 400 입니다. 같은 경로에서 응답 모양이 둘인 것은 9/30 WR-06 답("그대로")과 웹 코드를 따른 것입니다.
+
+### 대상 한 줄
+
+| 필드 | 출처 | 비고 |
+|---|---|---|
+| `target_id` | `deployment_target.target_id` | |
+| `counts` | `plan_revision.summary.counts` | `{create, update, delete}`. 승환님 `PlanRevision` 이 저장 전에 모양을 검증함 |
+| `has_delete` | `summary.has_delete` | 교체(replace)로 생긴 삭제도 포함 |
+| `risks` | `summary.risks` | `[{level, rule, resource, message}]` 그대로 |
+| `summary` | 없음 | **null.** 한 줄 요약을 만드는 원천이 없음. 화면은 "위험 설정 n건" 으로 대신함 |
+| `plan_text` | 없음 | **null.** 서버는 원본 참조(`artifact_ref`)·digest 만 갖고 원문을 보관하지 않음 |
+
+- **현재 plan 이 있는 대상만** 나옵니다. 아직 plan 전이거나, 새 plan 으로 바뀌는 중이라 포인터가 비어 있는 대상은 빠집니다. 승인할 대상과 approval ID 는 A-04 `pending_approvals` 가 기준입니다.
+- 정렬은 `target_id` 순입니다.
+
+### `resources` (WR-06)
+
+`plan_revision.resources` 의 `{address, actions[]}` 를 웹 모양 `{address, action}` 으로 바꿉니다.
+
+| `actions` | `action` |
+|---|---|
+| `delete` 와 `create` 를 함께 가짐 (순서 무관) | `replace` |
+| `delete` 를 가짐 | `delete` |
+| `create` 를 가짐 | `create` |
+| `update` 를 가짐 | `update` |
+| `read`·`no-op` 만 | 목록에서 뺌 (바뀌는 것이 아님. `counts` 에도 안 들어감) |
+
+`monthly_cost_krw` 는 원천이 없어 넣지 않습니다.
+
+### `ai_usage` 합계
+
+이 배포에 속한 모든 대상·회차의 `ai_usage` 행을 더합니다. 설계 5.13 과 9/29 결정을 따릅니다.
+
+| 필드 | 규칙 |
+|---|---|
+| `calls` | 행 수 (LLM 호출 수). 상태 `succeeded`·`failed`·`unknown` 모두 셈 |
+| `tokens` | 입력·출력 토큰을 둘 다 아는 행의 합. 그런 행이 없으면 null |
+| `cost_krw` | `cost_usd` 를 아는 행의 USD 합 × 고정 환율, 원 단위 반올림(HALF_UP). 아는 행이 없거나 환율 설정이 없으면 null |
+| `exchange_rate` | 설정값 `daisy.ai.krw-per-usd` (환경변수 `DAISY_AI_KRW_PER_USD`). 없으면 null |
+| `estimated` | `cost_krw` 가 있으면 true (고정 환율 환산이라 늘 추정). 없으면 false |
+| `unknown_calls` | 토큰이나 비용을 모르는 행 수. 설계 5.13 "미확인 호출 수" — 계약에 없는 추가 |
+
+- **행이 없으면 `calls: 0`, `tokens`·`cost_krw` 는 null 입니다.** 지금 Jenkins `plan-summary.json` 은 합계만 주고 호출별 기록을 주지 않아서, 행이 없다는 것이 "AI 를 안 썼다" 는 뜻이 아닐 수 있습니다. 0원으로 보여주지 않습니다.
+- 환율 숫자는 아직 정하지 않았습니다 (`server/AGENTS.md` 남은 결정 "적용 환율 숫자"). 승환님께 여쭤봤고, 정해질 때까지 설정이 없으면 원화는 null 입니다. 0 이하·숫자가 아닌 값이면 기동하지 않습니다.
+
+### 다른 파트와 닿는 지점
+
+- 웹 `AiUsageSummary.exchange_rate` 가 `number` 입니다. 환율이 설정되지 않으면 null 이 갑니다.
+- 웹 `PlanDetail.resources[].action` 에 `replace` 가 있어서 그대로 맞췄습니다.
+
+### 검증 계획
+
+| | 검사 | 기대 |
+|---|---|---|
+| P1 | 토큰 없음 / 없는 배포 / viewer | 401 / 404 / 200 |
+| P2 | plan 없는 배포 | `targets: []`, `ai_usage.calls: 0`, `tokens`·`cost_krw` null |
+| P3 | 대상 2개 중 1개만 현재 plan | 그 1개만, `counts`·`has_delete`·`risks` 가 저장값 그대로, `summary`·`plan_text` null |
+| P4 | `detail=resources` | 배열. `["delete","create"]`→`replace`, `["no-op"]` 빠짐 / `detail=bogus` 400 |
+| P5 | 사용량 행 3개 (하나는 토큰·비용 미확인), 환율 설정 | `calls 3`, `unknown_calls 1`, 토큰·원화는 아는 행만, USD 합 후 한 번 반올림 |
+| P6 | 환율 설정 없음 | `cost_krw`·`exchange_rate` null, `estimated false` |
+| P7 | 다른 프로젝트 배포의 plan·사용량 | 섞이지 않음, 404 |
+| P8 | OpenAPI | 경로 노출, `principal` 노출 0건, 500 0건 |
+
+### 검증 결과 (10/2 오전)
+
+빈 PostgreSQL 17 에 jar 로 띄우고, API 로 만든 배포(대상 2개)에 SQL 로 실행·스크립트·plan 1건(대상 하나만 현재 plan)과 사용량 3행을 넣어 확인했습니다. 환율은 `DAISY_AI_KRW_PER_USD=1400` 으로 한 번, 설정 없이 한 번 띄웠습니다.
+
+| | 결과 |
+|---|---|
+| P1 | 401 / 404 / viewer 200 |
+| P2 | plan 전 배포: `targets: []`, `calls: 0`, `tokens`·`cost_krw` null, `estimated: false` |
+| P3 | 현재 plan 이 있는 `tgt_demo_aws` 1개만. `counts {12,1,1}`·`has_delete: true`·`risks` 가 넣은 값 그대로, `summary`·`plan_text` null |
+| P4 | `detail=resources` 는 배열. `create`·`update` 그대로, `["delete","create"]` → `replace`, `read`·`no-op` 행은 빠짐. `detail=bogus` 400 |
+| P5 | `calls 3`, `unknown_calls 1`, `tokens 3920`(모르는 행 제외), `cost_krw 1`. 0.0003 USD 두 건이라 건별 반올림이면 0원, 합산 뒤 반올림이면 0.84원 → 1원 — 합산 뒤 한 번 반올림하는 것을 확인 |
+| P6 | 환율 설정 없음: `cost_krw`·`exchange_rate` null, `estimated: false`. 사용량은 있는데 환율만 없는 경우는 단위 테스트(`PlanResponseTest`)로 확인 |
+| P7 | 접근할 수 없는 다른 프로젝트 배포는 요약·`detail` 모두 404. 같은 프로젝트의 다른 배포에는 위 plan·사용량이 섞이지 않음 |
+| P8 | OpenAPI 경로 노출, `detail` 은 선택 파라미터, 응답은 `PlanResponse` 또는 `PlanDetailResponse[]`, `principal` 노출 0건. 서버 로그 ERROR 0건 |
+
+단위 테스트 7개를 더했습니다 (환산·반올림·잘못된 환율 3개, 응답 변환 4개). `./gradlew --no-daemon spotlessCheck check build` 성공, 182개 통과.
+
+같은 경로의 두 핸들러가 OpenAPI 에서 한 operation 으로 합쳐지면서 처음에는 `detail` 이 필수로 표시됐습니다. 붙이지 않는 A-05 호출이 있으니 문서에서 선택으로 보이게 고쳤습니다.
+
 ## 빌드 결과 저장 (10/2, 하은현)
 
 ### 범위

@@ -42,6 +42,7 @@ src/main/java/com/teamdaisy/server/
 
 - `controller/` `service/` `repository/` 로 **최상위를 나누지 않아요.** 기능 폴더 안에서 나눠요
 - **폴더끼리는 서비스 메서드로만** 불러요. 남의 폴더 Repository·Entity 를 직접 쓰지 않아요
+  - **예외 (10/2 승환·은현 합의, #42):** 은현의 공개 조회 API(A-03·A-04·A-05·A-07)는 `project/` 의 조회 계층에서 `deployment`·`deployment_target`·`approval`·`plan_revision`·로그·사용량 테이블을 **읽기 전용 SQL** 로 직접 읽어요. Entity·Repository 는 쓰지 않고 JdbcTemplate 로 필요한 컬럼만 읽어요. 상태·승인·명령 변경은 계속 실행 서비스로만 보내요. 테이블이 바뀌면 승환이 알려 주고, 은현 조회는 실DB 테스트로 막아요
 - Terraform CLI·AI 실행부는 **인프라 소유**예요. 서버는 실행·조회 서비스 계약으로 연결해요
 
 | 실행 규칙·수신 (김승환) | 공개 API·관리·조회 (하은현) |
@@ -177,7 +178,11 @@ docker compose up -d postgres    # Postgres 17
 | 2026-10-02 | **재시도·롤백 때 대상 설정 revision·자격증명 버전이 바뀌면 409, `disconnected` 대상 생성 409 (`unknown` 은 허용하되 연결 성공으로 표시하지 않음)** | 은현 제안, #42 에서 승환 동의. 바뀐 설정으로 진행하려면 새 배포 | 1 |
 | 2026-10-02 | **배포 생성 응답은 소비자 `Deployment` 이름(`id`·`project_id`·`state`)** | 웹이 응답 `id` 로 다음 화면 이동. #42 리뷰 | 1 |
 | 2026-10-02 | **재시도 공개 경로 `POST /deployments/{id}/retry` `{ target_ids }`** | 원본 배포의 빌드·연결을 서버가 이어받아 소비자는 원본 ID 와 대상만 보냄. 승환·승준(#42)·도영(Slack) 동의 | 2 |
+| 2026-10-02 | **조회 API 는 배포 테이블을 읽기 전용 SQL 로 직접 읽음 (§3 예외)** | 조회 서비스를 기능마다 승환이 먼저 만들고 기다리는 구조를 피함. 쓰기는 실행 서비스로만. #42 승환 제안·은현 수락 | 1 |
 | 2026-10-02 | **#42 조회 연결: 권한 확인 후 프로젝트 반환·대상별 current 결과** | `projectIdOf`는 requireRead 후 반환, 명령 requireWrite는 유지. `currentByTarget`은 포인터 실패만 none/confirmed/unverified로 구분하고 권한·DB 오류는 전파. 기존 current는 호환 유지, [계약](docs/execution-service-contract.md) | 2 (서버 내부 소비자 은현) |
+| 2026-10-02 | **A-05 AI 사용량: 모르는 값은 합계에서 빼고 `unknown_calls` 로 따로, 행이 없으면 토큰·원화 null** | 지금 Jenkins 는 호출별 기록을 주지 않아 행이 없다고 "안 썼다" 가 아님. 0원으로 보이면 틀린 정보. 설계 5.13 "미확인 호출 수" | 1 |
+| 2026-10-02 | **환율은 설정값 `DAISY_AI_KRW_PER_USD`, 없으면 원화 null, 잘못된 값이면 기동 실패. 반올림 HALF_UP** | 숫자는 아직 미정이라 코드에 넣지 않음. 틀린 금액을 보여주는 것보다 기동 실패가 나음 | 1 |
+| 2026-10-02 | **WR-06 `action`: delete+create → replace, read·no-op 만이면 목록에서 뺌** | 웹 `PlanDetail` 값에 맞춤. 바뀌지 않는 리소스는 승인 판단에 쓰지 않음 | 1 |
 | 2026-10-02 | **빌드 저장: 역행 보고는 무시(무변경), 종료 결과가 다르면 409** | 폴링이 늦게 본 옛 상태로 수신 전체를 실패시키지 않음. 종료 결과끼리 다르면 어느 쪽도 믿을 수 없어 덮어쓰지 않음 (#42 승환님 답 01:44) | 1 |
 
 ## 11. 아직 정하지 못한 것
