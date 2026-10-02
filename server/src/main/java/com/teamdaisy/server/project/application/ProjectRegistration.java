@@ -10,14 +10,16 @@ import com.teamdaisy.server.project.domain.ProjectMemberRepository;
 import com.teamdaisy.server.project.domain.ProjectRepository;
 import java.time.Clock;
 import java.time.Instant;
+import java.util.Map;
 import java.util.UUID;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
+import org.springframework.jdbc.core.namedparam.NamedParameterJdbcTemplate;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
 
 /**
- * GitHub 저장소를 프로젝트로 연결해요 (WR-02).
+ * GitHub 저장소를 프로젝트로 연결하고 해제해요 (WR-02·WR-13).
  *
  * <p>저장소가 실제로 있는지는 GitHub 에 묻지 않아요. 모르는 것을 확인한 것처럼 보이지 않게 {@code deploy.yaml} 검증 결과도 비워 둬요 (WR-03
  * 스키마 결정 대기). 새 프로젝트에는 배포 대상이 없어요 — 대상 등록은 범위가 정해지지 않았어요.
@@ -34,16 +36,19 @@ public class ProjectRegistration {
   private final ProjectMemberRepository members;
   private final ProjectAccessService access;
   private final Clock clock;
+  private final NamedParameterJdbcTemplate jdbc;
 
   public ProjectRegistration(
       ProjectRepository projects,
       ProjectMemberRepository members,
       ProjectAccessService access,
-      Clock clock) {
+      Clock clock,
+      NamedParameterJdbcTemplate jdbc) {
     this.projects = projects;
     this.members = members;
     this.access = access;
     this.clock = clock;
+    this.jdbc = jdbc;
   }
 
   /** {@code owner/repo} 로 맞춘 저장소예요. */
@@ -80,6 +85,38 @@ public class ProjectRegistration {
                 now));
     members.save(ProjectMember.grant(id, principal.accountId(), principal.accountId(), now));
     return project;
+  }
+
+  /**
+   * 연결을 해제해요 (WR-13). 인프라는 지우지 않고, 행도 지우지 않아 이력이 남아요.
+   *
+   * <p>배포 생성과 같이 프로젝트 행을 먼저 잠그고 진행 중 배포를 세요. 그래서 해제와 새 배포가 동시에 와도 진행 중 배포를 남긴 채 해제되지 않아요. 배포 테이블은
+   * {@code server/AGENTS.md} §3 예외대로 읽기만 해요.
+   */
+  @Transactional
+  public void disconnect(AuthPrincipal principal, String projectId) {
+    access.requireWrite(principal, projectId);
+    Map<String, String> params = Map.of("project", projectId);
+    jdbc.queryForList(
+        "select id from project where id = :project and archived_at is null for update",
+        params,
+        String.class);
+    Integer active =
+        jdbc.queryForObject(
+            """
+            select count(*) from deployment
+            where project_id = :project and status in ('queued', 'running', 'awaiting_approval')
+            """,
+            params,
+            Integer.class);
+    if (active != null && active > 0) {
+      throw new DaisyException(ErrorCode.STATE_CONFLICT);
+    }
+    Instant now = clock.instant();
+    jdbc.update(
+        "update project set archived_at = :now, updated_at = :now"
+            + " where id = :project and archived_at is null",
+        Map.of("project", projectId, "now", java.sql.Timestamp.from(now)));
   }
 
   /** {@code owner/repo} 나 {@code https://github.com/owner/repo(.git)} 만 받아요. 다른 호스트는 400 이에요. */
