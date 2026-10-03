@@ -83,6 +83,21 @@ extension Endpoint {
     }
 }
 
+extension Endpoint where Response == EmptyResponse {
+    /// P-01 · 기기 토큰 등록 → 204. 서버가 로그인한 사용자와 묶어 저장해요
+    static func registerDevice(_ device: DeviceRegistration) -> Endpoint<EmptyResponse> {
+        .init(method: "POST", path: "devices", body: try? JSONEncoder.daisy.encode(device))
+    }
+
+    /// P-01 · 기기 토큰 해제 → 204. 토큰은 URL이 아니라 본문으로 보내요 (서버 · 프록시 로그에 남지 않게, 9/29 합의)
+    static func unregisterDevice(apnsToken: String) -> Endpoint<EmptyResponse> {
+        .init(method: "DELETE", path: "devices", body: try? JSONEncoder.daisy.encode(DeviceToken(apnsToken: apnsToken)))
+    }
+}
+
+/// `DELETE /devices` 본문 `{ apns_token }`
+private struct DeviceToken: Encodable, Sendable { let apnsToken: String }
+
 /// W-01 요청 본문. 앱은 `kind: "plan"`만 써요.
 struct ApprovalRequest: Encodable, Sendable {
     var kind = "plan"

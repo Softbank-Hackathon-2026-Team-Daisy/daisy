@@ -21,6 +21,14 @@ struct RootView: View {
                     }
                 }
                 .task(id: app.token) { await workspace.run(using: app) }
+                // 로그인할 때 · 앱을 켤 때마다 알림 권한을 묻고 기기를 등록해요 (서버에 아직 없으면 다음에 다시)
+                .task(id: app.token) { await app.push.activate(for: app) }
+                // 알림을 누르면 그 프로젝트의 승인 · 배포 화면으로. 꺼진 앱이 알림으로 켜질 때도 처음 그릴 때 열어요
+                .onChange(of: app.push.pendingOpen, initial: true) { _, payload in
+                    guard let payload else { return }
+                    app.push.pendingOpen = nil
+                    payload.open(app: app, router: router)
+                }
             } else {
                 LoginView()
             }

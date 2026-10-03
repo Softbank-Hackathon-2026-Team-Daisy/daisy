@@ -7,6 +7,12 @@ struct DaisyApp: App {
         : AppModel()
     /// 설정 › 언어 (10/2). 바꾸면 아래 `\.locale`이 바뀌어서 다시 켜지 않아도 화면 글자가 바로 바뀌어요
     @State private var language = LanguageStore.shared
+    /// APNs 기기 토큰 · 알림 누름을 받아요 (SPEC §6-5)
+    #if os(iOS)
+    @UIApplicationDelegateAdaptor(PushAppDelegate.self) private var pushDelegate
+    #else
+    @NSApplicationDelegateAdaptor(PushAppDelegate.self) private var pushDelegate
+    #endif
 
     /// 단위 테스트가 앱을 띄울 때는 사용자 키체인 · 설정을 읽지 않아요.
     /// 서명이 다른 테스트 빌드가 키체인을 읽으면 허용 창이 떠서 테스트 러너가 멈춰요 (10/1).
