@@ -59,7 +59,7 @@ function Sidebar({ projectId, collapsed, canToggle, onToggle, onOpenMacApp, draw
       aria-label={t('프로젝트 메뉴')}
       inert={drawer === 'closed' || undefined}
     >
-      <Logo type={collapsed ? 'mark' : 'lockup'} color="ink" />
+      <Logo type={collapsed ? 'mark' : 'lockup'} />
 
       <div className="sidebar__switcher" ref={switcherRef}>
         <button

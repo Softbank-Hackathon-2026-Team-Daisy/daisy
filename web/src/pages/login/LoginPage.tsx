@@ -76,7 +76,7 @@ function LoginPage() {
           <LanguageSelect />
         </div>
         <form className="login__form" onSubmit={onSubmit} noValidate>
-          <Logo type="lockup" color="ink" />
+          <Logo type="lockup" />
           <div className="login__heading">
             <h1 className="t-h1">{t('로그인')}</h1>
             <p className="t-muted">{t('팀 계정으로 로그인해요.')}</p>

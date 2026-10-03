@@ -105,12 +105,12 @@ function ComponentsPage() {
       </section>
 
       <section>
-        <p className="t-overline t-muted">Logo · Mark / Lockup · Ink / Brand</p>
+        <p className="t-overline t-muted">Logo · Mark / Lockup</p>
         <div className="dev-inline">
-          <Logo type="mark" color="ink" />
-          <Logo type="mark" color="brand" />
-          <Logo type="lockup" color="ink" />
-          <Logo type="lockup" color="brand" />
+          <Logo type="mark" size={24} />
+          <Logo type="mark" />
+          <Logo type="mark" size={64} />
+          <Logo type="lockup" />
         </div>
       </section>
 

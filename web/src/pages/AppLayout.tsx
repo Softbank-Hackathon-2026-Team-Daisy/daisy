@@ -63,7 +63,7 @@ function AppLayout() {
     <div className="app-layout">
       {narrow && (
         <header className="app-layout__topbar">
-          <Logo type="mark" color="ink" size={24} />
+          <Logo type="mark" size={24} />
           <span className="app-layout__project t-label">{current?.name ?? t('프로젝트')}</span>
           <button
             type="button"
