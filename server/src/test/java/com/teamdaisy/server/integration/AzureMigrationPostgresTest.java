@@ -42,7 +42,7 @@ class AzureMigrationPostgresTest {
         }
         assertThatThrownBy(() -> target(jdbc, "azure"))
             .isInstanceOf(DataIntegrityViolationException.class);
-        var flyway = Flyway.configure().dataSource(scoped).defaultSchema(schema).load();
+        var flyway = Flyway.configure().dataSource(scoped).defaultSchema(schema).target("2").load();
         assertThat(flyway.migrate().migrationsExecuted).isEqualTo(1);
         flyway.validate();
         target(jdbc, "azure");
