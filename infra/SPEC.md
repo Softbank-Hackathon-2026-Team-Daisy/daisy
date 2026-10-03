@@ -1051,7 +1051,7 @@ main 변경 감지 → 해당 커밋 체크아웃 → 테스트 → 이미지 �
 
 ### 18-5. 완료 기준
 
-- [ ] 지정한 커밋의 Frontend·Backend 이미지가 배포돼요. (CI는 커밋 태그로 올려요. CI → CD 커밋 태그 자동 배포는 확인 중)
+- [x] 지정한 커밋의 Frontend·Backend 이미지가 배포돼요. (CI #3 → CD #5, `version.json`으로 확인)
 - [ ] 테스트·빌드 실패 시 기존 실행 서비스를 갱신하지 않아요. (빌드 실패는 CD를 시작하지 않아요. 테스트는 아직 CI에 없어요 — 서버 · 웹 PR 체크에 맡겨요)
 - [x] 배포 후 프론트 접속과 백엔드 헬스체크를 확인해요. (실패하면 이전 compose 파일로 되돌려요)
 - [x] DB 볼륨·데이터와 기존 연결 설정이 유지돼요. (같은 프로젝트 `compose` · 같은 파일 · override)
@@ -1075,7 +1075,7 @@ main 변경(2분마다 확인) ─▶ unibloom-platform-ci ── 이미지 빌�
 | 추가 설정 | `-f` 없이 기본 파일을 읽어서 `docker-compose.override.yml`(APNs 푸시 키 경로 · 키 ID, `secrets/apns.p8`)과 `.env`가 그대로 적용돼요. 이 두 파일은 저장소에 없어요 |
 | SSH | Credentials `unibloom-prod-ssh`(`user`). Terraform 온프레미스 배포 키(`/var/lib/jenkins/.ssh/onprem_deploy`)와 **다른 키**예요. 두 키 모두 Service VM `user`의 `authorized_keys`에 있어야 해요. 키를 넣을 때는 덮어쓰지 말고 덧붙여요(`>>`) — 10/3 덮어써서 온프레미스 plan이 SSH 인증 실패로 멈췄어요 |
 | 수동 배포 | Service VM에서 main을 직접 빌드할 때도 같은 파일을 써요. `image:` 교체는 형식에 상관없이 이렇게 해요: `sed -i -e "/image:.*unibloom-server:/ s#image:.*#image: unibloom-server:$TAG#" -e "/image:.*unibloom-web:/ s#image:.*#image: unibloom-web:$TAG#" docker-compose.yml` |
-| 트리거 | Jenkins가 사설망에 있어 GitHub 웹훅이 닿지 않아요. CI가 2분마다 main을 확인(`pollSCM('H/2 * * * *')`)해서 새 커밋이면 빌드 → 배포해요 |
+| 트리거 | Jenkins가 사설망에 있어 GitHub 웹훅이 닿지 않아요. CI가 2분마다 main을 확인(`pollSCM('H/2 * * * *')`)해서 새 커밋이면 빌드 → 배포해요. 확인하는 브랜치는 **마지막 빌드의 브랜치**라, `APP_BRANCH`를 다른 브랜치로 수동 실행했으면 다음에 main으로 한 번 실행해 둬요 |
 | 버전 확인 | `https://www.unibloom.cloud/version.json` → 웹 이미지를 빌드한 커밋 · 시각 (`infra/images/web/Dockerfile`, CI가 `GIT_COMMIT` · `BUILT_AT`을 넘겨요). 수동 빌드도 `--build-arg GIT_COMMIT=$(git rev-parse HEAD)`를 넣으면 보여요 |
 | 쓰지 않는 것 | 예전 `docker-compose2.yml` · `compose2/`(Docker Hub `latest` 고정, 컨테이너 이름이 같아 수동 배포와 서로 지웠어요), 예전 Job `unibloom-platform-cd2`(파라미터 블록이 빠져 실패) · CD Job의 GitHub push 트리거(CD는 CI가 태그를 넣어 시작해요) |
 
@@ -1083,4 +1083,5 @@ main 변경(2분마다 확인) ─▶ unibloom-platform-ci ── 이미지 빌�
 - `unibloom-platform-ci` #1 · #2: `931dcc2` · `45ded60` 커밋 태그 + `latest` 게시
 - `unibloom-platform-cd` #3 · #4 (`IMAGE_TAG=latest`, 수동 실행): 백엔드 · 프론트 헬스체크 200, `push_enabled` 유지, DB · 대상 데이터 유지
 - `image:` 교체 `sed`는 처음 형식(`unibloom-server:<태그>`) → Jenkins 형식(`docker.io/…:<태그>`) → 다시 수동, 순서로 번갈아 바꿔도 두 줄만 바뀌는 것을 확인했어요
-- 아직: CI → CD 커밋 태그 자동 배포, main push로 자동 실행
+- `unibloom-platform-ci` #3 (`APP_BRANCH=infra/platform-version`, `dc47412`) → `unibloom-platform-cd` #5가 **CI에서 자동 시작**(`IMAGE_TAG=dc47412`): compose `image:` 두 줄이 `dc47412`, 헬스체크 200 · 200, `push_enabled`, `https://www.unibloom.cloud/version.json` = `dc47412…`
+- 아직: main 머지 뒤 2분 확인으로 자동 실행
