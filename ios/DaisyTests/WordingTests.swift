@@ -31,6 +31,11 @@ struct WordingTests {
 
         let waiting = try target(#"{ "target_id": "tgt_aws", "state": "waiting", "step": "generate", "step_state": "waiting", "attempt": 1 }"#)
         #expect(waiting.generateRow.note == "대기 중")
+
+        // Jenkins 결과를 받기 전이라 step이 null: "알 수 없는 단계" 대신 웹처럼 "검증" (10/3)
+        let noStep = try target(#"{ "target_id": "tgt_aws", "state": "validating", "step": null, "step_state": null, "attempt": 0, "reused_script": true }"#)
+        #expect(noStep.generateRow.note == "재사용 · 이미지 태그만 교체 · 검증 실행 중 · 시도 0/3")
+        #expect(noStep.generateRow.badge.text == "검증 중")
     }
 
     /// 서버가 `steps`를 안 주면 웹처럼 단계를 추정해요 (W-05 4단계, W-07 4단계)

@@ -42,6 +42,28 @@
         }
       }
     },
+    "%@ · 검증 실행 중 · %@" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%1$@ · validating · %2$@"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%1$@ · 検証実行中 · %2$@"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%1$@ · 검증 실행 중 · %2$@"
+          }
+        }
+      }
+    },
     "%@ · %@ 통과" : {
       "localizations" : {
         "en" : {

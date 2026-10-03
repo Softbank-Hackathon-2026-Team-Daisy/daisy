@@ -163,6 +163,10 @@ extension Deployment.Target {
             if errorSummary != nil {
                 return (.app("\(how) · 위험 설정 발견 → AI 수정 중 · \(attemptText)"), StatusBadge(text: .app("검증 중"), color: .blue))
             }
+            // 서버가 아직 단계를 안 보냈으면(step null, Jenkins 결과 수신 전) 웹처럼 "검증"이에요 (10/3)
+            if step == .unknown {
+                return (.app("\(how) · 검증 실행 중 · \(attemptText)"), StatusBadge(text: .app("검증 중"), color: .blue))
+            }
             return (.app("\(how) · \(step.displayName) 실행 중 · \(attemptText)"), StatusBadge(text: .app("검증 중"), color: .blue))
         }
     }
