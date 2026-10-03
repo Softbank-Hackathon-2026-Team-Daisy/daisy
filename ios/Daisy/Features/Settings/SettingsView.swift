@@ -11,9 +11,12 @@ struct SettingsView: View {
     @State private var manifest: Manifest?
     @State private var disconnecting = false
     @State private var toast: ToastMessage?
-    @AppStorage("notify.approval") private var notifyApproval = true
-    @AppStorage("notify.finished") private var notifyFinished = true
-    @AppStorage("notify.failed") private var notifyFailed = true
+    // 앱이 켜져 있을 때 뜨는 푸시 배너만 걸러요 (PushPayload.presentsInForeground). 앱이 꺼져 있을 때 오는 푸시는 운영체제가 보여줘서 앱이 거를 수 없어요
+    @AppStorage(PushPayload.SettingKey.approval) private var notifyApproval = true
+    @AppStorage(PushPayload.SettingKey.finished) private var notifyFinished = true
+    @AppStorage(PushPayload.SettingKey.failed) private var notifyFailed = true
+    @Environment(\.openURL) private var openURL
+    @Environment(\.scenePhase) private var scenePhase
 
     var body: some View {
         PageScaffold(.app("설정"), subtitle: .app("이 프로젝트의 저장소 연결, 배포 명세, 비밀값, 알림을 관리해요.")) {
@@ -31,6 +34,11 @@ struct SettingsView: View {
             }
         }
         .task(id: app.selectedProjectID) { await load() }
+        // 기기 설정에서 알림을 켜고 돌아오면 바로 "허용됨"으로 바뀌어요
+        .task { await app.push.refreshAuthorization() }
+        .onChange(of: scenePhase) { _, phase in
+            if phase == .active { Task { await app.push.refreshAuthorization() } }
+        }
         .toast($toast)
         .sheet(isPresented: $disconnecting) {
             DisconnectDialog(name: workspace.project?.name ?? "") { try await disconnect() }
@@ -91,6 +99,14 @@ struct SettingsView: View {
                 }
             }
             SectionCard(.app("알림")) {
+                // 기기(운영체제) 알림 권한. 꺼져 있으면 푸시가 와도 보이지 않아요 (원격 알림은 지금 iPhone만)
+                if app.push.supportsRemote {
+                    InfoRow(.app("기기 알림"), pushAuthorizationText)
+                    if app.push.authorization == .denied, let url = PushRegistry.systemSettingsURL {
+                        Button("알림 설정 열기", systemImage: "bell.badge") { openURL(url) }
+                            .buttonStyle(.glassCapsule)
+                    }
+                }
                 Toggle("승인이 필요할 때 · Swift 앱 푸시", isOn: $notifyApproval)
                 Toggle("배포가 끝났을 때", isOn: $notifyFinished)
                 Toggle("배포가 실패했을 때", isOn: $notifyFailed)
@@ -103,6 +119,16 @@ struct SettingsView: View {
             Button("연결 해제", role: .destructive) { disconnecting = true }
                 .buttonStyle(.glassCapsule)
                 .disabled(app.isViewer)
+        }
+    }
+
+    /// 허용됨 · 꺼짐 (기기 설정에서 켜도록 안내) · 아직 묻지 않음
+    private var pushAuthorizationText: String? {
+        switch app.push.authorization {
+        case .allowed: .app("허용됨")
+        case .denied: .app("꺼짐 · 설정에서 알림을 켜 주세요")
+        case .notDetermined: .app("아직 묻지 않았어요")
+        case .unknown: nil
         }
     }
 

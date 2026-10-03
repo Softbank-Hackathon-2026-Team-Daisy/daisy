@@ -23,7 +23,7 @@ A native SwiftUI app for Unibloom (the service was called Daisy until 10/1; code
 | SSE channels and events | `SPEC.md` §6-3 | Names decided. Server ships SSE on D3; poll every 5 s until then |
 | Auth, demo viewer account, dev server | `SPEC.md` §6-1 | Decided: Bearer only (no cookies). Ships D2 |
 | HTTPS public address | `SPEC.md` R-04 | Decided 9/29: purchased domain + HTTPS, set up by server by 9/30 afternoon |
-| Push device registration and APNs sending | `SPEC.md` §6-5 | Paths decided; unregister is `DELETE /devices` with the token in the body. Server does APNs only if time allows; use local notifications until then |
+| Push device registration and APNs sending | `SPEC.md` §6-5 | Paths decided; unregister is `DELETE /devices` with the token in the body. Payload (`kind`, `project_id`, `deployment_id`, `push.*` loc-keys) agreed 10/3; the app side is built, server sending is in progress |
 | CI event payload fields | `SPEC.md` §7 | `(가칭)`: server (하은현) forwards it to CI (김도영) as an issue |
 
 These belong to server, so they are tier 3 in root §6: the server owner decides names and shapes. `SPEC.md` §6-0 is the current status table.
@@ -62,7 +62,7 @@ ios/
 ├─ Daisy/
 │  ├─ App/            entry point, root layout (sidebar at width ≥ 700, slim icon tab bar below), Sidebar, menu and routes (Workspace)
 │  ├─ Features/       one folder per menu: Login, Overview, Deployments (run flow W-03 – W-08), Connect (W-02), Approvals (W-06), History, Environments, Scripts, AIUsage, Settings
-│  ├─ Core/           API, Models, Auth, Localization   (Realtime/SSE and Push are not built yet: 5 s polling until D3)
+│  ├─ Core/           API, Models, Auth, Localization, Push (APNs registration, payload → route)   (Realtime/SSE is not built yet: 5 s polling)
 │  ├─ DesignSystem/   materials, glass buttons and segmented control, PageHeader/PageScaffold, FlowPage helpers, cards, badges, time text
 │  ├─ Resources/      assets, Localizable.xcstrings (Korean source + en, ja)
 │  └─ SampleMode/     offline sample mode for UI checks, self-contained (§4)  ← SAMPLE-MODE
@@ -114,7 +114,7 @@ open ios/Daisy.xcodeproj
 xcodebuild -project ios/Daisy.xcodeproj -scheme Daisy -destination 'generic/platform=macOS' build CODE_SIGNING_ALLOWED=NO
 xcodebuild -project ios/Daisy.xcodeproj -scheme Daisy -destination 'generic/platform=iOS' build CODE_SIGNING_ALLOWED=NO
 
-# Tests run on macOS with ad-hoc signing
+# Tests run on macOS with ad-hoc signing (the push entitlement is iOS-only, so macOS runs need no profile)
 xcodebuild test -project ios/Daisy.xcodeproj -scheme Daisy -destination 'platform=macOS' CODE_SIGN_IDENTITY=- CODE_SIGN_STYLE=Manual DEVELOPMENT_TEAM=""
 
 # TestFlight upload (only when the owner asks): tests → archive → upload, build number = yyMMddHHmm
@@ -196,3 +196,5 @@ Tier per root §6. Tier 1 entries are final for this area.
 | 10/3 | Plan resource counts are words, not symbols: "리소스 생성 6 · 변경 0 · 삭제 0" (en "6 to create · 0 to change · 0 to delete", ja "作成 · 変更 · 削除"); the approval bar reads "4개 환경 · 생성 18 · 변경 0 · 삭제 0". The web keeps `+ ~ −` | Owner: the symbols did not read as create/change/delete (replaces the 9/30 "+/~/- notation" parity for this text) | 1 |
 | 10/3 | Settings starts with an account card (avatar, name, "팀 계정 · 승인 가능" / "읽기 전용", sign-out) on every platform; the app card keeps language · server · version. The Mac sidebar account-row sign-out stays | Owner request | 1 |
 | 10/3 | macOS follows the system Liquid Glass transparency (System Settings › Appearance): there is no public API, so `SystemGlassLevel` reads the global default `NSGlassTintAmount` (measured 10/3: min 0 · middle ~0.49 · max 1; missing → 0), re-reading every second and on activation. The sidebar (`.hudWindow`) and content (`.underWindowBackground`) get a backing proportional to it: sidebar `windowBackgroundColor` up to 0.55, content `controlBackgroundColor` up to 1.0 so the max setting equals the standard opaque (Reduce Transparency) background; at 0 nothing changes. Reduce Transparency still wins. iOS unchanged | Owner: with high transparency the sidebar and background looked too light | 1 |
+| 10/3 | APNs push, app side (`SPEC.md` §6-5 P-01 · P-02): after a real sign-in (never in sample mode) the app asks for alert · sound · badge permission on every launch and sign-in, registers with APNs, and sends `POST /devices { apns_token (lowercase hex), platform (ios or macos), apns_env }` (`sandbox` for Debug, `production` for Release: TestFlight and the Developer ID DMG). Sign-out sends `DELETE /devices { apns_token }` before the token is cleared (best effort). Failures (404 until the server ships) are silent and retried on the next launch or sign-in. Tapping a notification selects `project_id` and opens W-06 (`approval_required`) or the run screen (other kinds) through `PushRegistry.pendingOpen`, which `RootView` observes, so cold launch works. The three Settings › 알림 toggles filter foreground banners only (background delivery cannot be filtered client-side); Settings shows the system permission with a button to system settings when denied. Alert text uses the eight `push.*` loc-keys in `Localizable.xcstrings` (manual, ko/en/ja). Entitlements `ios/Daisy-iOS.entitlements` (`aps-environment`) and `ios/Daisy-macOS.entitlements` (`com.apple.developer.aps-environment`) via `CODE_SIGN_ENTITLEMENTS[sdk=…]`. Platform glue lives in `App/PushAppDelegate.swift`, logic in `Core/Push/` | Owner request 10/3 (including the push entitlement); payload and loc-keys agreed with the server, which is building the sender in parallel. Replaces the 9/29 "local notifications until APNs" plan | 1 (own code) · 3 (server paths and payload) |
+| 10/3 | Remote push is iPhone-only for now: the macOS `com.apple.developer.aps-environment` entitlement was dropped (a Mac development profile needs a registered Mac, none on the team; it would break the macOS TestFlight and DMG pipelines). The Mac app neither asks for permission nor registers (`PushSystem.supportsRemote`) | Owner decision 10/3 (option A) | 1 |

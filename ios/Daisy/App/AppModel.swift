@@ -15,15 +15,19 @@ final class AppModel {
     /// 토큰이 만료돼 로그아웃된 경우. 로그인 화면에 오류 대신 안내를 보여줘요 (웹 W-00 NOTE).
     private(set) var sessionExpired = false
 
+    /// APNs 기기 등록 (SPEC §6-5 P-01). 로그아웃할 때 토큰을 지우기 전에 서버에서 이 기기를 빼요
+    let push: PushRegistry
+
     private let tokenStore: TokenStore
     private let defaults: UserDefaults
 
     /// Unibloom 서버 주소. 우리가 운영하는 서비스라 쓰는 사람이 주소를 넣지 않아요 — 앱은 늘 이 주소로 가요 (10/2 박승준 결정)
     static let defaultServerURL = "https://api.unibloom.cloud"
 
-    init(tokenStore: TokenStore = TokenStore(), defaults: UserDefaults = .standard) {
+    init(tokenStore: TokenStore = TokenStore(), defaults: UserDefaults = .standard, push: PushRegistry = .shared) {
         self.tokenStore = tokenStore
         self.defaults = defaults
+        self.push = push
         selectedProjectID = defaults.string(forKey: Keys.projectID)
         role = defaults.string(forKey: Keys.role)
         username = defaults.string(forKey: Keys.username)
@@ -76,6 +80,7 @@ final class AppModel {
     }
 
     func signOut() {
+        push.willSignOut(self)  // 토큰을 지우기 전에 DELETE /devices (P-01)
         tokenStore.delete()
         token = nil
         role = nil

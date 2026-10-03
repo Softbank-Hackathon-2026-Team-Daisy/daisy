@@ -136,8 +136,9 @@ ios/
 │  │  ├─ API/               APIClient, 엔드포인트(Endpoint · WebEndpoints), APIError, 멱등 키
 │  │  ├─ Models/            서버 응답 Codable 모델 (§6-7 · §6-8과 1:1)
 │  │  ├─ Auth/              토큰 저장 (Keychain)
-│  │  └─ Localization/      화면 언어 설정(LanguageStore) · `String.app("…")` (§3-3)
-│  │                        (Realtime/ SSE · Push/ APNs는 아직 없어요. 지금은 5초 폴링, D3에 추가)
+│  │  ├─ Localization/      화면 언어 설정(LanguageStore) · `String.app("…")` (§3-3)
+│  │  └─ Push/              APNs 기기 등록(PushRegistry) · 서버 payload → 화면(PushPayload) (§6-5)
+│  │                        (Realtime/ SSE는 아직 없어요. 지금은 5초 폴링)
 │  ├─ DesignSystem/         재질, 글래스 버튼 · 세그먼트, 머리줄(PageScaffold · FlowPage), 카드, 상태 배지, 환경 아이콘, 시간 표기
 │  ├─ Resources/            에셋, Localizable.xcstrings (한국어 원문 + en · ja)
 │  └─ SampleMode/           예시 데이터 모드 (UI · UX 확인용, 이 폴더만으로 완결)  ← SAMPLE-MODE
@@ -240,7 +241,7 @@ View ──▶ Store(@Observable) ──▶ APIClient ────────�
 | A-08 | 대신 A-03의 `awaiting_approval` 필터를 써요 | — |
 | E-01 · E-02 SSE | ✅ 채널 · 이벤트 이름 확정. **D2는 A-04 · A-02 5초 폴링**, D3에 SSE로 바꿔요 | D3 |
 | W-01 승인 | ✅ 확정 | D3 |
-| P-01 · P-02 푸시 | ✅ 경로 확정, 해제는 `DELETE /devices` + 본문. 배포 흐름이 다 돈 뒤 여유 있으면 해요. 그전까지 앱은 로컬 알림 | 여유 시 |
+| P-01 · P-02 푸시 | ✅ 경로 확정, 해제는 `DELETE /devices` + 본문. **10/3 앱 쪽 구현 끝** (등록 · 해제 · 알림 누르면 화면 열기, §6-5). 서버 발송은 작업 중 | 10/3 |
 | §7 CI 요구사항 | 은현 님이 웹훅 수신 쪽 요구로 정리해서 도영 님께 이슈로 전달 | — |
 | SSE 녹화 | 첫 실제 배포가 성공하면 은현 님이 텍스트로 전달 | D3 |
 
@@ -309,12 +310,36 @@ v0.1의 SSE 채널·봉투·재연결 규칙을 **그대로** 써요. 앱에 필
 
 | ID | 요구사항 | 비고 |
 |---|---|---|
-| P-01 🆕 | 기기 토큰 등록 `POST /devices` `{ apns_token, platform: "ios" \| "macos", apns_env: "production" \| "sandbox" }` · 해제 **`DELETE /devices` + 본문 `{ apns_token }`** | 로그인한 사용자와 묶어서 저장. 토큰을 URL 경로에 넣으면 서버 · 프록시 로그에 남아서 본문으로 보내요 (9/29 합의) |
-| P-02 🆕 | 백엔드가 APNs로 발송: **승인 필요** · **배포 완료** · **배포 실패**(최초 생성 포함 총 3회 시도 후 실패 포함) | payload: `aps.alert` + `{ kind, project_id, deployment_id }`. 앱은 이 값으로 화면을 열어요 |
+| P-01 | 기기 토큰 등록 `POST /devices` `{ apns_token, platform: "ios" \| "macos", apns_env: "production" \| "sandbox" }` → 204 · 해제 **`DELETE /devices` + 본문 `{ apns_token }`** → 204. Bearer 인증 | 로그인한 사용자와 묶어서 저장. 토큰을 URL 경로에 넣으면 서버 · 프록시 로그에 남아서 본문으로 보내요 (9/29 합의). ✅ **앱 구현 (10/3)** |
+| P-02 | 백엔드가 APNs로 발송: **승인 필요** · **배포 완료** · **일부 성공** · **배포 실패**(최초 생성 포함 총 3회 시도 후 실패 포함) | payload는 아래. 앱은 `kind` · `project_id` · `deployment_id`로 화면을 열어요. ✅ **앱 구현 (10/3)**, 서버 발송은 작업 중 |
 | P-03 | APNs 인증 키(`.p8`), Key ID, Team ID는 **박승준이 발급해서 비밀값으로 전달** | 커밋 금지. 전달 방식은 팀 비밀값 저장소 `[미정]` |
 
-- **TestFlight 빌드는 `production` APNs 서버**로 보내야 해요. Xcode에서 바로 설치한 개발 빌드만 `sandbox`예요. 그래서 등록할 때 `apns_env`를 같이 보내요
-- **D3까지는 로컬 알림**이에요: 앱이 켜져 있는 동안 받은 이벤트로 알림을 띄워요 (백엔드 작업 0). APNs는 배포 흐름이 다 돈 뒤 여유 있으면 해요 (9/29 합의)
+- **TestFlight 빌드는 `production` APNs 서버**로 보내야 해요. Xcode에서 바로 설치한 개발 빌드만 `sandbox`예요. 그래서 등록할 때 `apns_env`를 같이 보내요 (앱: Debug 빌드 `sandbox`, Release(TestFlight · Developer ID DMG) `production`)
+- ~~D3까지는 로컬 알림~~ → 10/3 APNs로 바로 가요 (로컬 알림은 만들지 않았어요)
+
+**payload (P-02, 10/3 서버와 맞춤)** — 알림 글자는 서버가 쓰지 않고 앱 번들의 `Localizable.strings`에서 기기 언어로 찾아요 (`loc-key`, `%@` = 프로젝트 이름)
+
+```json
+{ "aps": { "alert": { "title-loc-key": "push.approval.title", "loc-key": "push.approval.body", "loc-args": ["sample-monolith"] },
+           "sound": "default", "thread-id": "<project_id>" },
+  "kind": "approval_required", "project_id": "...", "deployment_id": "..." }
+```
+
+| `kind` | 제목 키 · 본문 키 | 한국어 (en · ja도 있어요) | 누르면 |
+|---|---|---|---|
+| `approval_required` | `push.approval.title` · `push.approval.body` | 승인이 필요해요 · %@ 배포가 plan 승인을 기다려요 | W-06 변경 사항 확인 (`Route.plan`) |
+| `deployment_succeeded` | `push.succeeded.title` · `push.succeeded.body` | 배포가 끝났어요 · %@ · 모든 환경에 배포했어요 | 그 배포의 지금 단계 (`Route.run`) |
+| `deployment_partially_succeeded` | `push.partial.title` · `push.partial.body` | 일부 환경만 배포됐어요 · %@ · 결과를 확인해 주세요 | 〃 |
+| `deployment_failed` | `push.failed.title` · `push.failed.body` | 배포가 실패했어요 · %@ · 원인을 확인해 주세요 | 〃 |
+
+**앱 동작 (10/3)**
+- 실제 로그인 뒤(앱을 켤 때 · 로그인할 때마다) 알림 권한(알림 · 소리 · 배지)을 묻고, 허용이면 APNs에 등록해 받은 토큰(소문자 hex)을 `POST /devices`로 보내요. **예시 데이터 모드는 묻지도 등록하지도 않아요**
+- 로그아웃은 **토큰을 지우기 전에** `DELETE /devices`를 먼저 보내요 (실패해도 그대로 로그아웃)
+- 서버에 아직 경로가 없으면(개발 서버 404) 오류를 보여주지 않고 넘어가요. 다음 실행 · 로그인 때 다시 등록해요
+- 알림을 누르면 `project_id` 프로젝트를 고르고 위 표의 화면을 열어요 (꺼진 앱이 알림으로 켜져도 같아요). 빠진 값은 무시해요 — `deployment_id`가 없으면 화면은 열지 않아요, 모르는 `kind`는 배포 화면으로
+- 설정 › 알림 스위치 3개(승인 · 끝남(성공 · 일부 성공) · 실패)는 **앱이 앞에 있을 때 뜨는 배너만** 걸러요. 앱이 꺼져 있거나 뒤에 있을 때 오는 푸시는 운영체제가 바로 보여줘서 앱이 거를 수 없어요 (서버가 사용자별로 거르려면 따로 요청이 필요해요)
+- 설정 › 알림에 기기 알림 권한 한 줄: 허용됨 · 꺼짐(설정에서 알림을 켜 주세요 + "알림 설정 열기") · 아직 묻지 않았어요
+- 권한: iOS `aps-environment` (`ios/Daisy-iOS.entitlements`, 개발용 `development` → 배포 내보내기에서 `production`으로 바뀌어요). **원격 알림은 지금 iPhone만**이에요 (10/3 담당자): Mac 푸시 권한은 개발용 프로필에 등록된 Mac이 있어야 해서, 이 Mac을 개발자 계정에 등록한 뒤에 켜요. Mac 앱은 권한을 묻지 않고 등록하지 않아요
 - 언어별 APNs 라이브러리 예: Node `apns2`, Spring `pushy`, Python `aioapns` — 백엔드 언어가 정해지면 골라 주세요
 
 ### 6-6. 백엔드가 가진 정보 중 앱이 꼭 받아야 하는 것
@@ -544,6 +569,7 @@ API 모양보다 **이 정보가 어딘가에 저장되어 있는지**가 더 �
 
 | 날짜 | 변경 | 작성 |
 |---|---|---|
+| 10/3 | **APNs 푸시 (P-01 · P-02 앱 쪽)**: 실제 로그인 뒤 권한 요청 · APNs 등록 · `POST /devices { apns_token, platform, apns_env }`, 로그아웃 때 토큰을 지우기 전에 `DELETE /devices`, 서버에 없으면(404) 조용히 다음에 다시. payload `kind` · `project_id` · `deployment_id`로 승인(W-06) · 배포 화면 열기, 알림 글자는 `push.*` loc-key 8개(ko · en · ja). 설정 › 알림 스위치는 앱이 앞에 있을 때만 거르고, 기기 알림 권한 줄 추가. 예시 데이터 모드는 등록하지 않아요. push 권한(entitlements) 추가 | 박승준 |
 | 10/3 | **머리줄 정리 (앱만)**: 모든 화면 머리줄을 "제목 + 오른쪽 위 컨트롤" 한 줄로, 설명은 제목을 누르면 아래 말풍선. 배포 흐름 제목은 "배포", iPhone "+"와 같은 줄, 아래 단계 표시. 개요 프로젝트 · AI 사용량 배포 고르기는 펼침 원 버튼(2초 뒤 · 목록이 닫히면 · Mac 포인터가 벗어나면 접힘). "배포 이력" → "이력". AI 사용량 기본은 전체 사용량(배포마다 A-05 `ai_usage` 합산, 서버 합계 API 없음). 사이드바 화면은 계정 줄에서 로그아웃, 새로고침 상태는 그 줄 오른쪽 심볼 | 박승준 |
 | 10/2 | **예시 데이터 모드 다시 만듦** (UI · UX 확인용): 로그인 화면에서만 들어가고(팀 계정 · 읽기 전용 계정), 서버 계약(10/2 OpenAPI)과 같은 모양으로 손으로 쓴 모든 경우(배포 상태 7 · 환경 상태 9 · 단계 · 승인 상태 5 · null · 빈 목록 · 오류 응답)를 담아요. 서버에 없는 요청은 실서버처럼 404, viewer 쓰기는 403. 네트워크는 쓰지 않아요. 전부 `SampleMode/` + `// SAMPLE-MODE` 줄이라 지우기 쉬워요. 생성 스크립트 · `sample.json` 삭제. 프로젝트 상세가 `default_branch`를 읽도록 고침 | 박승준 | <!-- SAMPLE-MODE -->
 | 10/2 | 서버 응답 언어는 #74 안 A로 결정(하은현 제안): 서버는 한국어 그대로, 앱이 `error.code`(서버 `ErrorCode` 9개)를 고른 언어로 번역하고 모르는 코드만 서버 문장을 보여줘요. plan 위험 설명 · 대상 오류 요약은 Jenkins · AI 결과라 받은 그대로예요 | 박승준 |
