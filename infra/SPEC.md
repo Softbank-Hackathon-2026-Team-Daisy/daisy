@@ -802,6 +802,7 @@ GCP 규칙은 GCP 모듈과 함께 추가해요 (지금은 구조 검사만).
 | 2026-10-02 | 공개 도메인: AWS 모듈 `domain` · `subdomain`(HTTPS · Route 53, §5-2), 온프레미스 `public_url`(§12-9). `state_identity` 불일치는 경고만 |
 | 2026-10-02 | 서버 요청 연동(§12-9): 두 Job이 `request_id` · `payload`를 받고 대상별 결과를 서버 콜백으로 보내요. `state_identity` 규칙, apply 대조 · `plan_stale`, apply와 헬스체크를 환경마다 이어서 실행 |
 | 2026-10-03 | Azure 기준 모듈(§6-5, Container Apps · koreacentral · Blob state · `azure.unibloom.cloud`). GCP · Azure는 state 저장소 설정이 없으면 멈춰요 |
+| 2026-10-03 | 개발 서버 CI/CD(§18-6): `platform-ci` · `platform-cd` Jenkinsfile, 커밋 태그 이미지, 수동 배포와 같은 compose 파일 교체 · 실패 시 되돌리기 |
 
 ---
 
@@ -1027,7 +1028,7 @@ Unibloom 플랫폼의 Frontend·Backend 버전 변경을 Jenkins로 자동 배�
 - 기존 Dockerfile 작업: `infra/feat-server-cd`의 `infra/images/server/Dockerfile`, `infra/images/web/Dockerfile`. 구현 시 병합 상태와 실제 사용할 버전을 확인하고 재사용해요.
 - 현재 수동 빌드·배포 구성을 기반으로 자동화를 추가해요.
 
-### 18-3. 자동화 흐름 (구현 예정)
+### 18-3. 자동화 흐름 (10/3 구현 → §18-6)
 
 main 변경 감지 → 해당 커밋 체크아웃 → 테스트 → 이미지 빌드
 → Service VM으로 이미지 전달 → Compose 배포 → 헬스체크
@@ -1050,9 +1051,34 @@ main 변경 감지 → 해당 커밋 체크아웃 → 테스트 → 이미지 �
 
 ### 18-5. 완료 기준
 
-- [ ] 지정한 커밋의 Frontend·Backend 이미지가 배포돼요.
-- [ ] 테스트·빌드 실패 시 기존 실행 서비스를 갱신하지 않아요.
-- [ ] 배포 후 프론트 접속과 백엔드 헬스체크를 확인해요.
-- [ ] DB 볼륨·데이터와 기존 연결 설정이 유지돼요.
-- [ ] 동시 배포를 방지하고 실패 단계가 Jenkins에 표시돼요.
-- [ ] 수동 실행 검증 후 main 변경 시 자동 실행을 확인해요.
+- [ ] 지정한 커밋의 Frontend·Backend 이미지가 배포돼요. (CI는 커밋 태그로 올려요. CI → CD 커밋 태그 자동 배포는 확인 중)
+- [ ] 테스트·빌드 실패 시 기존 실행 서비스를 갱신하지 않아요. (빌드 실패는 CD를 시작하지 않아요. 테스트는 아직 CI에 없어요 — 서버 · 웹 PR 체크에 맡겨요)
+- [x] 배포 후 프론트 접속과 백엔드 헬스체크를 확인해요. (실패하면 이전 compose 파일로 되돌려요)
+- [x] DB 볼륨·데이터와 기존 연결 설정이 유지돼요. (같은 프로젝트 `compose` · 같은 파일 · override)
+- [x] 동시 배포를 방지하고 실패 단계가 Jenkins에 표시돼요. (`disableConcurrentBuilds`, 단계 번호 로그)
+- [ ] 수동 실행 검증 후 main 변경 시 자동 실행을 확인해요. (수동 실행 확인, push 자동 실행은 확인 중)
+
+### 18-6. 10/3 구현 — 커밋 태그 이미지 + 같은 compose 파일 교체
+
+```
+main push ─▶ unibloom-platform2-ci ── 이미지 빌드 · 게시 (Docker Hub, :<커밋 7자리> + :latest)
+                    └─ IMAGE_TAG=<커밋 7자리> ─▶ unibloom-platform2-cd ── SSH ─▶ Service VM
+                         /home/user/compose/docker-compose.yml image: 줄 교체 → pull → backend · frontend 교체 → 헬스체크
+```
+
+| 항목 | 내용 |
+|---|---|
+| 파일 | `infra/jenkins/platform-ci.Jenkinsfile` · `infra/jenkins/platform-cd.Jenkinsfile` (Jenkins Job의 Pipeline script와 같은 내용) |
+| 이미지 | `docker.io/dlacowns21/unibloom-server` · `unibloom-web`, 태그는 커밋 해시 7자리 + `latest`. 배포는 커밋 태그로 해서 무엇이 떠 있는지 compose 파일에서 바로 보여요 |
+| 배포 방식 | 수동 배포와 **같은 파일**(`/home/user/compose/docker-compose.yml`)의 `image:` 두 줄만 바꿔요 (백업 `.bak-jenkins-<시각>`). 프로젝트 `compose`라 같은 DB 볼륨 · 컨테이너를 교체만 해요. `down`은 쓰지 않아요 |
+| 되돌리기 | compose 설정 · 이미지 확인 · pull이 실패하면 파일을 되돌리고 멈춰요. 헬스체크(백엔드 `/actuator/health`, 프론트 `:3000`)가 실패하면 백업 파일로 다시 띄워요 |
+| 추가 설정 | `-f` 없이 기본 파일을 읽어서 `docker-compose.override.yml`(APNs 푸시 키 경로 · 키 ID, `secrets/apns.p8`)과 `.env`가 그대로 적용돼요. 이 두 파일은 저장소에 없어요 |
+| SSH | Credentials `unibloom-prod-ssh`(`user`). Terraform 온프레미스 배포 키(`/var/lib/jenkins/.ssh/onprem_deploy`)와 **다른 키**예요. 두 키 모두 Service VM `user`의 `authorized_keys`에 있어야 해요. 키를 넣을 때는 덮어쓰지 말고 덧붙여요(`>>`) — 10/3 덮어써서 온프레미스 plan이 SSH 인증 실패로 멈췄어요 |
+| 수동 배포 | Service VM에서 main을 직접 빌드할 때도 같은 파일을 써요. `image:` 교체는 형식에 상관없이 이렇게 해요: `sed -i -e "/image:.*unibloom-server:/ s#image:.*#image: unibloom-server:$TAG#" -e "/image:.*unibloom-web:/ s#image:.*#image: unibloom-web:$TAG#" docker-compose.yml` |
+| 쓰지 않는 것 | 예전 `docker-compose2.yml` · `compose2/`(Docker Hub `latest` 고정, 컨테이너 이름이 같아 수동 배포와 서로 지웠어요), 예전 Job `unibloom-platform-cd2`(파라미터 블록이 빠져 실패) |
+
+검증 (10/3):
+- `unibloom-platform2-ci` #1 · #2: `931dcc2` · `45ded60` 커밋 태그 + `latest` 게시
+- `unibloom-platform2-cd` #3 · #4 (`IMAGE_TAG=latest`, 수동 실행): 백엔드 · 프론트 헬스체크 200, `push_enabled` 유지, DB · 대상 데이터 유지
+- `image:` 교체 `sed`는 처음 형식(`unibloom-server:<태그>`) → Jenkins 형식(`docker.io/…:<태그>`) → 다시 수동, 순서로 번갈아 바꿔도 두 줄만 바뀌는 것을 확인했어요
+- 아직: CI → CD 커밋 태그 자동 배포, main push로 자동 실행
