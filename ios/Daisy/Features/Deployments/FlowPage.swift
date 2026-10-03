@@ -10,6 +10,7 @@ struct FlowPage<Content: View, Bottom: View>: View {
     @ViewBuilder var bottom: Bottom
     @Environment(\.tabBarClearance) private var tabBarClearance
     @Environment(\.flowHeaderAccessory) private var flowHeaderAccessory
+    @Environment(\.flowRefreshIssue) private var flowRefreshIssue
 
     init(step: Int, title: String, description: String,
          @ViewBuilder content: () -> Content,
@@ -54,6 +55,7 @@ struct FlowPage<Content: View, Bottom: View>: View {
                 if let flowHeaderAccessory { flowHeaderAccessory }
             }
             FlowStepper(current: step)
+            if let flowRefreshIssue { StaleNotice(issue: flowRefreshIssue) }
         }
         .padding(.horizontal, 20)
         .padding(.top, 14)
@@ -64,6 +66,43 @@ struct FlowPage<Content: View, Bottom: View>: View {
 extension EnvironmentValues {
     /// 배포 흐름 머리줄 오른쪽 위에 둘 버튼 (iPhone 배포 탭의 "새 배포")
     @Entry var flowHeaderAccessory: AnyView? = nil
+    /// 처음 불러온 뒤 다시 받기에 실패했어요. 머리줄 아래에 작게 알리고, 화면은 마지막으로 받은 값을 보여줘요 (D15)
+    @Entry var flowRefreshIssue: FlowRefreshIssue? = nil
+}
+
+/// 다시 받기 실패 (D15): 서버 오류 문구 + 다시 시도
+struct FlowRefreshIssue: Equatable {
+    let message: String
+    let retry: @MainActor () async -> Void
+
+    /// 문구로만 비교해요 (다시 그릴 때마다 아래 화면을 무효화하지 않게)
+    static func == (lhs: Self, rhs: Self) -> Bool { lhs.message == rhs.message }
+}
+
+/// "최신 상태를 받지 못했어요 · 다시 시도" 한 줄. 마지막으로 받은 값이 오래됐을 수 있다는 표시예요 (D15)
+struct StaleNotice: View {
+    let issue: FlowRefreshIssue
+    @State private var retrying = false
+
+    var body: some View {
+        HStack(spacing: 6) {
+            Image(systemName: "exclamationmark.arrow.triangle.2.circlepath").foregroundStyle(.orange)
+            Text("최신 상태를 받지 못했어요").foregroundStyle(.secondary)
+            Button(retrying ? "다시 받는 중…" : "다시 시도") {
+                Task {
+                    retrying = true
+                    await issue.retry()
+                    retrying = false
+                }
+            }
+            .buttonStyle(.plain)
+            .foregroundStyle(.tint)
+            .disabled(retrying)
+        }
+        .font(.caption)
+        .help(issue.message)
+        .accessibilityElement(children: .combine)
+    }
 }
 
 /// 흐름 화면 아래쪽 버튼 줄 (웹: 왼쪽 정렬 버튼 줄)
