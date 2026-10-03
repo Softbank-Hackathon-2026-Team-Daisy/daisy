@@ -30,7 +30,7 @@ public class OpenApiConfiguration {
               .title("Unibloom 서버 API")
               .version("v1")
               .description(
-                  "REST는 Bearer 인증을 사용해요. 회원가입 없이 준비된 데모 계정으로 로그인해요. "
+                  "REST는 Bearer 인증을 사용해요. 준비된 데모 계정이나 POST /auth/signup 으로 만든 계정으로 로그인해요. "
                       + "SSE는 Last-Event-ID로 재연결하며, Jenkins 내부 콜백은 별도 서비스 토큰이 필요해요. "
                       + "null은 미확인/미제공이에요. Swagger에 경로가 있다고 실제 외부 인프라 연결까지 완료된 것은 아니에요."));
       ModelConverters.getInstance(true)

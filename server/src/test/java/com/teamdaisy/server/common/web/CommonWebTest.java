@@ -89,7 +89,7 @@ class CommonWebTest {
   @Test
   void everyDomainCodeUsesItsContractStatusAndSafeEnvelope() throws Exception {
     var codes = ErrorCode.values();
-    int[] statuses = {400, 401, 403, 404, 409, 409, 422, 429, 500};
+    int[] statuses = {400, 401, 403, 404, 409, 409, 409, 422, 429, 500};
     assertEquals(statuses.length, codes.length);
     for (int i = 0; i < codes.length; i++) {
       mvc.perform(get("/failure/" + codes[i].name()).header(RequestIdFilter.HEADER, "req.1_-"))

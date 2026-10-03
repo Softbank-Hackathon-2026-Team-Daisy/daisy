@@ -24,7 +24,7 @@
 
 ## 전체 API 연결 점검 (2026-10-02)
 
-후속 통합 보완(승환 지시): 인증·조회 담당의 기존 작성 기록은 유지하고, 이제 승환이 서버 전체 Swagger와 조회 연결까지 관리해요. 회원가입은 추가하지 않아요. 컨트롤러/DTO의 OpenAPI 응답 코드·nullable·필수 입력·멱등 키·SSE·오류를 실제 동작에 맞추며, Swagger 때문에 런타임 입력 규칙을 바꾸지 않아요. A-02 현재 결과와 저장된 단계 기반 헬스/단계 조회도 연결했어요. 미수신 HTTP 코드/응답 시간·원문 파일은 꾸미지 않아요.
+후속 통합 보완(승환 지시): 인증·조회 담당의 기존 작성 기록은 유지하고, 이제 승환이 서버 전체 Swagger와 조회 연결까지 관리해요. 회원가입은 10/3 팀 합의로 `POST /auth/signup` 만 추가했어요(아래 「인증·인가」). 컨트롤러/DTO의 OpenAPI 응답 코드·nullable·필수 입력·멱등 키·SSE·오류를 실제 동작에 맞추며, Swagger 때문에 런타임 입력 규칙을 바꾸지 않아요. A-02 현재 결과와 저장된 단계 기반 헬스/단계 조회도 연결했어요. 미수신 HTTP 코드/응답 시간·원문 파일은 꾸미지 않아요.
 
 검사 결과: 공개 22개·내부 2개 HTTP 경로 연결, PostgreSQL 포함 테스트 241개 통과(실패·오류·건너뜀 0). Swagger UI는 Safari에서 렌더링을 확인했어요. A-02 현재 URL/digest·헬스, A-04 헬스/단계 조회와 OpenAPI 상태 코드·nullable·필수 입력을 로컬에서 보완하고 HTTP 재검사를 통과했어요. **전체 기능 완료가 아니며 #13·#35는 유지해요.** 원본 미제공·제외 범위·실제 인프라 검증은 별개예요. 항목별 근거·재실행 방법은 [API 점검 결과](docs/sh/2026-10-02-backend-api-audit.md)를 봐주세요.
 
@@ -181,7 +181,7 @@
 ## common 오류 처리와 요청 추적
 
 - 사용자 최종 승인에 따라 `common/error`의 `ErrorCode`·`DaisyException`, `common/web`의 오류 응답 DTO·전역 예외 처리기·요청 ID 필터를 구현합니다. 오류 코드만 정의하는 중간 범위에서 공통 기반 세 항목까지 확대했습니다.
-- 포함: `VALIDATION_FAILED`, `UNAUTHENTICATED`, `FORBIDDEN`, `NOT_FOUND`, `TARGET_LOCKED`, `STATE_CONFLICT`, `MANIFEST_INVALID`, `RATE_LIMITED`, `INTERNAL`.
+- 포함: `VALIDATION_FAILED`, `UNAUTHENTICATED`, `FORBIDDEN`, `NOT_FOUND`, `TARGET_LOCKED`, `STATE_CONFLICT`, `USERNAME_TAKEN`(10/3 회원가입), `MANIFEST_INVALID`, `RATE_LIMITED`, `INTERNAL`.
 - 코드 이름은 사용자가 제공한 프론트·백엔드 계약 문서 §2를 유지합니다. enum 선언 자체가 HTTP 응답 구현이나 OpenAPI 제공 완료를 뜻하지 않습니다.
 - 오류 응답은 `{ "error": { "code", "message", "details", "retryable" } }` 구조입니다. `details`가 없으면 빈 객체를 쓰고 성공 응답은 감싸지 않습니다. 인증·인가·Security 필터 구현은 은현 담당 그대로입니다.
 - `DaisyException(ErrorCode, Map<String, ?>)`로 업무 경계가 허용한 필드별 안내·배포 ID 등 안전한 details를 전달합니다. 원본 입력·예외·SQL·자격증명을 map에 넣지 않으며 공통 처리기는 details를 로그에 기록하지 않습니다. map의 최상위는 방어 복사하고 중첩 값은 호출자가 안전한 불변 값으로 구성합니다.
@@ -250,6 +250,7 @@
 - 복합 FK 로 프로젝트 소속을 DB 가 확인합니다. 다른 프로젝트의 `source_version`·`target`·lineage 배포를 섞을 수 없습니다.
 - 순환 FK 네 쌍은 테이블 생성 뒤 `ALTER` 로 연결합니다. 삭제 CASCADE 를 두지 않고 보관은 `archived_at`·`disabled_at` 으로 합니다.
 - `POST /auth/token` 으로 토큰을 발급하고 `GET /auth/me` 로 주체를 확인합니다. REST·SSE 모두 `Authorization: Bearer` 를 쓰고 쿠키는 받지 않습니다.
+- (10/3 팀 합의) `POST /auth/signup` 은 인증 없이 owner 계정을 만들고 `/auth/token` 과 같은 응답을 201 로 돌려줍니다. 아이디는 trim 뒤 소문자로 저장하고 `^[a-z0-9][a-z0-9._-]{2,31}$`, 비밀번호 8~200자, `display_name` 은 선택(64자 이하, 비면 아이디)입니다. 대소문자만 다른 아이디는 409 `USERNAME_TAKEN`(V5 `ux_account_username_lower`), 클라이언트 IP(X-Forwarded-For 첫 값, 없으면 접속 주소)별 10분 5회를 넘으면 429 `RATE_LIMITED`(메모리), `daisy.signup.enabled=false` 면 403 `FORBIDDEN` 입니다. 같은 트랜잭션에서 `daisy.signup.auto-join-projects`(기본 `prj_demo_monolith`) 중 있고 보관되지 않은 프로젝트에 멤버로 넣으며 `granted_by` 는 그 프로젝트를 만든 계정입니다.
 - 별도 토큰 테이블을 두지 않습니다. 역할·활성 여부는 토큰이 아니라 요청마다 DB 에서 다시 읽습니다. 로그아웃·개별 토큰 폐기 경로는 없습니다.
 - 아이디가 없는 경우와 비밀번호가 틀린 경우를 같은 401 로 응답합니다.
 - 필터 단계 오류를 `HandlerExceptionResolver` 로 넘겨 공통 오류 봉투로 응답합니다. 공통 기반 문서의 "인증 필터 오류는 MVC advice 밖" 항목을 이 방식으로 연결합니다.

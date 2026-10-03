@@ -37,6 +37,8 @@ public class BearerAuthFilter extends OncePerRequestFilter {
   private static final List<String> PUBLIC_PATHS =
       List.of(
           "/auth/token",
+          // 회원가입은 토큰이 없는 사람이 부르는 경로예요 (SignupService)
+          "/auth/signup",
           "/actuator/health",
           "/actuator/health/**",
           "/v3/api-docs",
