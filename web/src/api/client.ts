@@ -32,6 +32,21 @@ export function notifyUnauthorized(path: string) {
 // 403 FORBIDDEN은 어느 화면이든 같은 문구로 보여줘요
 export const forbiddenMessage = () => t('읽기 전용 계정이라 할 수 없어요.')
 
+// 서버 ErrorCode(server/.../common/error/ErrorCode.java)는 코드마다 고정된 한국어 문장이라, 코드로 화면 언어 문구를 골라요 (#74 안 A, 앱 APIError.serverCodeText와 같아요)
+// 모르는 코드만 서버 문장을 그대로 보여줘요
+const SERVER_CODE_TEXT: Record<string, () => string> = {
+  VALIDATION_FAILED: () => t('요청 입력을 확인해 주세요.'),
+  UNAUTHENTICATED: () => t('로그인이 필요해요.'),
+  FORBIDDEN: () => forbiddenMessage(),
+  NOT_FOUND: () => t('요청한 정보를 찾을 수 없어요.'),
+  TARGET_LOCKED: () => t('이 환경에서 다른 배포가 진행 중이에요.'),
+  STATE_CONFLICT: () => t('지금 상태에서는 할 수 없는 요청이에요.'),
+  USERNAME_TAKEN: () => t('이미 사용 중인 아이디예요.'),
+  MANIFEST_INVALID: () => t('배포 명세(deploy.yaml)를 확인해 주세요.'),
+  RATE_LIMITED: () => t('요청이 많아요. 잠시 후 다시 시도해 주세요.'),
+  INTERNAL: () => t('서버에서 오류가 났어요. 잠시 후 다시 시도해 주세요.'),
+}
+
 // 화면에 보여줄 에러 문구 — ApiError면 서버 문구(403은 공통 문구), 아니면 fallback
 export function errorMessage(e: unknown, fallback: string) {
   if (e instanceof ApiError) return e.status === 403 ? forbiddenMessage() : e.message
@@ -83,7 +98,9 @@ export async function request<T>(method: string, path: string, options: RequestO
   if (!res.ok) {
     const body = await res.json().catch(() => null)
     const err = body?.error
-    throw new ApiError(res.status, err?.code ?? 'UNKNOWN', err?.message ?? t('요청이 실패했어요 ({status})', { status: res.status }), !!err?.retryable)
+    const code: string = err?.code ?? 'UNKNOWN'
+    const message = SERVER_CODE_TEXT[code]?.() ?? err?.message ?? t('요청이 실패했어요 ({status})', { status: res.status })
+    throw new ApiError(res.status, code, message, !!err?.retryable)
   }
   if (res.status === 204) return undefined as T
   return (await res.json()) as T

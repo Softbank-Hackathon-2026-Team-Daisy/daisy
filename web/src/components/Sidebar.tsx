@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { useNavigate } from 'react-router'
-import { initials, ROLE_LABEL, useWorkspace } from '../api/useWorkspace.ts'
+import { useAuth } from '../api/auth.ts'
+import { avatarName, initials, ROLE_LABEL, useWorkspace } from '../api/useWorkspace.ts'
 import { t } from '../i18n/index.ts'
 import CloudLogo from './CloudLogo.tsx'
 import { paths } from '../paths.ts'
@@ -33,6 +34,7 @@ function Sidebar({ projectId, collapsed, canToggle, onToggle, onOpenMacApp, draw
   const switcherRef = useRef<HTMLDivElement>(null)
   // 프로젝트 · 환경 · 사용자는 A-01 · A-02 · R-03 (목업 모드면 목업이 답해요)
   const ws = useWorkspace(projectId)
+  const { signOut } = useAuth()
   const name = ws.project?.name ?? t('프로젝트')
 
   useEffect(() => {
@@ -164,13 +166,17 @@ function Sidebar({ projectId, collapsed, canToggle, onToggle, onOpenMacApp, draw
 
       <div className="sidebar__user">
         {/* 한글 이름은 Figma처럼 성을 뺀 첫 글자 */}
-        <Avatar type="human" name={userName(ws.user?.username)} size="m" />
+        <Avatar type="human" name={avatarName(ws.user?.username)} size="m" />
         {!collapsed && (
           <span className="sidebar__user-text">
             <span className="t-label">{ws.user?.username ?? '—'}</span>
             <span className="t-mono-sm t-muted">{ws.user ? t(ROLE_LABEL[ws.user.role]) : ''}</span>
           </span>
         )}
+        {/* 로그아웃 — 계정을 바꾸려면 탭을 닫지 않아도 돼요 (앱과 같아요) */}
+        <button type="button" className="sidebar__toggle" aria-label={t('로그아웃')} title={t('로그아웃')} onClick={signOut}>
+          <Icon name="log-out" />
+        </button>
         {canToggle && (
           <button
             type="button"
@@ -185,7 +191,5 @@ function Sidebar({ projectId, collapsed, canToggle, onToggle, onOpenMacApp, draw
     </nav>
   )
 }
-
-const userName = (name?: string) => (!name ? '?' : /^[가-힣]{3}$/.test(name) ? name.slice(1) : name)
 
 export default Sidebar

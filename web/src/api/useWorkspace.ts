@@ -26,6 +26,9 @@ export const initials = (name: string) =>
     .map((w) => w[0]!.toUpperCase())
     .join('') || name.slice(0, 2).toUpperCase()
 
+/** 아바타 글자 — 한글 세 글자 이름은 Figma처럼 성을 빼요 */
+export const avatarName = (name?: string) => (!name ? '?' : /^[가-힣]{3}$/.test(name) ? name.slice(1) : name)
+
 export const ROLE_LABEL: Record<Role, string> = { owner: '관리자', viewer: '읽기 전용' }
 
 // key가 바뀌면 다시 불러요 — 새 프로젝트를 연결(WR-02)하거나 해제(WR-13)한 뒤 사이드바 목록을 맞추려고
