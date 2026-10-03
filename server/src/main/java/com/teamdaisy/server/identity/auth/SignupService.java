@@ -7,6 +7,7 @@ import com.teamdaisy.server.identity.domain.AccountRepository;
 import com.teamdaisy.server.project.domain.ProjectMember;
 import com.teamdaisy.server.project.domain.ProjectMemberRepository;
 import com.teamdaisy.server.project.domain.ProjectRepository;
+import java.nio.charset.StandardCharsets;
 import java.time.Clock;
 import java.time.Instant;
 import java.util.Locale;
@@ -30,6 +31,13 @@ public class SignupService {
   private static final Logger LOG = LoggerFactory.getLogger(SignupService.class);
   private static final Pattern USERNAME = Pattern.compile("^[a-z0-9][a-z0-9._-]{2,31}$");
   private static final int DISPLAY_NAME_MAX = 64;
+
+  /**
+   * BCrypt 는 UTF-8 72바이트까지만 받아요. 넘으면 인코더가 IllegalArgumentException 을 던져서 500 이 돼요. 몰래 잘라 저장하지 않고
+   * 400 으로 돌려요. 영문은 72자, 한글은 24자까지예요.
+   */
+  public static final int PASSWORD_MAX_BYTES = 72;
+
   private static final String ROLE = "owner";
   private static final String INVALID_FIELD = "값을 확인해 주세요.";
 
@@ -85,7 +93,8 @@ public class SignupService {
     if (rawPassword == null
         || rawPassword.isBlank()
         || rawPassword.length() < 8
-        || rawPassword.length() > 200) {
+        || rawPassword.length() > 200
+        || exceedsBcryptLimit(rawPassword)) {
       throw invalid("password");
     }
     String name = displayName == null ? "" : displayName.trim();
@@ -123,6 +132,11 @@ public class SignupService {
     LOG.info("회원가입으로 계정을 만들었어요. accountId={} username={}", accountId, normalized);
     TokenService.IssuedToken token = tokens.issue(accountId, normalized, now);
     return new AuthService.LoginResult(token.value(), token.expiresAt(), ROLE);
+  }
+
+  /** BCrypt 가 받을 수 없는 길이(UTF-8 72바이트 초과)인지 봐요. 로그인도 같은 기준을 써요. */
+  public static boolean exceedsBcryptLimit(String rawPassword) {
+    return rawPassword.getBytes(StandardCharsets.UTF_8).length > PASSWORD_MAX_BYTES;
   }
 
   private static DaisyException invalid(String field) {

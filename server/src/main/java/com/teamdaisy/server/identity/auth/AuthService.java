@@ -40,7 +40,10 @@ public class AuthService {
         accounts
             .findByUsername(username)
             .orElseThrow(() -> new DaisyException(ErrorCode.UNAUTHENTICATED));
-    if (!account.isActive() || !passwordEncoder.matches(rawPassword, account.passwordHash())) {
+    // 72바이트가 넘는 비밀번호로는 만든 계정이 없어요. BCrypt 에 넘기면 예외(500)라 먼저 같은 401 로 돌려요.
+    if (!account.isActive()
+        || SignupService.exceedsBcryptLimit(rawPassword)
+        || !passwordEncoder.matches(rawPassword, account.passwordHash())) {
       throw new DaisyException(ErrorCode.UNAUTHENTICATED);
     }
     Instant now = clock.instant();

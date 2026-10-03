@@ -252,7 +252,7 @@ View ──▶ Store(@Observable) ──▶ APIClient ────────�
 |---|---|---|---|
 | R-01 🆕 | **Bearer 토큰 인증.** `Authorization: Bearer <token>` 헤더를 REST와 SSE 모두에서 받기 | M | 서버는 Bearer 하나로 통일 (쿠키 안 받음). 웹 `EventSource`가 헤더를 못 붙이는 문제는 서버 · 웹이 따로 풀어요 |
 | R-02 🆕 | 토큰 발급 `POST /auth/token` `{ username, password }` → `{ access_token, expires_at, role }` | M | 팀 내부 도구라 단순해도 돼요. ~~가입 기능은 필요 없어요~~ → 10/3 회원가입 추가 (R-02b) |
-| R-02b 🆕 | **회원가입** `POST /auth/signup` `{ username, password, display_name? }` (인증 헤더 없음) → 201, 본문은 R-02와 같아요 (10/3 팀 합의, 서버 V5) | S | 아이디는 공백을 빼고 소문자로 `^[a-z0-9][a-z0-9._-]{2,31}$`, 비밀번호 8~200자, 표시 이름은 선택 · 64자까지(비면 아이디). 오류: 400 `VALIDATION_FAILED` · 409 `USERNAME_TAKEN` · 429 `RATE_LIMITED`(IP당 10분에 5번) · 403(가입 꺼짐). 가입한 계정은 `owner`라 데모 프로젝트에 자동으로 들어가요. ✅ **앱 구현 (10/3)**: 성공하면 로그인과 똑같이 토큰을 저장해서 바로 로그인 상태(푸시 등록도 따라와요). 예시 데이터 모드에는 없어요 |
+| R-02b 🆕 | **회원가입** `POST /auth/signup` `{ username, password, display_name? }` (인증 헤더 없음) → 201, 본문은 R-02와 같아요 (10/3 팀 합의, 서버 V5) | S | 아이디는 공백을 빼고 소문자로 `^[a-z0-9][a-z0-9._-]{2,31}$`, 비밀번호 8자 이상 · UTF-8 72바이트까지(서버 BCrypt 제한, 영문 72자 · 한글 24자), 표시 이름은 선택 · 64자까지(비면 아이디). 오류: 400 `VALIDATION_FAILED` · 409 `USERNAME_TAKEN` · 429 `RATE_LIMITED`(IP당 10분에 5번) · 403(가입 꺼짐). 가입한 계정은 `owner`라 데모 프로젝트에 자동으로 들어가요. ✅ **앱 구현 (10/3)**: 성공하면 로그인과 똑같이 토큰을 저장해서 바로 로그인 상태(푸시 등록도 따라와요). 예시 데이터 모드에는 없어요 |
 | R-03 🆕 | **읽기 전용 데모 계정** (`role: "viewer"`). 조회 · SSE는 되고 승인은 403 | M | 심사위원 설치용 + TestFlight 심사용. 승인 API가 viewer를 막아야 해요 |
 | R-04 🆕 | **HTTPS 공개 주소** | M | 도메인 구매 + HTTPS로 결정 (9/29 회의). iOS는 기본적으로 HTTP 연결을 막아요(ATS). 발표장에서 심사위원 휴대폰(LTE)이 접속할 수 있어야 해요 |
 | R-05 | 공통 규칙은 v0.1과 같음: 시간 ISO 8601 UTC, 에러 `{ error: { code, message, details, retryable } }`, 목록 `{ items, next_cursor }`, ID 접두사, 승인 POST에 `Idempotency-Key` | M | |
