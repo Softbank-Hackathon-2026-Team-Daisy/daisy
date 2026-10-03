@@ -7700,6 +7700,38 @@
           }
         }
       }
+    },
+    "아직 스크립트가 없어요. 생성되면 바로 보여드려요." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "No script yet. It shows up here as soon as it's generated."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "まだスクリプトがありません。生成されるとすぐに表示されます。"
+          }
+        }
+      }
+    },
+    "스크립트를 불러오지 못했어요" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Couldn't load the script"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "スクリプトを読み込めませんでした"
+          }
+        }
+      }
     }
   },
   "version" : "1.0"
