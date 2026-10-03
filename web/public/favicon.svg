@@ -1,15 +1,27 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32">
-  <style>
-    .petal { fill: #0b1026; }
-    @media (prefers-color-scheme: dark) { .petal { fill: #ffffff; } }
-  </style>
-  <path class="petal" d="M18.5 1H13.5V9H18.5V1Z"/>
-  <path class="petal" d="M28.3744 7.16114L24.8389 3.62561L19.182 9.28246L22.7175 12.818L28.3744 7.16114Z"/>
-  <path class="petal" d="M31 18.5V13.5H23V18.5H31Z"/>
-  <path class="petal" d="M24.8387 28.3743L28.3743 24.8388L22.7174 19.182L19.1819 22.7175L24.8387 28.3743Z"/>
-  <path class="petal" d="M13.5 31H18.5V23H13.5V31Z"/>
-  <path class="petal" d="M3.6256 24.8389L7.16113 28.3744L12.818 22.7175L9.28245 19.182L3.6256 24.8389Z"/>
-  <path class="petal" d="M1 13.5L1 18.5H9V13.5L1 13.5Z"/>
-  <path class="petal" d="M7.16127 3.62566L3.62573 7.16119L9.28259 12.818L12.8181 9.28251L7.16127 3.62566Z"/>
-  <path d="M20.5 11.5H11.5V20.5H20.5V11.5Z" fill="#ffd23f"/>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 400 400">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#4e46e5"/>
+      <stop offset="1" stop-color="#0ea4e9"/>
+    </linearGradient>
+  </defs>
+  <rect width="400" height="400" rx="88" fill="url(#bg)"/>
+  <circle cx="200" cy="200" r="152.5" fill="none" stroke="#fff" stroke-opacity="0.4" stroke-width="2" stroke-linecap="round" stroke-dasharray="0 8"/>
+  <g fill="none" stroke="#fff" stroke-width="11">
+    <ellipse cx="200" cy="131" rx="23" ry="62"/>
+    <ellipse cx="200" cy="131" rx="23" ry="62" transform="rotate(36 200 200)"/>
+    <ellipse cx="200" cy="131" rx="23" ry="62" transform="rotate(72 200 200)"/>
+    <ellipse cx="200" cy="131" rx="23" ry="62" transform="rotate(108 200 200)"/>
+    <ellipse cx="200" cy="131" rx="23" ry="62" transform="rotate(144 200 200)"/>
+    <ellipse cx="200" cy="131" rx="23" ry="62" transform="rotate(180 200 200)"/>
+    <ellipse cx="200" cy="131" rx="23" ry="62" transform="rotate(216 200 200)"/>
+    <ellipse cx="200" cy="131" rx="23" ry="62" transform="rotate(252 200 200)"/>
+    <ellipse cx="200" cy="131" rx="23" ry="62" transform="rotate(288 200 200)"/>
+    <ellipse cx="200" cy="131" rx="23" ry="62" transform="rotate(324 200 200)"/>
+  </g>
+  <circle cx="200" cy="200" r="37" fill="#ffd23f"/>
+  <circle cx="276" cy="68" r="7" fill="#ffd23f"/>
+  <circle cx="83" cy="101" r="4.5" fill="#f9a8d4"/>
+  <circle cx="83" cy="297" r="5.5" fill="#a7f3d0"/>
+  <circle cx="332" cy="276" r="5.5" fill="#7dd3fc"/>
 </svg>

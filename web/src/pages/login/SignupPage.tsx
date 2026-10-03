@@ -101,7 +101,7 @@ function SignupPage() {
           <LanguageSelect />
         </div>
         <form className="login__form" onSubmit={(e) => void onSubmit(e)} noValidate>
-          <Logo type="lockup" color="ink" />
+          <Logo type="lockup" />
           <div className="login__heading">
             <h1 className="t-h1">{t('회원가입')}</h1>
             <p className="t-muted">{t('새 계정을 만들어요. 가입하면 바로 로그인돼요.')}</p>
