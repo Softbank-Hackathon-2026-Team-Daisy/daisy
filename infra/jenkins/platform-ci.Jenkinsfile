@@ -1,5 +1,6 @@
-// unibloom-platform2-ci: 플랫폼(웹 · 백엔드) 이미지를 커밋 태그로 빌드해 Docker Hub에 올리고, 배포 Job을 시작해요 (infra/SPEC.md §18)
-// - Jenkins Job unibloom-platform2-ci의 Pipeline script와 같은 내용이에요. 트리거는 Job 설정의 GitHub push 훅이에요
+// unibloom-platform-ci: 플랫폼(웹 · 백엔드) 이미지를 커밋 태그로 빌드해 Docker Hub에 올리고, 배포 Job을 시작해요 (infra/SPEC.md §18)
+// - Jenkins Job unibloom-platform-ci의 Pipeline script와 같은 내용이에요
+// - Jenkins가 사설망에 있어 GitHub 웹훅이 닿지 않아요. 2분마다 main을 확인(Poll SCM)해서 새 커밋이면 빌드해요
 // - 태그는 커밋 해시 앞 7자리 + latest 둘 다 올려요. 배포는 커밋 태그로 해요 (어떤 버전이 떠 있는지 알 수 있게)
 // - CD_JOB을 비우면 배포는 시작하지 않아요
 pipeline {
@@ -12,7 +13,11 @@ pipeline {
     string(name: 'WEB_IMAGE', defaultValue: 'docker.io/dlacowns21/unibloom-web', description: '프론트 이미지 (태그 없이)')
     string(name: 'VITE_API_BASE_URL', defaultValue: 'https://api.unibloom.cloud', description: '웹 빌드에 들어가는 API 주소')
     string(name: 'VITE_USE_MOCK', defaultValue: 'false', description: '웹 목업 모드')
-    string(name: 'CD_JOB', defaultValue: 'unibloom-platform2-cd', description: '빌드가 끝나면 시작할 배포 Job. 비우면 시작하지 않아요')
+    string(name: 'CD_JOB', defaultValue: 'unibloom-platform-cd', description: '빌드가 끝나면 시작할 배포 Job. 비우면 시작하지 않아요')
+  }
+
+  triggers {
+    pollSCM('H/2 * * * *')
   }
 
   options {

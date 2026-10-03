@@ -1,5 +1,5 @@
-// unibloom-platform2-cd: Docker Hub 이미지(커밋 태그)로 개발 서버(172.16.1.5)의 웹 · 백엔드를 교체해요 (infra/SPEC.md §18)
-// - Jenkins Job unibloom-platform2-cd의 Pipeline script와 같은 내용이에요. 보통 platform-ci가 IMAGE_TAG를 넣어 시작해요
+// unibloom-platform-cd: Docker Hub 이미지(커밋 태그)로 개발 서버(172.16.1.5)의 웹 · 백엔드를 교체해요 (infra/SPEC.md §18)
+// - Jenkins Job unibloom-platform-cd의 Pipeline script와 같은 내용이에요. 보통 platform-ci가 IMAGE_TAG를 넣어 시작해요
 // - SSH는 Credentials unibloom-prod-ssh(user)예요. Terraform 온프레미스 배포 키(onprem_deploy)와 다른 키라 서로 겹치지 않아요
 // - 수동 배포와 같은 파일(/home/user/compose/docker-compose.yml)의 image: 줄만 태그로 바꿔요 (수동 재빌드 명령과 같은 방식)
 // - -f를 쓰지 않아서 docker-compose.override.yml(APNs 푸시 설정)이 그대로 같이 적용돼요. .env도 같은 폴더 것을 써요
