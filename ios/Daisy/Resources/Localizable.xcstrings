@@ -7732,6 +7732,22 @@
           }
         }
       }
+    },
+    "배포가 시작되면 이 화면이 자동으로 넘어가요." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "This screen moves on by itself once the deployment starts."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "デプロイが始まると、この画面は自動で切り替わります。"
+          }
+        }
+      }
     }
   },
   "version" : "1.0"
