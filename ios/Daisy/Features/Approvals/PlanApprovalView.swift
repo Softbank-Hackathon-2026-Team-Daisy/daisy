@@ -30,9 +30,17 @@ struct PlanApprovalView: View {
                         // 웹 #64: 승인은 끝났고 Jenkins가 apply를 시작하기를 기다려요
                         InlineAlert(.success, .app("승인 완료 · 실행 대기"), .app("승인한 plan을 적용하려고 기다리고 있어요."))
                     }
-                    FlowButtons {
-                        Button("배포 진행 보기") { router.replaceTop(with: .run(deploymentID)) }
-                            .buttonStyle(.glassCapsule)
+                    if onDecision != nil {
+                        // 배포 화면 안이에요. 배포 화면이 상태를 계속 받아서 apply가 시작되면 저절로 "배포 중"으로 넘어가요.
+                        // 전에는 여기서 "배포 진행 보기"가 같은 화면을 한 번 더 열어서 눌러도 바뀌는 게 없었어요 (10/3)
+                        Label("배포가 시작되면 이 화면이 자동으로 넘어가요.", systemImage: "arrow.triangle.2.circlepath")
+                            .font(.subheadline).foregroundStyle(.secondary)
+                    } else {
+                        // 따로 연 승인 화면(알림 · 이력에서)일 때만 배포 화면으로 바꿔 끼워요
+                        FlowButtons {
+                            Button("배포 진행 보기") { router.replaceTop(with: .run(deploymentID)) }
+                                .buttonStyle(.glassCapsule)
+                        }
                     }
                 }
             } else {
