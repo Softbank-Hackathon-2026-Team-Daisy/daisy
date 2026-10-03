@@ -25,6 +25,51 @@ struct VisualEffect: NSViewRepresentable {
         view.material = material
     }
 }
+
+/// 시스템 설정 › 모양의 Liquid Glass 비침 정도 (0 최소 … 1 최대). 공개 API가 없어서 전역 설정 `NSGlassTintAmount`를 읽어요
+/// (10/3 실측: 최소 0 · 중간 약 0.49 · 최대 1). 값이 없거나 읽지 못하면 0 → 지금 모습 그대로예요.
+/// 다른 앱(시스템 설정)에서 바꾼 값은 1초마다, 그리고 앱으로 돌아올 때 다시 읽어요.
+@MainActor @Observable
+final class SystemGlassLevel {
+    static let shared = SystemGlassLevel()
+    private(set) var value: Double = SystemGlassLevel.read()
+    @ObservationIgnored private var timer: Timer?
+
+    private init() {
+        timer = Timer.scheduledTimer(withTimeInterval: 1, repeats: true) { _ in
+            Task { @MainActor in SystemGlassLevel.shared.refresh() }
+        }
+        NotificationCenter.default.addObserver(forName: NSApplication.didBecomeActiveNotification, object: nil, queue: .main) { _ in
+            Task { @MainActor in SystemGlassLevel.shared.refresh() }
+        }
+    }
+
+    func refresh() {
+        let latest = Self.read()
+        if abs(latest - value) > 0.001 { value = latest }
+    }
+
+    nonisolated static func read() -> Double {
+        min(1, max(0, UserDefaults.standard.double(forKey: "NSGlassTintAmount")))
+    }
+}
+
+/// 비침이 클수록 재질 뒤에 창 바탕색을 비례해서 받쳐 무게감을 줘요 (10/3 담당자: 비침을 키우면 사이드바 · 배경이 너무 가벼워 보여요).
+/// 비침 최소(0)면 받침도 0이라 지금과 같아요.
+private struct GlassWeight: ViewModifier {
+    /// 비침 최대(1)일 때 받침 불투명도
+    let maximum: Double
+    @State private var glass = SystemGlassLevel.shared
+
+    func body(content: Content) -> some View {
+        content.overlay {
+            Color(nsColor: .windowBackgroundColor)
+                .opacity(glass.value * maximum)
+                .animation(.easeOut(duration: 0.25), value: glass.value)
+                .allowsHitTesting(false)
+        }
+    }
+}
 #endif
 
 /// 사이드바 바탕. Mac은 HUD 재질, iPad는 가장 얇은 재질.
@@ -37,7 +82,7 @@ struct SidebarBackground: View {
             if reduceTransparency {
                 Color(nsColor: .windowBackgroundColor)
             } else {
-                VisualEffect(material: .hudWindow)
+                VisualEffect(material: .hudWindow).modifier(GlassWeight(maximum: 0.55))
             }
             #else
             if reduceTransparency {
@@ -66,7 +111,7 @@ private struct ContentSurface: ViewModifier {
                 if reduceTransparency {
                     Color(nsColor: .controlBackgroundColor)
                 } else {
-                    VisualEffect(material: .underWindowBackground)
+                    VisualEffect(material: .underWindowBackground).modifier(GlassWeight(maximum: 0.45))
                 }
                 #else
                 Color(uiColor: .systemBackground)
