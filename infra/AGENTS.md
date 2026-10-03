@@ -230,6 +230,7 @@ APP=hellocalc IMAGE_TAG=<커밋 해시 40자> infra/scripts/tf-run.sh aws plan
 | 2026-10-02 | 온프레미스 앱 공개 주소는 **ngrok** (`onprem.unibloom.cloud` → 서비스 VM `172.16.1.5:18080`). 10/1 `[온프레미스]` pfSense + Let's Encrypt 방향을 대신해요. 데모 앱 포트는 백엔드(8080)와 겹치지 않게 18080 `(가칭 · 황지환 확인)` | 서비스 VM에 www · api용 ngrok 서비스가 이미 상시 실행 중이라 엔드포인트 하나 추가로 끝나요. 포트 개방 · 인증서 갱신이 필요 없어요 (임채준 · 황지환 10/2 함께 설정) | 1 |
 | 2026-10-02 | `[클라우드]` GCP 기준 모듈(Cloud Run) 구현. 리전은 asia-northeast1(도쿄), 공개 도메인은 Cloud Run 도메인 매핑(`gcp.unibloom.cloud`), state는 GCS | 도메인 매핑이 서울을 지원하지 않아요. 로드밸런서 없이 0원에 가깝게 도메인을 붙여요. §6의 GCP 리전 `[미정]`(asia-northeast3)을 대신해요 | 1 |
 | 2026-10-03 | `[클라우드]` Azure 기준 모듈(Container Apps) 구현. 리전 koreacentral, 공개 도메인은 커스텀 도메인 + 관리형 인증서(`azure.unibloom.cloud`), state는 Azure Blob. 리소스 그룹 · Container Apps 환경은 준비 때 CLI로 만든 고정 리소스 | 10/2 회의에서 Azure 포함 결정(#89). GCP처럼 서버리스 · 요청 없으면 0대라 0원에 가까워요. azurerm이 관리형 인증서 연결을 못 해서 처음 1번만 CLI로 붙여요 | 1 |
+| 2026-10-03 | 개발 서버 CI/CD는 커밋 태그 이미지(Docker Hub) + 수동 배포와 같은 compose 파일의 `image:` 줄 교체 (`infra/jenkins/platform-*.Jenkinsfile`, SPEC §18-6) | Jenkins용 compose 파일을 따로 두면 컨테이너 이름이 같아 서로 지우고, 프로젝트가 다르면 빈 DB로 떠요. 같은 파일 · 같은 프로젝트면 APNs override · .env도 그대로 적용돼요 | 1 |
 | 2026-10-02 | 대상 환경 등록의 `public_url`: 모듈 밖에서 연결한 공개 주소(온프레미스 pfSense HTTPS). 러너가 헬스체크 · 서버 보고에만 쓰고 모듈 변수에는 넣지 않아요 `(가칭 · 황지환 확인)` | 온프레미스 모듈 출력은 내부 주소예요. 모듈을 바꾸지 않고 `onprem.unibloom.cloud`를 서버에 알려요 | 2 |
 
 ## 10. 아직 정하지 못한 것
