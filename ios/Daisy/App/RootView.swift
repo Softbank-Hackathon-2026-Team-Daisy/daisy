@@ -75,7 +75,7 @@ private struct TabStack: View {
     var body: some View {
         NavigationStack(path: router.path(for: tab)) {
             tab.content
-                .navigationDestination(for: Route.self) { $0.destination }
+                .navigationDestination(for: Route.self) { $0.destination.historyReplacesSystemBack() } // NAV-HISTORY
         }
     }
 }
@@ -205,7 +205,9 @@ private struct SidebarLayout: View {
                 .help(sidebarShown ? "사이드바 가리기 (⌃⌘S)" : "사이드바 보기 (⌃⌘S)")
                 .keyboardShortcut("s", modifiers: [.control, .command])
             }
+            ToolbarItemGroup(placement: .navigation) { HistoryToolbarButtons() } // NAV-HISTORY
         }
+        .historyEventMonitor() // NAV-HISTORY
         // 사이드바와 본문이 툴바 아래까지 올라가고, 툴바는 아무것도 칠하지 않아요.
         .toolbarBackgroundVisibility(.hidden, for: .windowToolbar)
         #endif
