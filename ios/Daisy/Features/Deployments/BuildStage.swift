@@ -9,6 +9,10 @@ struct BuildStage: View {
     @Environment(Router.self) private var router
     @Environment(Workspace.self) private var workspace
     @State private var build: Build?
+    /// `build`를 받은 프로젝트. 프로젝트를 바꾸면 이전 빌드를 지워요 (D6)
+    @State private var buildProject: String?
+    /// 빌드 목록을 받지 못했어요 (D7). 처음이면 안내, 받은 뒤면 머리줄에 작게
+    @State private var errorMessage: String?
 
     var body: some View {
         FlowPage(step: 2, title: .app("이미지 빌드"),
@@ -38,15 +42,23 @@ struct BuildStage: View {
                     ConnectionIndicator(state: workspace.connection)
                 }
             }
+            if build == nil, let errorMessage {
+                InlineAlert(.danger, .app("빌드 정보를 불러오지 못했어요"), errorMessage)
+            }
             if build?.pipeline.status == .failed {
                 InlineAlert(.danger, .app("빌드 · 테스트가 실패했어요"), .app("빌드 단계에서 원인을 확인해 주세요. 실패한 이미지는 배포하지 않아요."))
             }
         }
-        // 빌드가 끝나면(성공 · 실패) 멈춰요. `build.received`(프로젝트 채널)가 오면 바로 다시 불러요.
-        // Jenkins 단계 진행은 이벤트가 없어서 SSE가 붙어 있어도 5초 폴링은 그대로예요
-        .task(id: commit) {
-            await poll(on: workspace.live.changes, every: { PollInterval.normal },
-                       until: { [.success, .failed].contains(build?.pipeline.status) }) { await loadBuild() }
+        .environment(\.flowRefreshIssue, build == nil ? nil : errorMessage.map { message in
+            FlowRefreshIssue(message: message) { await loadBuild() }
+        })
+        // `build.received`(프로젝트 채널)가 오면 바로 다시 불러요. Jenkins 단계 진행은 이벤트가 없어서 진행 중이면 5초 폴링이에요.
+        // 커밋을 정해 들어왔으면 그 빌드가 끝나면(성공 · 실패) 멈춰요. 사이드바 "새 배포"(커밋 없음)는 가장 최근 빌드가 실패여도
+        // 다음 빌드를 계속 기다려요 (D5) — 끝난 동안은 SSE 15초 · 끊기면 5초. 프로젝트가 바뀌면 다시 시작해요 (D6)
+        .task(id: BuildKey(commit: commit, projectID: app.selectedProjectID)) {
+            await poll(on: workspace.live.changes,
+                       every: { isBuildFinished ? PollInterval.seconds(live: workspace.live.isLive) : PollInterval.normal },
+                       until: { commit != nil && isBuildFinished }) { await loadBuild() }
         }
     }
 
@@ -62,12 +74,32 @@ struct BuildStage: View {
         }
     }
 
+    private var isBuildFinished: Bool { [.success, .failed].contains(build?.pipeline.status) }
+
     private func loadBuild() async {
         guard let client = app.client, let projectID = app.selectedProjectID else { return }
-        let builds = try? await client.send(.builds(projectID: projectID)).items
-        build = builds?.first { commit == nil || $0.commit == commit } ?? build
+        if buildProject != projectID { (build, buildProject) = (nil, projectID) }
+        let tab = router.tab
+        do {
+            let builds = try await client.send(.builds(projectID: projectID)).items
+            // 기다리는 동안 프로젝트를 바꿨으면 늦게 온 응답은 버려요
+            guard !Task.isCancelled, app.selectedProjectID == projectID else { return }
+            build = builds.first { commit == nil || $0.commit == commit } ?? build
+            errorMessage = nil
+        } catch {
+            if Task.isCancelled { return }
+            app.handle(error)
+            errorMessage = error.localizedDescription
+            return
+        }
         if build?.pipeline.status == .success, build?.image != nil, let current {
-            router.replaceTop(with: .selectTargets(commit: current))
+            router.replaceTop(with: .selectTargets(commit: current), in: tab)
         }
     }
+}
+
+/// 빌드를 다시 찾을 때: 커밋 · 프로젝트가 바뀌면 (D6)
+private struct BuildKey: Equatable {
+    let commit: String?
+    let projectID: String?
 }

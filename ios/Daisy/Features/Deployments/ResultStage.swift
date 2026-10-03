@@ -7,6 +7,8 @@ struct ResultStage: View {
     @Environment(Router.self) private var router
     @Environment(Workspace.self) private var workspace
     @Environment(\.openURL) private var openURL
+    @Environment(\.adoptDeployment) private var adoptDeployment
+    @State private var retrying = false
     @State private var sharing = false
     @State private var toast: ToastMessage?
 
@@ -72,7 +74,7 @@ struct ResultStage: View {
                 } else {
                     Button("다시 시도") { Task { await retry(target) } }
                         .buttonStyle(.glassCapsule)
-                        .disabled(app.isViewer)
+                        .disabled(app.isViewer || retrying)
                 }
                 Button("URL 복사") {
                     if let url = target.url {
@@ -89,10 +91,15 @@ struct ResultStage: View {
 
     /// 실패한 환경만 원본 배포에서 다시 시도해요 (`POST /deployments/{id}/retry`)
     private func retry(_ target: Deployment.Target) async {
-        guard let client = app.client else { return }
+        guard let client = app.client, !retrying else { return }
+        // 요청을 기다리는 동안 탭을 옮겨도 이 탭에서 열어요 (D13)
+        let tab = router.tab
+        retrying = true
+        defer { retrying = false }
         do {
             let next = try await client.send(.retry(.only(target.targetId, of: deployment)))
-            router.push(.started(next.id))
+            // 같은 배포 화면을 위에 쌓지 않아요: 배포 탭 루트면 루트가 새 배포로 바뀌고, 아니면 이 화면을 바꿔 끼워요 (D12)
+            if let adoptDeployment { adoptDeployment(next.id) } else { router.openRetry(next.id, source: deployment.id, in: tab) }
         } catch {
             app.handle(error)
             toast = ToastMessage(kind: .danger, title: .app("다시 시도하지 못했어요"), message: error.localizedDescription)
