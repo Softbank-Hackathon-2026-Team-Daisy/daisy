@@ -8,7 +8,6 @@ import { useResource } from '../api/useResource.ts'
 import Logo from '../components/Logo.tsx'
 import Sidebar from '../components/Sidebar.tsx'
 import { t } from '../i18n/index.ts'
-import { isFlowPath } from '../paths.ts'
 import MacAppDialog from './app-download/MacAppDialog.tsx'
 import './AppLayout.css'
 
@@ -27,7 +26,6 @@ function AppLayout() {
   const { projectId = '' } = useParams()
   const [userCollapsed, setUserCollapsed] = useState(false)
   const [macAppOpen, setMacAppOpen] = useState(false)
-  const flow = isFlowPath(pathname)
   const narrow = useSyncExternalStore(subscribeNarrow, getNarrow, () => false)
   const [drawerOpen, setDrawerOpen] = useState(false)
   // 화면을 옮기면 서랍을 닫아요 (렌더 중에 이전 경로와 비교 — effect 안 setState 대신)
@@ -84,8 +82,8 @@ function AppLayout() {
       {drawer && <div className="app-layout__scrim" aria-hidden="true" onClick={() => setDrawerOpen(false)} />}
       <Sidebar
         projectId={projectId}
-        collapsed={!narrow && (flow || userCollapsed)}
-        canToggle={!narrow && !flow}
+        collapsed={!narrow && userCollapsed}
+        canToggle={!narrow}
         onToggle={() => setUserCollapsed((v) => !v)}
         onOpenMacApp={() => {
           setDrawerOpen(false)

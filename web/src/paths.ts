@@ -16,8 +16,3 @@ export const paths = {
   aiUsage: (p: string) => `/projects/${p}/ai-usage`, // W-12
   settings: (p: string) => `/projects/${p}/settings`, // W-13
 }
-
-// 배포 흐름 화면(W-02 ~ W-08, L-xx)에서는 사이드바를 64px로 접어요 (SPEC.md §2-4)
-export function isFlowPath(pathname: string) {
-  return pathname === '/connect' || /^\/projects\/[^/]+\/(deploy|deployments)\//.test(pathname)
-}
