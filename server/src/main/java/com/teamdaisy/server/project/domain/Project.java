@@ -104,6 +104,11 @@ public class Project {
     return lastEventSeq;
   }
 
+  /** 프로젝트를 연결한 계정이에요. 회원가입 자동 참여의 granted_by 로도 써요. */
+  public String createdBy() {
+    return createdBy;
+  }
+
   public Instant createdAt() {
     return createdAt;
   }

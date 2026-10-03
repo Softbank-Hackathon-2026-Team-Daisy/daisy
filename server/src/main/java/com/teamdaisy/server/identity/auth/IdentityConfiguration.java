@@ -11,7 +11,7 @@ import org.springframework.security.crypto.password.PasswordEncoder;
 
 /** 인증에 쓰는 공통 빈이에요. */
 @Configuration
-@EnableConfigurationProperties(AuthProperties.class)
+@EnableConfigurationProperties({AuthProperties.class, SignupProperties.class})
 @SecurityScheme(
     name = "bearerAuth",
     type = SecuritySchemeType.HTTP,

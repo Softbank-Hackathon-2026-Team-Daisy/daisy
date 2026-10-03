@@ -17,6 +17,10 @@ daisy:
     secret: ${DAISY_AUTH_SECRET}
     token-ttl: ${DAISY_AUTH_TOKEN_TTL:12h}
     issuer: daisy
+  signup:
+    # POST /auth/signup. 끄면 403 이에요. 새 계정은 아래 프로젝트(쉼표 구분, 없으면 건너뜀)에 바로 참여해요.
+    enabled: ${DAISY_SIGNUP_ENABLED:true}
+    auto-join-projects: ${DAISY_SIGNUP_AUTO_JOIN_PROJECTS:prj_demo_monolith}
   cors:
     allowed-origins: ${DAISY_CORS_ORIGINS:http://localhost:5173,http://localhost:5174}
   demo:

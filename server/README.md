@@ -34,7 +34,7 @@ docker compose up -d
 
 ## Swagger UI로 확인하기
 
-1. `POST /auth/token`에 준비한 계정을 보내요. 회원가입 API는 없어요.
+1. `POST /auth/token`에 준비한 계정을 보내요. 계정이 없으면 `POST /auth/signup`으로 만들면 바로 토큰을 받아요(owner, 데모 프로젝트 자동 참여).
 2. 받은 `access_token`을 상단 **Authorize → bearerAuth**에 넣어요. `Bearer ` 접두사 없이 토큰 값만 넣어요.
 3. 프로젝트·빌드·대상 조회 후 배포 생성 → plan 조회 → 승인을 순서대로 확인해요. 명령 API에는 `Idempotency-Key`가 필요하며 같은 요청 재전송에 같은 키를 사용해요.
 4. 승인에는 배포 상세의 `pending_approvals`를 사용해요. 삭제가 포함되면 확인 문구도 필요해요. Swagger의 예시 ID를 실제 ID처럼 보내지 않아요.

@@ -2,13 +2,11 @@
 
 앱(iOS · macOS)이 승인 요청과 배포 결과를 푸시로 받게 해요. 계약은 [ios/SPEC.md §6-5](../../ios/SPEC.md)(9/29 합의)를 그대로 따르고, 코드는 전부 `com.teamdaisy.server.push` 패키지와 `V4__push_devices.sql` 에만 있어요. 실행부(`deployment/` · `history/`) 코드는 바꾸지 않았어요.
 
-## 주의: 머지 순서는 V3 다음에 V4
+## 마이그레이션 번호
 
-Flyway 는 out-of-order 를 켜 두지 않았어요. 이 PR 의 `V4__push_devices.sql` 이 먼저 운영 DB 에 적용되면, 나중에 담당자 PR 의 `V3__…` 를 배포할 때 Flyway 검증이 "적용되지 않은 마이그레이션 V3" 로 실패하고 서버가 뜨지 않아요.
+V3 은 일부러 비워 둔 번호예요(팀이 건너뜀). 푸시는 `V4__push_devices.sql`, 회원가입은 `V5__signup.sql` 이고, Flyway 는 번호가 비어도 괜찮아요. 앞으로 V3 을 새로 쓰지 않아요.
 
-- **담당자의 V3 PR 을 먼저 머지 · 배포하고, 그 뒤에 이 PR 을 머지해요.**
-- V3 계획이 바뀌어 번호가 비게 되더라도 V4 는 그대로 둬도 돼요(Flyway 는 번호가 비는 것은 허용해요).
-- `AzureMigrationPostgresTest` 는 V1 다음에 남은 마이그레이션이 정확히 1개(V2)라고 확인해요. V3 · V4 어느 쪽이 들어와도 이 테스트는 고쳐야 해요. 두 번째 Flyway 에 `.target("2")` 를 붙이면 의도(V1 → V2 업그레이드 확인)는 그대로 지켜요.
+- `AzureMigrationPostgresTest` 는 두 번째 Flyway 에 `.target("2")` 를 붙여 V1 → V2 업그레이드만 확인해서, 뒤 번호가 늘어도 고칠 필요가 없어요.
 
 ## API
 
