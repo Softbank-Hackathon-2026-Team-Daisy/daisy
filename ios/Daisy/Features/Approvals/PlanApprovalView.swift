@@ -84,8 +84,11 @@ struct PlanApprovalView: View {
                 let tab = hostTab ?? router.tab
                 if decided == .reject {
                     // 웹: Q1(거절하면 어디로)이 정해지기 전까지는 개요로 돌아가요
-                    router.path(for: tab).wrappedValue = []
-                    router.tab = .overview
+                    // 이동 기록에는 한 번만 남겨요 (경로 비우기 + 메뉴 바꾸기를 한 칸으로)
+                    router.recordingOnce {
+                        router.path(for: tab).wrappedValue = []
+                        router.tab = .overview
+                    }
                 } else if let onDecision {
                     onDecision(true)
                 } else {
