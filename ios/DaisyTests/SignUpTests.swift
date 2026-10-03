@@ -145,16 +145,18 @@ struct SignUpTests {
         #expect(form.confirmationMatches && !form.showsConfirmationError && form.isValid)
         #expect(form.confirmationHint == nil)
 
-        // 공백만으로는 안 돼요 · 200자까지
+        // 공백만으로는 안 돼요 · 서버 BCrypt 제한 UTF-8 72바이트까지 (영문 72자 · 한글 24자)
         form.password = String(repeating: " ", count: 8)
         form.confirmation = form.password
         #expect(!form.passwordValid && !form.isValid)
-        form.password = String(repeating: "a", count: 201)
-        form.confirmation = form.password
-        #expect(!form.passwordValid && form.passwordHint == "비밀번호는 200자까지 쓸 수 있어요.")
-        form.password = String(repeating: "a", count: 200)
-        form.confirmation = form.password
-        #expect(form.isValid)
+        let tooLong = "비밀번호가 너무 길어요. 영문 72자, 한글 24자까지 쓸 수 있어요."
+        for (password, valid) in [(String(repeating: "a", count: 72), true), (String(repeating: "a", count: 73), false),
+                                  (String(repeating: "가", count: 24), true), (String(repeating: "가", count: 25), false)] {
+            form.password = password
+            form.confirmation = password
+            #expect(form.passwordValid == valid && form.isValid == valid)
+            #expect(form.passwordHint == (valid ? "8자 이상으로 정해 주세요." : tooLong))
+        }
     }
 
     /// 표시 이름은 선택이고 64자까지 (앞뒤 공백 제외)

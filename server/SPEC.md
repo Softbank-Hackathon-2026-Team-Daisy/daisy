@@ -258,7 +258,7 @@
 - 복합 FK 로 프로젝트 소속을 DB 가 확인합니다. 다른 프로젝트의 `source_version`·`target`·lineage 배포를 섞을 수 없습니다.
 - 순환 FK 네 쌍은 테이블 생성 뒤 `ALTER` 로 연결합니다. 삭제 CASCADE 를 두지 않고 보관은 `archived_at`·`disabled_at` 으로 합니다.
 - `POST /auth/token` 으로 토큰을 발급하고 `GET /auth/me` 로 주체를 확인합니다. REST·SSE 모두 `Authorization: Bearer` 를 쓰고 쿠키는 받지 않습니다.
-- (10/3 팀 합의) `POST /auth/signup` 은 인증 없이 owner 계정을 만들고 `/auth/token` 과 같은 응답을 201 로 돌려줍니다. 아이디는 trim 뒤 소문자로 저장하고 `^[a-z0-9][a-z0-9._-]{2,31}$`, 비밀번호 8~200자, `display_name` 은 선택(64자 이하, 비면 아이디)입니다. 대소문자만 다른 아이디는 409 `USERNAME_TAKEN`(V5 `ux_account_username_lower`), 클라이언트 IP(X-Forwarded-For 첫 값, 없으면 접속 주소)별 10분 5회를 넘으면 429 `RATE_LIMITED`(메모리), `daisy.signup.enabled=false` 면 403 `FORBIDDEN` 입니다. 같은 트랜잭션에서 `daisy.signup.auto-join-projects`(기본 `prj_demo_monolith`) 중 있고 보관되지 않은 프로젝트에 멤버로 넣으며 `granted_by` 는 그 프로젝트를 만든 계정입니다.
+- (10/3 팀 합의) `POST /auth/signup` 은 인증 없이 owner 계정을 만들고 `/auth/token` 과 같은 응답을 201 로 돌려줍니다. 아이디는 trim 뒤 소문자로 저장하고 `^[a-z0-9][a-z0-9._-]{2,31}$`, 비밀번호 8~200자이면서 UTF-8 72바이트 이하(BCrypt 제한, 영문 72자 · 한글 24자, 넘으면 400 `password`; 로그인도 72바이트를 넘으면 401), `display_name` 은 선택(64자 이하, 비면 아이디)입니다. 대소문자만 다른 아이디는 409 `USERNAME_TAKEN`(V5 `ux_account_username_lower`), 클라이언트 IP(X-Forwarded-For 첫 값, 없으면 접속 주소)별 10분 5회를 넘으면 429 `RATE_LIMITED`(메모리), `daisy.signup.enabled=false` 면 403 `FORBIDDEN` 입니다. 같은 트랜잭션에서 `daisy.signup.auto-join-projects`(기본 `prj_demo_monolith`) 중 있고 보관되지 않은 프로젝트에 멤버로 넣으며 `granted_by` 는 그 프로젝트를 만든 계정입니다.
 - 별도 토큰 테이블을 두지 않습니다. 역할·활성 여부는 토큰이 아니라 요청마다 DB 에서 다시 읽습니다. 로그아웃·개별 토큰 폐기 경로는 없습니다.
 - 아이디가 없는 경우와 비밀번호가 틀린 경우를 같은 401 로 응답합니다.
 - 필터 단계 오류를 `HandlerExceptionResolver` 로 넘겨 공통 오류 봉투로 응답합니다. 공통 기반 문서의 "인증 필터 오류는 MVC advice 밖" 항목을 이 방식으로 연결합니다.

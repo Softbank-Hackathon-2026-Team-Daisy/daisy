@@ -213,6 +213,15 @@ class SignupPostgresTest {
                 .content(body("new.user", PASSWORD)))
         .andExpect(status().isOk())
         .andExpect(jsonPath("$.role").value("owner"));
+    // 72바이트가 넘는 비밀번호로 로그인하면 BCrypt 예외(500) 대신 틀린 비밀번호와 같은 401 이에요.
+    for (String tooLong : List.of("p".repeat(73), "가".repeat(25))) {
+      mvc.perform(
+              post("/auth/token")
+                  .contentType(MediaType.APPLICATION_JSON)
+                  .content(body("new.user", tooLong)))
+          .andExpect(status().isUnauthorized())
+          .andExpect(jsonPath("$.error.code").value("UNAUTHENTICATED"));
+    }
 
     // 데모 프로젝트 멤버가 되고, 권한을 준 사람은 프로젝트를 만든 계정이에요.
     assertThat(
@@ -310,6 +319,9 @@ class SignupPostgresTest {
             body("okname", "short"),
             body("okname", " ".repeat(10)),
             body("okname", "p".repeat(201)),
+            // BCrypt 72바이트 제한: 영문 73자, 한글 25자(75바이트)
+            body("okname", "p".repeat(73)),
+            body("okname", "가".repeat(25)),
             "{\"username\":\"okname\"}",
             """
             {"username":"okname","password":"%s","display_name":"%s"}"""
@@ -322,8 +334,10 @@ class SignupPostgresTest {
     }
     assertThat(accounts()).isEqualTo(1);
 
-    // 경계값은 받아요: 3자·32자 아이디, 8자 비밀번호, 64자 표시 이름
+    // 경계값은 받아요: 3자·32자 아이디, 8자 비밀번호, 64자 표시 이름, 72바이트 비밀번호(영문 72자 · 한글 24자)
     signup(body("a.b", "12345678"), "198.51.100.200").andExpect(status().isCreated());
+    signup(body("long.ascii", "p".repeat(72)), "198.51.100.202").andExpect(status().isCreated());
+    signup(body("long.hangul", "가".repeat(24)), "198.51.100.203").andExpect(status().isCreated());
     signup(
             """
             {"username":"%s","password":"%s","display_name":"%s"}"""

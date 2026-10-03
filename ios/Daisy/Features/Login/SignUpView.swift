@@ -92,7 +92,7 @@ struct SignUpView: View {
 // MARK: - 입력 규칙
 
 /// 회원가입 칸과 서버 규칙 (`POST /auth/signup` 계약): 아이디는 공백을 빼고 소문자로 바꾼 뒤 `^[a-z0-9][a-z0-9._-]{2,31}$`,
-/// 비밀번호 8~200자 · 공백만은 안 돼요, 표시 이름은 선택 · 64자까지, 확인은 비밀번호와 같아야 해요.
+/// 비밀번호 8자 이상 · UTF-8 72바이트까지(서버 BCrypt 제한: 영문 72자 · 한글 24자) · 공백만은 안 돼요, 표시 이름은 선택 · 64자까지, 확인은 비밀번호와 같아야 해요.
 /// 빨간 표시는 그 칸을 쓰기 시작한 뒤에만 보여요.
 struct SignUpForm: Equatable {
     var username = ""
@@ -101,7 +101,8 @@ struct SignUpForm: Equatable {
     var confirmation = ""
 
     static let passwordMinimum = 8
-    static let passwordMaximum = 200
+    /// 서버 BCrypt가 받는 최대 길이 (UTF-8 바이트). 넘으면 서버가 400 `password`예요
+    static let passwordMaximumBytes = 72
     static let displayNameMaximum = 64
 
     /// 서버로 보내는 아이디 (공백 빼고 소문자)
@@ -112,9 +113,10 @@ struct SignUpForm: Equatable {
         displayName.trimmingCharacters(in: .whitespacesAndNewlines).count <= Self.displayNameMaximum
     }
     var passwordValid: Bool {
-        (Self.passwordMinimum...Self.passwordMaximum).contains(password.count)
+        password.count >= Self.passwordMinimum && !passwordTooLong
             && !password.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
     }
+    var passwordTooLong: Bool { password.utf8.count > Self.passwordMaximumBytes }
     var confirmationMatches: Bool { !confirmation.isEmpty && confirmation == password }
 
     var isValid: Bool { usernameValid && displayNameValid && passwordValid && confirmationMatches }
@@ -129,7 +131,7 @@ struct SignUpForm: Equatable {
         displayNameValid ? .app("비워 두면 아이디로 보여요.") : .app("표시 이름은 64자까지 쓸 수 있어요.")
     }
     var passwordHint: String {
-        password.count > Self.passwordMaximum ? .app("비밀번호는 200자까지 쓸 수 있어요.") : .app("8자 이상으로 정해 주세요.")
+        passwordTooLong ? .app("비밀번호가 너무 길어요. 영문 72자, 한글 24자까지 쓸 수 있어요.") : .app("8자 이상으로 정해 주세요.")
     }
     var confirmationHint: String? { showsConfirmationError ? .app("비밀번호가 서로 달라요.") : nil }
 }

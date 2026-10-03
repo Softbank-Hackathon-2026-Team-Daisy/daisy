@@ -3767,18 +3767,18 @@
         }
       }
     },
-    "비밀번호는 200자까지 쓸 수 있어요." : {
+    "비밀번호가 너무 길어요. 영문 72자, 한글 24자까지 쓸 수 있어요." : {
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Passwords can be up to 200 characters."
+            "value" : "That password is too long. Use up to 72 English letters or 24 Korean characters."
           }
         },
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "パスワードは200文字まで入力できます。"
+            "value" : "パスワードが長すぎます。英字は72文字、ハングルは24文字までです。"
           }
         }
       }
