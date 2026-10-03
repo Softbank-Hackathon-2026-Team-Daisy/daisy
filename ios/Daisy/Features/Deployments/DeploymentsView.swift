@@ -1,12 +1,15 @@
 import SwiftUI
 
-/// 배포 메뉴: 웹 사이드바 "배포"와 같이 가장 최근 배포의 지금 단계(W-05 ~ W-08)를 바로 보여줘요 (A-03 목록의 첫 건).
-/// 지난 배포는 이력(W-09)에서 봐요. 배포가 없으면 "새 배포"로 시작해요.
+/// 배포 메뉴: **진행 중인** 배포의 지금 단계(1 – 6)만 보여줘요 (A-03 목록에서 끝나지 않은 가장 최근 배포).
+/// 보고 있던 배포가 끝나면 이 화면에서 결과(완료 표시)까지 보여주고, 다른 메뉴로 벗어나면 그 결과는 이력(W-09)에서만 봐요.
+/// 진행 중인 배포가 없으면 "지금 진행 중인 배포가 없어요"예요 (10/3 박승준 결정).
 struct DeploymentsView: View {
     @Environment(AppModel.self) private var app
     @Environment(Router.self) private var router
     @Environment(Workspace.self) private var workspace
     @State private var store = DeploymentsStore()
+    /// 이 화면에서 진행을 지켜본 배포. 끝나도 벗어나기 전까지는 결과를 보여줘요
+    @State private var watching: String?
     /// iPhone(아래 탭 바)에는 사이드바 "새 배포"가 없어서 이 화면 위쪽에 둬요
     @Environment(\.tabBarClearance) private var tabBarClearance
 
@@ -16,21 +19,34 @@ struct DeploymentsView: View {
                 empty { NoProjectView() }
             } else {
                 LoadStateView(state: store.list, retry: { await store.refresh(using: app) }) { all in
-                    if let latest = all.first {
+                    let active = all.first { !$0.state.isFinished }
+                    if let shown = active ?? all.first(where: { $0.id == watching }) {
                         // iPhone: "새 배포"는 머리줄 제목 "배포"와 같은 줄 오른쪽 위에 둬요 (10/3). 시스템 내비게이션 바는 숨겨요
-                        RunView(deploymentID: latest.id).id(latest.id)
+                        RunView(deploymentID: shown.id).id(shown.id)
                             .environment(\.flowHeaderAccessory, tabBarClearance > 0
                                          ? AnyView(newDeploymentButton.buttonStyle(.glassCircle).help("새 배포")) : nil)
                             .hidesSystemTitleBar()
+                            .task(id: active?.id) { if let id = active?.id { watching = id } }
                     } else {
                         empty {
-                            ContentUnavailableView("아직 배포가 없어요", systemImage: "play",
-                                                   description: Text(tabBarClearance > 0 ? "새 배포로 시작해요" : "사이드바의 새 배포로 시작해요"))
-                                .emptyStateCentered()
+                            VStack(spacing: 16) {
+                                ContentUnavailableView("지금 진행 중인 배포가 없어요", systemImage: "play",
+                                                       description: Text(tabBarClearance > 0 ? "새 배포로 시작해요. 끝난 배포의 결과는 이력에서 봐요."
+                                                                         : "사이드바의 새 배포로 시작해요. 끝난 배포의 결과는 이력에서 봐요."))
+                                if !all.isEmpty {
+                                    Button("이력 보기") { router.tab = .history }
+                                        .buttonStyle(.glassCapsule)
+                                }
+                            }
+                            .emptyStateCentered()
                         }
                     }
                 }
             }
+        }
+        // 다른 메뉴로 벗어나면 지켜본 배포를 잊어요. 끝난 결과는 이제 이력에서만 봐요 (Mac은 화면이 새로 만들어져서 저절로 비워져요)
+        .onChange(of: router.tab) { _, tab in
+            if tab != .deployments { watching = nil }
         }
         // 가장 최근 배포를 다시 찾아요. 웹 · 다른 기기에서 다시 시도하거나 새로 배포하면 새 배포가 생겨서,
         // 열어 둔 화면이 예전 배포에 머물지 않고 새 배포로 넘어가요 (10/3). 배포 한 건의 상태는 RunView가 따로 받아요.

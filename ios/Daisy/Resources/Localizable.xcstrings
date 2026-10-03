@@ -7748,6 +7748,54 @@
           }
         }
       }
+    },
+    "지금 진행 중인 배포가 없어요" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "No deployment in progress"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "進行中のデプロイはありません"
+          }
+        }
+      }
+    },
+    "새 배포로 시작해요. 끝난 배포의 결과는 이력에서 봐요." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Start one with New deployment. Results of finished deployments are in History."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "新規デプロイから始めましょう。終わったデプロイの結果は履歴で確認できます。"
+          }
+        }
+      }
+    },
+    "사이드바의 새 배포로 시작해요. 끝난 배포의 결과는 이력에서 봐요." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Start one with New deployment in the sidebar. Results of finished deployments are in History."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "サイドバーの新規デプロイから始めましょう。終わったデプロイの結果は履歴で確認できます。"
+          }
+        }
+      }
     }
   },
   "version" : "1.0"
