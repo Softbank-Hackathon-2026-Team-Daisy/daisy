@@ -1,6 +1,6 @@
 import SwiftUI
 
-/// 배포 메뉴: **진행 중인** 배포의 지금 단계(1 – 6)만 보여줘요 (A-03 목록에서 끝나지 않은 가장 최근 배포).
+/// 배포 메뉴: **진행 중인** 배포의 지금 단계(1 – 6)만 보여줘요 (A-03 목록의 가장 최근 배포가 아직 안 끝났을 때).
 /// 보고 있던 배포가 끝나면 이 화면에서 결과(완료 표시)까지 보여주고, 다른 메뉴로 벗어나면 그 결과는 이력(W-09)에서만 봐요.
 /// 진행 중인 배포가 없으면 "지금 진행 중인 배포가 없어요"예요 (10/3 박승준 결정).
 struct DeploymentsView: View {
@@ -19,7 +19,9 @@ struct DeploymentsView: View {
                 empty { NoProjectView() }
             } else {
                 LoadStateView(state: store.list, retry: { await store.refresh(using: app) }) { all in
-                    let active = all.first { !$0.state.isFinished }
+                    // 가장 최근 배포만 봐요. 그보다 예전에 승인 대기로 남겨 둔 배포(새 배포로 넘어가며 버려진 것)는
+                    // 진행 중이 아니라서 이력에서 처리해요 (10/3 실데이터: 05:13 · 05:20 배포가 승인 대기로 남아 있었어요)
+                    let active = all.first.flatMap { $0.state.isFinished ? nil : $0 }
                     if let shown = active ?? all.first(where: { $0.id == watching }) {
                         // iPhone: "새 배포"는 머리줄 제목 "배포"와 같은 줄 오른쪽 위에 둬요 (10/3). 시스템 내비게이션 바는 숨겨요
                         RunView(deploymentID: shown.id).id(shown.id)
