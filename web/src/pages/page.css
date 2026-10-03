@@ -118,3 +118,12 @@
     flex: 1 1 0;
   }
 }
+
+/* 이력: 승인해야 하는 커밋 (노란색은 배포 버튼 · 현재 단계 전용이라 warning 색으로) */
+.commit-pending {
+  padding: 2px var(--space-1);
+  border-radius: var(--radius-sm);
+  background: color-mix(in srgb, var(--color-warning) 16%, var(--color-bg));
+  color: var(--color-warning);
+  font-weight: 600;
+}

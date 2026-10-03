@@ -120,7 +120,6 @@ function Sidebar({ projectId, collapsed, canToggle, onToggle, onOpenMacApp, draw
           label={t('배포')}
           to={paths.currentDeployment(p)}
           activePrefix={`/projects/${p}/deploy`}
-          badge={ws.pendingApprovals || undefined}
         />
         <NavItem collapsed={collapsed} icon="server" label={t('환경')} to={paths.environments(p)} />
         <NavItem collapsed={collapsed} icon="clock" label={t('이력')} to={paths.history(p)} />

@@ -41,17 +41,6 @@
   flex: 1;
 }
 
-.nav-item__badge {
-  min-width: 20px;
-  padding: 1px 6px;
-  border-radius: var(--radius-sm);
-  background: var(--color-ink);
-  color: var(--color-bg);
-  font-family: var(--font-mono);
-  font-size: 12px;
-  line-height: 18px;
-  text-align: center;
-}
 
 .nav-item--collapsed {
   justify-content: center;
@@ -64,15 +53,6 @@
   top: 10px;
 }
 
-.nav-item__dot {
-  position: absolute;
-  top: 8px;
-  right: 8px;
-  width: 6px;
-  height: 6px;
-  border-radius: 50%;
-  background: var(--color-ink);
-}
 
 /* 접힌 사이드바의 툴팁은 오른쪽에 띄워요 */
 .sidebar--collapsed .tooltip__bubble {

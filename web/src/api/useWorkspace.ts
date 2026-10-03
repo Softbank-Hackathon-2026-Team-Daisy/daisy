@@ -1,6 +1,5 @@
 import { t } from '../i18n/index.ts'
 import type { StatusTone } from '../components/StatusBadge.tsx'
-import { USE_MOCK } from './client.ts'
 import { api, isMocked } from './endpoints.ts'
 import type { EnvKind, Health, Project, Role } from './types.ts'
 import { pollFor, useProjectLive } from './projectLive.ts'
@@ -41,16 +40,9 @@ export function useWorkspace(projectId: string) {
   // SSE 이벤트가 오면(tick) 다시 불러요. 붙어 있으면 폴링은 30초 안전망만
   const { state: live, tick } = useProjectLive()
   const poll = pollFor(live)
-  // 프로젝트를 고르기 전(첫 화면으로 보내는 중)에는 환경 · 승인 대기를 부르지 않아요
+  // 프로젝트를 고르기 전(첫 화면으로 보내는 중)에는 환경을 부르지 않아요
   const status = useResource(() => (projectId ? api.getTargetsStatus(projectId) : Promise.resolve(null)), [projectId, tick], poll)
   const me = useResource(() => api.me(), [])
-  // 승인 대기 목록(A-03)이 아직 목업이면 실서버 프로젝트에 가짜 숫자를 붙이지 않아요
-  const pendingMocked = isMocked('listDeployments')
-  const pending = useResource(
-    () => (projectId && (USE_MOCK || !pendingMocked) ? api.listDeployments(projectId, 'awaiting_approval') : Promise.resolve(null)),
-    [projectId, tick],
-    poll,
-  )
 
   const list: Project[] = projects.data?.items ?? []
   const project = list.find((p) => p.id === projectId) ?? null
@@ -69,6 +61,5 @@ export function useWorkspace(projectId: string) {
     envsMocked: isMocked('getTargetsStatus'),
     user: me.data,
     live,
-    pendingApprovals: pending.data?.items.length ?? 0,
   }
 }
