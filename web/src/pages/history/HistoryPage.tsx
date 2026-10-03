@@ -68,7 +68,13 @@ function HistoryTable({ projectId, rows, onRollback }: { projectId: string; rows
       rowKey={(d) => d.id}
       columns={[
         ...(hasVersion ? [{ key: 'v', label: t('버전'), width: 80, render: (d: Deployment) => <span className="t-mono">{versionLabel(d)}</span> }] : []),
-        { key: 'c', label: t('커밋'), width: 110, render: (d) => <span className="t-mono">{shortCommit(d.commit)}</span> },
+        // 승인해야 하는 커밋은 눈에 띄게 칠해요
+        {
+          key: 'c',
+          label: t('커밋'),
+          width: 110,
+          render: (d) => <span className={d.state === 'awaiting_approval' ? 't-mono commit-pending' : 't-mono'}>{shortCommit(d.commit)}</span>,
+        },
         {
           key: 's',
           label: t('상태'),

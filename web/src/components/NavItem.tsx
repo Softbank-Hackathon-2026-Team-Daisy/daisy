@@ -9,18 +9,16 @@ type NavItemProps = {
   icon: IconName
   label: string
   collapsed: boolean
-  badge?: number
 } & ({ to: string; activePrefix?: string; end?: boolean } | { onClick: () => void; active?: boolean })
 
 function NavItem(props: NavItemProps) {
-  const { icon, label, collapsed, badge } = props
+  const { icon, label, collapsed } = props
   const { pathname } = useLocation()
 
   const content = (
     <>
       <Icon name={icon} />
       {!collapsed && <span className="nav-item__label">{label}</span>}
-      {!!badge && (collapsed ? <span className="nav-item__dot" /> : <span className="nav-item__badge">{badge}</span>)}
     </>
   )
 
