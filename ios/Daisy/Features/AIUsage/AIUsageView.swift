@@ -5,51 +5,61 @@ import SwiftUI
 struct AIUsageView: View {
     @Environment(AppModel.self) private var app
     @Environment(Workspace.self) private var workspace
-    @State private var deployments: [Deployment] = []
+    @State private var store = AIUsageStore()
     /// nil이면 전체 사용량
     @State private var selectedID: String?
-    @State private var detail: LoadState<Detail> = .idle
-    @State private var overall: LoadState<AIUsageTotals> = .idle
     @State private var pickerExpanded = false
 
-    /// 배포 한 건 + plan 합계 + 호출 기록. plan · 기록이 아직 없으면(생성 전, 서버 준비 전) 배포에 온 값으로 보여줘요
-    private struct Detail: Equatable {
-        let deployment: Deployment
-        let totals: AIUsage?
-        let calls: [AIUsage.Call]?
-        var id: String { deployment.id }
-        var summary: AIUsageSummary { AIUsageSummary(deployment, totals: totals, callLog: calls) }
+    /// 프로젝트나 고른 배포가 바뀌면 폴링을 새로 시작해요. 이전 배포 요청은 취소되고 늦게 와도 버려져요 (AI3)
+    private struct TaskKey: Hashable {
+        let projectID: String?
+        let selectedID: String?
     }
+
+    private var deployments: [Deployment] { store.list.value(for: app.selectedProjectID) ?? [] }
 
     var body: some View {
         PageScaffold(.app("AI 사용량"),
                      subtitle: .app("배포마다 AI를 몇 번, 얼마나 썼는지 봐요. 판단이 필요한 생성 · 수정에만 AI를 쓰고, 검증된 스크립트는 재사용해요.")) {
             deploymentPicker
-            Button { Task { await loadList(); await loadDetail() } } label: { Label("새로 고침", systemImage: "arrow.clockwise") }
+            Button { Task { await refresh() } } label: { Label("새로 고침", systemImage: "arrow.clockwise") }
                 .buttonStyle(.glassCircle)
                 .help("새로 고침")
         } content: {
-            if app.selectedProjectID == nil {
-                NoProjectView()
-            } else if deployments.isEmpty && detail.value == nil && overall.value == nil {
-                ContentUnavailableView("아직 배포가 없어요", systemImage: "chart.bar",
-                                       description: Text("배포하면 AI를 몇 번, 얼마나 썼는지 여기서 봐요"))
-                    .emptyStateCentered()
-            } else if selectedID == nil {
-                LoadStateView(state: overall, retry: { await loadDetail() }) { totals in
-                    totalsContent(totals)
+            if let projectID = app.selectedProjectID {
+                // 배포 목록이 기준이에요. 처음부터 못 받으면 오류를 보여줘요 ("0회"로 가리지 않아요, AI2)
+                LoadStateView(state: store.list.state(for: projectID), retry: { await refresh() }) { deployments in
+                    if deployments.isEmpty {
+                        ContentUnavailableView("아직 배포가 없어요", systemImage: "chart.bar",
+                                               description: Text("배포하면 AI를 몇 번, 얼마나 썼는지 여기서 봐요"))
+                            .emptyStateCentered()
+                    } else if let selectedID {
+                        LoadStateView(state: store.detail.state(for: AIUsageStore.detailScope(projectID: projectID, deploymentID: selectedID)),
+                                      retry: { await refresh() }) { detail in
+                            content(detail.summary)
+                        }
+                    } else {
+                        LoadStateView(state: store.overall.state(for: projectID), retry: { await refresh() }) { totals in
+                            totalsContent(totals)
+                        }
+                    }
                 }
             } else {
-                LoadStateView(state: detail, retry: { await loadDetail() }) { detail in
-                    content(detail.summary)
-                }
+                NoProjectView()
             }
         }
-        .task(id: app.selectedProjectID) {
-            await loadList()
-            await loadDetail()
+        // 프로젝트 · 배포 이벤트(앱 복귀 · 전환 포함)가 오면 바로, 아니면 SSE 15초 · 5초 (AI1). 한 번에 합계는 한 번만 (AI4)
+        .task(id: TaskKey(projectID: app.selectedProjectID, selectedID: selectedID)) {
+            await poll(on: workspace.live.changes, every: { PollInterval.seconds(live: workspace.live.isLive) }) {
+                await refresh()
+            }
         }
-        .onChange(of: selectedID) { Task { await loadDetail() } }
+        // 이전 프로젝트에서 고른 배포는 새 프로젝트에 없어요
+        .onChange(of: app.selectedProjectID) { selectedID = nil }
+    }
+
+    private var staleBanner: some View {
+        StaleBanner(since: store.staleSince(projectID: app.selectedProjectID, selectedID: selectedID))
     }
 
     // MARK: 배포 고르기 (웹 Select "dep_42 · a1b2c3d · 21:10 배포")
@@ -80,6 +90,7 @@ struct AIUsageView: View {
     private func totalsContent(_ totals: AIUsageTotals) -> some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 16) {
+                staleBanner
                 AdaptiveGrid(minimumWidth: 150, fillsWidth: true) {
                     tile(.app("AI 호출"), .app("\(totals.calls)회"), .app("배포 \(totals.rows.count)건 중 \(totals.deploymentsWithCalls)건"))
                     tile(.app("토큰"), totals.tokens.map { $0.appFormatted } ?? "—",
@@ -99,7 +110,7 @@ struct AIUsageView: View {
             }
             .padding(20)
         }
-        .refreshable { await loadList(); await loadDetail() }
+        .refreshable { await refresh() }
     }
 
     private func totalsRow(_ row: AIUsageTotals.Row) -> some View {
@@ -130,6 +141,7 @@ struct AIUsageView: View {
     private func content(_ summary: AIUsageSummary) -> some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 16) {
+                staleBanner
                 // iPhone 폭에서도 2×2로 보이게 최소 폭을 150으로
                 AdaptiveGrid(minimumWidth: 150, fillsWidth: true) {
                     tile(.app("AI 호출"), .app("\(summary.calls)회"), .app("이번 배포"))
@@ -152,7 +164,7 @@ struct AIUsageView: View {
             }
             .padding(20)
         }
-        .refreshable { await loadDetail() }
+        .refreshable { await refresh() }
     }
 
     /// 비용은 추정치예요. 서버가 적용한 환율을 같이 보여줘요. 웹: "추정 · 환율 1,380원 · LLM Claude"
@@ -229,47 +241,13 @@ struct AIUsageView: View {
 
     // MARK: 불러오기
 
-    private func loadList() async {
-        guard let client = app.client, let projectID = app.selectedProjectID else { return }
-        do {
-            deployments = try await client.send(.deployments(projectID: projectID)).items
-            if let selectedID, !deployments.contains(where: { $0.id == selectedID }) {
-                self.selectedID = nil
-            }
-        } catch {
-            app.handle(error)
-            if detail.value == nil { detail = .failed(error.localizedDescription) }
+    private func refresh() async {
+        guard let projectID = app.selectedProjectID else { return }
+        let selected = selectedID
+        // 고른 배포가 목록에서 사라지면 전체로 돌아가요 (`.task(id:)`가 다시 시작해서 합계를 한 번 받아요)
+        let stillListed = await store.refresh(using: app, projectID: projectID, selectedID: selected)
+        if !stillListed, selectedID == selected {
+            selectedID = nil
         }
-    }
-
-    private func loadDetail() async {
-        guard let selectedID else { return await loadTotals() }
-        guard let client = app.client, let projectID = app.selectedProjectID else { return }
-        if detail.value?.id != selectedID { detail = .loading }
-        do {
-            let deployment = try await client.send(.deployment(id: selectedID))
-            async let plan = try? client.send(.plan(deploymentID: selectedID))
-            async let calls = try? client.send(.aiUsage(projectID: projectID, deploymentID: selectedID)).items
-            detail = .loaded(Detail(deployment: deployment, totals: await plan?.aiUsage, calls: await calls))
-        } catch {
-            app.handle(error)
-            if detail.value == nil { detail = .failed(error.localizedDescription) }
-        }
-    }
-
-    /// 배포마다 plan 합계(A-05)를 같이 불러서 더해요. 못 불러온 배포는 배포에 온 값으로 셈해요
-    private func loadTotals() async {
-        guard let client = app.client else { return }
-        if overall.value == nil { overall = .loading }
-        let list = deployments
-        let usages = await withTaskGroup(of: (String, AIUsage?).self) { group in
-            for deployment in list {
-                group.addTask { (deployment.id, try? await client.send(.plan(deploymentID: deployment.id)).aiUsage) }
-            }
-            var result: [String: AIUsage] = [:]
-            for await (id, usage) in group { if let usage { result[id] = usage } }
-            return result
-        }
-        overall = .loaded(AIUsageTotals(list, usages: usages))
     }
 }
