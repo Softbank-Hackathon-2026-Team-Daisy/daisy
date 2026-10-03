@@ -7796,6 +7796,86 @@
           }
         }
       }
+    },
+    "프로젝트 현황 · 실시간 연결됨" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Project status · Live"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "プロジェクト状況・リアルタイム接続中"
+          }
+        }
+      }
+    },
+    "프로젝트 현황 · 주기적으로 새로고침" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Project status · Refreshing periodically"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "プロジェクト状況・定期的に更新中"
+          }
+        }
+      }
+    },
+    "프로젝트 현황 · 재연결 중…" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Project status · Reconnecting…"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "プロジェクト状況・再接続中…"
+          }
+        }
+      }
+    },
+    "프로젝트 현황 · 연결 끊김 · 다시 시도" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Project status · Disconnected · Retry"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "プロジェクト状況・接続切れ・再試行"
+          }
+        }
+      }
+    },
+    "마지막 갱신 %@" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Last updated %@"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "最終更新 %@"
+          }
+        }
+      }
     }
   },
   "version" : "1.0"

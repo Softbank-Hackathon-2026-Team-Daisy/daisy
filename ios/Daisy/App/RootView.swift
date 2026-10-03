@@ -4,6 +4,7 @@ import SwiftUI
 /// 넓으면(iPad · Mac) 사이드바, 좁으면(iPhone) 아래 탭.
 struct RootView: View {
     @Environment(AppModel.self) private var app
+    @Environment(\.scenePhase) private var scenePhase
     @State private var router = Router()
     @State private var workspace = Workspace()
 
@@ -21,21 +22,36 @@ struct RootView: View {
                     }
                 }
                 .task(id: app.token) { await workspace.run(using: app) }
-                // 프로젝트 SSE(E-02): 로그인 · 프로젝트가 바뀌면 다시 붙어요. 배포 채널이 열려 있는 동안은 닫아 둬요 (한 번에 하나)
+                // 프로젝트 SSE(E-02): 로그인 · 프로젝트가 바뀌거나 앱이 오래 뒤에 있다 오면 다시 붙어요.
+                // 배포 채널이 열려 있는 동안은 닫아 둬요 (한 번에 하나)
                 .task(id: ProjectChannelKey(token: app.token, projectID: app.selectedProjectID,
-                                            paused: workspace.projectChannelPaused)) {
+                                            paused: workspace.projectChannelPaused, reconnects: workspace.reconnects)) {
                     await workspace.listen(using: app)
                 }
                 // 로그인할 때 · 앱을 켤 때마다 알림 권한을 묻고 기기를 등록해요 (서버에 아직 없으면 다음에 다시)
                 .task(id: app.token) { await app.push.activate(for: app) }
-                // 알림을 누르면 그 프로젝트의 승인 · 배포 화면으로. 꺼진 앱이 알림으로 켜질 때도 처음 그릴 때 열어요
-                .onChange(of: app.push.pendingOpen, initial: true) { _, payload in
-                    guard let payload else { return }
-                    app.push.pendingOpen = nil
-                    payload.open(app: app, router: router)
-                }
             } else {
                 LoginView()
+            }
+        }
+        // 계정 · 프로젝트가 바뀌면 이 창의 Workspace · Router를 바로 비워요 (AppModel이 알려요)
+        .onAppear { app.bind(workspace: workspace, router: router) }
+        // 알림을 누르면 그 프로젝트의 승인 · 배포 화면으로. 꺼진 앱이 알림으로 켜질 때도 처음 그릴 때 열어요.
+        // 로그아웃 상태에서 누른 알림은 버려요 — 나중에 다른 계정으로 로그인해서 열리지 않게 (P3)
+        .onChange(of: app.push.pendingOpen, initial: true) { _, payload in
+            guard let payload else { return }
+            app.push.pendingOpen = nil
+            guard app.isSignedIn else { return }
+            app.bind(workspace: workspace, router: router)
+            payload.open(app: app, router: router)
+            workspace.refreshSoon()
+        }
+        // 앱이 다시 앞으로 오면(백그라운드 · 잠자기 · 다른 앱에서 돌아옴) 모든 화면이 바로 다시 읽어요 (L3)
+        .onChange(of: scenePhase) { _, phase in
+            if phase == .active {
+                workspace.sceneDidBecomeActive()
+            } else {
+                workspace.sceneDidResignActive()
             }
         }
         .environment(router)
@@ -43,11 +59,12 @@ struct RootView: View {
     }
 }
 
-/// 프로젝트 채널을 다시 열어야 하는 때: 로그인 · 프로젝트 · 잠시 닫음이 바뀔 때
+/// 프로젝트 채널을 다시 열어야 하는 때: 로그인 · 프로젝트 · 잠시 닫음 · 다시 앞으로 옴이 바뀔 때
 private struct ProjectChannelKey: Equatable {
     let token: String?
     let projectID: String?
     let paused: Bool
+    let reconnects: Int
 }
 
 /// 메뉴 한 칸의 내용 + 그 안에서 들어가는 화면들.
@@ -105,9 +122,13 @@ private struct SlimTabBar: View {
 
     private func item(_ tab: AppTab) -> some View {
         let selected = router.tab == tab
-        let badge = tab == .deployments ? workspace.awaitingApproval.count : 0
+        // 가장 최근 배포가 승인을 기다릴 때만 점 하나 (S1, 사이드바 배지와 같은 기준)
+        let badge = tab == .deployments && workspace.actionableApproval != nil ? 1 : 0
         return Button {
-            withAnimation(reduceMotion ? nil : .spring(response: 0.32, dampingFraction: 0.86)) { router.tab = tab }
+            // 지금 메뉴를 다시 누르면 그 메뉴의 처음 화면으로 (A5, 사이드바와 같아요)
+            withAnimation(reduceMotion ? nil : .spring(response: 0.32, dampingFraction: 0.86)) {
+                if router.tab == tab { router.popToRoot() } else { router.tab = tab }
+            }
         } label: {
             // 선택한 메뉴만 채운 아이콘(cloud.fill · play.fill …). 채운 버전이 없는 심볼은 그대로예요
             Image(systemName: tab.systemImage)

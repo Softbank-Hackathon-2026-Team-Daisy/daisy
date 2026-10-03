@@ -97,6 +97,9 @@ struct EventStream: Sendable {
     static let staleAfter: TimeInterval = 35
     /// 계정당 연결 상한(서버 4개)에 걸리면(429) 이만큼 쉬었다가 다시 붙어요. 그동안 화면은 폴링으로 버텨요
     static let tooManyWait: Duration = .seconds(60)
+    /// 403 · 404(권한 · 채널 없음)면 이만큼 쉬었다가 다시 붙어 봐요 (I2). 권한이 생기거나 서버가 채널을 열면 이어져요.
+    /// 그동안 화면은 폴링으로 버텨요. 테스트는 0으로 바꿔요
+    var blockedWait: Duration = .seconds(120)
 
     init(baseURL: URL, token: String?, session: URLSession = .shared, language: AppLanguage = .current) {
         self.baseURL = baseURL
@@ -131,7 +134,8 @@ struct EventStream: Sendable {
     }
 
     /// 채널(`projects/{id}/events` · `deployments/{id}/events`)에 붙어요. 끊기면 Last-Event-ID로 다시 붙어요.
-    /// 401 · 403 · 404는 다시 붙어도 안 되니 disconnected로 끝내요 (401은 폴링 쪽이 받아서 로그인 화면으로 보내요).
+    /// 401은 토큰이 끝난 거라 disconnected로 끝내요 (폴링 쪽이 받아서 로그인 화면으로 보내요).
+    /// 403 · 404는 영영 멈추지 않고 `blockedWait`만큼 길게 쉬었다가 다시 붙어 봐요 (I2).
     /// 받는 쪽 Task가 취소되면 연결도 끊어요.
     func subscribe(path: String, since: Int64? = nil) -> AsyncStream<RealtimeSignal> {
         AsyncStream { continuation in
@@ -143,7 +147,7 @@ struct EventStream: Sendable {
         }
     }
 
-    private enum Failure: Error { case stop, tooMany, status(Int) }
+    private enum Failure: Error { case stop, tooMany, blocked, status(Int) }
 
     private func run(path: String, since: Int64?, _ out: AsyncStream<RealtimeSignal>.Continuation) async {
         var lastID = since
@@ -153,7 +157,8 @@ struct EventStream: Sendable {
                 let (bytes, response) = try await session.bytes(for: request(path: path, lastEventID: lastID))
                 guard let http = response as? HTTPURLResponse else { throw Failure.status(0) }
                 switch http.statusCode {
-                case 401, 403, 404: throw Failure.stop
+                case 401: throw Failure.stop
+                case 403, 404: throw Failure.blocked
                 case 429: throw Failure.tooMany
                 case 200..<300 where http.mimeType == "text/event-stream": break
                 default: throw Failure.status(http.statusCode)
@@ -178,6 +183,10 @@ struct EventStream: Sendable {
             } catch Failure.tooMany {
                 out.yield(.state(.disconnected))
                 try? await Task.sleep(for: Self.tooManyWait)
+                continue
+            } catch Failure.blocked {
+                out.yield(.state(.disconnected))
+                try? await Task.sleep(for: blockedWait)
                 continue
             } catch {
                 if Task.isCancelled { return }

@@ -44,7 +44,8 @@ struct PushTests {
 
     /// 누르면 그 프로젝트를 고르고 배포 메뉴에서 화면을 열어요
     @Test @MainActor func tapSelectsProjectAndOpensRoute() {
-        let app = PushFake.appModel()
+        let app = PushFake.appModel(token: "tok-real")
+        defer { app.signOut() }
         let router = Router()
         PushPayload(kind: .approvalRequired, projectID: "prj_2", deploymentID: "dep_9").open(app: app, router: router)
         #expect(app.selectedProjectID == "prj_2")

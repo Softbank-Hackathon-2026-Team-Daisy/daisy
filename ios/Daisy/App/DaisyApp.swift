@@ -34,6 +34,11 @@ struct DaisyApp: App {
         // 표준 창 + unified 툴바, 제목은 그리지 않아요 (각 화면이 큰 제목 머리줄을 가져요).
         .windowToolbarStyle(.unified(showsTitle: false))
         .defaultSize(width: 1100, height: 720)
+        // Mac은 창 하나만 (L4): 창마다 Workspace · SSE 연결이 따로 생겨 서로 어긋나고 계정당 SSE 상한(4개)을 써 버려서요.
+        // "새로운 윈도우"(⌘N)를 빼고, 탭으로 창을 늘리는 것도 막아요(PushAppDelegate). 창을 닫았다가 Dock을 누르면 다시 하나 열려요
+        .commands {
+            CommandGroup(replacing: .newItem) {}
+        }
         #endif
     }
 }

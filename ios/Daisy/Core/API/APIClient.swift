@@ -14,6 +14,8 @@ struct APIClient: Sendable {
     func request<Response>(for endpoint: Endpoint<Response>) throws -> URLRequest {
         var request = URLRequest(url: try url(for: endpoint))
         request.httpMethod = endpoint.method
+        // 상태는 늘 서버에서 새로 받아요. 응답에 캐시 헤더가 없어도 URLSession이 추정 캐시로 옛 값을 줄 수 있어서요 (I3)
+        request.cachePolicy = .reloadIgnoringLocalCacheData
         request.setValue("application/json", forHTTPHeaderField: "Accept")
         request.setValue(language.rawValue, forHTTPHeaderField: "Accept-Language")
         if let token {
@@ -38,6 +40,8 @@ struct APIClient: Sendable {
             (data, response) = try await session.data(for: request)
         } catch {
             if let key { idempotencyKeys.record(request, key: key, outcomeUnknown: true) }
+            // 화면이 사라지거나 `.task(id:)`가 다시 시작돼서 취소된 요청은 실패가 아니에요 (X4). 오류 화면을 띄우지 않게 그대로 알려요
+            if error.isCancellation || Task.isCancelled { throw CancellationError() }
             throw APIError.transport(error.localizedDescription)
         }
         guard let http = response as? HTTPURLResponse else { throw APIError.invalidResponse }
@@ -87,6 +91,16 @@ struct APIClient: Sendable {
         if !items.isEmpty { components?.queryItems = items }
         guard let url = components?.url else { throw APIError.invalidResponse }
         return url
+    }
+}
+
+extension Error {
+    /// 취소된 요청 (`CancellationError` · `URLError.cancelled`). 화면은 이 오류를 실패로 보여주지 않고 그냥 넘겨요 (X4):
+    /// `catch { if error.isCancellation { return } … }`
+    var isCancellation: Bool {
+        if self is CancellationError { return true }
+        if let error = self as? URLError, error.code == .cancelled { return true }
+        return false
     }
 }
 
