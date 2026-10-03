@@ -75,11 +75,13 @@ struct RunView: View {
                 await store.refresh(using: app)
             }
         }
-        // 끝난 배포는 이벤트가 더 없어서 채널을 닫아요 (계정당 연결 4개 상한)
+        // 끝난 배포는 이벤트가 더 없어서 채널을 닫아요. 열려 있는 동안 프로젝트 채널은 닫아 둬요 (계정당 연결 4개 상한, 앱은 하나만)
         .task(id: store.isFinished) {
-            guard !store.isFinished else { return }
+            guard !store.isFinished, let stream = app.eventStream else { return }
             store.live.onChange = { [workspace] in workspace.refreshSoon() }
-            await store.live.listen(app.eventStream, path: "deployments/\(store.deploymentID)/events")
+            workspace.hold(store.live)
+            defer { workspace.release(store.live) }
+            await store.live.listen(stream, path: "deployments/\(store.deploymentID)/events")
         }
     }
 

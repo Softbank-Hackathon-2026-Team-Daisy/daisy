@@ -52,6 +52,10 @@ final class LiveChannel {
     /// 이벤트가 오면 부르는 곳 (배포 채널 → 사이드바 승인 대기 배지 등)
     @ObservationIgnored var onChange: (@MainActor () -> Void)?
 
+    /// 마지막으로 받은 seq와 그 채널. 같은 채널에 다시 붙으면(잠시 닫았다가) 여기부터 이어 받아요
+    @ObservationIgnored private(set) var cursor: Int64?
+    @ObservationIgnored private var cursorPath: String?
+
     @ObservationIgnored private var changePending = false
     @ObservationIgnored private var logPending = false
 
@@ -61,12 +65,16 @@ final class LiveChannel {
     /// 채널에 붙어 있어요. 부른 Task가 취소되면(화면이 사라지면) 끊어요. `stream`이 없으면(예시 데이터 모드 · 로그아웃) 바로 돌아와요
     func listen(_ stream: EventStream?, path: String) async {
         guard let stream else { return }
+        if path != cursorPath { (cursor, cursorPath) = (nil, path) }
         defer { setLive(false) }
-        for await signal in stream.subscribe(path: path) {
+        for await signal in stream.subscribe(path: path, since: cursor) {
             switch signal {
             case .state(let state): setLive(state == .connected)
-            case .resync: schedule(logs: false)
+            case .resync(let lastSeq):
+                cursor = lastSeq
+                schedule(logs: false)
             case .event(let event):
+                if let id = event.id { cursor = id }
                 switch event.event {
                 case "heartbeat": break
                 case "log.batch": schedule(logs: true)

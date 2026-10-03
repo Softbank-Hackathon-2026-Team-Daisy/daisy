@@ -79,8 +79,8 @@ enum RealtimeState: Sendable, Equatable {
 enum RealtimeSignal: Sendable, Equatable {
     case state(RealtimeState)
     case event(ServerEvent)
-    /// 서버가 놓친 이벤트를 못 채워요 → 스냅샷을 다시 읽어요
-    case resync
+    /// 서버가 놓친 이벤트를 못 채워요 → 스냅샷을 다시 읽어요. 다음 연결은 `lastSeq`부터예요
+    case resync(lastSeq: Int64?)
 }
 
 /// SSE 클라이언트. `APIClient`와 같은 서버 · 토큰 · 언어로 붙어요 (Bearer, R-01).
@@ -166,7 +166,7 @@ struct EventStream: Sendable {
                     if event.event == "resync" {
                         // 보관 범위 밖이라 처음부터 다시 받으면 또 resync가 와요. 서버가 알려 준 last_seq부터 이어 붙어요
                         lastID = event.lastSeq
-                        out.yield(.resync)
+                        out.yield(.resync(lastSeq: lastID))
                         continue
                     }
                     if let id = event.id { lastID = id }

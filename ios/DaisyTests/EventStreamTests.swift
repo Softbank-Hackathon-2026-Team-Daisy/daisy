@@ -86,13 +86,12 @@ struct EventStreamTests {
         let config = URLSessionConfiguration.ephemeral
         config.protocolClasses = [ScriptedSSEProtocol.self]
         ScriptedSSEProtocol.script.withLock {
-            $0 = [
+            $0["/projects/prj_1/events"] = [
                 (200, "event:heartbeat\ndata:{}\n\nid:5\nevent:step.started\ndata:{\"seq\":5}\n\n"),
                 (200, "event:resync\ndata:{\"last_seq\":40}\n\n"),
                 (401, ""),
             ]
         }
-        ScriptedSSEProtocol.cursors.withLock { $0 = [] }
         var stream = EventStream(baseURL: URL(string: "https://api.example.com")!, token: "t",
                                  session: URLSession(configuration: config))
         stream.retryDelay = { _ in .zero }
@@ -100,17 +99,66 @@ struct EventStreamTests {
         var signals: [RealtimeSignal] = []
         for await signal in stream.subscribe(path: "projects/prj_1/events", since: 2) { signals.append(signal) }
 
-        #expect(ScriptedSSEProtocol.cursors.withLock { $0 } == ["2", "5", "40"])
+        #expect(ScriptedSSEProtocol.cursors.withLock { $0["/projects/prj_1/events"] } == ["2", "5", "40"])
         #expect(signals == [
             .state(.connected),
             .event(ServerEvent(id: nil, event: "heartbeat", data: "{}")),
             .event(ServerEvent(id: 5, event: "step.started", data: "{\"seq\":5}")),
             .state(.reconnecting),
             .state(.connected),
-            .resync,
+            .resync(lastSeq: 40),
             .state(.reconnecting),
             .state(.disconnected),
         ])
+    }
+
+    // MARK: 연결 하나만 (계정당 SSE 4개)
+
+    /// 배포 채널이 열리면 프로젝트 채널을 닫고, 닫히면 다시 열어요. 연결 표시는 어느 쪽이든 붙어 있으면 "실시간 연결됨"
+    @MainActor
+    @Test func deploymentChannelPausesProjectChannel() {
+        let workspace = Workspace()
+        let first = LiveChannel(), second = LiveChannel()
+        #expect(!workspace.projectChannelPaused)
+        workspace.hold(first)
+        workspace.hold(second)
+        #expect(workspace.projectChannelPaused)
+        workspace.release(first)
+        #expect(workspace.projectChannelPaused)  // 다른 배포 채널이 아직 열려 있어요
+        workspace.release(second)
+        #expect(!workspace.projectChannelPaused)
+        #expect(!workspace.isLive)
+    }
+
+    /// 닫았다가 같은 채널에 다시 붙으면 마지막 seq부터 이어 받고, 다른 채널이면 처음부터예요
+    @MainActor
+    @Test func reopenedChannelResumesFromCursor() async {
+        let config = URLSessionConfiguration.ephemeral
+        config.protocolClasses = [ScriptedSSEProtocol.self]
+        let path = "/projects/prj_resume/events"
+        ScriptedSSEProtocol.script.withLock {
+            $0[path] = [
+                (200, "id:9\nevent:target.status_changed\ndata:{}\n\n"),
+                (401, ""),  // 멈춰요 (첫 listen이 끝나요)
+                (200, "id:11\nevent:build.received\ndata:{}\n\n"),
+                (401, ""),
+            ]
+        }
+        let stream = EventStream(baseURL: URL(string: "https://api.example.com")!, token: "t",
+                                 session: URLSession(configuration: config))
+        var fast = stream
+        fast.retryDelay = { _ in .zero }
+        let channel = LiveChannel()
+        await channel.listen(fast, path: "projects/prj_resume/events")
+        #expect(channel.cursor == 9)
+        #expect(!channel.isLive)
+        await channel.listen(fast, path: "projects/prj_resume/events")
+        #expect(channel.cursor == 11)
+        #expect(ScriptedSSEProtocol.cursors.withLock { $0[path] } == ["-", "9", "9", "11"])
+        // 다른 채널은 처음부터 (Last-Event-ID 없음)
+        await channel.listen(fast, path: "projects/prj_other/events")
+        #expect(ScriptedSSEProtocol.cursors.withLock { $0["/projects/prj_other/events"] } == ["-"])
+        #expect(channel.cursor == nil)
     }
 
     // MARK: 폴링 간격 · 신호
@@ -155,16 +203,18 @@ private final class Counter {
     var calls = 0
 }
 
-/// 요청마다 대본의 다음 응답을 줘요. 받은 Last-Event-ID를 적어 둬요
+/// 요청마다 그 경로 대본의 다음 응답을 줘요 (대본이 없으면 401). 받은 Last-Event-ID를 경로별로 적어 둬요.
+/// 테스트가 동시에 돌아서 테스트마다 다른 경로를 써요
 private final class ScriptedSSEProtocol: URLProtocol, @unchecked Sendable {
-    static let script = Mutex<[(Int, String)]>([])
-    static let cursors = Mutex<[String]>([])
+    static let script = Mutex<[String: [(Int, String)]]>([:])
+    static let cursors = Mutex<[String: [String]]>([:])
 
     override class func canInit(with request: URLRequest) -> Bool { true }
     override class func canonicalRequest(for request: URLRequest) -> URLRequest { request }
     override func startLoading() {
-        Self.cursors.withLock { $0.append(request.value(forHTTPHeaderField: "Last-Event-ID") ?? "-") }
-        let (status, body) = Self.script.withLock { $0.isEmpty ? (401, "") : $0.removeFirst() }
+        let path = request.url!.path
+        Self.cursors.withLock { $0[path, default: []].append(request.value(forHTTPHeaderField: "Last-Event-ID") ?? "-") }
+        let (status, body) = Self.script.withLock { $0[path]?.isEmpty == false ? $0[path]!.removeFirst() : (401, "") }
         let response = HTTPURLResponse(url: request.url!, statusCode: status, httpVersion: "HTTP/1.1",
                                        headerFields: ["Content-Type": status == 200 ? "text/event-stream" : "application/json"])!
         client?.urlProtocol(self, didReceive: response, cacheStoragePolicy: .notAllowed)

@@ -133,9 +133,29 @@ final class Workspace {
     /// REST 폴링 결과. 성공하면 `polling`, 실패하면 `reconnecting` · `disconnected`
     private var restConnection: ConnectionState = .reconnecting
 
+    /// 지금 열려 있는 배포 채널 (RunView). 서버가 계정당 SSE를 4개까지만 받아서(Mac · iPhone · 웹을 같이 쓰면 금방 차요)
+    /// 앱은 한 번에 하나만 열어요: 배포 채널이 열려 있는 동안 프로젝트 채널은 닫고, 배포 채널이 닫히면 이어 받아요
+    private var borrowed: [ObjectIdentifier: LiveChannel] = [:]
+
+    /// 프로젝트 채널을 잠시 닫아 둔 상태 (배포 채널이 대신 열려 있어요)
+    var projectChannelPaused: Bool { !borrowed.isEmpty }
+
+    /// 프로젝트 · 배포 채널 중 하나라도 붙어 있어요
+    var isLive: Bool { live.isLive || borrowed.values.contains { $0.isLive } }
+
     /// 연결 표시: 스트림이 붙어 있으면 "실시간 연결됨", 끊기면 폴링으로 돌아가요
     var connection: ConnectionState {
-        restConnection == .polling && live.isLive ? .connected : restConnection
+        restConnection == .polling && isLive ? .connected : restConnection
+    }
+
+    /// 배포 채널을 열기 전에 불러요. 프로젝트 채널이 닫혀요 (RootView `.task(id:)`)
+    func hold(_ channel: LiveChannel) {
+        borrowed[ObjectIdentifier(channel)] = channel
+    }
+
+    /// 배포 채널을 닫은 뒤 불러요. 다른 배포 채널이 없으면 프로젝트 채널을 마지막 seq부터 다시 열어요
+    func release(_ channel: LiveChannel) {
+        borrowed[ObjectIdentifier(channel)] = nil
     }
 
     var project: Project? {
@@ -150,9 +170,10 @@ final class Workspace {
         }
     }
 
-    /// 고른 프로젝트의 채널에 붙어 있어요. 로그인 · 프로젝트가 바뀌면 `.task(id:)`가 다시 불러요
+    /// 고른 프로젝트의 채널에 붙어 있어요. 로그인 · 프로젝트 · 잠시 닫음이 바뀌면 `.task(id:)`가 다시 불러요.
+    /// 프로젝트 채널이 닫혀 있는 동안 이 화면들은 배포 채널 이벤트(`refreshSoon`)와 5초 폴링으로 버텨요
     func listen(using app: AppModel) async {
-        guard let projectID = app.selectedProjectID else { return }
+        guard !projectChannelPaused, let projectID = app.selectedProjectID else { return }
         await live.listen(app.eventStream, path: "projects/\(projectID)/events")
     }
 
