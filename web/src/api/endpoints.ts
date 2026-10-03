@@ -29,6 +29,8 @@ import type {
 // #42 · #46 · #48: 배포 목록 · 상세 · 생성 · 승인 · 취소 · 재시도 · 롤백 · 환경 목록
 const SERVER_READY = new Set<string>([
   'login',
+  // #111 (V5): 회원가입
+  'signup',
   'me',
   'listProjects',
   'getProject',
@@ -80,6 +82,12 @@ export const api = {
   // R-02
   login: (username: string, password: string) =>
     !live('login') ? mock(() => mockApi.login(username, password)) : request<AuthToken>('POST', '/auth/token', { body: { username, password } }),
+
+  // R-02b 회원가입 (#111 · #114) — 201 본문은 /auth/token과 같아서 받은 토큰으로 바로 로그인해요
+  signup: (username: string, password: string, displayName?: string) =>
+    !live('signup')
+      ? mock(() => mockApi.signup(username, password, displayName))
+      : request<AuthToken>('POST', '/auth/signup', { body: { username, password, display_name: displayName || undefined } }),
 
   // R-03 GET /auth/me — 사이드바 사용자 이름 · 역할
   me: () => (!live('me') ? mock(mockApi.me) : request<Me>('GET', '/auth/me')),

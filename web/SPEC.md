@@ -61,6 +61,7 @@ W-00 로그인 → W-01 개요 → W-02 저장소 연결 → L-01 → W-03 이�
 | ID | 화면 | 내용 | 우선 |
 |---|---|---|---|
 | W-00 | **로그인** | 아이디 · 비밀번호로 Bearer 토큰 발급(R-02). "데모 계정으로 둘러보기"(viewer, R-03). 왼쪽은 인프라 블록(Stack 3) + 슬로건. 로그인 버튼은 Secondary. 사이드바 없음. GitHub 로그인은 넣지 않아요 | M |
+| W-00c | 회원가입 (10/3, #114) | W-00 로그인 버튼 아래 "계정이 없나요? 회원가입" → `/signup`. 아이디 · 표시 이름(선택) · 비밀번호 · 비밀번호 확인, 칸 아래 규칙 안내(칸을 떠나거나 제출하면 빨갛게). `POST /auth/signup`(R-02b) 201이면 로그인과 똑같이 토큰을 저장하고 바로 들어가요. 오류: 409 `USERNAME_TAKEN` → 아이디 칸, 429 · 400 · 403(가입 꺼짐, 401 · 404도 같은 안내) · 네트워크 → 상단 알림. 규칙 · 문구는 앱 `SignUpView`와 같아요 | S |
 | W-00b | 로그인 · 실패 | 401 → 상단 오류 알림 + 비밀번호 칸 Error, 아이디는 두고 비밀번호만 비움. 네트워크 오류 → "서버에 연결하지 못했어요. 잠시 후 다시 시도해 주세요." 세션 만료로 돌아오면 Info "다시 로그인해 주세요." | M |
 | W-01 | **개요** | 환경별 현재 버전(커밋 · 배포 시각 · 공개 URL · 헬스), "3/3 일치" 이식성 표시, 지금 할 일(승인 대기 → W-06, Secondary 버튼), 최근 실행 | M |
 | W-02 | **애플리케이션 연결** (STEP 1) | 저장소 URL, 배포 기준 브랜치, `deploy.yaml` 확인. 입력은 GitHub 저장소 연결 하나 (ADR-004). 데모 앱 sample-monolith 기준 (포트 8080, `/health`, DB 없음) | M |
@@ -113,6 +114,7 @@ M = 예선 데모 필수, S = 선택 (S도 모두 만들었어요, §5)
 | 화면 | 경로 |
 |---|---|
 | W-00 · W-00b 로그인 | `/login` (`?next=` 원래 보려던 화면, `?expired=1` 세션 만료 안내) |
+| W-00c 회원가입 | `/signup` (`?next=` 그대로 넘겨요) |
 | W-01 개요 | `/projects/:projectId` |
 | W-02 저장소 연결 | `/connect` |
 | W-03 이미지 빌드 | `/projects/:projectId/deploy/build` |
@@ -275,6 +277,7 @@ Page ──▶ hook ──▶ api/client ──────────▶ Unibl
 
 | API | 상태 | 웹에서 맞춘 것 |
 |---|---|---|
+| R-02b `POST /auth/signup` (#111) | ✅ 실서버 | 아이디는 앞뒤 공백을 빼고 소문자로 보내요(서버도 소문자로 저장). 201 본문은 R-02와 같아요. 가입 계정은 `owner` + 데모 프로젝트 자동 참여 |
 | R-02 `POST /auth/token` · R-03 `GET /auth/me` | ✅ 실서버 | 역할 `owner` · `viewer`, 사이드바 사용자 이름 · 역할. 틀린 비밀번호도 세션 만료로 보내지 않아요 |
 | A-01 `GET /projects` · A-12 `GET /projects/{id}` | ✅ 실서버 | 첫 화면 = 첫 프로젝트, 사이드바 프로젝트 목록, W-13 `default_branch` · `repository_url` · `manifest_path`. `build` · `registry` · `webhook_last_at`은 미제공 |
 | A-02 `GET /projects/{id}/targets/status` | ✅ 실서버 | `{ items, next_cursor }` 봉투, `connection_state`, `current: null` = "확인된 배포 없음", `health: unknown` = "확인 전", digest가 하나도 없으면 동일성 "확인 전" |

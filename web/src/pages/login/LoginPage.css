@@ -98,6 +98,17 @@
   cursor: pointer;
 }
 
+.login__switch {
+  display: flex;
+  justify-content: center;
+  gap: 6px;
+  margin-top: calc(-1 * var(--space-2));
+}
+
+.login__hint--error {
+  color: var(--color-danger);
+}
+
 .login__mock {
   display: flex;
   align-items: center;

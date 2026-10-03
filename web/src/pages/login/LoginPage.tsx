@@ -1,18 +1,18 @@
 import { useState, type FormEvent } from 'react'
-import { useNavigate, useSearchParams } from 'react-router'
+import { Link, useNavigate, useSearchParams } from 'react-router'
 import { useAuth } from '../../api/auth.ts'
 import { ApiError, USE_MOCK } from '../../api/client.ts'
 import { api } from '../../api/endpoints.ts'
 import Alert from '../../components/Alert.tsx'
 import Button from '../../components/Button.tsx'
 import Icon from '../../components/Icon.tsx'
-import InfraBlock from '../../components/InfraBlock.tsx'
 import LanguageSelect from '../../components/LanguageSelect.tsx'
 import Input from '../../components/Input.tsx'
 import Logo from '../../components/Logo.tsx'
 import MockBadge from '../../components/MockBadge.tsx'
 import { t } from '../../i18n/index.ts'
 import MacAppDialog from '../app-download/MacAppDialog.tsx'
+import LoginBrand from './LoginBrand.tsx'
 import './LoginPage.css'
 
 // W-00 로그인 · W-00b 실패. Bearer 토큰 하나(R-01 · R-02), GitHub 로그인은 넣지 않아요
@@ -68,14 +68,7 @@ function LoginPage() {
 
   return (
     <div className="login">
-      <section className="login__brand">
-        <InfraBlock stack={3} />
-        <div className="login__slogan">
-          <p className="t-overline t-muted">One action, infinite clouds</p>
-          <h2 className="t-h1">{t('환경만 고르면, 어디든 같은 상태로')}</h2>
-          <p className="t-body-sm t-muted">{t('AI가 환경별 인프라 코드를 만들고 검증해서 온프레미스와 퍼블릭 클라우드에 동시에 배포해요.')}</p>
-        </div>
-      </section>
+      <LoginBrand />
 
       <section className="login__form-area">
         {/* 로그인 전에도 언어를 바꿀 수 있게 (#75) */}
@@ -121,6 +114,14 @@ function LoginPage() {
           <Button type="submit" variant="secondary" className="login__full" disabled={pending}>
             {pending ? t('로그인하는 중…') : t('로그인')}
           </Button>
+
+          {/* R-02b 회원가입 (#114) — 가입하면 바로 로그인돼요 */}
+          <p className="login__switch t-body-sm">
+            <span className="t-muted">{t('계정이 없나요?')}</span>
+            <Link to={params.get('next') ? `/signup?next=${encodeURIComponent(params.get('next') ?? '')}` : '/signup'} className="login__link">
+              {t('회원가입')}
+            </Link>
+          </p>
 
           <div className="login__or">
             <span />

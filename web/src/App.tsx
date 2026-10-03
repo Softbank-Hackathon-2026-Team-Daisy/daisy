@@ -11,6 +11,7 @@ import EnvironmentsPage from './pages/environments/EnvironmentsPage.tsx'
 import GeneratePage from './pages/generate/GeneratePage.tsx'
 import HistoryPage from './pages/history/HistoryPage.tsx'
 import LoginPage from './pages/login/LoginPage.tsx'
+import SignupPage from './pages/login/SignupPage.tsx'
 import OverviewPage from './pages/overview/OverviewPage.tsx'
 import ResultPage from './pages/result/ResultPage.tsx'
 import ScriptsPage from './pages/scripts/ScriptsPage.tsx'
@@ -28,6 +29,7 @@ function App() {
   return (
     <Routes key={lang}>
       <Route path="/login" element={<LoginPage />} />
+      <Route path="/signup" element={<SignupPage />} />
 
       <Route element={<AppLayout />}>
         <Route path="/connect" element={<ConnectPage />} />

@@ -91,6 +91,16 @@ export const mockApi = {
     mockRole = 'owner'
     return { access_token: 'mock-owner', expires_at: new Date(Date.now() + 3_600_000).toISOString(), role: 'owner' }
   },
+  // MOCK: R-02b 회원가입 — 서버 규칙(#111)을 흉내 내요. daisy · demo는 이미 있는 아이디로 봐요
+  async signup(username: string, password: string, _displayName?: string): Promise<AuthToken> {
+    await wait(400)
+    const name = username.trim().toLowerCase()
+    if (!/^[a-z0-9][a-z0-9._-]{2,31}$/.test(name) || password.length < 8 || password.length > 200)
+      throw new MockError(400, 'VALIDATION_FAILED', '입력값을 확인해 주세요')
+    if (name === 'daisy' || name === 'demo') throw new MockError(409, 'USERNAME_TAKEN', '이미 사용 중인 아이디예요')
+    mockRole = 'owner'
+    return { access_token: 'mock-owner', expires_at: new Date(Date.now() + 3_600_000).toISOString(), role: 'owner' }
+  },
   async me(): Promise<Me> {
     await wait(100)
     return mockRole === 'viewer' ? { account_id: 'acc_viewer', username: 'demo', role: 'viewer' } : { account_id: 'acc_owner', username: '김도영', role: 'owner' }
