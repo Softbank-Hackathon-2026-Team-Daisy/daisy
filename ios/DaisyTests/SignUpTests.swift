@@ -71,6 +71,9 @@ struct SignUpTests {
         (429, "RATE_LIMITED", .rateLimited, "가입 요청이 너무 많아요. 몇 분 뒤에 다시 시도해 주세요."),
         (400, "VALIDATION_FAILED", .invalidInput, "아이디 · 비밀번호 · 표시 이름 형식을 확인해 주세요."),
         (403, "FORBIDDEN", .closed, "지금은 회원가입을 받지 않아요. 팀에 계정을 요청해 주세요."),
+        // 가입 API가 아직 없는 서버: 인증 필터가 401, 또는 404
+        (401, "UNAUTHENTICATED", .closed, "지금은 회원가입을 받지 않아요. 팀에 계정을 요청해 주세요."),
+        (404, "NOT_FOUND", .closed, "지금은 회원가입을 받지 않아요. 팀에 계정을 요청해 주세요."),
     ])
     @MainActor func serverErrors(status: Int, code: String, expected: SignUpFailure, message: String) async throws {
         let (app, store, cleanup) = Self.appModel()

@@ -144,7 +144,7 @@ enum SignUpFailure: Equatable {
     case rateLimited
     /// 400 `VALIDATION_FAILED`
     case invalidInput
-    /// 403 `FORBIDDEN` (서버가 가입을 꺼 둠)
+    /// 403 `FORBIDDEN` (서버가 가입을 꺼 둠). 가입 API가 아직 없는 서버(401 · 404)도 같은 안내예요
     case closed
     /// 서버에 닿지 못함
     case network
@@ -155,7 +155,7 @@ enum SignUpFailure: Equatable {
         case .server(_, "USERNAME_TAKEN", _, _), .server(409, _, _, _): self = .usernameTaken
         case .server(_, "RATE_LIMITED", _, _), .server(429, _, _, _): self = .rateLimited
         case .server(_, "VALIDATION_FAILED", _, _), .server(400, _, _, _): self = .invalidInput
-        case .server(403, _, _, _): self = .closed
+        case .server(403, _, _, _), .server(401, _, _, _), .server(404, _, _, _): self = .closed
         case .transport: self = .network
         default: self = .other(error.localizedDescription)
         }
