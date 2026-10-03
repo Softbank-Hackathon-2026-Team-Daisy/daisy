@@ -20,12 +20,16 @@ final class AppModel {
 
     private let tokenStore: TokenStore
     private let defaults: UserDefaults
+    /// 로그인 · 회원가입 요청에 쓰는 세션. 테스트는 가짜 응답을 주는 세션을 넣어요
+    private let authSession: URLSession
 
     /// Unibloom 서버 주소. 우리가 운영하는 서비스라 쓰는 사람이 주소를 넣지 않아요 — 앱은 늘 이 주소로 가요 (10/2 박승준 결정)
     static let defaultServerURL = "https://api.unibloom.cloud"
 
-    init(tokenStore: TokenStore = TokenStore(), defaults: UserDefaults = .standard, push: PushRegistry = .shared) {
+    init(tokenStore: TokenStore = TokenStore(), defaults: UserDefaults = .standard, push: PushRegistry = .shared,
+         authSession: URLSession = .shared) {
         self.tokenStore = tokenStore
+        self.authSession = authSession
         self.defaults = defaults
         self.push = push
         selectedProjectID = defaults.string(forKey: Keys.projectID)
@@ -64,9 +68,18 @@ final class AppModel {
 
     func signIn(username: String, password: String) async throws {
         guard let serverURL else { throw APIError.notConfigured }
-        let result = try await APIClient(baseURL: serverURL, token: nil)
+        let result = try await APIClient(baseURL: serverURL, token: nil, session: authSession)
             .send(.token(username: username, password: password))
         adopt(result, username: username)
+    }
+
+    /// 회원가입 (`POST /auth/signup`). 성공하면 로그인과 똑같이 토큰을 저장해서 바로 로그인 상태가 돼요
+    /// (키체인 · 역할 · 푸시 등록은 로그인 경로를 그대로 따라요). 예시 데이터 모드와는 상관없는 실서버 전용 경로예요
+    func signUp(username: String, password: String, displayName: String? = nil) async throws {
+        guard let serverURL else { throw APIError.notConfigured }
+        let result = try await APIClient(baseURL: serverURL, token: nil, session: authSession)
+            .send(.signup(username: username, password: password, displayName: displayName))
+        adopt(result, username: SignupRequest.normalized(username))
     }
 
     private func adopt(_ result: AuthToken, username: String) {
