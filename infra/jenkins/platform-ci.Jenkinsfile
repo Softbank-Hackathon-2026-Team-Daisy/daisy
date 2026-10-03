@@ -89,6 +89,8 @@ pipeline {
               --file infra/images/web/Dockerfile \
               --build-arg "VITE_API_BASE_URL=$VITE_API_BASE_URL" \
               --build-arg "VITE_USE_MOCK=$VITE_USE_MOCK" \
+              --build-arg "GIT_COMMIT=$SOURCE_COMMIT" \
+              --build-arg "BUILT_AT=$(date -u +%FT%TZ)" \
               --label "org.opencontainers.image.revision=$SOURCE_COMMIT" \
               --tag "$WEB_IMAGE:$IMAGE_TAG" \
               --tag "$WEB_IMAGE:latest" \

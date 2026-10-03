@@ -1075,6 +1075,7 @@ main push ─▶ unibloom-platform2-ci ── 이미지 빌드 · 게시 (Docker
 | 추가 설정 | `-f` 없이 기본 파일을 읽어서 `docker-compose.override.yml`(APNs 푸시 키 경로 · 키 ID, `secrets/apns.p8`)과 `.env`가 그대로 적용돼요. 이 두 파일은 저장소에 없어요 |
 | SSH | Credentials `unibloom-prod-ssh`(`user`). Terraform 온프레미스 배포 키(`/var/lib/jenkins/.ssh/onprem_deploy`)와 **다른 키**예요. 두 키 모두 Service VM `user`의 `authorized_keys`에 있어야 해요. 키를 넣을 때는 덮어쓰지 말고 덧붙여요(`>>`) — 10/3 덮어써서 온프레미스 plan이 SSH 인증 실패로 멈췄어요 |
 | 수동 배포 | Service VM에서 main을 직접 빌드할 때도 같은 파일을 써요. `image:` 교체는 형식에 상관없이 이렇게 해요: `sed -i -e "/image:.*unibloom-server:/ s#image:.*#image: unibloom-server:$TAG#" -e "/image:.*unibloom-web:/ s#image:.*#image: unibloom-web:$TAG#" docker-compose.yml` |
+| 버전 확인 | `https://www.unibloom.cloud/version.json` → 웹 이미지를 빌드한 커밋 · 시각 (`infra/images/web/Dockerfile`, CI가 `GIT_COMMIT` · `BUILT_AT`을 넘겨요). 수동 빌드도 `--build-arg GIT_COMMIT=$(git rev-parse HEAD)`를 넣으면 보여요 |
 | 쓰지 않는 것 | 예전 `docker-compose2.yml` · `compose2/`(Docker Hub `latest` 고정, 컨테이너 이름이 같아 수동 배포와 서로 지웠어요), 예전 Job `unibloom-platform-cd2`(파라미터 블록이 빠져 실패) |
 
 검증 (10/3):
