@@ -58,6 +58,8 @@ struct PushSystem {
     var send: @Sendable (APIClient, Endpoint<EmptyResponse>) async throws -> Void = { client, endpoint in
         _ = try await client.send(endpoint)
     }
+    /// 이 기기에서 원격 알림을 쓰는지. 지금은 iPhone만이에요 (10/3 담당자: Mac은 개발자 계정에 Mac을 등록한 뒤에)
+    var supportsRemote = true
 }
 
 /// 기기 등록 상태와 알림을 눌러 열 화면. 앱 전체에 하나(`shared`)이고, `AppModel.push`로 닿아요.
@@ -87,12 +89,15 @@ final class PushRegistry {
     /// 토큰은 `didRegister(deviceToken:)`로 와요. 예시 데이터 모드에서는 아무것도 하지 않아요
     func activate(for app: AppModel) async {
         self.app = app
-        guard app.isSignedIn, !app.isSampleMode else { return }
+        guard app.isSignedIn, !app.isSampleMode, system.supportsRemote else { return }
         let granted = await system.requestAuthorization()
         authorization = await system.authorizationStatus()
         guard granted else { return }
         system.registerForRemoteNotifications()
     }
+
+    /// 원격 알림을 쓰는 기기인지 (설정의 기기 알림 줄을 보일지)
+    var supportsRemote: Bool { system.supportsRemote }
 
     /// 설정 화면이 보일 때 · 앱으로 돌아올 때 권한을 다시 읽어요 (기기 설정에서 바꿨을 수 있어요)
     func refreshAuthorization() async {

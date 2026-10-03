@@ -339,7 +339,7 @@ v0.1의 SSE 채널·봉투·재연결 규칙을 **그대로** 써요. 앱에 필
 - 알림을 누르면 `project_id` 프로젝트를 고르고 위 표의 화면을 열어요 (꺼진 앱이 알림으로 켜져도 같아요). 빠진 값은 무시해요 — `deployment_id`가 없으면 화면은 열지 않아요, 모르는 `kind`는 배포 화면으로
 - 설정 › 알림 스위치 3개(승인 · 끝남(성공 · 일부 성공) · 실패)는 **앱이 앞에 있을 때 뜨는 배너만** 걸러요. 앱이 꺼져 있거나 뒤에 있을 때 오는 푸시는 운영체제가 바로 보여줘서 앱이 거를 수 없어요 (서버가 사용자별로 거르려면 따로 요청이 필요해요)
 - 설정 › 알림에 기기 알림 권한 한 줄: 허용됨 · 꺼짐(설정에서 알림을 켜 주세요 + "알림 설정 열기") · 아직 묻지 않았어요
-- 권한: iOS `aps-environment`, macOS `com.apple.developer.aps-environment` (`ios/Daisy-iOS.entitlements` · `ios/Daisy-macOS.entitlements`, 개발용 `development` → 배포 내보내기에서 `production`으로 바뀌어요)
+- 권한: iOS `aps-environment` (`ios/Daisy-iOS.entitlements`, 개발용 `development` → 배포 내보내기에서 `production`으로 바뀌어요). **원격 알림은 지금 iPhone만**이에요 (10/3 담당자): Mac 푸시 권한은 개발용 프로필에 등록된 Mac이 있어야 해서, 이 Mac을 개발자 계정에 등록한 뒤에 켜요. Mac 앱은 권한을 묻지 않고 등록하지 않아요
 - 언어별 APNs 라이브러리 예: Node `apns2`, Spring `pushy`, Python `aioapns` — 백엔드 언어가 정해지면 골라 주세요
 
 ### 6-6. 백엔드가 가진 정보 중 앱이 꼭 받아야 하는 것

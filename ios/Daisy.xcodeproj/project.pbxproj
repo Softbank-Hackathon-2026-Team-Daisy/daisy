@@ -250,7 +250,6 @@
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
 				"CODE_SIGN_ENTITLEMENTS[sdk=iphoneos*]" = "Daisy-iOS.entitlements";
 				"CODE_SIGN_ENTITLEMENTS[sdk=iphonesimulator*]" = "Daisy-iOS.entitlements";
-				"CODE_SIGN_ENTITLEMENTS[sdk=macosx*]" = "Daisy-macOS.entitlements";
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
 				DEVELOPMENT_TEAM = X5F5WM2H6M;
@@ -333,7 +332,6 @@
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
 				"CODE_SIGN_ENTITLEMENTS[sdk=iphoneos*]" = "Daisy-iOS.entitlements";
 				"CODE_SIGN_ENTITLEMENTS[sdk=iphonesimulator*]" = "Daisy-iOS.entitlements";
-				"CODE_SIGN_ENTITLEMENTS[sdk=macosx*]" = "Daisy-macOS.entitlements";
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
 				DEVELOPMENT_TEAM = X5F5WM2H6M;

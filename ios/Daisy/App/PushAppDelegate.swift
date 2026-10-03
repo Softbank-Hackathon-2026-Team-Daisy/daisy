@@ -96,7 +96,8 @@ extension PushSystem {
                 #else
                 NSApplication.shared.registerForRemoteNotifications()
                 #endif
-            }
+            },
+            supportsRemote: DevicePlatform.current == .ios
         )
     }
 }

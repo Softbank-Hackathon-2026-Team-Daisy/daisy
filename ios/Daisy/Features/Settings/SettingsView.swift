@@ -99,11 +99,13 @@ struct SettingsView: View {
                 }
             }
             SectionCard(.app("알림")) {
-                // 기기(운영체제) 알림 권한. 꺼져 있으면 푸시가 와도 보이지 않아요
-                InfoRow(.app("기기 알림"), pushAuthorizationText)
-                if app.push.authorization == .denied, let url = PushRegistry.systemSettingsURL {
-                    Button("알림 설정 열기", systemImage: "bell.badge") { openURL(url) }
-                        .buttonStyle(.glassCapsule)
+                // 기기(운영체제) 알림 권한. 꺼져 있으면 푸시가 와도 보이지 않아요 (원격 알림은 지금 iPhone만)
+                if app.push.supportsRemote {
+                    InfoRow(.app("기기 알림"), pushAuthorizationText)
+                    if app.push.authorization == .denied, let url = PushRegistry.systemSettingsURL {
+                        Button("알림 설정 열기", systemImage: "bell.badge") { openURL(url) }
+                            .buttonStyle(.glassCapsule)
+                    }
                 }
                 Toggle("승인이 필요할 때 · Swift 앱 푸시", isOn: $notifyApproval)
                 Toggle("배포가 끝났을 때", isOn: $notifyFinished)
