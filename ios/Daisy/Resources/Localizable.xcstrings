@@ -6551,6 +6551,22 @@
         }
       }
     },
+    "팀 계정 · 승인 가능" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Team account · can approve"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "チームアカウント · 承認できます"
+          }
+        }
+      }
+    },
     "팀 계정으로 로그인해요." : {
       "localizations" : {
         "en" : {
