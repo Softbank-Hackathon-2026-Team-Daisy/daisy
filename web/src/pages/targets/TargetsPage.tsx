@@ -43,6 +43,8 @@ function TargetsPage() {
     ? builds.data.items.find((b) => (wantedBuild ? b.source_version_id === wantedBuild : b.commit === wantedCommit))
     : (builds.data.items.find((b) => b.pipeline.status === 'success') ?? builds.data.items[0])
   const buildMissing = !!pinned && !build
+  // 서버는 source_version_id 없는 배포 시작을 400으로 막아요 (#42) — 보내기 전에 버튼을 꺼요 (앱과 같아요)
+  const noBuildId = !!build && !build.source_version_id
   const commit = build?.commit ?? ''
   const list = targets.data.items
   const selected = list.filter((tg) => !unselected.has(tg.target_id) && tg.connection.state !== 'failed')
@@ -85,6 +87,12 @@ function TargetsPage() {
         </Alert>
       )}
 
+      {noBuildId && (
+        <Alert type="warning" title={t('이 빌드로는 배포를 시작할 수 없어요')}>
+          {t('서버에 빌드 ID가 없는 빌드예요. 빌드 화면에서 다른 빌드를 골라 주세요.')}
+        </Alert>
+      )}
+
       <div className="page__row page__row--envs">
         {list.map((tg) => (
           <EnvSelectCard
@@ -123,9 +131,9 @@ function TargetsPage() {
 
       <div className="page__actions">
         <Button variant="ghost" onClick={() => navigate(paths.build(projectId))}>
-          {buildMissing ? t('빌드 다시 고르기') : t('이전')}
+          {buildMissing || noBuildId ? t('빌드 다시 고르기') : t('이전')}
         </Button>
-        <Button variant="secondary" disabled={viewer || selected.length === 0 || !build || pending} onClick={() => void start()}>
+        <Button variant="secondary" disabled={viewer || selected.length === 0 || !build?.source_version_id || pending} onClick={() => void start()}>
           {pending ? t('시작하는 중…') : t('인프라 코드 생성 · 검증 시작')}
         </Button>
       </div>

@@ -1,14 +1,17 @@
 import { useState } from 'react'
 import { useNavigate, useParams } from 'react-router'
 import { useAuth } from '../../api/auth.ts'
-import { ApiError } from '../../api/client.ts'
+import { API_BASE_URL, ApiError, errorMessage } from '../../api/client.ts'
 import { api, isMocked } from '../../api/endpoints.ts'
 import { useResource } from '../../api/useResource.ts'
+import { avatarName } from '../../api/useWorkspace.ts'
 import Alert from '../../components/Alert.tsx'
+import Avatar from '../../components/Avatar.tsx'
 import Button from '../../components/Button.tsx'
 import CodeBlock from '../../components/CodeBlock.tsx'
 import Dialog from '../../components/Dialog.tsx'
 import EmptyState from '../../components/EmptyState.tsx'
+import Icon from '../../components/Icon.tsx'
 import InfoRow from '../../components/InfoRow.tsx'
 import LanguageSelect from '../../components/LanguageSelect.tsx'
 import Input from '../../components/Input.tsx'
@@ -43,6 +46,17 @@ function SettingsPage() {
     <div className="page">
       {/* 화면 전체가 아니라 목업으로 답하는 칸에만 MOCK (#102) */}
       <PageHeader overline="Settings" title={t('설정')} description={t('이 프로젝트의 저장소 연결, 배포 명세, 비밀값, 알림을 관리해요.')} />
+
+      {/* 계정 · 화면 언어는 프로젝트가 아니라 로그인한 사람 · 이 브라우저 설정이라 맨 위에 둬요 (앱 계정 카드와 같아요) */}
+      <div className="page__row page__row--2" style={{ alignItems: 'start' }}>
+        <Account />
+
+        {/* 화면 언어는 프로젝트가 아니라 이 브라우저 설정이에요 (#75) */}
+        <Panel title={t('화면 언어')}>
+          <p className="t-body-sm t-muted">{t('이 브라우저에만 적용돼요. 서버가 보내는 메시지는 받은 그대로 보여줘요.')}</p>
+          <LanguageSelect />
+        </Panel>
+      </div>
 
       <div className="page__row page__row--2" style={{ alignItems: 'start' }}>
         <Panel title={t('저장소')} mock={isMocked('getProject')}>
@@ -97,21 +111,42 @@ function SettingsPage() {
           )}
         </Panel>
 
-        <div style={{ display: 'grid', gap: 'var(--space-6)' }}>
-          <Panel title={t('알림')}>
-            <Notifications />
-          </Panel>
-
-          {/* 화면 언어는 프로젝트가 아니라 이 브라우저 설정이에요 (#75) */}
-          <Panel title={t('화면 언어')}>
-            <p className="t-body-sm t-muted">{t('이 브라우저에만 적용돼요. 서버가 보내는 메시지는 받은 그대로 보여줘요.')}</p>
-            <LanguageSelect />
-          </Panel>
-        </div>
+        <Panel title={t('알림')}>
+          <Notifications />
+        </Panel>
       </div>
 
       <Disconnect projectId={projectId} name={p.name} />
     </div>
+  )
+}
+
+// 계정 카드 — 로그인한 사람(R-03 /auth/me) · 역할 · 접속한 서버 · 로그아웃
+function Account() {
+  const { role, signOut } = useAuth()
+  const me = useResource(() => api.me(), [])
+  const name = me.data?.username
+  const server = API_BASE_URL ? new URL(API_BASE_URL, window.location.href).host : window.location.host
+  return (
+    <Panel title={t('계정')} mock={isMocked('me')}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-3)' }}>
+        <Avatar type="human" name={avatarName(name)} size="m" />
+        <span style={{ display: 'flex', flexDirection: 'column' }}>
+          <span className="t-label">{name ?? '—'}</span>
+          <span className="t-body-sm t-muted">{role === 'viewer' ? t('읽기 전용 · 승인 · 배포는 할 수 없어요') : t('팀 계정 · 승인 가능')}</span>
+        </span>
+      </div>
+      <div>
+        <InfoRow label={t('서버')}>
+          <span className="t-mono-sm">{server}</span>
+        </InfoRow>
+      </div>
+      <div>
+        <Button variant="outline" leading={<Icon name="log-out" size={16} />} onClick={signOut}>
+          {t('로그아웃')}
+        </Button>
+      </div>
+    </Panel>
   )
 }
 
@@ -170,7 +205,9 @@ function Disconnect({ projectId, name }: { projectId: string; name: string }) {
       await api.deleteProject(projectId)
       navigate(paths.connect())
     } catch (e) {
-      setError(e instanceof ApiError ? e.message : t('연결을 해제하지 못했어요'))
+      // 서버 409는 일반 문구라 이유를 알 수 있게 바꿔요 (#59 · #64, 앱과 같아요)
+      if (e instanceof ApiError && e.status === 409) setError(t('진행 중인 배포(대기 · 승인 대기 포함)가 있어 해제할 수 없어요'))
+      else setError(e instanceof ApiError ? errorMessage(e, '') : t('연결을 해제하지 못했어요'))
     }
   }
   return (

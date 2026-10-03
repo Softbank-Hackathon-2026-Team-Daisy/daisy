@@ -91,6 +91,7 @@ function AuthProvider({ children }: { children: ReactNode }) {
         save({ token: token.access_token, role: token.role, expires_at: token.expires_at })
         setRole(token.role)
       },
+      // 로그아웃하면 AppLayout이 로그인 화면(?next=지금 화면)으로 보내요 — 다른 계정으로 들어와도 같은 화면으로 돌아와요
       signOut: () => {
         setAccessToken(null)
         save(null)

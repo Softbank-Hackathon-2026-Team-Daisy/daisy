@@ -106,6 +106,10 @@
   flex-direction: column;
   gap: 6px;
   width: 100%;
+  /* 창 높이가 낮으면 이 칸만 줄고 스크롤돼요 — 맨 아래 계정 줄(로그아웃)이 잘리지 않게.
+     사이드바 전체에 overflow를 걸면 프로젝트 메뉴 · 접힌 상태 툴팁이 잘려서 여기에만 둬요 */
+  min-height: 0;
+  overflow-y: auto;
 }
 
 .sidebar--collapsed .sidebar__envs {
