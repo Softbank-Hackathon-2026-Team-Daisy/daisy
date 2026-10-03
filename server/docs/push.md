@@ -43,6 +43,8 @@ Flyway 는 out-of-order 를 켜 두지 않았어요. 이 PR 의 `V4__push_device
 
 `PushDispatcher` 가 5초마다 한 번 돌아요(`@EnableScheduling` 은 Jenkins 워커가 꺼져 있으면 켜지지 않아서 `PushConfiguration` 에서도 켜요).
 
+동기 APNs 발송은 전용 `pushTaskScheduler`(단일 스레드, `push-scheduler-` 접두사)에서 실행해요. 기본 빈 후보에서 제외하고 `@Scheduled`의 이름으로 연결해, Jenkins 워커·로그 조회의 기본 스케줄러 자동 설정을 유지해요. APNs 응답을 기다려도 기본 스케줄러 스레드를 점유하지 않아요. 발송 실패·커서·재시도 정책은 아래와 같아요.
+
 1. **원본은 `deployment_log`.** `approval.required` · `deployment.completed` 는 `EventJournal` 이 `project_event` 로 옮기지 않는 종류라(옮기는 것은 `build.received` · `deployment.created` · `target.status_changed` 뿐) `project_event` 에서는 보이지 않아요. 그래서 `deployment_log` 를 읽기 전용으로 읽고 `processing_result='applied'` 인 행만 써요.
 2. **커서.** 트랜잭션 안에서 `push_cursor` 행을 `SELECT … FOR UPDATE` 로 잡고, `id > 커서` 를 id 순서로 최대 200건 읽고, 커서를 옮긴 뒤 커밋해요. 서버가 여러 대여도 같은 이벤트를 두 번 가져가지 않아요. 커서 행이 없으면(첫 실행) 지금의 `max(id)` 로 만들고 그 주기는 보내지 않아요.
 3. **늦게 커밋되는 행 대비.** id 는 insert 순서지만 커밋 순서는 다를 수 있어요. 2초 안에 들어온 행이 있으면 그 앞까지만 읽고 다음 주기에 이어서 읽어요. 쓰기 트랜잭션이 2초 안에 끝난다는 가정의 최선 노력이고, 그보다 오래 걸린 트랜잭션의 행은 드물게 놓칠 수 있어요. 대신 알림이 최대 7초쯤 늦을 수 있어요.

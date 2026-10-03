@@ -12,6 +12,7 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.scheduling.annotation.EnableScheduling;
+import org.springframework.scheduling.concurrent.ThreadPoolTaskScheduler;
 
 /**
  * APNs 설정이에요. 값은 전부 환경변수로 받고 {@code application.yml} 에는 두지 않아요.
@@ -24,6 +25,15 @@ import org.springframework.scheduling.annotation.EnableScheduling;
 @EnableScheduling
 public class PushConfiguration {
   private static final Logger LOG = LoggerFactory.getLogger(PushConfiguration.class);
+
+  // 기본 스케줄러 자동 설정은 유지하고, 이름으로 지정한 푸시 작업만 이 스레드를 써요.
+  @Bean(defaultCandidate = false)
+  ThreadPoolTaskScheduler pushTaskScheduler() {
+    var scheduler = new ThreadPoolTaskScheduler();
+    scheduler.setPoolSize(1);
+    scheduler.setThreadNamePrefix("push-scheduler-");
+    return scheduler;
+  }
 
   @Bean
   ApnsSender apnsSender(

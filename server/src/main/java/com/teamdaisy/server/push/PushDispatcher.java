@@ -59,6 +59,7 @@ public class PushDispatcher {
   record Delivery(Notification notification, List<Device> devices) {}
 
   @Scheduled(
+      scheduler = "pushTaskScheduler",
       initialDelayString = "${daisy.push.dispatch-initial-delay-ms:5000}",
       fixedDelayString = "${daisy.push.dispatch-delay-ms:5000}")
   public void tick() {
