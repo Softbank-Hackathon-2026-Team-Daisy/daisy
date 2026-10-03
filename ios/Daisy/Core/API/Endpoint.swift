@@ -24,6 +24,21 @@ extension Endpoint {
         )
     }
 
+    /// 회원가입 `POST /auth/signup` (10/3 팀 합의, 서버 V5). 인증 헤더 없이 보내고, 응답은 R-02 토큰과 같아요.
+    /// 아이디는 서버처럼 앞뒤 공백을 빼고 소문자로, 표시 이름은 비면 빼요 (서버가 아이디로 채워요)
+    static func signup(username: String, password: String, displayName: String? = nil) -> Endpoint<AuthToken> {
+        let name = displayName?.trimmingCharacters(in: .whitespacesAndNewlines)
+        return .init(
+            method: "POST",
+            path: "auth/signup",
+            body: try? JSONEncoder.daisy.encode(SignupRequest(
+                username: SignupRequest.normalized(username),
+                password: password,
+                displayName: name?.isEmpty == false ? name : nil
+            ))
+        )
+    }
+
     /// A-01
     static func projects() -> Endpoint<Page<Project>> {
         .init(path: "projects")
@@ -92,6 +107,18 @@ extension Endpoint where Response == EmptyResponse {
     /// P-01 · 기기 토큰 해제 → 204. 토큰은 URL이 아니라 본문으로 보내요 (서버 · 프록시 로그에 남지 않게, 9/29 합의)
     static func unregisterDevice(apnsToken: String) -> Endpoint<EmptyResponse> {
         .init(method: "DELETE", path: "devices", body: try? JSONEncoder.daisy.encode(DeviceToken(apnsToken: apnsToken)))
+    }
+}
+
+/// `POST /auth/signup` 본문 `{ username, password, display_name? }`
+struct SignupRequest: Encodable, Sendable {
+    let username: String
+    let password: String
+    let displayName: String?
+
+    /// 서버와 같은 아이디 정규화: 앞뒤 공백을 빼고 소문자로
+    static func normalized(_ username: String) -> String {
+        username.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
     }
 }
 

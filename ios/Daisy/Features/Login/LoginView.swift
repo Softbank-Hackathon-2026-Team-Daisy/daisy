@@ -8,6 +8,7 @@ struct LoginView: View {
     @State private var password = ""
     @State private var working = false
     @State private var problem: Problem?
+    @State private var signingUp = false
     @FocusState private var passwordFocused: Bool
 
     enum Problem: Equatable {
@@ -75,11 +76,11 @@ struct LoginView: View {
 
             alert
 
-            field("아이디") {
+            AuthField("아이디") {
                 TextField("아이디", text: $username).textContentType(.username).plainInput()
                     .onSubmit { passwordFocused = true }
             }
-            field("비밀번호", error: problem == .wrongCredentials) {
+            AuthField("비밀번호", error: problem == .wrongCredentials) {
                 SecureField("비밀번호", text: $password).textContentType(.password)
                     .focused($passwordFocused)
                     .onSubmit { Task { await signIn() } }
@@ -92,6 +93,19 @@ struct LoginView: View {
             }
             .buttonStyle(.glassCapsule(prominent: true, fullWidth: true, height: 38))
             .disabled(working || username.isEmpty || password.isEmpty || app.serverURL == nil)
+
+            // 회원가입 (10/3 `POST /auth/signup`): 로그인 버튼 아래 조용한 글자 버튼, 시트로 열려요
+            HStack(spacing: 4) {
+                Text("계정이 없나요?").foregroundStyle(.secondary)
+                Button("회원가입") { signingUp = true }
+                    .buttonStyle(.plain)
+                    .foregroundStyle(.tint)
+                    .fontWeight(.medium)
+            }
+            .font(.subheadline)
+            .frame(maxWidth: .infinity)
+            .disabled(working)
+            .sheet(isPresented: $signingUp) { SignUpView() }
 
             HStack {
                 VStack { Divider() }
@@ -121,19 +135,6 @@ struct LoginView: View {
             if app.sessionExpired {
                 InlineAlert(.info, .app("다시 로그인해 주세요"), .app("로그인이 만료됐어요."))
             }
-        }
-    }
-
-    private func field(_ label: LocalizedStringKey, error: Bool = false, @ViewBuilder content: () -> some View) -> some View {
-        VStack(alignment: .leading, spacing: 6) {
-            Text(label).font(.subheadline.weight(.medium))
-            content()
-                .textFieldStyle(.plain)
-                .padding(.horizontal, 12)
-                .frame(height: 38)
-                .background(.fill.quaternary, in: .rect(cornerRadius: 10))
-                .overlay(RoundedRectangle(cornerRadius: 10)
-                    .strokeBorder(error ? AnyShapeStyle(.red) : AnyShapeStyle(.separator), lineWidth: error ? 1 : 0.5))
         }
     }
 

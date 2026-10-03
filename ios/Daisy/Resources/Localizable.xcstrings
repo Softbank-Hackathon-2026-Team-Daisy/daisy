@@ -933,6 +933,22 @@
         }
       }
     },
+    "8자 이상으로 정해 주세요." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Use at least 8 characters."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "8文字以上で設定してください。"
+          }
+        }
+      }
+    },
     "AI" : {
       "shouldTranslate" : false
     },
@@ -1931,6 +1947,70 @@
         }
       }
     },
+    "가입 요청이 너무 많아요. 몇 분 뒤에 다시 시도해 주세요." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Too many sign-up attempts. Please try again in a few minutes."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "登録リクエストが多すぎます。数分後にもう一度お試しください。"
+          }
+        }
+      }
+    },
+    "가입하기" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Create account"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "登録する"
+          }
+        }
+      }
+    },
+    "가입하는 중…" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Creating account…"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "登録しています…"
+          }
+        }
+      }
+    },
+    "가입하지 못했어요" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Couldn't create account"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "登録できませんでした"
+          }
+        }
+      }
+    },
     "값 없음" : {
       "localizations" : {
         "en" : {
@@ -2189,6 +2269,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "アカウント"
+          }
+        }
+      }
+    },
+    "계정이 없나요?" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Don't have an account?"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "アカウントをお持ちでないですか？"
           }
         }
       }
@@ -3639,6 +3735,54 @@
         }
       }
     },
+    "비밀번호 확인" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Confirm password"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "パスワード（確認）"
+          }
+        }
+      }
+    },
+    "비밀번호가 서로 달라요." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Passwords don't match."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "パスワードが一致しません。"
+          }
+        }
+      }
+    },
+    "비밀번호는 200자까지 쓸 수 있어요." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Passwords can be up to 200 characters."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "パスワードは200文字まで入力できます。"
+          }
+        }
+      }
+    },
     "비용" : {
       "localizations" : {
         "en" : {
@@ -3667,6 +3811,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "コスト表示は N-09 の結果によって変わります。対象外になった場合は呼び出し回数とトークンのみ表示します。"
+          }
+        }
+      }
+    },
+    "비워 두면 아이디로 보여요." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "If left blank, your username is shown."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "空欄の場合はユーザー名が表示されます。"
           }
         }
       }
@@ -3907,6 +4067,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "状態"
+          }
+        }
+      }
+    },
+    "새 계정을 만들어요. 가입하면 바로 로그인돼요." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Create a new account. You'll be signed in right away."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "新しいアカウントを作成します。登録するとすぐにログインします。"
           }
         }
       }
@@ -4759,6 +4935,22 @@
         }
       }
     },
+    "아이디 · 비밀번호 · 표시 이름 형식을 확인해 주세요." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Check the format of your username, password, and display name."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "ユーザー名・パスワード・表示名の形式を確認してください。"
+          }
+        }
+      }
+    },
     "아이디 또는 비밀번호가 맞지 않아요. 다시 확인해 주세요." : {
       "localizations" : {
         "en" : {
@@ -5367,6 +5559,22 @@
         }
       }
     },
+    "영문 소문자 · 숫자 · . _ -로 3~32자예요. 첫 글자는 영문이나 숫자예요." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "3–32 characters: lowercase letters, numbers, and . _ -. Start with a letter or number."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "英小文字・数字・. _ - で3〜32文字です。先頭は英字か数字にしてください。"
+          }
+        }
+      }
+    },
     "예" : {
       "localizations" : {
         "en" : {
@@ -5759,6 +5967,38 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "履歴をすべて見る"
+          }
+        }
+      }
+    },
+    "이미 사용 중인 아이디예요." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "This username is already taken."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "このユーザー名はすでに使われています。"
+          }
+        }
+      }
+    },
+    "이미 사용 중인 아이디예요. 다른 아이디를 골라 주세요." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "This username is already taken. Please choose another one."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "このユーザー名はすでに使われています。別のユーザー名を選んでください。"
           }
         }
       }
@@ -6575,6 +6815,22 @@
         }
       }
     },
+    "지금은 회원가입을 받지 않아요. 팀에 계정을 요청해 주세요." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Sign-up is currently closed. Ask your team for an account."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "現在、新規登録は受け付けていません。チームにアカウントを依頼してください。"
+          }
+        }
+      }
+    },
     "진행 중" : {
       "localizations" : {
         "en" : {
@@ -6875,6 +7131,54 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "ポート"
+          }
+        }
+      }
+    },
+    "표시 이름" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Display name"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "表示名"
+          }
+        }
+      }
+    },
+    "표시 이름 (선택)" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Display name (optional)"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "表示名（任意）"
+          }
+        }
+      }
+    },
+    "표시 이름은 64자까지 쓸 수 있어요." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Display names can be up to 64 characters."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "表示名は64文字まで入力できます。"
           }
         }
       }
@@ -7355,6 +7659,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "為替レート %@ウォン"
+          }
+        }
+      }
+    },
+    "회원가입" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Sign up"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "新規登録"
           }
         }
       }

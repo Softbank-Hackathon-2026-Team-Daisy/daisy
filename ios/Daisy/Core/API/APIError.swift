@@ -26,7 +26,7 @@ enum APIError: Error, Sendable {
 
 extension APIError: LocalizedError {
     /// 앱이 만든 문구는 고른 언어로 보여줘요. 서버 오류는 `error.code`마다 문장이 하나라 앱이 코드로 번역하고,
-    /// 모르는 코드면 서버 `message`를 그대로 보여줘요 (#74 안 A, 하은현 답 · 서버 `ErrorCode` 9개)
+    /// 모르는 코드면 서버 `message`를 그대로 보여줘요 (#74 안 A, 하은현 답 · 서버 `ErrorCode` 9개 + 10/3 `USERNAME_TAKEN`)
     var errorDescription: String? {
         switch self {
         case .notConfigured:
@@ -58,6 +58,7 @@ extension APIError {
         case "STATE_CONFLICT": .app("지금 상태에서는 할 수 없는 요청이에요.")
         case "MANIFEST_INVALID": .app("배포 명세(deploy.yaml)를 확인해 주세요.")
         case "RATE_LIMITED": .app("요청이 많아요. 잠시 후 다시 시도해 주세요.")
+        case "USERNAME_TAKEN": .app("이미 사용 중인 아이디예요.")
         case "INTERNAL": .app("서버에서 오류가 났어요. 잠시 후 다시 시도해 주세요.")
         default: nil
         }
