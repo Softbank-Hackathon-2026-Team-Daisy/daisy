@@ -1,11 +1,11 @@
-import Logo from '../../components/Logo.tsx'
+import InfraBlock from '../../components/InfraBlock.tsx'
 import { t } from '../../i18n/index.ts'
 
 // 로그인 · 회원가입 왼쪽 브랜드 영역 (900px 아래에서는 숨겨요)
 function LoginBrand() {
   return (
     <section className="login__brand">
-      <Logo type="mark" size={176} />
+      <InfraBlock stack={3} />
       <div className="login__slogan">
         <p className="t-overline t-muted">One action, infinite clouds</p>
         <h2 className="t-h1">{t('환경만 고르면, 어디든 같은 상태로')}</h2>
