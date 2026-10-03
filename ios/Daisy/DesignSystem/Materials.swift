@@ -54,16 +54,18 @@ final class SystemGlassLevel {
     }
 }
 
-/// 비침이 클수록 재질 뒤에 창 바탕색을 비례해서 받쳐 무게감을 줘요 (10/3 담당자: 비침을 키우면 사이드바 · 배경이 너무 가벼워 보여요).
-/// 비침 최소(0)면 받침도 0이라 지금과 같아요.
+/// 비침이 클수록 재질 위에 시스템 바탕색을 비례해서 받쳐 무게감을 줘요 (10/3 담당자: 비침을 키우면 사이드바 · 배경이 너무 가벼워 보여요).
+/// 비침 최소(0)면 받침도 0이라 지금과 같아요. 본문은 최대(1)일 때 "투명도 줄이기"와 같은 애플 표준 불투명 바탕이 돼요.
 private struct GlassWeight: ViewModifier {
+    /// 받침 색: 본문은 `투명도 줄이기`일 때와 같은 시스템 색
+    var color: NSColor = .windowBackgroundColor
     /// 비침 최대(1)일 때 받침 불투명도
     let maximum: Double
     @State private var glass = SystemGlassLevel.shared
 
     func body(content: Content) -> some View {
         content.overlay {
-            Color(nsColor: .windowBackgroundColor)
+            Color(nsColor: color)
                 .opacity(glass.value * maximum)
                 .animation(.easeOut(duration: 0.25), value: glass.value)
                 .allowsHitTesting(false)
@@ -111,7 +113,7 @@ private struct ContentSurface: ViewModifier {
                 if reduceTransparency {
                     Color(nsColor: .controlBackgroundColor)
                 } else {
-                    VisualEffect(material: .underWindowBackground).modifier(GlassWeight(maximum: 0.45))
+                    VisualEffect(material: .underWindowBackground).modifier(GlassWeight(color: .controlBackgroundColor, maximum: 1))
                 }
                 #else
                 Color(uiColor: .systemBackground)
