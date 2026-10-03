@@ -1,7 +1,7 @@
 import './InfraBlock.css'
 
 // Figma 「07 · Infra Block」 172×196. 2.5D 아이소메트릭(2:1), ink 한 색 (윗면 55% · 왼면 82% · 오른면 100%)
-// 바닥은 고정이고 그 위에 같은 크기 블록 0~3개. 로딩 애니메이션(L-01 ~ L-03)은 TransitionLoader가 stack을 바꿔요
+// 바닥은 고정이고 그 위에 같은 크기 블록 0~3개. 로딩 애니메이션(L-01 ~ L-03)에서만 써요 (TransitionLoader가 stack을 바꿔요)
 
 type Faces = { top: string; left: string; right: string }
 
