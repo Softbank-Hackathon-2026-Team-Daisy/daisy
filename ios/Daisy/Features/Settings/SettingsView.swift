@@ -1,8 +1,8 @@
 import SwiftUI
 
-/// W-13 설정: 이 프로젝트의 저장소 연결(프로젝트 상세), 배포 명세(WR-03), 비밀값, 알림. 맨 아래에 앱 설정(언어 · 서버 · 계정 · 버전).
+/// W-13 설정: 맨 위에 계정(로그인 정보 · 로그아웃), 이 프로젝트의 저장소 연결(프로젝트 상세), 배포 명세(WR-03), 비밀값, 알림.
+/// 맨 아래에 앱 설정(언어 · 서버 · 버전).
 struct SettingsView: View {
-    @Environment(\.tabBarClearance) private var tabBarClearance
     @Environment(AppModel.self) private var app
     @Environment(Router.self) private var router
     @Environment(Workspace.self) private var workspace
@@ -21,6 +21,7 @@ struct SettingsView: View {
         } content: {
             ScrollView {
                 VStack(alignment: .leading, spacing: 16) {
+                    accountCard
                     if app.selectedProjectID != nil {
                         projectSettings
                     }
@@ -105,6 +106,41 @@ struct SettingsView: View {
         }
     }
 
+    // MARK: 계정 (10/3: 설정 맨 위, 모든 화면에서 로그아웃. Mac 사이드바 계정 줄의 로그아웃도 그대로 있어요)
+
+    private var accountCard: some View {
+        SectionCard(.app("계정")) {
+            ViewThatFits(in: .horizontal) {
+                HStack(spacing: 12) {
+                    accountIdentity
+                    Spacer(minLength: 12)
+                    signOutButton
+                }
+                VStack(alignment: .leading, spacing: 12) {
+                    accountIdentity
+                    signOutButton
+                }
+            }
+        }
+    }
+
+    private var accountIdentity: some View {
+        HStack(spacing: 12) {
+            Avatar(name: app.displayName)
+            VStack(alignment: .leading, spacing: 2) {
+                Text(app.displayName ?? String.app("로그인됨")).font(.headline).lineLimit(1)
+                Text(app.isViewer ? String.app("읽기 전용") : String.app("팀 계정 · 승인 가능"))
+                    .font(.subheadline).foregroundStyle(.secondary)
+            }
+        }
+        .accessibilityElement(children: .combine)
+    }
+
+    private var signOutButton: some View {
+        Button("로그아웃", systemImage: "rectangle.portrait.and.arrow.right", role: .destructive) { app.signOut() }
+            .buttonStyle(.glassCapsule)
+    }
+
     // MARK: 앱 설정 (앱에만 있어요)
 
     private var appSettings: some View {
@@ -113,14 +149,7 @@ struct SettingsView: View {
             languagePicker
             // 서버는 Unibloom 고정이라 바꾸는 칸 없이 보여만 줘요
             InfoRow(.app("서버"), app.serverURL?.host() ?? "—", monospaced: true)
-            InfoRow(.app("계정"), app.displayName)
-            InfoRow(String.app("권한"), app.isViewer ? String.app("읽기 전용") : String.app("승인 가능"))
             InfoRow(.app("버전"), Bundle.main.versionText)
-            // 사이드바가 있는 화면(Mac · iPad)은 사이드바 계정 줄에서 로그아웃해요. 아래 탭 바(iPhone)에서만 여기 둬요 (10/3)
-            if tabBarClearance > 0 {
-                Button("로그아웃", role: .destructive) { app.signOut() }
-                    .buttonStyle(.glassCapsule)
-            }
         }
     }
 
