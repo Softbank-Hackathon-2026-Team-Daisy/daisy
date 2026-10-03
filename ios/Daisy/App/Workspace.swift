@@ -89,21 +89,30 @@ enum Route: Hashable {
 @MainActor
 @Observable
 final class Router {
-    var tab: AppTab = .overview
+    var tab: AppTab = .overview { didSet { recordNavigation() } } // NAV-HISTORY
     private var paths: [AppTab: [Route]] = [:]
+    /// 뒤로 · 앞으로 이동 기록 (NavigationHistory.swift) // NAV-HISTORY
+    let history = NavigationHistory() // NAV-HISTORY
 
     func path(for tab: AppTab) -> Binding<[Route]> {
-        Binding(get: { self.paths[tab] ?? [] }, set: { self.paths[tab] = $0 })
+        Binding(get: { self.paths[tab] ?? [] }, set: {
+            let old = self.paths[tab] ?? [] // NAV-HISTORY
+            self.paths[tab] = $0
+            self.recordPathChange(in: tab, from: old, to: $0) // NAV-HISTORY
+        })
     }
 
     /// 메뉴를 바꾸고 그 메뉴 안에서 곧장 한 화면으로 들어가요.
     func open(_ route: Route, in tab: AppTab = .deployments) {
-        self.tab = tab
-        paths[tab] = [route]
+        recordingOnce { // NAV-HISTORY
+            self.tab = tab
+            paths[tab] = [route]
+        } // NAV-HISTORY
     }
 
     func push(_ route: Route) {
         paths[tab, default: []].append(route)
+        recordNavigation() // NAV-HISTORY
     }
 
     /// 지금 화면을 다른 화면으로 바꿔요 (예: 새 배포를 시작하면 그 배포 화면으로).
@@ -112,9 +121,10 @@ final class Router {
         if !path.isEmpty { path.removeLast() }
         path.append(route)
         paths[tab] = path
+        recordNavigation() // NAV-HISTORY
     }
 
-    func popToRoot() { paths[tab] = [] }
+    func popToRoot() { paths[tab] = []; recordNavigation() } // NAV-HISTORY
 }
 
 /// 사이드바 · 개요가 함께 쓰는 프로젝트 상태. 프로젝트 SSE(E-02) 이벤트가 오면 바로, 아니면 폴링으로 새로 받아요
