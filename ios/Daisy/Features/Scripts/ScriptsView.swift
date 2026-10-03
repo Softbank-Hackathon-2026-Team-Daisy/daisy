@@ -1,10 +1,11 @@
 import SwiftUI
 
 /// W-11 스크립트: AI가 만들고 검증을 통과한 Terraform. 같은 환경에 다시 배포할 땐 이미지 태그만 바꿔 재사용해요.
+/// 프로젝트 · 배포 이벤트가 오면 다시 받아요 (10/3 신선도 검수 SC1). 프로젝트가 바뀌면 이전 목록 · 선택을 버려요 (SC2 · SC3)
 struct ScriptsView: View {
     @Environment(AppModel.self) private var app
     @Environment(Workspace.self) private var workspace
-    @State private var scripts: LoadState<[Script]> = .idle
+    @State private var scripts = ScopedLoader<[Script]>()
     @State private var selectedID: String?
     @State private var tabTarget: String?
 
@@ -18,9 +19,10 @@ struct ScriptsView: View {
             if app.selectedProjectID == nil {
                 NoProjectView()
             } else {
-                LoadStateView(state: scripts, retry: { await load() }) { scripts in
+                LoadStateView(state: scripts.state(for: app.selectedProjectID), retry: { await load() }) { scripts in
                     ScrollView {
                         VStack(alignment: .leading, spacing: 16) {
+                            StaleBanner(since: self.scripts.staleSince)
                             SectionCard(.app("검증된 스크립트")) {
                                 if scripts.isEmpty {
                                     ContentUnavailableView("아직 검증된 스크립트가 없어요", systemImage: "apple.terminal",
@@ -47,13 +49,19 @@ struct ScriptsView: View {
                 }
             }
         }
-        .task(id: app.selectedProjectID) { await load() }
+        .task(id: app.selectedProjectID) {
+            // 이전 프로젝트에서 고른 스크립트 · 환경 탭은 새 목록에 없어요 (SC2)
+            (selectedID, tabTarget) = (nil, nil)
+            await poll(on: workspace.live.changes, every: { PollInterval.seconds(live: workspace.live.isLive) }) { await load() }
+        }
     }
 
+    /// 고른 환경 탭 → 고른 줄 → 첫 줄. 고른 것이 새 목록에 없으면(다시 받은 뒤 사라짐) 다음 순서로 넘어가서 상세 카드가 사라지지 않아요 (SC2)
     private func selected(_ scripts: [Script]) -> Script? {
-        if let tabTarget {
-            return scripts.filter { $0.targetId == tabTarget && $0.status == .verified }.first
-                ?? scripts.first { $0.targetId == tabTarget }
+        if let tabTarget,
+           let script = scripts.first(where: { $0.targetId == tabTarget && $0.status == .verified })
+            ?? scripts.first(where: { $0.targetId == tabTarget }) {
+            return script
         }
         return scripts.first { $0.id == selectedID } ?? scripts.first
     }
@@ -169,12 +177,8 @@ struct ScriptsView: View {
 
     private func load() async {
         guard let client = app.client, let projectID = app.selectedProjectID else { return }
-        if scripts.value == nil { scripts = .loading }
-        do {
-            scripts = .loaded(try await client.send(.scripts(projectID: projectID)).items)
-        } catch {
-            app.handle(error)
-            if scripts.value == nil { scripts = .failed(error.localizedDescription) }
+        await scripts.load(projectID, using: app) {
+            try await client.send(.scripts(projectID: projectID)).items
         }
     }
 }

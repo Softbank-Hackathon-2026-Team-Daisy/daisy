@@ -22,6 +22,7 @@ struct OverviewView: View {
             } else {
                 ScrollView {
                     VStack(alignment: .leading, spacing: 16) {
+                        StaleBanner(since: store.staleSince)
                         // 넓으면 2:1 두 열, 좁으면 한 열
                         ViewThatFits(in: .horizontal) {
                             HStack(alignment: .top, spacing: 16) {
@@ -41,10 +42,11 @@ struct OverviewView: View {
                 .refreshable { await refresh() }
             }
         }
-        // 프로젝트 · 배포 이벤트가 오면 바로, 아니면 SSE 15초 · 진행 중인 배포가 있으면 2초 · 그 밖에 5초
+        // 프로젝트 · 배포 이벤트(앱 복귀 · 프로젝트 전환 · 승인 포함)가 오면 바로, 아니면 SSE 15초 · 그 밖에 5초.
+        // 진행 중이거나 결정이 필요한 배포가 있으면 SSE가 붙어 있어도 5초 (끊기면 2초): 승인 · 배포 상태는 프로젝트 채널에 오지 않아요 (O2)
         .task(id: app.selectedProjectID) {
             await poll(on: workspace.live.changes, every: {
-                PollInterval.seconds(live: workspace.live.isLive, active: store.recent.contains { $0.state.isActive })
+                Freshness.pollSeconds(live: workspace.live.isLive, active: store.hasActive(for: app.selectedProjectID))
             }) { await store.refresh(using: app) }
         }
     }
@@ -94,9 +96,17 @@ struct OverviewView: View {
 
     // MARK: 지금 할 일
 
+    /// 이 프로젝트의 A-03 한 응답에서 만든 할 일 · 최근 실행 (O4). 다른 프로젝트 것이면 로딩이에요 (O3)
+    private var board: LoadState<OverviewStore.Board> { store.state(for: app.selectedProjectID) }
+
+    /// 가장 최근 배포이고 아직 승인 안 된 환경이 있을 때만 할 일이에요. 이미 승인했거나 버려진 배포의 plan을 열지 않아요 (O1)
     private var todo: some View {
         SectionCard(.app("지금 할 일")) {
-            if let waiting = workspace.awaitingApproval.first {
+            if case .failed(let message) = board {
+                InlineAlert(.warning, .app("불러오지 못했어요"), message)
+            } else if board.value == nil {
+                ProgressView().frame(maxWidth: .infinity, minHeight: 80)
+            } else if let waiting = board.value?.todo {
                 VStack(alignment: .leading, spacing: 12) {
                     Button {
                         router.push(.plan(waiting.id))
@@ -134,28 +144,34 @@ struct OverviewView: View {
             Button("이력 전체 보기") { router.tab = .history }
                 .buttonStyle(.glassCapsule)
         } content: {
-            if store.recent.isEmpty {
+            switch board {
+            case .idle, .loading:
+                ProgressView().frame(maxWidth: .infinity, minHeight: 60)
+            case .failed(let message):
+                Text(message).foregroundStyle(.secondary)
+            case .loaded(let board) where board.recent.isEmpty:
                 Text("아직 실행한 배포가 없어요").foregroundStyle(.secondary)
-            } else {
+            case .loaded(let board):
                 VStack(spacing: 0) {
-                    ForEach(store.recent) { deployment in
+                    ForEach(board.recent) { deployment in
                         NavigationLink(value: Route.run(deployment.id)) {
-                            RunListItem(deployment: deployment, badge: recentBadge(deployment)).padding(.vertical, 8)
+                            RunListItem(deployment: deployment, badge: recentBadge(deployment, newestID: board.newestID)).padding(.vertical, 8)
                         }
                         .buttonStyle(.plain)
-                        if deployment.id != store.recent.last?.id { Divider() }
+                        if deployment.id != board.recent.last?.id { Divider() }
                     }
                 }
             }
         }
     }
 
-    /// 웹 최근 실행: 성공은 "배포 완료", 실패는 "중단", 나머지는 상태 그대로
-    private func recentBadge(_ deployment: Deployment) -> StatusBadge {
+    /// 웹 최근 실행: 성공은 "배포 완료", 실패는 "중단", 나머지는 상태 그대로.
+    /// 승인 대기로 남은 지난 배포는 "승인 대기 (지난 배포)", 승인하고 실행만 기다리면 "승인 완료 · 실행 대기"
+    private func recentBadge(_ deployment: Deployment, newestID: String?) -> StatusBadge {
         switch deployment.state {
         case .succeeded where !deployment.isRollback: StatusBadge(text: .app("배포 완료"), color: .green)
         case .failed: StatusBadge(text: .app("중단"), color: .red)
-        default: deployment.badge
+        default: deployment.listBadge(newestID: newestID)
         }
     }
 

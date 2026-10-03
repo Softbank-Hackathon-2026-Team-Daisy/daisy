@@ -21,17 +21,21 @@ struct HistoryView: View {
             if app.selectedProjectID == nil {
                 NoProjectView()
             } else {
-                LoadStateView(state: store.list, retry: { await store.refresh(using: app) }) { deployments in
+                LoadStateView(state: store.list(for: app.selectedProjectID), retry: { await store.refresh(using: app) }) { deployments in
                     ScrollView {
-                        SectionCard(workspace.project?.name ?? "배포") {
-                            if deployments.isEmpty {
-                                ContentUnavailableView("아직 배포 이력이 없어요", systemImage: "clock",
-                                                       description: Text("첫 배포를 하면 여기에 쌓여요"))
-                                    .emptyStateCentered()
-                            } else {
-                                ViewThatFits(in: .horizontal) {
-                                    table(deployments).frame(minWidth: 760)
-                                    list(deployments)
+                        VStack(alignment: .leading, spacing: 12) {
+                            StaleBanner(since: store.staleSince)
+                            SectionCard(workspace.project?.name ?? "배포") {
+                                if deployments.isEmpty {
+                                    ContentUnavailableView("아직 배포 이력이 없어요", systemImage: "clock",
+                                                           description: Text("첫 배포를 하면 여기에 쌓여요"))
+                                        .emptyStateCentered()
+                                } else {
+                                    ViewThatFits(in: .horizontal) {
+                                        table(deployments).frame(minWidth: 760)
+                                        list(deployments)
+                                    }
+                                    moreButton
                                 }
                             }
                         }
@@ -41,7 +45,13 @@ struct HistoryView: View {
                 }
             }
         }
-        .task(id: app.selectedProjectID) { await store.refresh(using: app) }
+        // 상태 배지 · 승인하기 · 롤백 · 결과 버튼이 처음 받은 값에 고정되지 않게 (H1): 프로젝트 · 배포 이벤트(앱 복귀 · 전환 · 승인 포함)가 오면 바로,
+        // 아니면 SSE 15초 · 5초. 진행 중이거나 결정이 필요한 배포가 있으면 더 자주 (개요와 같아요)
+        .task(id: app.selectedProjectID) {
+            await poll(on: workspace.live.changes, every: {
+                Freshness.pollSeconds(live: workspace.live.isLive, active: store.hasActive(for: app.selectedProjectID))
+            }) { await store.refresh(using: app) }
+        }
         .toast($toast)
         .sheet(item: $rollbackTarget) { deployment in
             RollbackDialog(deployment: deployment, projectName: workspace.project?.name ?? "",
@@ -65,11 +75,12 @@ struct HistoryView: View {
                     versionText(deployment).font(.subheadline.monospaced())
                     NavigationLink(value: Route.run(deployment.id)) { CommitLabel(commit: deployment.commit) }
                         .buttonStyle(.plain)
-                    statusBadge(deployment)
+                    statusBadge(deployment, newestID: deployments.first?.id)
                     environmentTags(deployment)
                     HStack(spacing: 6) { Avatar(name: deployment.createdBy); Text(deployment.createdBy ?? "—").font(.subheadline) }
                     timeText(deployment).font(.caption).foregroundStyle(.secondary)
-                    actionButton(deployment, latestSucceeded: deployments.first { $0.state == .succeeded }?.id)
+                    actionButton(deployment, newestID: deployments.first?.id,
+                                 latestSucceeded: deployments.first { $0.state == .succeeded }?.id)
                 }
             }
         }
@@ -83,7 +94,7 @@ struct HistoryView: View {
                         versionText(deployment).font(.subheadline.monospaced().weight(.semibold))
                         CommitLabel(commit: deployment.commit)
                         Spacer()
-                        statusBadge(deployment)
+                        statusBadge(deployment, newestID: deployments.first?.id)
                     }
                     environmentTags(deployment)
                     HStack {
@@ -91,7 +102,8 @@ struct HistoryView: View {
                         Text(deployment.createdBy ?? "—").font(.caption)
                         timeText(deployment).font(.caption).foregroundStyle(.secondary)
                         Spacer()
-                        actionButton(deployment, latestSucceeded: deployments.first { $0.state == .succeeded }?.id)
+                        actionButton(deployment, newestID: deployments.first?.id,
+                                     latestSucceeded: deployments.first { $0.state == .succeeded }?.id)
                     }
                 }
                 .padding(.vertical, 10)
@@ -111,9 +123,30 @@ struct HistoryView: View {
         }
     }
 
-    /// 웹: 롤백 배포는 "롤백 · 성공"처럼 앞에 붙여요
-    private func statusBadge(_ deployment: Deployment) -> StatusBadge {
-        let badge = deployment.badge
+    /// "더 보기": A-03 `next_cursor`로 지난 배포를 더 받아요 (H5)
+    @ViewBuilder
+    private var moreButton: some View {
+        if store.nextCursor(for: app.selectedProjectID) != nil {
+            VStack(spacing: 6) {
+                Button {
+                    Task { await store.loadMore(using: app) }
+                } label: {
+                    if store.loadingMore { ProgressView().controlSize(.small) } else { Text("더 보기") }
+                }
+                .buttonStyle(.glassCapsule)
+                .disabled(store.loadingMore)
+                if let error = store.loadMoreError {
+                    Text(error).font(.caption).foregroundStyle(.secondary)
+                }
+            }
+            .frame(maxWidth: .infinity)
+            .padding(.top, 8)
+        }
+    }
+
+    /// 웹: 롤백 배포는 "롤백 · 성공"처럼 앞에 붙여요. 승인 대기는 결정 규칙대로 (H4)
+    private func statusBadge(_ deployment: Deployment, newestID: String?) -> StatusBadge {
+        let badge = deployment.listBadge(newestID: newestID)
         // 성공한 롤백은 이미 "롤백됨"이라 앞에 붙이지 않아요 ("롤백 · 롤백됨" 방지)
         guard deployment.isRollback, deployment.state != .succeeded else { return badge }
         return StatusBadge(text: .app("롤백 · \(badge.text)"), color: badge.color)
@@ -134,10 +167,11 @@ struct HistoryView: View {
         }
     }
 
-    /// 웹: 승인 대기 → "승인하기"(W-06), 가장 최근 성공이 아닌 성공 배포 → "롤백", 나머지 → "결과"(W-08)
+    /// 웹: 승인 대기 → "승인하기"(W-06), 가장 최근 성공이 아닌 성공 배포 → "롤백", 나머지 → "결과"(W-08).
+    /// "승인하기"는 결정이 필요한 배포(가장 최근 배포 + 승인 안 된 환경)에만 (H4). 이미 승인했거나 버려진 지난 배포는 "결과"로 봐요
     @ViewBuilder
-    private func actionButton(_ deployment: Deployment, latestSucceeded: String?) -> some View {
-        if deployment.state == .awaitingApproval {
+    private func actionButton(_ deployment: Deployment, newestID: String?, latestSucceeded: String?) -> some View {
+        if DecisionRule.status(of: deployment, newestID: newestID) == .needsDecision {
             Button("승인하기") { router.push(.plan(deployment.id)) }
                 .buttonStyle(.glassCapsule)
         } else if deployment.state == .succeeded && deployment.id != latestSucceeded {
@@ -161,6 +195,9 @@ struct HistoryView: View {
                                                        reason: "\(deployment.version ?? String(deployment.commit.prefix(7)))로 롤백"))
             rollbackTarget = nil
             router.push(.started(next.id))
+            // 새 롤백 배포가 목록 · 사이드바 · 개요에 바로 보이게 (H2)
+            workspace.refreshSoon()
+            await store.refresh(using: app)
         } catch {
             app.handle(error)
             throw error
