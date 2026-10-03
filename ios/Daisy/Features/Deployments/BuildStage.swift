@@ -42,8 +42,12 @@ struct BuildStage: View {
                 InlineAlert(.danger, .app("빌드 · 테스트가 실패했어요"), .app("빌드 단계에서 원인을 확인해 주세요. 실패한 이미지는 배포하지 않아요."))
             }
         }
-        // 빌드가 끝나면(성공 · 실패) 멈춰요
-        .task(id: commit) { await poll(until: { [.success, .failed].contains(build?.pipeline.status) }) { await loadBuild() } }
+        // 빌드가 끝나면(성공 · 실패) 멈춰요. `build.received`(프로젝트 채널)가 오면 바로 다시 불러요.
+        // Jenkins 단계 진행은 이벤트가 없어서 SSE가 붙어 있어도 5초 폴링은 그대로예요
+        .task(id: commit) {
+            await poll(on: workspace.live.changes, every: { PollInterval.normal },
+                       until: { [.success, .failed].contains(build?.pipeline.status) }) { await loadBuild() }
+        }
     }
 
     /// 보여줄 커밋: 넘겨받은 커밋, 없으면 가장 최근 빌드

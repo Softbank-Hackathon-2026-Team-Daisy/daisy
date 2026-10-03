@@ -550,7 +550,7 @@ struct RelativeTime: View {
 
 // MARK: - 연결 표시 (Connection Indicator)
 
-/// `polling`: 실시간(SSE) 전, 5초 폴링 중이에요 (웹과 같아요. 실시간 연결로 보이지 않게)
+/// `connected`: SSE가 붙어 있어요. `polling`: SSE가 끊겨서 5초 폴링 중이에요 (웹과 같아요. 실시간 연결로 보이지 않게)
 enum ConnectionState: Equatable {
     case connected, polling, reconnecting, disconnected
 }

@@ -120,6 +120,23 @@ func poll(every seconds: Double = 5, until done: @MainActor () -> Bool = { false
     }
 }
 
+/// 실시간(SSE) 신호가 오면 바로, 아니면 `interval()`초마다 `body`를 실행해요 (간격은 `PollInterval`).
+/// 부르는 동안 온 신호도 놓치지 않게, 부르기 전에 본 신호 수와 비교해요. `until`은 위와 같아요.
+@MainActor
+func poll(on signal: LiveSignal?, every interval: @MainActor () -> Double,
+          until done: @MainActor () -> Bool = { false }, _ body: @MainActor () async -> Void) async {
+    while !Task.isCancelled {
+        let seen = signal?.count ?? 0
+        await body()
+        if done() { return }
+        if let signal {
+            await signal.wait(upTo: interval(), after: seen)
+        } else {
+            try? await Task.sleep(for: .seconds(interval()))
+        }
+    }
+}
+
 /// 화면 폭에 맞춰 열 수가 바뀌는 그리드. 폰은 1열, iPad · Mac은 여러 열.
 struct AdaptiveGrid<Content: View>: View {
     var minimumWidth: CGFloat = 300
