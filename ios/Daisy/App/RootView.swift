@@ -21,6 +21,11 @@ struct RootView: View {
                     }
                 }
                 .task(id: app.token) { await workspace.run(using: app) }
+                // 프로젝트 SSE(E-02): 로그인 · 프로젝트가 바뀌면 다시 붙어요. 배포 채널이 열려 있는 동안은 닫아 둬요 (한 번에 하나)
+                .task(id: ProjectChannelKey(token: app.token, projectID: app.selectedProjectID,
+                                            paused: workspace.projectChannelPaused)) {
+                    await workspace.listen(using: app)
+                }
                 // 로그인할 때 · 앱을 켤 때마다 알림 권한을 묻고 기기를 등록해요 (서버에 아직 없으면 다음에 다시)
                 .task(id: app.token) { await app.push.activate(for: app) }
                 // 알림을 누르면 그 프로젝트의 승인 · 배포 화면으로. 꺼진 앱이 알림으로 켜질 때도 처음 그릴 때 열어요
@@ -36,6 +41,13 @@ struct RootView: View {
         .environment(router)
         .environment(workspace)
     }
+}
+
+/// 프로젝트 채널을 다시 열어야 하는 때: 로그인 · 프로젝트 · 잠시 닫음이 바뀔 때
+private struct ProjectChannelKey: Equatable {
+    let token: String?
+    let projectID: String?
+    let paused: Bool
 }
 
 /// 메뉴 한 칸의 내용 + 그 안에서 들어가는 화면들.

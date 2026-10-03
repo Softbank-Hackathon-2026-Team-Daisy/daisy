@@ -4,6 +4,8 @@ import SwiftUI
 /// 레인 배지는 환경별 상태 그대로, 단계는 서버 `steps`가 없으면 웹처럼 "이미지 pull · terraform apply · state 저장 · 헬스체크".
 struct ApplyStage: View {
     let deployment: Deployment
+    /// 배포 채널. `log.batch`가 오면 로그를 바로 다시 불러요
+    var live: LiveChannel?
     @Environment(AppModel.self) private var app
     @Environment(Workspace.self) private var workspace
     @State private var lines: [LogLine] = []
@@ -20,7 +22,11 @@ struct ApplyStage: View {
             }
             LogViewer(lines: lines, autoScroll: $autoScroll) { workspace.type(of: $0).logSource }
         }
-        .task { await poll { await loadLogs() } }
+        .task {
+            await poll(on: live?.logs, every: { PollInterval.seconds(live: live?.isLive == true, active: deployment.state.isActive) }) {
+                await loadLogs()
+            }
+        }
     }
 
     private func lane(_ target: Deployment.Target) -> some View {

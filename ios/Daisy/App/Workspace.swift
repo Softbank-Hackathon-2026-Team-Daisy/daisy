@@ -117,7 +117,8 @@ final class Router {
     func popToRoot() { paths[tab] = [] }
 }
 
-/// 사이드바 · 개요가 함께 쓰는 프로젝트 상태. 5초마다 새로 받아요 (SSE 전까지 폴링).
+/// 사이드바 · 개요가 함께 쓰는 프로젝트 상태. 프로젝트 SSE(E-02) 이벤트가 오면 바로, 아니면 폴링으로 새로 받아요
+/// (SSE가 붙어 있으면 15초 안전망, 끊기면 5초)
 @MainActor
 @Observable
 final class Workspace {
@@ -126,8 +127,36 @@ final class Workspace {
     private(set) var targets: [DeployTarget] = []
     /// 사이드바 "배포" 배지: 승인 대기 중인 배포 수
     private(set) var awaitingApproval: [Deployment] = []
-    private(set) var connection: ConnectionState = .reconnecting
     private(set) var loadedOnce = false
+    /// 프로젝트 채널 (`projects/{id}/events`). 개요 · 배포 목록 · 빌드 화면도 이 신호로 바로 다시 불러요
+    let live = LiveChannel()
+    /// REST 폴링 결과. 성공하면 `polling`, 실패하면 `reconnecting` · `disconnected`
+    private var restConnection: ConnectionState = .reconnecting
+
+    /// 지금 열려 있는 배포 채널 (RunView). 서버가 계정당 SSE를 4개까지만 받아서(Mac · iPhone · 웹을 같이 쓰면 금방 차요)
+    /// 앱은 한 번에 하나만 열어요: 배포 채널이 열려 있는 동안 프로젝트 채널은 닫고, 배포 채널이 닫히면 이어 받아요
+    private var borrowed: [ObjectIdentifier: LiveChannel] = [:]
+
+    /// 프로젝트 채널을 잠시 닫아 둔 상태 (배포 채널이 대신 열려 있어요)
+    var projectChannelPaused: Bool { !borrowed.isEmpty }
+
+    /// 프로젝트 · 배포 채널 중 하나라도 붙어 있어요
+    var isLive: Bool { live.isLive || borrowed.values.contains { $0.isLive } }
+
+    /// 연결 표시: 스트림이 붙어 있으면 "실시간 연결됨", 끊기면 폴링으로 돌아가요
+    var connection: ConnectionState {
+        restConnection == .polling && isLive ? .connected : restConnection
+    }
+
+    /// 배포 채널을 열기 전에 불러요. 프로젝트 채널이 닫혀요 (RootView `.task(id:)`)
+    func hold(_ channel: LiveChannel) {
+        borrowed[ObjectIdentifier(channel)] = channel
+    }
+
+    /// 배포 채널을 닫은 뒤 불러요. 다른 배포 채널이 없으면 프로젝트 채널을 마지막 seq부터 다시 열어요
+    func release(_ channel: LiveChannel) {
+        borrowed[ObjectIdentifier(channel)] = nil
+    }
 
     var project: Project? {
         projects.first { $0.id == currentProjectID }
@@ -136,11 +165,25 @@ final class Workspace {
     private var currentProjectID: String?
 
     func run(using app: AppModel) async {
-        await poll { await self.refresh(using: app) }
+        await poll(on: live.changes, every: { PollInterval.seconds(live: self.live.isLive) }) {
+            await self.refresh(using: app)
+        }
+    }
+
+    /// 고른 프로젝트의 채널에 붙어 있어요. 로그인 · 프로젝트 · 잠시 닫음이 바뀌면 `.task(id:)`가 다시 불러요.
+    /// 프로젝트 채널이 닫혀 있는 동안 이 화면들은 배포 채널 이벤트(`refreshSoon`)와 5초 폴링으로 버텨요
+    func listen(using app: AppModel) async {
+        guard !projectChannelPaused, let projectID = app.selectedProjectID else { return }
+        await live.listen(app.eventStream, path: "projects/\(projectID)/events")
+    }
+
+    /// 배포 채널에서 상태가 바뀌면 사이드바 승인 대기 배지 · 개요 · 배포 목록도 바로 다시 불러요
+    func refreshSoon() {
+        live.changes.fire()
     }
 
     func refresh(using app: AppModel) async {
-        guard let client = app.client else { connection = .disconnected; return }
+        guard let client = app.client else { restConnection = .disconnected; return }
         do {
             projects = try await client.send(.projects()).items
             if app.selectedProjectID == nil || !projects.contains(where: { $0.id == app.selectedProjectID }) {
@@ -157,11 +200,11 @@ final class Workspace {
             } else {
                 statuses = []; targets = []; awaitingApproval = []
             }
-            // 앱은 아직 SSE 없이 5초 폴링이라 "실시간 연결됨"이 아니에요 (웹 #61과 같아요)
-            connection = .polling
+            // 스트림이 붙어 있을 때만 "실시간 연결됨"이에요 (`connection`, 웹 #61과 같아요)
+            restConnection = .polling
         } catch {
             app.handle(error)
-            connection = loadedOnce ? .reconnecting : .disconnected
+            restConnection = loadedOnce ? .reconnecting : .disconnected
         }
         loadedOnce = true
     }

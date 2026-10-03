@@ -64,6 +64,12 @@ final class AppModel {
         return APIClient(baseURL: serverURL, token: token)
     }
 
+    /// 실시간(SSE) 연결. `client`와 같은 서버 · 토큰 · 언어예요. 없으면 화면은 폴링만 해요
+    var eventStream: EventStream? {
+        if isSampleMode { return nil }  // SAMPLE-MODE
+        return client.map(EventStream.init(client:))
+    }
+
     func enterSampleMode(role: String) { (token, self.role, sessionExpired) = (SampleMode.token(role: role), role, false) }  // SAMPLE-MODE
 
     func signIn(username: String, password: String) async throws {

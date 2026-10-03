@@ -32,9 +32,14 @@ struct DeploymentsView: View {
                 }
             }
         }
-        // 가장 최근 배포를 5초마다 다시 찾아요. 웹 · 다른 기기에서 다시 시도하거나 새로 배포하면 새 배포가 생겨서,
-        // 열어 둔 화면이 예전 배포에 머물지 않고 새 배포로 넘어가요 (10/3). 배포 한 건의 상태는 RunView가 따로 폴링해요
-        .task(id: app.selectedProjectID) { await poll { await store.refresh(using: app) } }
+        // 가장 최근 배포를 다시 찾아요. 웹 · 다른 기기에서 다시 시도하거나 새로 배포하면 새 배포가 생겨서,
+        // 열어 둔 화면이 예전 배포에 머물지 않고 새 배포로 넘어가요 (10/3). 배포 한 건의 상태는 RunView가 따로 받아요.
+        // 프로젝트 채널의 `deployment.created`가 오면 바로, 아니면 SSE 15초 · 끊기면 5초마다
+        .task(id: app.selectedProjectID) {
+            await poll(on: workspace.live.changes, every: { PollInterval.seconds(live: workspace.live.isLive) }) {
+                await store.refresh(using: app)
+            }
+        }
     }
 
     private func empty(@ViewBuilder _ content: () -> some View) -> some View {

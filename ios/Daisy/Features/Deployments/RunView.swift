@@ -12,6 +12,8 @@ final class RunStore {
     /// 사용자가 방금 누른 동작이 서버에 반영되기 전까지 보여줄 전환 로딩 (L-01 · L-02 · L-03)
     var pendingLoader: TransitionLoader.Stage?
     private var pendingFromState: DeploymentState?
+    /// 배포 채널 (`deployments/{id}/events`, E-01). 상태 · 단계 · plan · 승인 이벤트가 오면 바로 다시 불러요
+    let live = LiveChannel()
 
     init(deploymentID: String, loader: TransitionLoader.Stage? = nil) {
         self.deploymentID = deploymentID
@@ -33,6 +35,13 @@ final class RunStore {
         }
     }
 
+    var isFinished: Bool { deployment.value?.state.isFinished == true }
+
+    /// SSE가 붙어 있으면 15초 안전망, 끊겼는데 배포가 진행 중이면 2초, 아니면 5초
+    var pollInterval: Double {
+        PollInterval.seconds(live: live.isLive, active: pendingLoader != nil || deployment.value?.state.isActive == true)
+    }
+
     func showLoader(_ stage: TransitionLoader.Stage) {
         pendingLoader = stage
         pendingFromState = deployment.value?.state
@@ -41,6 +50,7 @@ final class RunStore {
 
 struct RunView: View {
     @Environment(AppModel.self) private var app
+    @Environment(Workspace.self) private var workspace
     @State private var store: RunStore
 
     init(deploymentID: String, loader: TransitionLoader.Stage? = nil) {
@@ -60,7 +70,19 @@ struct RunView: View {
                 }
             }
         }
-        .task { await poll(until: { store.deployment.value?.state.isFinished == true }) { await store.refresh(using: app) } }
+        .task {
+            await poll(on: store.live.changes, every: { store.pollInterval }, until: { store.isFinished }) {
+                await store.refresh(using: app)
+            }
+        }
+        // 끝난 배포는 이벤트가 더 없어서 채널을 닫아요. 열려 있는 동안 프로젝트 채널은 닫아 둬요 (계정당 연결 4개 상한, 앱은 하나만)
+        .task(id: store.isFinished) {
+            guard !store.isFinished, let stream = app.eventStream else { return }
+            store.live.onChange = { [workspace] in workspace.refreshSoon() }
+            workspace.hold(store.live)
+            defer { workspace.release(store.live) }
+            await store.live.listen(stream, path: "deployments/\(store.deploymentID)/events")
+        }
     }
 
     @ViewBuilder
@@ -73,7 +95,7 @@ struct RunView: View {
             }
         case .generate: GenerateStage(deployment: deployment)
         case .stopped: StoppedStage(deployment: deployment)
-        case .apply: ApplyStage(deployment: deployment)
+        case .apply: ApplyStage(deployment: deployment, live: store.live)
         case .result: ResultStage(deployment: deployment)
         }
     }

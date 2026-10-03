@@ -41,7 +41,12 @@ struct OverviewView: View {
                 .refreshable { await refresh() }
             }
         }
-        .task(id: app.selectedProjectID) { await poll { await store.refresh(using: app) } }
+        // 프로젝트 · 배포 이벤트가 오면 바로, 아니면 SSE 15초 · 진행 중인 배포가 있으면 2초 · 그 밖에 5초
+        .task(id: app.selectedProjectID) {
+            await poll(on: workspace.live.changes, every: {
+                PollInterval.seconds(live: workspace.live.isLive, active: store.recent.contains { $0.state.isActive })
+            }) { await store.refresh(using: app) }
+        }
     }
 
     /// 웹: "sample-monolith가 지금 어느 환경에 어떤 버전으로 떠 있는지, 다음에 할 일이 뭔지 봐요."
