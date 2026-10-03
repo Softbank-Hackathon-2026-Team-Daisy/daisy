@@ -17,7 +17,7 @@ import ProjectMenu from './ProjectMenu.tsx'
 import Tooltip from './Tooltip.tsx'
 import './Sidebar.css'
 
-// Figma 「08 · Sidebar」. 펼침 240px / 접힘 64px (배포 흐름 화면은 항상 접힘, SPEC.md §2-4)
+// Figma 「08 · Sidebar」. 펼침 240px / 접힘 64px (사용자가 접어요. 배포 화면에서도 저절로 접지 않아요, SPEC.md §2-4)
 type SidebarProps = {
   projectId: string
   collapsed: boolean
@@ -141,12 +141,13 @@ function Sidebar({ projectId, collapsed, canToggle, onToggle, onOpenMacApp, draw
               <span className="sidebar__status-dot" style={{ background: `var(--color-status-${env.tone})` }} />
             </span>
           ) : (
-            <button key={env.targetId} type="button" className="sidebar__env" onClick={() => navigate(paths.environments(p))}>
+            // 상태만 보여주는 줄이라 눌러도 이동하지 않아요 (환경 화면은 위 "환경" 메뉴로)
+            <div key={env.targetId} className="sidebar__env">
               {env.type === 'onprem' ? <span className="sidebar__env-color" style={{ background: `var(--color-env-${env.type})` }} /> : <CloudLogo env={env.type} size={14} />}
               <span className="sidebar__env-name">{t(ENV_LABEL[env.type])}</span>
               <span className="sidebar__status-dot" style={{ background: `var(--color-status-${env.tone})` }} />
               <span className="t-mono-sm t-muted">{env.label}</span>
-            </button>
+            </div>
           ),
         )}
       </div>
