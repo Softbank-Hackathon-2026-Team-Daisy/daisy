@@ -66,6 +66,8 @@ function HistoryTable({ projectId, rows, onRollback }: { projectId: string; rows
       label={t('배포 이력')}
       rows={rows}
       rowKey={(d) => d.id}
+      // 줄 아무 데나 눌러도 열려요: 승인 대기 → 승인 화면, 나머지 → 결과 (롤백은 확인 창이 뜨는 동작이라 버튼으로만)
+      onSelect={(d) => navigate(d.state === 'awaiting_approval' ? paths.approve(projectId, d.id) : paths.result(projectId, d.id))}
       columns={[
         ...(hasVersion ? [{ key: 'v', label: t('버전'), width: 80, render: (d: Deployment) => <span className="t-mono">{versionLabel(d)}</span> }] : []),
         // 승인해야 하는 커밋은 눈에 띄게 칠해요
@@ -112,20 +114,24 @@ function HistoryTable({ projectId, rows, onRollback }: { projectId: string; rows
           key: 'a',
           label: '',
           width: 90,
-          render: (d) =>
-            d.state === 'awaiting_approval' ? (
-              <Button variant="ghost" onClick={() => navigate(paths.approve(projectId, d.id))}>
-                {t('승인하기')}
-              </Button>
-            ) : d.state === 'succeeded' && d.id !== latestOk?.id && d.commit !== latestOk?.commit ? (
-              <Button variant="ghost" disabled={role === 'viewer'} onClick={() => onRollback(d)}>
-                {t('롤백')}
-              </Button>
-            ) : (
-              <Button variant="ghost" onClick={() => navigate(paths.result(projectId, d.id))}>
-                {t('결과')}
-              </Button>
-            ),
+          // 버튼을 누를 때 줄 클릭까지 같이 일어나지 않게 막아요 (꺼진 롤백 버튼을 눌러도 결과로 가지 않게)
+          render: (d) => (
+            <span onClick={(e) => e.stopPropagation()}>
+              {d.state === 'awaiting_approval' ? (
+                <Button variant="ghost" onClick={() => navigate(paths.approve(projectId, d.id))}>
+                  {t('승인하기')}
+                </Button>
+              ) : d.state === 'succeeded' && d.id !== latestOk?.id && d.commit !== latestOk?.commit ? (
+                <Button variant="ghost" disabled={role === 'viewer'} onClick={() => onRollback(d)}>
+                  {t('롤백')}
+                </Button>
+              ) : (
+                <Button variant="ghost" onClick={() => navigate(paths.result(projectId, d.id))}>
+                  {t('결과')}
+                </Button>
+              )}
+            </span>
+          ),
         },
       ]}
     />
