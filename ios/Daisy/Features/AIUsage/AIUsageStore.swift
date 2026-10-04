@@ -37,7 +37,7 @@ final class AIUsageStore {
     func refresh(using app: AppModel, projectID: String, selectedID: String?) async -> Bool {
         guard let client = app.client else { return true }
         await list.load(projectID, using: app) {
-            try await client.send(.deployments(projectID: projectID)).items
+            try await Self.allDeployments(client: client, projectID: projectID)
         }
         // 목록을 처음부터 못 받았으면 화면이 그 오류를 보여줘요 (합계를 0으로 만들지 않아요)
         guard let deployments = list.value(for: projectID), app.selectedProjectID == projectID else { return true }
@@ -48,6 +48,21 @@ final class AIUsageStore {
             await loadTotals(using: app, client: client, projectID: projectID, deployments: deployments)
         }
         return true
+    }
+
+    /// 전체 합계는 프로젝트의 모든 배포를 더해요. A-03은 한 번에 최근 20건이라 `next_cursor`가 없을 때까지 이어 받아요 (10/4)
+    static func allDeployments(client: APIClient, projectID: String, maxPages: Int = 50) async throws -> [Deployment] {
+        var all: [Deployment] = []
+        var seen = Set<String>()
+        var cursor: String?
+        var pages = 0
+        repeat {
+            let page = try await client.send(.deployments(projectID: projectID, state: nil, cursor: cursor))
+            for deployment in page.items where seen.insert(deployment.id).inserted { all.append(deployment) }
+            cursor = page.nextCursor
+            pages += 1
+        } while cursor != nil && pages < maxPages
+        return all
     }
 
     private func loadDetail(using app: AppModel, client: APIClient, projectID: String, deploymentID: String) async {
