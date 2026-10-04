@@ -63,9 +63,13 @@ struct PushPayload: Equatable, Sendable {
         return defaults.object(forKey: key) as? Bool ?? true
     }
 
-    /// 알림을 눌렀을 때: 그 프로젝트를 고르고 화면을 열어요
+    /// 알림을 눌렀을 때: 그 프로젝트를 고르고 화면을 열어요. 로그인돼 있을 때만 불러요 (RootView, P3).
+    /// 다른 프로젝트면 프로젝트를 바꾸면서 모든 메뉴 경로가 비워지고(`Router.apply`), 화면은 배포 메뉴를 비운 뒤 열어요
+    /// (`Router.open`, 같은 화면이 이미 맨 위면 그대로). 프로젝트 데이터는 바꾸는 즉시 다시 읽어요 (`Workspace.apply`, P1 · S5)
     @MainActor
     func open(app: AppModel, router: Router) {
+        guard app.isSignedIn else { return }
+        if app.isSampleMode { return }  // SAMPLE-MODE: 예시 데이터 모드에서 실제 알림은 열지 않아요 (실서버 프로젝트 ID라 화면이 꼬여요, P6)
         if let projectID { app.selectedProjectID = projectID }
         if let route { router.open(route) }
     }

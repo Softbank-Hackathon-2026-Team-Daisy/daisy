@@ -1,9 +1,12 @@
 import SwiftUI
 
 /// W-10 환경: 배포 대상 환경의 연결 상태와 인프라 구성. 환경을 고르는 건 배포할 때(W-04) 해요.
+/// 사이드바 ENVIRONMENTS와 같은 요청(`projects/{id}/targets`)이고, 같은 신호(프로젝트 채널 · 앱 복귀 · 전환)와 같은 간격으로 다시 받아요 (10/3 신선도 검수 E1).
+/// 프로젝트가 바뀌면 이전 환경 카드를 버리고, 한 번 받은 뒤 실패하면 카드는 두고 "갱신하지 못했어요"를 보여줘요 (E2)
 struct EnvironmentsView: View {
     @Environment(AppModel.self) private var app
-    @State private var targets: LoadState<[DeployTarget]> = .idle
+    @Environment(Workspace.self) private var workspace
+    @State private var targets = ScopedLoader<[DeployTarget]>()
     @State private var testing: String?
     @State private var toast: ToastMessage?
     @State private var resourcesFor: DeployTarget?
@@ -17,9 +20,10 @@ struct EnvironmentsView: View {
             if app.selectedProjectID == nil {
                 NoProjectView()
             } else {
-                LoadStateView(state: targets, retry: { await load() }) { targets in
+                LoadStateView(state: targets.state(for: app.selectedProjectID), retry: { await load() }) { targets in
                     ScrollView {
                         VStack(alignment: .leading, spacing: 16) {
+                            StaleBanner(since: self.targets.staleSince)
                             AdaptiveGrid(minimumWidth: 280) {
                                 ForEach(targets) { panel($0) }
                             }
@@ -39,7 +43,9 @@ struct EnvironmentsView: View {
                 }
             }
         }
-        .task(id: app.selectedProjectID) { await load() }
+        .task(id: app.selectedProjectID) {
+            await poll(on: workspace.live.changes, every: { PollInterval.seconds(live: workspace.live.isLive) }) { await load() }
+        }
         .toast($toast)
         .sheet(item: $resourcesFor) { ResourcesSheet(target: $0) }
     }
@@ -95,12 +101,8 @@ struct EnvironmentsView: View {
 
     private func load() async {
         guard let client = app.client, let projectID = app.selectedProjectID else { return }
-        if targets.value == nil { targets = .loading }
-        do {
-            targets = .loaded(try await client.send(.deployTargets(projectID: projectID)).items)
-        } catch {
-            app.handle(error)
-            if targets.value == nil { targets = .failed(error.localizedDescription) }
+        await targets.load(projectID, using: app) {
+            try await client.send(.deployTargets(projectID: projectID)).items
         }
     }
 

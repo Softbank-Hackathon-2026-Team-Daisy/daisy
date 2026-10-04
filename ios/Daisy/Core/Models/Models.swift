@@ -385,6 +385,15 @@ extension Deployment {
     func approvalItems(for targetIDs: [String]) -> [ApprovalItem] {
         targetIDs.compactMap { id in pendingApprovals?.first { $0.targetId == id } }
     }
+
+    /// 사람이 승인 · 거절해야 하는 배포예요: 승인 대기이고, 아직 승인하지 않은 환경이 하나라도 있어요
+    /// (승인 완료 · 실행 대기 환경만 남았으면 아니에요, 웹 #64와 같아요). 환경 목록이 없으면 `pending_approvals`로 봐요.
+    /// 사이드바 배지 · iPhone 빨간 점은 프로젝트의 가장 최근 배포(A-03 첫 건)에만 이 규칙을 써요 (`Workspace.actionableApproval`)
+    var needsDecision: Bool {
+        guard state == .awaitingApproval else { return false }
+        guard let targets, !targets.isEmpty else { return pendingApprovals?.isEmpty == false }
+        return targets.contains { $0.resolvedState == .awaitingApproval && !$0.isApprovedWaiting }
+    }
 }
 
 /// 배포를 만든 응답 (배포 시작 · 다시 시도 · 롤백): `{ id, project_id, state }` (10/2 01:07 서버 #42). 나머지는 A-04로 다시 읽어요

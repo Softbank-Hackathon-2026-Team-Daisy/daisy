@@ -31,6 +31,8 @@ final class PushAppDelegate: NSObject, UIApplicationDelegate {
 final class PushAppDelegate: NSObject, NSApplicationDelegate {
     func applicationWillFinishLaunching(_ notification: Notification) {
         UNUserNotificationCenter.current().delegate = self
+        // 창 하나만 (L4, DaisyApp): 창 탭(보기 › 탭 막대 보기 · "+")으로 창이 늘어나지 않게 해요
+        NSWindow.allowsAutomaticWindowTabbing = false
     }
 
     func application(_ application: NSApplication, didRegisterForRemoteNotificationsWithDeviceToken deviceToken: Data) {

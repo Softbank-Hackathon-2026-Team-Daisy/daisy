@@ -73,7 +73,8 @@ final class PushRegistry {
     private(set) var authorization: PushAuthorization = .unknown
     /// 이번 실행에서 APNs가 준 기기 토큰 (소문자 hex)
     private(set) var deviceToken: String?
-    /// 알림을 눌러 열 화면. RootView가 지켜보다가 로그인돼 있으면 열고 비워요 (앱이 꺼져 있다가 알림으로 켜질 때도 같아요)
+    /// 알림을 눌러 열 화면. RootView가 지켜보다가 로그인돼 있으면 열고 비워요 (앱이 꺼져 있다가 알림으로 켜질 때도 같아요).
+    /// 로그아웃 상태에서 누른 알림 · 로그아웃할 때 남아 있던 알림은 버려요 — 다음에 다른 계정으로 로그인해서 열리지 않게 (P3)
     var pendingOpen: PushPayload?
 
     @ObservationIgnored private let system: PushSystem

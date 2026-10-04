@@ -7,8 +7,9 @@ struct SettingsView: View {
     @Environment(Router.self) private var router
     @Environment(Workspace.self) private var workspace
     @Environment(LanguageStore.self) private var language
-    @State private var detail: ProjectDetail?
-    @State private var manifest: Manifest?
+    /// 프로젝트 상세 · 배포 명세. 프로젝트에 묶여서 바뀌면 이전 값을 버려요 (10/3 신선도 검수 ST2)
+    @State private var details = ScopedLoader<ProjectDetail>()
+    @State private var manifests = ScopedLoader<Manifest>()
     @State private var disconnecting = false
     @State private var toast: ToastMessage?
     // 앱이 켜져 있을 때 뜨는 푸시 배너만 걸러요 (PushPayload.presentsInForeground). 앱이 꺼져 있을 때 오는 푸시는 운영체제가 보여줘서 앱이 거를 수 없어요
@@ -24,6 +25,7 @@ struct SettingsView: View {
         } content: {
             ScrollView {
                 VStack(alignment: .leading, spacing: 16) {
+                    StaleBanner(since: staleSince)
                     accountCard
                     if app.selectedProjectID != nil {
                         projectSettings
@@ -33,7 +35,10 @@ struct SettingsView: View {
                 .padding(20)
             }
         }
-        .task(id: app.selectedProjectID) { await load() }
+        // 웹훅 마지막 수신 · 명세가 처음 값에 고정되지 않게 (ST1): 프로젝트 이벤트(앱 복귀 · 전환 포함)가 오면 바로, 아니면 SSE 15초 · 5초
+        .task(id: app.selectedProjectID) {
+            await poll(on: workspace.live.changes, every: { PollInterval.seconds(live: workspace.live.isLive) }) { await load() }
+        }
         // 기기 설정에서 알림을 켜고 돌아오면 바로 "허용됨"으로 바뀌어요
         .task { await app.push.refreshAuthorization() }
         .onChange(of: scenePhase) { _, phase in
@@ -46,6 +51,15 @@ struct SettingsView: View {
     }
 
     // MARK: 프로젝트 설정 (웹 W-13)
+
+    private var detail: ProjectDetail? { details.value(for: app.selectedProjectID) }
+    private var manifest: Manifest? { manifests.value(for: app.selectedProjectID) }
+
+    /// 상세 · 명세 중 하나라도 갱신에 실패했으면 더 오래된 마지막 수신 시각
+    private var staleSince: Date? {
+        guard app.selectedProjectID != nil else { return nil }
+        return [details.staleSince, manifests.staleSince].compactMap { $0 }.min()
+    }
 
     @ViewBuilder
     private var projectSettings: some View {
@@ -70,8 +84,10 @@ struct SettingsView: View {
                     ForEach(manifest.errors ?? [], id: \.self) { problem in
                         InlineAlert(.danger, .app("deploy.yaml을 확인해 주세요"), [problem.path, problem.message].compactMap { $0 }.joined(separator: ": "))
                     }
-                } else {
+                } else if case .failed = manifests.state(for: app.selectedProjectID) {
                     Text("deploy.yaml을 불러오지 못했어요").foregroundStyle(.secondary)
+                } else {
+                    ProgressView().frame(maxWidth: .infinity)
                 }
             }
             SectionCard(.app("비밀값")) {
@@ -208,12 +224,15 @@ struct SettingsView: View {
 
     // MARK: 동작
 
+    /// 상세와 명세를 함께 받아요. 실패는 `try?`로 삼키지 않고 `app.handle`로 넘겨요 (401이면 로그아웃, X2)
     private func load() async {
         guard let client = app.client, let projectID = app.selectedProjectID else { return }
-        async let detail = try? client.send(.projectDetail(projectID: projectID))
-        async let manifest = try? client.send(.manifest(projectID: projectID))
-        self.detail = await detail ?? self.detail
-        self.manifest = await manifest ?? self.manifest
+        await details.load(projectID, using: app) {
+            try await client.send(.projectDetail(projectID: projectID))
+        }
+        await manifests.load(projectID, using: app) {
+            try await client.send(.manifest(projectID: projectID))
+        }
     }
 
     /// 연결을 해제하면 저장소 연결(W-02)로 가요 (웹과 같아요)

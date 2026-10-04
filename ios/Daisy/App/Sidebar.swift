@@ -47,9 +47,9 @@ struct Sidebar: View {
                 // 계정 줄 오른쪽 끝에 새로고침 상태 심볼 (10/3: 글자 없이 아바타와 같은 높이)
                 HStack(spacing: 6) {
                     user
-                    ConnectionIndicator(state: workspace.connection, retry: {
-                        Task { await workspace.refresh(using: app) }
-                    }, iconOnly: true)
+                    SidebarConnectionStatus(state: workspace.connection, lastRefreshedAt: workspace.lastRefreshedAt) {
+                        workspace.refreshSoon()
+                    }
                     .padding(.trailing, 10)
                 }
             }
@@ -81,8 +81,8 @@ struct Sidebar: View {
             Section("PROJECTS") {
                 ForEach(workspace.projects) { project in
                     Button {
+                        // 바꾸는 즉시 이전 프로젝트 데이터 · 경로를 비우고 다시 읽어요 (AppModel → Workspace · Router)
                         app.selectedProjectID = project.id
-                        Task { await workspace.refresh(using: app) }
                     } label: {
                         if project.id == app.selectedProjectID {
                             Label(project.name, systemImage: "checkmark")
@@ -94,6 +94,7 @@ struct Sidebar: View {
             }
             Divider()
             Button {
+                // 개요 메뉴에서 열어요. 배포 메뉴에서 하던 작업은 그대로 남아요 (C2, `Route.home`)
                 router.open(.connectProject)
             } label: {
                 Label("새 프로젝트 연결", systemImage: "plus")
@@ -153,6 +154,7 @@ struct Sidebar: View {
             Text(tab.title)
                 .font(.system(size: 15, weight: selected ? .semibold : .regular))
             Spacer(minLength: 0)
+            // 가장 최근 배포가 승인을 기다릴 때만 (S1, 배포 메뉴와 같은 기준). 승인 뒤 apply 전 · 버려진 예전 배포는 세지 않아요
             if tab == .deployments, !workspace.awaitingApproval.isEmpty {
                 Text("\(workspace.awaitingApproval.count)")
                     .font(.caption.monospacedDigit().weight(.semibold))
@@ -249,5 +251,53 @@ struct Sidebar: View {
         .buttonStyle(.plain)
         .onHover { userHovered = $0 }
         .accessibilityElement(children: .combine)
+    }
+}
+
+/// 사이드바 계정 줄 오른쪽 끝의 새로고침 상태 심볼 (10/3). 이 표시는 사이드바 · 개요의 프로젝트 현황(환경 · 커밋 · 승인 대기 배지)
+/// 범위예요 — 모든 화면이 실시간이라는 뜻이 아니어서 도움말 · VoiceOver에 범위와 마지막 갱신 시각을 함께 말해요 (S6)
+private struct SidebarConnectionStatus: View {
+    let state: ConnectionState
+    let lastRefreshedAt: Date?
+    let retry: () -> Void
+
+    var body: some View {
+        Group {
+            if state == .disconnected {
+                Button(action: retry) { icon }
+                    .buttonStyle(.plain)
+            } else {
+                icon
+            }
+        }
+        .help(helpText)
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel(helpText)
+    }
+
+    private var icon: some View {
+        Image(systemName: state == .polling ? "arrow.clockwise" : "cellularbars")
+            .font(.caption.weight(.medium))
+            .foregroundStyle(color)
+    }
+
+    private var color: Color {
+        switch state {
+        case .connected: .green
+        case .polling: .secondary
+        case .reconnecting: .orange
+        case .disconnected: .red
+        }
+    }
+
+    private var helpText: String {
+        let scope: String = switch state {
+        case .connected: .app("프로젝트 현황 · 실시간 연결됨")
+        case .polling: .app("프로젝트 현황 · 주기적으로 새로고침")
+        case .reconnecting: .app("프로젝트 현황 · 재연결 중…")
+        case .disconnected: .app("프로젝트 현황 · 연결 끊김 · 다시 시도")
+        }
+        guard let lastRefreshedAt else { return scope }
+        return scope + "\n" + String.app("마지막 갱신 \(TimeText.clockSeconds(lastRefreshedAt))")
     }
 }

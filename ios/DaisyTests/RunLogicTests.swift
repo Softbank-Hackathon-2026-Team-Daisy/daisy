@@ -19,7 +19,8 @@ struct RunLogicTests {
         ("partially_succeeded", [F.target("tgt_aws", state: "succeeded", step: "health_check", stepState: "done"),
                                  F.target("tgt_gcp", state: "failed", step: "health_check", stepState: "failed")], .result),
         ("cancelled", [F.target("tgt_aws", state: "cancelled", step: "plan", stepState: "done")], .result),
-        ("rolling_back", [F.target("tgt_aws", step: "apply", stepState: "running")], .result),   // 모르는 값 → 결과 화면
+        // 모르는 값 → "상태를 확인할 수 없어요" (진행 중으로도 결과로도 보지 않아요, 10/3 검수 D1)
+        ("rolling_back", [F.target("tgt_aws", step: "apply", stepState: "running")], .unknown),
     ])
     func stageForState(state: String, targets: [String], expected: RunStage) throws {
         #expect(RunStage(try F.deployment(state, targets: targets)) == expected)

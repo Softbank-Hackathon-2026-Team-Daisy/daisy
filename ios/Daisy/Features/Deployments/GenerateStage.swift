@@ -10,6 +10,8 @@ struct GenerateStage: View {
     @Environment(Workspace.self) private var workspace
     @State private var selectedTarget: String?
     @State private var script: ScriptState = .loading
+    /// 지금 스크립트 칸이 보여주는 환경 · 시도 (D10)
+    @State private var scriptIdentity: String?
 
     private var targets: [Deployment.Target] { deployment.targets ?? [] }
     private static let busy: Set<TargetState> = [.waiting, .generating, .validating]
@@ -64,7 +66,11 @@ struct GenerateStage: View {
         }
         // 환경 · 시도 · 단계가 바뀌면 다시 받고, 아직 파일이 없으면 5초마다 다시 물어봐요 (웹은 탭마다 받아요, 앱은 생성 직후도 따라가요)
         .task(id: scriptKey) {
-            if script.targetID != current?.targetId { script = .loading }
+            // 환경이나 시도가 바뀌면 이전 코드를 지워요. 다음 시도 스크립트를 못 받았을 때 이전 회차 코드가 새 회차처럼 보였어요 (D10)
+            if scriptIdentity != current.map(Self.identity) {
+                script = .loading
+                scriptIdentity = current.map(Self.identity)
+            }
             await poll(until: { script.hasFiles }) { await loadScript() }
         }
     }
@@ -79,6 +85,9 @@ struct GenerateStage: View {
     private func isFixing(_ target: Deployment.Target) -> Bool {
         !target.isApprovedWaiting && [.validating, .unknown].contains(target.resolvedState)
     }
+
+    /// 스크립트 칸의 주인: 환경 + 시도. 이게 바뀌면 이전 코드는 다른 회차예요
+    static func identity(_ target: Deployment.Target) -> String { "\(target.targetId)-\(target.attempt)" }
 
     /// 스크립트를 다시 받을 때: 환경 · 시도 · 단계 · 단계 상태가 바뀌면
     private var scriptKey: String {
@@ -120,12 +129,17 @@ struct GenerateStage: View {
     private func loadScript() async {
         guard let client = app.client, let target = current else { return }
         do {
-            script = .loaded(try await client.send(.deploymentScript(deploymentID: deployment.id, targetID: target.targetId)))
+            let loaded = try await client.send(.deploymentScript(deploymentID: deployment.id, targetID: target.targetId))
+            // 기다리는 동안 환경 · 시도가 바뀌었으면 늦게 온 응답은 버려요
+            guard !Task.isCancelled, scriptIdentity == Self.identity(target) else { return }
+            script = .loaded(loaded)
         } catch APIError.server(404, _, _, _) {
             // 아직 생성 전이에요. 계속 기다려요
             script = .notYet(target.targetId)
         } catch {
-            // 이미 보여주던 코드가 있으면 그대로 두고, 없을 때만 오류를 보여줘요
+            if Task.isCancelled { return }
+            app.handle(error)
+            // 같은 회차의 코드를 이미 보여주고 있으면 그대로 두고, 없을 때만 오류를 보여줘요 (회차가 바뀌면 `.loading`부터예요)
             if !script.hasFiles || script.targetID != target.targetId {
                 script = .failed(target.targetId, error.localizedDescription)
             }

@@ -84,6 +84,11 @@ final class LiveChannel {
         }
     }
 
+    /// 계정이 바뀌면(로그아웃 · 다른 계정) 이어 받을 seq를 버려요. 다음 연결은 처음부터예요
+    func forgetCursor() {
+        (cursor, cursorPath) = (nil, nil)
+    }
+
     private func setLive(_ live: Bool) {
         guard live != isLive else { return }
         isLive = live
@@ -123,6 +128,17 @@ enum PollInterval {
 
     static func seconds(live: Bool, active: Bool = false) -> Double {
         live ? whileLive : active ? whileActive : normal
+    }
+
+    /// 프로젝트 채널이 붙어 있어도 진행 중이면 이 간격으로 다시 읽어요
+    static let projectWhileLiveActive: Double = 5
+
+    /// 프로젝트 채널(E-02)로 갱신하는 화면(사이드바 · 개요 · 배포 목록)의 간격. 이 채널에는 `build.received` ·
+    /// `deployment.created` · `target.status_changed`만 와서 승인 · 거절 · 만료 · 배포 상태 변화는 오지 않아요 (S2 · O2).
+    /// 그래서 진행 중(승인 대기 포함)인 배포가 있으면 SSE가 붙어 있어도 5초, 끊기면 2초. 그 밖에는 `seconds(live:)`와 같아요
+    static func project(live: Bool, active: Bool) -> Double {
+        guard active else { return seconds(live: live) }
+        return live ? projectWhileLiveActive : whileActive
     }
 }
 
